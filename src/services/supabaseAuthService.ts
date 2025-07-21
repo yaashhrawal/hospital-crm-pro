@@ -82,34 +82,41 @@ class SupabaseAuthService {
           .single();
 
         if (profileError) {
-          // Create profile if it doesn't exist (fallback for admin@hospital.com)
-          if (email === 'admin@hospital.com') {
-            const { error: createError } = await supabase
-              .from('users')
-              .insert({
-                id: data.user.id,
-                email: data.user.email!,
-                first_name: 'Admin',
-                last_name: 'User',
-                role: 'ADMIN',
-                is_active: true,
-              });
+          // Create profile for any authenticated user
+          console.log('Creating user profile for:', email);
+          
+          // Determine user role and details
+          const isAdmin = email === 'admin@hospital.com';
+          const userProfile = {
+            id: data.user.id,
+            email: data.user.email!,
+            first_name: isAdmin ? 'Admin' : data.user.user_metadata?.first_name || 'User',
+            last_name: isAdmin ? 'User' : data.user.user_metadata?.last_name || 'Staff',
+            role: isAdmin ? 'ADMIN' : 'STAFF',
+            is_active: true,
+          };
+          
+          const { error: createError } = await supabase
+            .from('users')
+            .insert(userProfile);
 
-            if (!createError) {
-              return {
-                user: {
-                  id: data.user.id,
-                  email: data.user.email!,
-                  first_name: 'Admin',
-                  last_name: 'User',
-                  role: 'ADMIN',
-                  is_active: true,
-                },
-                error: null
-              };
-            }
+          if (!createError) {
+            console.log('User profile created successfully');
+            return {
+              user: {
+                id: userProfile.id,
+                email: userProfile.email,
+                first_name: userProfile.first_name,
+                last_name: userProfile.last_name,
+                role: userProfile.role as 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF',
+                is_active: userProfile.is_active,
+              },
+              error: null
+            };
+          } else {
+            console.error('Error creating user profile:', createError);
+            throw createError;
           }
-          throw profileError;
         }
 
         return {

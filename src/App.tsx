@@ -838,7 +838,7 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
           🏥 Hospital CRM Login
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Complete Hospital Management System (LocalStorage Mode)
+          Complete Hospital Management System
         </p>
       </div>
 
@@ -894,14 +894,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Check if user is already logged in
-    try {
-      const currentUser = dataService.getCurrentUser();
-      if (currentUser) {
-        setIsLoggedIn(true);
+    const checkAuth = async () => {
+      try {
+        const currentUser = await dataService.getCurrentUser();
+        if (currentUser) {
+          setIsLoggedIn(true);
+        }
+      } catch (error) {
+        console.log('Authentication check handled');
       }
-    } catch (error) {
-      console.log('DataService initialization handled');
-    }
+    };
+    checkAuth();
   }, []);
 
   const handleLogin = () => {
@@ -936,7 +939,7 @@ const App: React.FC = () => {
           <div className="flex justify-between items-center py-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">🏥 Hospital CRM</h1>
-              <p className="text-sm text-gray-500">Complete Management System (LocalStorage Mode)</p>
+              <p className="text-sm text-gray-500">Complete Management System - Supabase Backend</p>
             </div>
             <button
               onClick={handleLogout}

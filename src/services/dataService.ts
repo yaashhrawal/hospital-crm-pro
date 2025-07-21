@@ -9,13 +9,14 @@ class DataService {
   private useLocalFallback: boolean = false;
   
   constructor() {
-    // Check if we should use local storage fallback
-    this.useLocalFallback = import.meta.env.VITE_ENABLE_LOCAL_STORAGE_FALLBACK === 'true';
-    
-    if (this.useLocalFallback) {
-      console.warn('🔄 Using LocalStorage fallback mode due to Supabase connection issues');
-      localStorageService.initializeDefaultData();
-    }
+    // Force Supabase mode - no LocalStorage fallback
+    this.useLocalFallback = false;
+    console.log('✅ DataService initialized in Supabase mode');
+    console.log('Environment:', {
+      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? 'CONFIGURED' : 'MISSING',
+      SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'CONFIGURED' : 'MISSING',
+      LOCAL_FALLBACK: import.meta.env.VITE_ENABLE_LOCAL_STORAGE_FALLBACK
+    });
   }
 
   // Test Supabase connection
@@ -47,13 +48,19 @@ class DataService {
     }
   }
 
-  // Authentication Methods
+  // Authentication Methods - Supabase Direct
   async login(email: string, password: string): Promise<User | null> {
-    return this.withFallback(
-      async () => {
-        const { user, error } = await supabaseAuthService.signIn(email, password);
-        if (error) throw error;
-        return user ? {
+    console.log('🔐 Attempting Supabase login for:', email);
+    try {
+      const { user, error } = await supabaseAuthService.signIn(email, password);
+      if (error) {
+        console.error('❌ Supabase login error:', error);
+        throw error;
+      }
+      
+      if (user) {
+        console.log('✅ Supabase login successful:', user.email);
+        return {
           id: user.id || '',
           email: user.email || email,
           password: '',
@@ -62,19 +69,39 @@ class DataService {
           role: (user.role as 'admin' | 'doctor' | 'staff') || 'staff',
           is_active: user.is_active ?? true,
           created_at: new Date().toISOString()
-        } as User : null;
-      },
-      () => localStorageService.login(email, password)
-    );
+        } as User;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('🚨 Authentication failed:', error);
+      throw error;
+    }
   }
 
-  getCurrentUser(): User | null {
-    if (this.useLocalFallback) {
-      return localStorageService.getCurrentUser();
+  async getCurrentUser(): Promise<User | null> {
+    console.log('🔍 Getting current Supabase user...');
+    try {
+      const user = await supabaseAuthService.getCurrentUser();
+      if (user) {
+        console.log('✅ Current user found:', user.email);
+        return {
+          id: user.id,
+          email: user.email,
+          password: '',
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: (user.role as 'admin' | 'doctor' | 'staff'),
+          is_active: user.is_active,
+          created_at: new Date().toISOString()
+        } as User;
+      }
+      console.log('⚠️ No current user found');
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting current user:', error);
+      return null;
     }
-    
-    // For now, return local storage user as supabase session handling needs more setup
-    return localStorageService.getCurrentUser();
   }
 
   async logout(): Promise<void> {

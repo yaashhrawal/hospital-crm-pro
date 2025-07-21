@@ -102,7 +102,7 @@ class AuthService {
     try {
       console.log('🔧 [AuthService] Getting current user session...');
       
-      const user = dataService.getCurrentUser();
+      const user = await dataService.getCurrentUser();
       
       if (!user) {
         console.log('🔧 [AuthService] No user found');

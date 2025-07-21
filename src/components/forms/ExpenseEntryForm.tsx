@@ -102,7 +102,7 @@ const ExpenseEntryForm: React.FC<ExpenseEntryFormProps> = ({
   const onSubmit = async (data: ExpenseFormData) => {
     setLoading(true);
     try {
-      const currentUser = dataService.getCurrentUser();
+      const currentUser = await dataService.getCurrentUser();
       
       const expenseData = {
         ...data,
