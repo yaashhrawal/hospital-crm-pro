@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode production",
+    "build": "vite build",
+    "build:typecheck": "tsc -b && vite build --mode production",
     "build:vercel": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

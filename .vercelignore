@@ -1,0 +1,17 @@
+# TypeScript config files (skip type checking)
+tsconfig.json
+tsconfig.*.json
+
+# Source maps and development files
+*.map
+.env.local
+.env.development
+
+# Cache and temporary files
+node_modules/.cache
+.vite
+.turbo
+
+# Documentation and non-essential files
+*.md
+!README.md
