@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import dataService from './services/dataService';
 import SupabaseTestComponent from './components/SupabaseTestComponent';
+import FlexiblePatientEntry from './components/FlexiblePatientEntry';
+import PatientListView from './components/PatientListView';
+import AppointmentManagement from './components/AppointmentManagement';
 import type { Patient, PatientTransaction, DailyExpense, Gender, PaymentMode } from './types/index';
 
 // Simple Patient Entry Form
@@ -891,7 +894,7 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
 // Main App Component
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState('patient-entry');
+  const [activeTab, setActiveTab] = useState('flexible-entry');
 
   useEffect(() => {
     // Check if user is already logged in
@@ -915,7 +918,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     dataService.logout();
     setIsLoggedIn(false);
-    setActiveTab('patient-entry');
+    setActiveTab('flexible-entry');
     toast.success('Logged out successfully');
   };
 
@@ -924,14 +927,17 @@ const App: React.FC = () => {
   }
 
   const tabs = [
-    { id: 'patient-entry', name: '👤 Patient Entry', component: SimplePatientEntry },
+    { id: 'flexible-entry', name: '➕ Quick Patient Entry', component: FlexiblePatientEntry },
+    { id: 'patient-list', name: '👥 Patient Management', component: PatientListView },
+    { id: 'appointments', name: '📅 Appointments', component: AppointmentManagement },
     { id: 'daily-operations', name: '📊 Daily Operations', component: SimpleDailyOperations },
     { id: 'expense-entry', name: '💸 Expense Entry', component: SimpleExpenseEntry },
     { id: 'refund-entry', name: '💰 Refund Entry', component: SimpleRefundEntry },
+    { id: 'legacy-entry', name: '📋 Legacy Entry', component: SimplePatientEntry },
     { id: 'supabase-test', name: '🧪 Database Test', component: SupabaseTestComponent },
   ];
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || SimplePatientEntry;
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || FlexiblePatientEntry;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -941,7 +947,7 @@ const App: React.FC = () => {
           <div className="flex justify-between items-center py-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">🏥 Hospital CRM</h1>
-              <p className="text-sm text-gray-500">Complete Management System - Supabase Backend</p>
+              <p className="text-sm text-gray-500">Advanced Patient Management & Appointments - Supabase Backend</p>
             </div>
             <button
               onClick={handleLogout}
