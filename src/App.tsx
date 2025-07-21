@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import dataService from './services/dataService';
+import SupabaseTestComponent from './components/SupabaseTestComponent';
 import type { Patient, PatientTransaction, DailyExpense, Gender, PaymentMode } from './types/index';
 
 // Simple Patient Entry Form
@@ -927,6 +928,7 @@ const App: React.FC = () => {
     { id: 'daily-operations', name: '📊 Daily Operations', component: SimpleDailyOperations },
     { id: 'expense-entry', name: '💸 Expense Entry', component: SimpleExpenseEntry },
     { id: 'refund-entry', name: '💰 Refund Entry', component: SimpleRefundEntry },
+    { id: 'supabase-test', name: '🧪 Database Test', component: SupabaseTestComponent },
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || SimplePatientEntry;
