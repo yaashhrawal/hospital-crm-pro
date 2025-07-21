@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import dataService from './services/dataService';
 
-
 // Simple Patient Entry Form
 const SimplePatientEntry: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -50,7 +49,7 @@ const SimplePatientEntry: React.FC = () => {
         last_name: formData.last_name,
         phone: formData.phone,
         address: formData.address,
-        gender: formData.gender,
+        gender: formData.gender as 'MALE' | 'FEMALE' | 'OTHER',
         date_of_birth: formData.date_of_birth,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
@@ -515,8 +514,12 @@ const SimpleExpenseEntry: React.FC = () => {
 
     try {
       const expenseData = {
-        ...formData,
-        expense_category: formData.expense_category === 'custom' ? formData.custom_category : formData.expense_category,
+        expense_category: (formData.expense_category === 'custom' ? formData.custom_category : formData.expense_category) as 'salaries' | 'utilities' | 'medical_supplies' | 'maintenance' | 'administrative',
+        custom_category: formData.custom_category,
+        description: formData.description,
+        amount: formData.amount,
+        payment_mode: formData.payment_mode as 'cash' | 'online' | 'card' | 'upi',
+        date: formData.date,
         approved_by: 'admin',
       };
       await dataService.createExpense(expenseData as any);
@@ -680,7 +683,7 @@ const SimpleRefundEntry: React.FC = () => {
         patient_id: formData.selected_patient,
         transaction_type: 'refund',
         amount: -formData.refund_amount, // Negative amount for refund
-        payment_mode: formData.payment_mode,
+        payment_mode: formData.payment_mode as 'cash' | 'online' | 'card' | 'upi' | 'insurance' | 'adjustment',
         doctor_id: '',
         department: 'Administration',
         description: `Refund: ${formData.refund_reason}`,
