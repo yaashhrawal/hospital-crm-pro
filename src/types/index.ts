@@ -81,19 +81,31 @@ export interface BillItem {
 export interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  first_name?: string;
+  last_name?: string;
   role: 'admin' | 'doctor' | 'staff';
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  isActive?: boolean;
+  is_active?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+  created_at?: Date;
+  updated_at?: Date;
+  [key: string]: any;
 }
 
 export interface DashboardStats {
   totalPatients: number;
+  totalDoctors: number;
   todayAppointments: number;
   pendingBills: number;
   monthlyRevenue: number;
+  todayRevenue: number;
+  todayExpenses: number;
+  netRevenue: number;
+  revenue: number;
+  count: number;
   appointmentsByStatus: {
     scheduled: number;
     completed: number;
@@ -103,11 +115,13 @@ export interface DashboardStats {
     month: string;
     revenue: number;
   }[];
+  [key: string]: any;
 }
 
 export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
+  success?: boolean;
+  data: T | null;
+  error?: any;
   message?: string;
   errors?: string[];
 }

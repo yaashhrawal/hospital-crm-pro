@@ -1,14 +1,16 @@
 // Supabase Authentication Service for Hospital CRM
 import { supabase } from '../config/supabase';
-import type { User } from './localStorageService';
+import type { User, AuthUser as ImportedAuthUser } from '../types/index';
+import type { AuthUser as DatabaseAuthUser } from '../types/api';
 
 export interface AuthUser {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
-  role: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF';
+  role: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF' | 'admin' | 'doctor' | 'staff';
   is_active: boolean;
+  [key: string]: any;
 }
 
 class SupabaseAuthService {

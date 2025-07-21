@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import type { DashboardStats, ChartData } from '../config/supabase';
+import type { HospitalStats, RevenueBreakdown, DashboardMetrics, PaymentModeBreakdown, TransactionBreakdown } from '../types/api';
 
 export interface KPIMetrics {
   patientGrowthRate: number;
@@ -31,7 +32,7 @@ class DashboardService {
   /**
    * Get dashboard statistics
    */
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getDashboardStats(): Promise<HospitalStats> {
     try {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -144,11 +145,16 @@ class DashboardService {
         todayAppointments: todayAppointments || 0,
         pendingBills: pendingBills || 0,
         monthlyRevenue,
+        todayRevenue: monthlyRevenue,
+        todayExpenses: 0,
+        netRevenue: monthlyRevenue,
+        revenue: monthlyRevenue,
+        count: totalPatients || 0,
         patientGrowthRate: Math.round(patientGrowthRate * 100) / 100,
         appointmentCompletionRate: Math.round(appointmentCompletionRate * 100) / 100,
         averageWaitTime: Math.round(averageWaitTime * 100) / 100,
         revenueGrowthRate: Math.round(revenueGrowthRate * 100) / 100,
-      };
+      } as HospitalStats;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       throw error;
@@ -228,7 +234,7 @@ class DashboardService {
         appointmentsByStatus,
         appointmentsByType,
         revenueByPaymentMethod,
-      };
+      } as any;
     } catch (error) {
       console.error('Error fetching chart data:', error);
       throw error;

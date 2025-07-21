@@ -2,7 +2,8 @@
 import { supabase } from '../config/supabase';
 import localStorageService from './localStorageService';
 import supabaseAuthService from './supabaseAuthService';
-import type { Patient, Doctor, Department, PatientTransaction, PatientAdmission, DailyExpense, User } from './localStorageService';
+import type { Patient, Doctor, Department, PatientTransaction, PatientAdmission, DailyExpense } from './localStorageService';
+import type { User, ApiResponse } from '../types/index';
 
 class DataService {
   private useLocalFallback: boolean = false;
@@ -53,13 +54,13 @@ class DataService {
         const { user, error } = await supabaseAuthService.signIn(email, password);
         if (error) throw error;
         return user ? {
-          id: user.id,
-          email: user.email,
+          id: user.id || '',
+          email: user.email || email,
           password: '',
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role: user.role,
-          is_active: user.is_active,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          role: (user.role as 'admin' | 'doctor' | 'staff') || 'staff',
+          is_active: user.is_active ?? true,
           created_at: new Date().toISOString()
         } as User : null;
       },
