@@ -2,19 +2,27 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { appointmentService } from '../services/appointmentService';
 import { queryKeys, createMutationOptions, useRealtimeSubscription } from '../config/reactQuery';
-import type { 
-  AppointmentWithRelations, 
-  CreateAppointmentData, 
-  AppointmentListParams,
-  UpdateAppointmentData 
-} from '../services/appointmentService';
+import type {
+  AppointmentWithRelations,
+  CreateAppointmentData,
+  UpdateAppointmentData,
+} from '../types/index';
+
+interface AppointmentListParams {
+  search?: string;
+  doctor?: string;
+  status?: string;
+  date?: string;
+  page?: number;
+  limit?: number;
+}
 
 // Query hooks
 export const useAppointments = (params: AppointmentListParams = {}) => {
   return useQuery({
     queryKey: queryKeys.appointments(params),
     queryFn: () => appointmentService.getAppointments(params),
-    keepPreviousData: true,
+    // keepPreviousData: true, // Deprecated in React Query v5
   });
 };
 
@@ -60,7 +68,7 @@ export const useCreateAppointment = () => {
       (data: CreateAppointmentData) => appointmentService.createAppointment(data),
       {
         onSuccess: () => {
-          queryClient.invalidateQueries(queryKeys.appointments());
+          queryClient.invalidateQueries({ queryKey: queryKeys.appointments() });
           queryClient.invalidateQueries(queryKeys.todayAppointments);
           queryClient.invalidateQueries(queryKeys.appointmentStats);
         },
@@ -105,7 +113,7 @@ export const useUpdateAppointment = () => {
           queryClient.setQueryData(queryKeys.appointment(variables.id), data);
           
           // Invalidate appointment lists
-          queryClient.invalidateQueries(queryKeys.appointments());
+          queryClient.invalidateQueries({ queryKey: queryKeys.appointments() });
           queryClient.invalidateQueries(queryKeys.todayAppointments);
           queryClient.invalidateQueries(queryKeys.appointmentStats);
         },
@@ -136,7 +144,7 @@ export const useCancelAppointment = () => {
             return { ...oldData, status: 'CANCELLED' };
           });
           
-          queryClient.invalidateQueries(queryKeys.appointments());
+          queryClient.invalidateQueries({ queryKey: queryKeys.appointments() });
           queryClient.invalidateQueries(queryKeys.todayAppointments);
           queryClient.invalidateQueries(queryKeys.appointmentStats);
         },

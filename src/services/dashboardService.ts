@@ -37,7 +37,7 @@ class DashboardService {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      // const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1); // Unused
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -106,11 +106,11 @@ class DashboardService {
       const lastMonthRevenue = lastMonthRevenueResult.data?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
 
       // Calculate growth rates
-      const patientGrowthRate = lastMonthPatients 
+      const patientGrowthRate = (lastMonthPatients && currentMonthPatients) 
         ? ((currentMonthPatients - lastMonthPatients) / lastMonthPatients) * 100 
         : 0;
 
-      const appointmentCompletionRate = totalAppointments 
+      const appointmentCompletionRate = (totalAppointments && completedAppointments) 
         ? (completedAppointments / totalAppointments) * 100 
         : 0;
 
@@ -445,7 +445,7 @@ class DashboardService {
     data: any[], 
     dateField: string, 
     valueField?: string
-  ): Array<{ month: string; [key: string]: any }> {
+  ): Array<{ month: string; revenue: number; count: number; [key: string]: any }> {
     const groupedData: Record<string, any> = {};
 
     data.forEach((item) => {

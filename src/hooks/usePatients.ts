@@ -2,14 +2,25 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { patientService } from '../services/patientService';
 import { queryKeys, createMutationOptions, useRealtimeSubscription } from '../config/reactQuery';
-import type { PatientWithRelations, CreatePatientData, PatientListParams } from '../config/supabase';
+import type { PatientWithRelations, PatientListParams } from '../types/index';
+
+interface CreatePatientData {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string;
+  date_of_birth: string;
+  gender: string;
+  address: string;
+  [key: string]: any;
+}
 
 // Query hooks
 export const usePatients = (params: PatientListParams = {}) => {
   return useQuery({
     queryKey: queryKeys.patients(params),
     queryFn: () => patientService.getPatients(params),
-    keepPreviousData: true,
+    // keepPreviousData: true, // Deprecated in React Query v5
   });
 };
 

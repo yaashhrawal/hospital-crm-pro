@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import dataService from './services/dataService';
+import type { Patient, PatientTransaction, DailyExpense, Gender, PaymentMode } from './types/index';
 
 // Simple Patient Entry Form
 const SimplePatientEntry: React.FC = () => {
@@ -443,8 +444,9 @@ const SimpleDailyOperations: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {Object.entries(patientTransactions).map(([patientId, ptransactions]) => {
-              const patient = patients.find(p => p.id === patientId);
-              const patientTotal = (ptransactions as any[]).reduce((sum: number, t: any) => sum + t.amount, 0);
+              const patient = patients.find((p: Patient) => p.id === patientId);
+              const transactionsArray = Array.isArray(ptransactions) ? ptransactions as PatientTransaction[] : [];
+              const patientTotal = transactionsArray.reduce((sum: number, t: PatientTransaction) => sum + t.amount, 0);
               
               return (
                 <div key={patientId} className="border border-gray-200 rounded-lg p-4">
@@ -455,7 +457,7 @@ const SimpleDailyOperations: React.FC = () => {
                     <span className="font-bold text-green-600">₹{patientTotal}</span>
                   </div>
                   <div className="space-y-1">
-                    {(ptransactions as any[]).map((transaction: any) => (
+                    {transactionsArray.map((transaction: PatientTransaction) => (
                       <div key={transaction.id} className="flex justify-between text-sm">
                         <span className={transaction.amount < 0 ? 'text-red-600' : ''}>
                           {transaction.description}
@@ -518,11 +520,11 @@ const SimpleExpenseEntry: React.FC = () => {
         custom_category: formData.custom_category,
         description: formData.description,
         amount: formData.amount,
-        payment_mode: formData.payment_mode as 'cash' | 'online' | 'card' | 'upi',
+        payment_mode: formData.payment_mode as PaymentMode,
         date: formData.date,
         approved_by: 'admin',
       };
-      await dataService.createExpense(expenseData as any);
+      await dataService.createExpense(expenseData as Omit<DailyExpense, 'id'>);
       toast.success(`Expense of ₹${formData.amount} recorded successfully`);
       setFormData({
         ...formData,

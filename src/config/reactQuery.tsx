@@ -80,19 +80,19 @@ export const queryKeys = {
 // Generic hooks
 export const useInvalidateQueries = () => {
   const queryClient = useQueryClient();
-  return (queryKey: any[]) => queryClient.invalidateQueries(queryKey);
+  return (queryKey: any) => queryClient.invalidateQueries({ queryKey });
 };
 
 export const useOptimisticUpdate = () => {
   const queryClient = useQueryClient();
   
   return <T,>(
-    queryKey: any[],
-    updater: (oldData: T) => T,
+    queryKey: any,
+    updater: (oldData: T | undefined) => T | undefined,
     rollbackData?: T
   ) => {
     // Cancel any outgoing refetches
-    queryClient.cancelQueries(queryKey);
+    queryClient.cancelQueries({ queryKey });
     
     // Snapshot the previous value
     const previousData = queryClient.getQueryData<T>(queryKey);
@@ -117,9 +117,9 @@ export const createMutationOptions = <TData, TVariables>(
   options?: {
     onSuccess?: (data: TData, variables: TVariables) => void;
     onError?: (error: any, variables: TVariables) => void;
-    invalidateQueries?: any[][];
+    invalidateQueries?: any[];
     optimisticUpdate?: {
-      queryKey: any[];
+      queryKey: any;
       updater: (oldData: any, variables: TVariables) => any;
     };
   }
@@ -133,7 +133,7 @@ export const createMutationOptions = <TData, TVariables>(
         const { queryKey, updater } = options.optimisticUpdate;
         
         // Cancel any outgoing refetches
-        await queryClient.cancelQueries(queryKey);
+        await queryClient.cancelQueries({ queryKey });
         
         // Snapshot the previous value
         const previousData = queryClient.getQueryData(queryKey);
@@ -142,6 +142,7 @@ export const createMutationOptions = <TData, TVariables>(
         queryClient.setQueryData(queryKey, (oldData: any) => updater(oldData, variables));
         
         // Return a context object with the snapshotted value
+        return { previousData };
         return { previousData };
       }
     },
@@ -160,7 +161,7 @@ export const createMutationOptions = <TData, TVariables>(
       // Always refetch after error or success
       if (options?.invalidateQueries) {
         options.invalidateQueries.forEach(queryKey => {
-          queryClient.invalidateQueries(queryKey);
+          queryClient.invalidateQueries({ queryKey });
         });
       }
     },
@@ -200,11 +201,11 @@ export class QueryErrorBoundary extends React.Component<
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error) {
+  static override getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Query Error Boundary caught an error:', error, errorInfo);
   }
 
