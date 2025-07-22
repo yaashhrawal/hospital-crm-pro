@@ -5,12 +5,34 @@ import { supabase } from '../config/supabaseNew';
 import type { CreatePatientData } from '../config/supabaseNew';
 
 const SimplePatientEntry: React.FC = () => {
+  // Helper function to calculate date of birth from age
+  const calculateDOBFromAge = (age: string): string => {
+    if (!age || isNaN(Number(age))) return '';
+    const ageNum = Number(age);
+    const today = new Date();
+    const birthYear = today.getFullYear() - ageNum;
+    return `${birthYear}-01-01`; // Default to January 1st
+  };
+
+  // Helper function to calculate age from date of birth
+  const calculateAgeFromDOB = (dob: string): string => {
+    if (!dob) return '';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age.toString();
+  };
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     phone: '',
     email: '',
     date_of_birth: '',
+    age: '',
     gender: 'MALE',
     address: '',
     emergency_contact_name: '',
@@ -171,6 +193,7 @@ const SimplePatientEntry: React.FC = () => {
         phone: '',
         email: '',
         date_of_birth: '',
+        age: '',
         gender: 'MALE',
         address: '',
         emergency_contact_name: '',
@@ -262,6 +285,26 @@ const SimplePatientEntry: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Enter phone number"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+              <input
+                type="number"
+                value={formData.age}
+                onChange={(e) => {
+                  const newAge = e.target.value;
+                  setFormData({ 
+                    ...formData, 
+                    age: newAge,
+                    date_of_birth: newAge ? calculateDOBFromAge(newAge) : formData.date_of_birth
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter age"
+                min="0"
+                max="150"
               />
             </div>
 
@@ -493,7 +536,14 @@ const SimplePatientEntry: React.FC = () => {
               <input
                 type="date"
                 value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                onChange={(e) => {
+                  const newDOB = e.target.value;
+                  setFormData({ 
+                    ...formData, 
+                    date_of_birth: newDOB,
+                    age: newDOB ? calculateAgeFromDOB(newDOB) : formData.age
+                  });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
