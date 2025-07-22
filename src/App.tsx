@@ -9,6 +9,7 @@ import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
 import AuthDebugger from './components/AuthDebugger';
+import TransactionTypeTester from './components/TransactionTypeTester';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -238,6 +239,12 @@ const App: React.FC = () => {
       name: '🔍 Auth Debug', 
       component: AuthDebugger,
       description: 'Debug authentication issues' 
+    },
+    { 
+      id: 'transaction-test', 
+      name: '🧪 Transaction Test', 
+      component: TransactionTypeTester,
+      description: 'Test transaction types to fix constraint errors' 
     },
   ];
 
