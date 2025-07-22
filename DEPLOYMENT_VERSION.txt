@@ -1,0 +1,11 @@
+Deployment Version: 2.0.1
+Last Updated: 2025-07-22 07:51:00 UTC
+
+Recent Changes:
+- Added age field to patient registration
+- Added age/DOB validation with error messages
+- Added payment mode selection (Cash/Online)
+- Fixed all transaction and expense constraints
+- Cleared all patient data for fresh start
+
+Build Timestamp: 1753168260
