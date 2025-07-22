@@ -4,7 +4,6 @@ import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
 
 // Import new components
-import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
@@ -222,15 +221,9 @@ const App: React.FC = () => {
     },
     { 
       id: 'patient-entry', 
-      name: '👤 New Patient (Simple)', 
+      name: '👤 New Patient', 
       component: SimplePatientEntry,
-      description: 'Register patients without transactions (to avoid constraint errors)' 
-    },
-    { 
-      id: 'patient-entry-full', 
-      name: '👤 New Patient (Full)', 
-      component: NewFlexiblePatientEntry,
-      description: 'Register patients with transactions (may have constraint errors)' 
+      description: 'Register patients with integrated financial tracking' 
     },
     { 
       id: 'patient-list', 

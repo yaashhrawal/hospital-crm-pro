@@ -85,13 +85,39 @@ const NewFlexiblePatientEntry: React.FC = () => {
       // Create transactions if amounts specified
       const transactions = [];
 
-      // Skip transaction creation temporarily to avoid constraint errors
-      console.log('⚠️ Skipping transaction creation due to constraint issues');
-      console.log('Planned transactions:', {
-        entry_fee: formData.entry_fee,
-        consultation_fee: formData.consultation_fee,
-        discount_amount: formData.discount_amount
-      });
+      // Create transactions for fees
+      if (formData.entry_fee > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
+          description: `Entry Fee - Patient Registration`,
+          amount: formData.entry_fee,
+          payment_mode: 'CASH',
+          status: 'COMPLETED'
+        });
+      }
+
+      if (formData.consultation_fee > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'CONSULTATION', 
+          description: `Consultation Fee - Doctor Visit`,
+          amount: formData.consultation_fee,
+          payment_mode: 'CASH',
+          status: 'COMPLETED'
+        });
+      }
+
+      if (formData.discount_amount > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'PROCEDURE', // Use PROCEDURE with negative amount for discounts
+          description: `Discount Applied`,
+          amount: -formData.discount_amount,
+          payment_mode: 'CASH', 
+          status: 'COMPLETED'
+        });
+      }
 
       // Create all transactions
       for (const transactionData of transactions) {

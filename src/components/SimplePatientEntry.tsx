@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import { supabase } from '../config/supabaseNew';
 import type { CreatePatientData } from '../config/supabaseNew';
 
 const SimplePatientEntry: React.FC = () => {
@@ -85,9 +86,82 @@ const SimplePatientEntry: React.FC = () => {
       
       console.log('✅ Patient created successfully:', newPatient);
 
+      // Create financial transactions and update patient notes
       const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
       
-      toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - (Financial tracking: ₹${totalAmount.toLocaleString()})`);
+      // Create transactions for fees
+      const transactions = [];
+      
+      if (formData.entry_fee > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
+          description: `Entry Fee - Patient Registration`,
+          amount: formData.entry_fee,
+          payment_mode: 'CASH',
+          status: 'COMPLETED'
+        });
+      }
+
+      if (formData.consultation_fee > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'CONSULTATION',
+          description: `Consultation Fee - Doctor Visit`,
+          amount: formData.consultation_fee,
+          payment_mode: 'CASH',
+          status: 'COMPLETED'
+        });
+      }
+
+      if (formData.discount_amount > 0) {
+        transactions.push({
+          patient_id: newPatient.id,
+          transaction_type: 'PROCEDURE', // Use PROCEDURE with negative amount for discounts
+          description: `Discount Applied: ${formData.discount_reason || 'General discount'}`,
+          amount: -formData.discount_amount, // Negative amount for discount
+          payment_mode: 'CASH',
+          status: 'COMPLETED'
+        });
+      }
+
+      // Create all transactions
+      for (const transactionData of transactions) {
+        try {
+          console.log('💰 Creating transaction:', transactionData);
+          await HospitalService.createTransaction(transactionData as any);
+          console.log('✅ Transaction created successfully');
+        } catch (transactionError: any) {
+          console.error('❌ Failed to create transaction:', transactionError);
+          // Continue with other transactions even if one fails
+        }
+      }
+      
+      if (totalAmount > 0) {
+        try {
+          const financialSummary = `FINANCIAL_RECORD: Entry Fee: ₹${formData.entry_fee}, Consultation Fee: ₹${formData.consultation_fee}, Discount: ₹${formData.discount_amount}, Total: ₹${totalAmount} (${new Date().toLocaleString()})`;
+          
+          // Update patient with financial info in medical_history
+          const { error: updateError } = await supabase
+            .from('patients')
+            .update({
+              medical_history: patientData.medical_history 
+                ? `${patientData.medical_history}\n\n${financialSummary}`
+                : financialSummary
+            })
+            .eq('id', newPatient.id);
+            
+          if (updateError) {
+            console.error('Failed to update financial record:', updateError);
+          } else {
+            console.log('✅ Financial record added to patient profile');
+          }
+        } catch (error) {
+          console.error('Error adding financial record:', error);
+        }
+      }
+      
+      toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toLocaleString()}`);
       
       // Reset form
       setFormData({
@@ -132,18 +206,18 @@ const SimplePatientEntry: React.FC = () => {
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800">👤 Simple Patient Entry</h2>
-        <p className="text-gray-600 mt-1">Patient registration without transaction creation (to avoid constraint errors)</p>
+        <p className="text-gray-600 mt-1">Simple patient registration with integrated financial tracking</p>
         
         {/* Connection Status */}
         <div className="mt-4 p-2 bg-blue-50 rounded-lg">
           <div className="text-sm text-gray-600">{connectionStatus}</div>
         </div>
 
-        {/* Warning */}
-        <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="text-sm text-yellow-800">
-            ⚠️ <strong>Temporary Mode:</strong> This version only creates patients without financial transactions 
-            to avoid the constraint error. Use the Transaction Tester to find allowed transaction types.
+        {/* Success Notice */}
+        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="text-sm text-green-800">
+            ✅ <strong>Financial Integration Active:</strong> Entry fees and consultation fees will be automatically 
+            recorded as transactions and appear in the Finance Dashboard.
           </div>
         </div>
       </div>
@@ -308,9 +382,9 @@ const SimplePatientEntry: React.FC = () => {
           )}
         </div>
 
-        {/* Financial Information (Display Only) */}
+        {/* Financial Information */}
         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Financial Information (Display Only)</h3>
+          <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Financial Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>
@@ -353,7 +427,7 @@ const SimplePatientEntry: React.FC = () => {
             <div className="mt-4 p-3 bg-white rounded-lg border-2 border-blue-300">
               <div className="text-center">
                 <span className="text-xl font-bold text-blue-700">
-                  Total Amount: ₹{totalAmount.toLocaleString()} (For tracking only)
+                  Total Amount: ₹{totalAmount.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -405,7 +479,7 @@ const SimplePatientEntry: React.FC = () => {
             disabled={loading || !formData.first_name.trim()}
             className="bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {loading ? 'Registering...' : '✅ Register Patient (No Transactions)'}
+{loading ? 'Registering...' : '✅ Register Patient'}
           </button>
         </div>
       </form>

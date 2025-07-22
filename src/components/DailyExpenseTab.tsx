@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
+import HospitalService from '../services/hospitalService';
 
 interface DailyExpense {
   id?: string;
@@ -9,7 +10,6 @@ interface DailyExpense {
   amount: number;
   payment_mode: string;
   expense_date: string;
-  approved_by?: string;
   status: string;
   receipt_number: string;
   hospital_id: string;
@@ -18,7 +18,7 @@ interface DailyExpense {
 
 const DailyExpenseTab: React.FC = () => {
   const [formData, setFormData] = useState({
-    expense_category: 'medical_supplies',
+    expense_category: 'MEDICAL_SUPPLIES', // Changed to uppercase
     custom_category: '',
     description: '',
     amount: 0,
@@ -38,14 +38,12 @@ const DailyExpenseTab: React.FC = () => {
   }, [selectedDate]);
 
   const expenseCategories = [
-    { value: 'medical_supplies', label: '💊 Medical Supplies' },
-    { value: 'utilities', label: '⚡ Utilities' },
-    { value: 'salaries', label: '👥 Staff Salaries' },
-    { value: 'maintenance', label: '🔧 Maintenance' },
-    { value: 'administrative', label: '📋 Administrative' },
-    { value: 'equipment', label: '🏥 Equipment' },
-    { value: 'food', label: '🍽️ Food & Catering' },
-    { value: 'cleaning', label: '🧹 Cleaning Supplies' },
+    { value: 'MEDICAL_SUPPLIES', label: '💊 Medical Supplies' },
+    { value: 'UTILITIES', label: '⚡ Utilities' },
+    { value: 'MAINTENANCE', label: '🔧 Maintenance' },
+    { value: 'ADMINISTRATIVE', label: '📋 Administrative' },
+    { value: 'EQUIPMENT', label: '🏥 Equipment' },
+    { value: 'OTHER', label: '📦 Other Expenses' },
     { value: 'custom', label: '+ Custom Category' }
   ];
 
@@ -93,16 +91,17 @@ const DailyExpenseTab: React.FC = () => {
 
     try {
       const expenseData: Partial<DailyExpense> = {
-        expense_category: formData.expense_category === 'custom' ? formData.custom_category : formData.expense_category,
+        expense_category: formData.expense_category === 'custom' ? formData.custom_category.toUpperCase() : formData.expense_category,
         description: formData.description.trim(),
         amount: formData.amount,
         payment_mode: formData.payment_mode,
         expense_date: formData.expense_date,
         receipt_number: formData.receipt_number.trim() || `RCP${Date.now()}`,
         status: 'APPROVED',
-        approved_by: 'STAFF', // In real app, get from current user
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
+
+      console.log('💰 Creating expense with data:', expenseData);
 
       const { data, error } = await supabase
         .from('daily_expenses')
@@ -120,7 +119,7 @@ const DailyExpenseTab: React.FC = () => {
 
       // Reset form
       setFormData({
-        expense_category: 'medical_supplies',
+        expense_category: 'MEDICAL_SUPPLIES', // Use uppercase
         custom_category: '',
         description: '',
         amount: 0,

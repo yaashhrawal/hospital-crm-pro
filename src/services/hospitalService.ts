@@ -428,6 +428,10 @@ export class HospitalService {
     try {
       console.log('📊 Getting dashboard stats...');
       
+      const today = new Date().toISOString().split('T')[0];
+      const todayStart = `${today}T00:00:00.000Z`;
+      const todayEnd = `${today}T23:59:59.999Z`;
+      
       // Get counts in parallel
       const [
         patientsResult,
@@ -439,8 +443,8 @@ export class HospitalService {
         supabase.from('patients').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID).neq('role', 'ADMIN'),
         supabase.from('beds').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID),
-        supabase.from('future_appointments').select('*', { count: 'exact', head: true }).eq('appointment_date', new Date().toISOString().split('T')[0]),
-        supabase.from('patient_transactions').select('amount').eq('created_at', new Date().toISOString().split('T')[0])
+        supabase.from('future_appointments').select('*', { count: 'exact', head: true }).eq('appointment_date', today),
+        supabase.from('patient_transactions').select('amount').gte('created_at', todayStart).lt('created_at', todayEnd)
       ]);
       
       const totalPatients = patientsResult.count || 0;
@@ -448,17 +452,31 @@ export class HospitalService {
       const totalBeds = bedsResult.count || 0;
       const todayAppointments = todayAppointmentsResult.count || 0;
       
-      // Calculate today's revenue
-      const todayRevenue = todayRevenueResult.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      // Calculate today's revenue (positive amounts only, exclude refunds/discounts)
+      const todayRevenue = todayRevenueResult.data?.reduce((sum, t) => {
+        const amount = t.amount || 0;
+        return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
+      }, 0) || 0;
+      
+      console.log('💰 Today\'s revenue calculation:', {
+        todayStart,
+        todayEnd,
+        transactionCount: todayRevenueResult.data?.length || 0,
+        todayRevenue
+      });
       
       // Calculate monthly revenue
       const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const monthlyStart = `${startOfMonth}T00:00:00.000Z`;
       const { data: monthlyTransactions } = await supabase
         .from('patient_transactions')
         .select('amount')
-        .gte('created_at', startOfMonth);
+        .gte('created_at', monthlyStart);
       
-      const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => {
+        const amount = t.amount || 0;
+        return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
+      }, 0) || 0;
       
       return {
         totalPatients,

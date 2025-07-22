@@ -50,14 +50,15 @@ const RefundTab: React.FC = () => {
   const loadRecentRefunds = async () => {
     setLoadingRefunds(true);
     try {
-      // Get recent refund transactions
+      // Get recent refund transactions (negative PROCEDURE amounts)
       const { data, error } = await supabase
         .from('patient_transactions')
         .select(`
           *,
           patient:patients(first_name, last_name, phone, patient_id)
         `)
-        .eq('transaction_type', 'REFUND')
+        .eq('transaction_type', 'PROCEDURE')
+        .lt('amount', 0) // Only get negative amounts (refunds)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -122,14 +123,19 @@ const RefundTab: React.FC = () => {
     setLoading(true);
 
     try {
-      // Skip transaction creation temporarily due to constraint issues
-      console.log('⚠️ Skipping refund transaction creation due to constraint issues');
-      console.log('Planned refund transaction:', {
+      // Create refund transaction using PROCEDURE type with negative amount
+      const refundTransactionData = {
         patient_id: formData.selected_patient_id,
-        amount: formData.refund_amount,
-        reason: formData.refund_reason,
-        payment_mode: formData.payment_mode
-      });
+        transaction_type: 'PROCEDURE', // Use PROCEDURE instead of REFUND
+        description: `Refund: ${formData.refund_reason}`,
+        amount: -Math.abs(formData.refund_amount), // Negative amount indicates refund
+        payment_mode: formData.payment_mode,
+        status: 'COMPLETED'
+      };
+
+      console.log('💰 Creating refund transaction:', refundTransactionData);
+      await HospitalService.createTransaction(refundTransactionData as any);
+      console.log('✅ Refund transaction created successfully');
 
       toast.success(`Refund of ₹${formData.refund_amount.toLocaleString()} processed successfully`);
 

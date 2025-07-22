@@ -256,11 +256,12 @@ const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({ onNavigate }) => 
           .from('daily_expenses')
           .select('*')
           .eq('expense_date', today),
-        // Load today's refunds
+        // Load today's refunds (negative PROCEDURE amounts)
         supabase
           .from('patient_transactions')
           .select('*')
-          .eq('transaction_type', 'REFUND')
+          .eq('transaction_type', 'PROCEDURE')
+          .lt('amount', 0) // Only negative amounts (refunds)
           .gte('created_at', `${today}T00:00:00.000Z`)
           .lt('created_at', `${today}T23:59:59.999Z`)
       ]);
