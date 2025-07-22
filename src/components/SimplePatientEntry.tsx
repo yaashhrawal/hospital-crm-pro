@@ -26,6 +26,18 @@ const SimplePatientEntry: React.FC = () => {
     }
     return age.toString();
   };
+
+  // Validate if age and DOB match
+  const validateAgeAndDOB = (age: string, dob: string): boolean => {
+    if (!age || !dob) return true; // If either is empty, no validation needed
+    
+    const calculatedAge = calculateAgeFromDOB(dob);
+    const enteredAge = age.trim();
+    
+    // Allow 1 year tolerance for approximate DOB
+    const ageDiff = Math.abs(Number(calculatedAge) - Number(enteredAge));
+    return ageDiff <= 1;
+  };
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -59,6 +71,7 @@ const SimplePatientEntry: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
+  const [ageError, setAgeError] = useState<string>('');
 
   useEffect(() => {
     testConnection();
@@ -79,6 +92,13 @@ const SimplePatientEntry: React.FC = () => {
     // Validate minimum required fields
     if (!formData.first_name.trim()) {
       toast.error('First name is required');
+      return;
+    }
+
+    // Validate age and DOB match
+    if (formData.age && formData.date_of_birth && !validateAgeAndDOB(formData.age, formData.date_of_birth)) {
+      toast.error('Age does not match Date of Birth. Please correct before submitting.');
+      setAgeError('Age does not match Date of Birth. Please check your entries.');
       return;
     }
 
@@ -295,13 +315,25 @@ const SimplePatientEntry: React.FC = () => {
                 value={formData.age}
                 onChange={(e) => {
                   const newAge = e.target.value;
-                  setFormData({ 
+                  const newFormData = { 
                     ...formData, 
                     age: newAge,
-                    date_of_birth: newAge ? calculateDOBFromAge(newAge) : formData.date_of_birth
-                  });
+                    date_of_birth: newAge && !formData.date_of_birth ? calculateDOBFromAge(newAge) : formData.date_of_birth
+                  };
+                  setFormData(newFormData);
+                  
+                  // Validate age and DOB match
+                  if (newAge && formData.date_of_birth) {
+                    if (!validateAgeAndDOB(newAge, formData.date_of_birth)) {
+                      setAgeError('Age does not match Date of Birth. Please check your entries.');
+                    } else {
+                      setAgeError('');
+                    }
+                  } else {
+                    setAgeError('');
+                  }
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                className={`w-full px-3 py-2 border ${ageError ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 ${ageError ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
                 placeholder="Enter age"
                 min="0"
                 max="150"
@@ -321,6 +353,16 @@ const SimplePatientEntry: React.FC = () => {
               </select>
             </div>
           </div>
+          
+          {/* Age/DOB Validation Error */}
+          {ageError && (
+            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600 flex items-center">
+                <span className="mr-2">⚠️</span>
+                {ageError}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Patient Admission Section */}
@@ -538,11 +580,24 @@ const SimplePatientEntry: React.FC = () => {
                 value={formData.date_of_birth}
                 onChange={(e) => {
                   const newDOB = e.target.value;
-                  setFormData({ 
+                  const calculatedAge = newDOB ? calculateAgeFromDOB(newDOB) : '';
+                  const newFormData = { 
                     ...formData, 
                     date_of_birth: newDOB,
-                    age: newDOB ? calculateAgeFromDOB(newDOB) : formData.age
-                  });
+                    age: formData.age || calculatedAge // Keep manually entered age if exists
+                  };
+                  setFormData(newFormData);
+                  
+                  // Validate age and DOB match
+                  if (formData.age && newDOB) {
+                    if (!validateAgeAndDOB(formData.age, newDOB)) {
+                      setAgeError('Age does not match Date of Birth. Please check your entries.');
+                    } else {
+                      setAgeError('');
+                    }
+                  } else {
+                    setAgeError('');
+                  }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
