@@ -1,31 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
+import type { PatientWithRelations } from '../config/supabaseNew';
 
-interface Patient {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  patient_id: string;
-}
-
-interface IPDAdmissionModalProps {
+interface PatientToIPDModalProps {
+  patient: PatientWithRelations;
   isOpen: boolean;
   onClose: () => void;
   onAdmissionSuccess: () => void;
 }
 
-const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
+const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
+  patient,
   isOpen,
   onClose,
   onAdmissionSuccess
 }) => {
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [formData, setFormData] = useState({
     bed_number: '',
     room_type: 'general' as 'general' | 'private' | 'icu' | 'emergency',
@@ -35,9 +27,8 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
     admission_notes: '',
   });
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (isOpen) {
-      loadPatients();
       // Set default expected discharge to 3 days from now
       const defaultDate = new Date();
       defaultDate.setDate(defaultDate.getDate() + 3);
@@ -48,39 +39,8 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
     }
   }, [isOpen]);
 
-  const loadPatients = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('id, first_name, last_name, phone, patient_id')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading patients:', error);
-        toast.error('Failed to load patients');
-        return;
-      }
-
-      setPatients(data || []);
-    } catch (error: any) {
-      console.error('Error loading patients:', error);
-      toast.error(`Failed to load patients: ${error.message}`);
-    }
-  };
-
-  const filteredPatients = patients.filter(patient =>
-    `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.phone.includes(searchTerm) ||
-    patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const handleAdmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!selectedPatient) {
-      toast.error('Please select a patient');
-      return;
-    }
 
     if (!formData.bed_number || !formData.department || !formData.daily_rate) {
       toast.error('Please fill in all required fields');
@@ -119,7 +79,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
       const { data: existingAdmission, error: admissionCheckError } = await supabase
         .from('patient_admissions')
         .select('id')
-        .eq('patient_id', selectedPatient.id)
+        .eq('patient_id', patient.id)
         .eq('status', 'active')
         .single();
 
@@ -130,13 +90,13 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
       }
 
       if (existingAdmission) {
-        toast.error(`${selectedPatient.first_name} ${selectedPatient.last_name} is already admitted`);
+        toast.error(`${patient.first_name} ${patient.last_name} is already admitted to IPD`);
         return;
       }
 
       // Create admission record
       const admissionData = {
-        patient_id: selectedPatient.id,
+        patient_id: patient.id,
         bed_number: formData.bed_number,
         room_type: formData.room_type,
         department: formData.department,
@@ -154,11 +114,11 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
 
       if (error) {
         console.error('Error creating admission:', error);
-        toast.error('Failed to admit patient');
+        toast.error('Failed to admit patient to IPD');
         return;
       }
 
-      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} admitted successfully to bed ${formData.bed_number}`);
+      toast.success(`${patient.first_name} ${patient.last_name} successfully admitted to IPD bed ${formData.bed_number}`);
       onAdmissionSuccess();
       handleClose();
     } catch (error: any) {
@@ -170,8 +130,6 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
   };
 
   const handleClose = () => {
-    setSelectedPatient(null);
-    setSearchTerm('');
     setFormData({
       bed_number: '',
       room_type: 'general',
@@ -187,9 +145,14 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-screen overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">🏥 Admit Patient to IPD</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">🛏️ Admit to IPD</h2>
+            <p className="text-gray-600">
+              Patient: {patient.first_name} {patient.last_name} (ID: {patient.patient_id})
+            </p>
+          </div>
           <button
             onClick={handleClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -198,54 +161,29 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleAdmit} className="space-y-6">
-          {/* Patient Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Patient
-            </label>
-            <input
-              type="text"
-              placeholder="Search by name, phone, or patient ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            
-            {searchTerm && (
-              <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md">
-                {filteredPatients.length > 0 ? (
-                  filteredPatients.map((patient) => (
-                    <div
-                      key={patient.id}
-                      onClick={() => {
-                        setSelectedPatient(patient);
-                        setSearchTerm('');
-                      }}
-                      className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                    >
-                      <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                      <div className="text-sm text-gray-500">ID: {patient.patient_id} | Phone: {patient.phone}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-3 text-gray-500 text-center">No patients found</div>
-                )}
-              </div>
-            )}
-
-            {selectedPatient && (
-              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="font-medium text-blue-800">
-                  Selected: {selectedPatient.first_name} {selectedPatient.last_name}
-                </div>
-                <div className="text-sm text-blue-600">
-                  ID: {selectedPatient.patient_id} | Phone: {selectedPatient.phone}
-                </div>
-              </div>
-            )}
+        {/* Patient Summary */}
+        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-blue-800">Name:</span>
+              <span className="ml-2 text-blue-600">{patient.first_name} {patient.last_name}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-800">Age:</span>
+              <span className="ml-2 text-blue-600">{patient.age || 'N/A'} years</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-800">Phone:</span>
+              <span className="ml-2 text-blue-600">{patient.phone}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-800">Blood Group:</span>
+              <span className="ml-2 text-blue-600">{patient.blood_group || 'N/A'}</span>
+            </div>
           </div>
+        </div>
 
+        <form onSubmit={handleAdmit} className="space-y-4">
           {/* Admission Details */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -336,7 +274,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-6 border-t">
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
               type="button"
               onClick={handleClose}
@@ -346,7 +284,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedPatient}
+              disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -355,7 +293,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
                   Admitting...
                 </div>
               ) : (
-                '🛏️ Admit Patient'
+                '🛏️ Admit to IPD'
               )}
             </button>
           </div>
@@ -365,4 +303,4 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
   );
 };
 
-export default IPDAdmissionModal;
+export default PatientToIPDModal;

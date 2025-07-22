@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import EditPatientModal from './EditPatientModal';
+import PatientToIPDModal from './PatientToIPDModal';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -144,6 +146,8 @@ const ComprehensivePatientList: React.FC = () => {
   const [filterGender, setFilterGender] = useState<string>('all');
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showIPDModal, setShowIPDModal] = useState(false);
 
   useEffect(() => {
     loadPatients();
@@ -218,6 +222,25 @@ const ComprehensivePatientList: React.FC = () => {
   const handlePatientClick = (patient: PatientWithRelations) => {
     setSelectedPatient(patient);
     setShowHistoryModal(true);
+  };
+
+  const handleEditPatient = (patient: PatientWithRelations) => {
+    setSelectedPatient(patient);
+    setShowEditModal(true);
+  };
+
+  const handleAdmitToIPD = (patient: PatientWithRelations) => {
+    setSelectedPatient(patient);
+    setShowIPDModal(true);
+  };
+
+  const handlePatientUpdated = () => {
+    loadPatients(); // Reload patients after update
+  };
+
+  const handleIPDAdmissionSuccess = () => {
+    toast.success('Patient admitted to IPD successfully');
+    loadPatients(); // Reload patients after IPD admission
   };
 
   const handleSort = (newSortBy: typeof sortBy) => {
@@ -349,7 +372,7 @@ const ComprehensivePatientList: React.FC = () => {
                   >
                     Last Visit {getSortIcon('date')}
                   </th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Action</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,15 +418,38 @@ const ComprehensivePatientList: React.FC = () => {
                       }
                     </td>
                     <td className="p-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePatientClick(patient);
-                        }}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        View History
-                      </button>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePatientClick(patient);
+                          }}
+                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          title="View Patient History"
+                        >
+                          📋 History
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditPatient(patient);
+                          }}
+                          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          title="Edit Patient Details"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdmitToIPD(patient);
+                          }}
+                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          title="Admit to IPD"
+                        >
+                          🛏️ IPD
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -439,6 +485,32 @@ const ComprehensivePatientList: React.FC = () => {
             setShowHistoryModal(false);
             setSelectedPatient(null);
           }}
+        />
+      )}
+
+      {/* Edit Patient Modal */}
+      {selectedPatient && (
+        <EditPatientModal
+          patient={selectedPatient}
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedPatient(null);
+          }}
+          onPatientUpdated={handlePatientUpdated}
+        />
+      )}
+
+      {/* Patient to IPD Modal */}
+      {selectedPatient && (
+        <PatientToIPDModal
+          patient={selectedPatient}
+          isOpen={showIPDModal}
+          onClose={() => {
+            setShowIPDModal(false);
+            setSelectedPatient(null);
+          }}
+          onAdmissionSuccess={handleIPDAdmissionSuccess}
         />
       )}
     </div>

@@ -15,13 +15,13 @@ interface IPDPatient {
     patient_id: string;
   };
   bed_number: string;
-  room_type: 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY';
+  room_type: 'general' | 'private' | 'icu' | 'emergency';
   department: string;
   daily_rate: number;
   admission_date: string;
   expected_discharge: string;
   actual_discharge?: string;
-  status: 'ACTIVE' | 'DISCHARGED';
+  status: 'active' | 'discharged';
   admission_notes: string;
   discharge_notes?: string;
   created_at: string;
@@ -60,7 +60,7 @@ const IPDManagement: React.FC = () => {
           *,
           patient:patients(first_name, last_name, phone, patient_id)
         `)
-        .eq('status', activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED')
+        .eq('status', activeTab === 'active' ? 'active' : 'discharged')
         .order('admission_date', { ascending: false });
 
       if (error) {
@@ -126,7 +126,7 @@ const IPDManagement: React.FC = () => {
       const { error } = await supabase
         .from('patient_admissions')
         .update({
-          status: 'DISCHARGED',
+          status: 'discharged',
           actual_discharge: dischargeDate
         })
         .eq('id', patientId);
@@ -315,10 +315,10 @@ const IPDManagement: React.FC = () => {
                         onSave={(value) => handleEditField(patient.id, 'room_type', value)}
                         type="select"
                         options={[
-                          { value: 'GENERAL', label: 'General Ward' },
-                          { value: 'PRIVATE', label: 'Private Room' },
-                          { value: 'ICU', label: 'ICU' },
-                          { value: 'EMERGENCY', label: 'Emergency' }
+                          { value: 'general', label: 'General Ward' },
+                          { value: 'private', label: 'Private Room' },
+                          { value: 'icu', label: 'ICU' },
+                          { value: 'emergency', label: 'Emergency' }
                         ]}
                       />
                     </td>
@@ -426,7 +426,7 @@ const IPDManagement: React.FC = () => {
           </div>
           <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
             <div className="text-2xl font-bold text-purple-700">
-              {ipdPatients.filter(p => p.room_type === 'ICU').length}
+              {ipdPatients.filter(p => p.room_type === 'icu').length}
             </div>
             <div className="text-purple-600 text-sm">ICU Patients</div>
           </div>

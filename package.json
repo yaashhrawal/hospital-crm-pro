@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "2.1.0-ipd-complete",
+  "version": "2.1.1-ipd-enhanced",
   "type": "module",
   "scripts": {
     "dev": "vite",
