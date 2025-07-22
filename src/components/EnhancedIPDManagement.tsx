@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { 
   PatientAdmissionWithRelations, 
-  BedWithRelations, 
   Patient,
   DashboardStats,
   User
@@ -38,7 +37,6 @@ const normalizeRoomType = (roomType: string): string => {
 
 const EnhancedIPDManagement: React.FC = () => {
   const [admissions, setAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
-  const [beds, setBeds] = useState<BedWithRelations[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -105,25 +103,6 @@ const EnhancedIPDManagement: React.FC = () => {
       
       console.log('📋 Filtered admissions result:', data);
       console.log('📋 Found', data?.length || 0, 'admissions with status:', statusFilter);
-      
-      // Manually add bed info by matching bed_number
-      if (data) {
-        for (const admission of data) {
-          if (admission.bed_number) {
-            const { data: bedData } = await supabase
-              .from('beds')
-              .select('id, bed_number, room_type, daily_rate')
-              .eq('bed_number', admission.bed_number)
-              .single();
-            
-            if (bedData) {
-              admission.bed = bedData;
-            }
-          }
-        }
-      }
-      
-      console.log('📋 Final admissions with bed data:', data);
       setAdmissions(data || []);
     } catch (error: any) {
       console.error('❌ Error loading admissions:', error);
@@ -131,41 +110,6 @@ const EnhancedIPDManagement: React.FC = () => {
     }
   };
 
-  const loadBeds = async () => {
-    try {
-      // Fixed: Load beds without problematic relationships
-      const { data: bedsData, error } = await supabase
-        .from('beds')
-        .select('*')
-        .order('bed_number');
-
-      if (error) throw error;
-      
-      // Manually add current admission info by matching bed_number
-      if (bedsData) {
-        for (const bed of bedsData) {
-          const { data: admission } = await supabase
-            .from('patient_admissions')
-            .select(`
-              id, admission_date, status,
-              patient:patients(first_name, last_name, patient_id)
-            `)
-            .eq('bed_number', bed.bed_number)
-            .eq('status', 'ACTIVE')
-            .single();
-          
-          if (admission) {
-            bed.current_admission = [admission];
-          }
-        }
-      }
-
-      setBeds(bedsData || []);
-    } catch (error: any) {
-      console.error('Error loading beds:', error);
-      toast.error(`Failed to load beds: ${error.message}`);
-    }
-  };
 
   const loadPatients = async () => {
     try {
@@ -245,7 +189,7 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const calculateTotalAmount = (admission: PatientAdmissionWithRelations) => {
     const days = calculateStayDuration(admission.admission_date, admission.actual_discharge_date);
-    const dailyRate = admission.bed?.daily_rate || 0;
+    const dailyRate = admission.daily_rate || 0;
     return days * dailyRate;
   };
 
@@ -355,9 +299,9 @@ const EnhancedIPDManagement: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 font-medium">{admission.bed?.bed_number}</td>
-                      <td className="p-4">{admission.bed?.room_type}</td>
-                      <td className="p-4">₹{admission.bed?.daily_rate.toLocaleString()}</td>
+                      <td className="p-4 font-medium">{admission.bed_number}</td>
+                      <td className="p-4">{admission.room_type}</td>
+                      <td className="p-4">₹{admission.daily_rate?.toLocaleString() || 'N/A'}</td>
                       <td className="p-4">
                         <span className="font-medium">
                           {calculateStayDuration(admission.admission_date, admission.actual_discharge_date)} days
