@@ -19,12 +19,11 @@ interface IPDPatient {
   department: string;
   daily_rate: number;
   admission_date: string;
-  expected_discharge: string;
-  actual_discharge?: string;
+  discharge_date?: string;
   status: 'active' | 'discharged';
-  admission_notes: string;
-  discharge_notes?: string;
+  total_amount: number;
   created_at: string;
+  updated_at: string;
 }
 
 interface IPDService {
@@ -114,7 +113,7 @@ const IPDManagement: React.FC = () => {
   };
 
   const calculateTotalAmount = (patient: IPDPatient) => {
-    const days = calculateStayDuration(patient.admission_date, patient.actual_discharge);
+    const days = calculateStayDuration(patient.admission_date, patient.discharge_date);
     return days * patient.daily_rate;
   };
 
@@ -127,7 +126,7 @@ const IPDManagement: React.FC = () => {
         .from('patient_admissions')
         .update({
           status: 'discharged',
-          actual_discharge: dischargeDate
+          discharge_date: dischargeDate
         })
         .eq('id', patientId);
 
@@ -288,7 +287,6 @@ const IPDManagement: React.FC = () => {
                   <th className="text-left p-4 font-semibold text-gray-700">Days</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Total Amount</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Admission</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Notes</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -336,7 +334,7 @@ const IPDManagement: React.FC = () => {
                     </td>
                     <td className="p-4">
                       <span className="font-medium">
-                        {calculateStayDuration(patient.admission_date, patient.actual_discharge)} days
+                        {calculateStayDuration(patient.admission_date, patient.discharge_date)} days
                       </span>
                     </td>
                     <td className="p-4">
@@ -347,18 +345,12 @@ const IPDManagement: React.FC = () => {
                     <td className="p-4">
                       <div className="text-sm">
                         <div>Admitted: {new Date(patient.admission_date).toLocaleDateString()}</div>
-                        {patient.actual_discharge && (
+                        {patient.discharge_date && (
                           <div className="text-blue-600">
-                            Discharged: {new Date(patient.actual_discharge).toLocaleDateString()}
+                            Discharged: {new Date(patient.discharge_date).toLocaleDateString()}
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td className="p-4 max-w-xs">
-                      <EditableField
-                        value={patient.admission_notes || 'No notes'}
-                        onSave={(value) => handleEditField(patient.id, 'admission_notes', value)}
-                      />
                     </td>
                     <td className="p-4">
                       <div className="flex space-x-2">

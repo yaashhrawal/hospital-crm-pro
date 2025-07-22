@@ -134,7 +134,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
         return;
       }
 
-      // Create admission record (using only existing database columns)
+      // Create admission record using ONLY existing database columns
       const admissionData = {
         patient_id: selectedPatient.id,
         bed_number: formData.bed_number,
@@ -146,34 +146,11 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
         total_amount: 0
       };
 
-      // Add optional fields only if they exist in the database schema
-      const optionalFields: any = {};
-      if (formData.expected_discharge) {
-        optionalFields.expected_discharge = formData.expected_discharge;
-      }
-      if (formData.admission_notes) {
-        optionalFields.admission_notes = formData.admission_notes;
-      }
-      if (currentUser.id) {
-        optionalFields.admitted_by = currentUser.id;
-      }
+      console.log('📤 Inserting admission data:', admissionData);
 
-      // Try to insert with optional fields first, fallback to basic fields if it fails
-      let error;
-      try {
-        const fullData = { ...admissionData, ...optionalFields };
-        const result = await supabase
-          .from('patient_admissions')
-          .insert([fullData]);
-        error = result.error;
-      } catch (firstError) {
-        console.log('First attempt failed, trying with basic fields only:', firstError);
-        // Fallback to basic fields only
-        const result = await supabase
-          .from('patient_admissions')
-          .insert([admissionData]);
-        error = result.error;
-      }
+      const { error } = await supabase
+        .from('patient_admissions')
+        .insert([admissionData]);
 
       if (error) {
         console.error('ERROR DETAILS:', {
@@ -183,8 +160,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
           code: error.code,
           formData,
           selectedPatient: selectedPatient.id,
-          admissionData,
-          optionalFields
+          admissionData
         });
         toast.error(`Failed to admit patient: ${error.message}`);
         return;

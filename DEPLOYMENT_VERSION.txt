@@ -1,17 +1,17 @@
-Deployment Version: 2.1.4
-Last Updated: 2025-07-22 10:45:00 UTC
+Deployment Version: 2.1.5
+Last Updated: 2025-07-22 11:00:00 UTC
 
 Recent Changes:
-- Created MINIMAL IPD admission component that bypasses all complex logic
-- Added simple step-by-step IPD test for systematic debugging
-- Created absolute minimal working IPD admission with only required fields
-- Added multiple diagnostic approaches: Simple Test, Minimal IPD, and Debug tools
-- If Minimal IPD fails, the issue is definitively in the database schema/permissions
-- Simplified approach using only essential database columns
+- FIXED: Removed all non-existent database columns causing IPD admission failures
+- Removed 'admitted_by', 'expected_discharge', 'admission_notes' from all components
+- Updated IPD interfaces to match actual database schema exactly
+- Used only existing columns: patient_id, bed_number, room_type, department, daily_rate, admission_date, status, total_amount
+- Fixed discharge functionality to use 'discharge_date' instead of 'actual_discharge'
+- Aligned all IPD components with actual patient_admissions table structure
 
-Test Components Added:
-- ⚡ Minimal IPD: Simplest possible admission (patient + bed number only)
-- 🧪 IPD Test: Step-by-step testing with detailed console logging
-- 🔍 IPD Debug: Comprehensive database diagnostics
+Database Schema Compliance:
+- ✅ Only using columns that exist in patient_admissions table
+- ✅ Fixed all field name mismatches
+- ✅ Removed optional fields that don't exist in current schema
 
-Build Timestamp: 1753179900
+Build Timestamp: 1753180800
