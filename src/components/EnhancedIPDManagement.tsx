@@ -10,22 +10,27 @@ import type {
 } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 
-// Normalize room type to match database constraint
+// Normalize room type to match database constraint - FIXED
 const normalizeRoomType = (roomType: string): string => {
   if (!roomType) return 'GENERAL';
   
   const normalized = roomType.toUpperCase().trim();
   
-  // Map common variations to standard types
+  // Only allow exact constraint values
+  const validRoomTypes = ['GENERAL', 'PRIVATE', 'ICU', 'EMERGENCY'];
+  
+  if (validRoomTypes.includes(normalized)) {
+    return normalized;
+  }
+  
+  // Map variations to valid constraint values
   const roomTypeMap: { [key: string]: string } = {
-    'GENERAL': 'GENERAL',
-    'PRIVATE': 'PRIVATE', 
-    'ICU': 'ICU',
-    'EMERGENCY': 'EMERGENCY',
     'SEMI_PRIVATE': 'PRIVATE',
-    'DELUXE': 'PRIVATE',
+    'DELUXE': 'PRIVATE', 
     'STANDARD': 'GENERAL',
-    'VIP': 'PRIVATE'
+    'VIP': 'PRIVATE',
+    'SEMI': 'PRIVATE',
+    'REGULAR': 'GENERAL'
   };
   
   return roomTypeMap[normalized] || 'GENERAL';

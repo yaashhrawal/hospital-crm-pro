@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "3.0.5-relationship-fix",
+  "version": "3.0.6-complete-ipd-fix",
   "type": "module",
   "scripts": {
     "dev": "vite",
