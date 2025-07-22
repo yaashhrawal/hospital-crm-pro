@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { DashboardStats, PatientAdmissionWithRelations, TransactionWithRelations } from '../config/supabaseNew';
+import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -12,6 +13,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [recentAdmissions, setRecentAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<TransactionWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
+  const { printDailySummary } = useReceiptPrinting();
 
   useEffect(() => {
     loadDashboardData();
@@ -228,7 +230,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <button
           onClick={() => onNavigate?.('patient-entry')}
           className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
@@ -263,6 +265,15 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-2xl mb-2">💸</div>
           <div className="font-medium">Expenses</div>
           <div className="text-sm text-gray-600">Track daily expenses</div>
+        </button>
+
+        <button
+          onClick={() => printDailySummary()}
+          className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow bg-gradient-to-br from-green-50 to-blue-50 border-green-200"
+        >
+          <div className="text-2xl mb-2">🖨️</div>
+          <div className="font-medium">Print Summary</div>
+          <div className="text-sm text-gray-600">Today's receipts</div>
         </button>
       </div>
 

@@ -5,6 +5,7 @@ import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
 import PatientToIPDModal from './PatientToIPDModal';
 import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
+import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -13,6 +14,8 @@ interface PatientHistoryModalProps {
 }
 
 const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose }) => {
+  const { printServiceReceipt } = useReceiptPrinting();
+  
   if (!isOpen) return null;
 
   const totalSpent = patient.totalSpent || 0;
@@ -88,6 +91,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                     <th className="text-left p-2">Amount</th>
                     <th className="text-left p-2">Payment</th>
                     <th className="text-left p-2">Status</th>
+                    <th className="text-left p-2">Print</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,6 +124,17 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                           {transaction.status}
                         </span>
                       </td>
+                      <td className="p-2">
+                        {transaction.status === 'COMPLETED' && (
+                          <button
+                            onClick={() => printServiceReceipt(transaction.id)}
+                            className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600"
+                            title="Print Receipt"
+                          >
+                            🖨️
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -149,6 +164,7 @@ const ComprehensivePatientList: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showIPDModal, setShowIPDModal] = useState(false);
+  const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
     loadPatients();
@@ -513,6 +529,16 @@ const ComprehensivePatientList: React.FC = () => {
                           title="Edit Patient Details"
                         >
                           ✏️ Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printConsultationReceipt(patient.id);
+                          }}
+                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          title="Print Consultation Receipt"
+                        >
+                          🖨️ Print
                         </button>
                         <button
                           onClick={(e) => {

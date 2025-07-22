@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import { supabase } from '../config/supabaseNew';
 import type { CreatePatientData } from '../config/supabaseNew';
+import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 const SimplePatientEntry: React.FC = () => {
+  const { printConsultationReceipt } = useReceiptPrinting();
   // Helper function to calculate date of birth from age
   const calculateDOBFromAge = (age: string): string => {
     if (!age || isNaN(Number(age))) return '';
@@ -67,6 +69,8 @@ const SimplePatientEntry: React.FC = () => {
     admissionDate: '',
     expectedDischarge: '',
     admissionNotes: '',
+    // Print options
+    autoPrintReceipt: true, // Default to auto-print
   });
 
   const [loading, setLoading] = useState(false);
@@ -206,6 +210,17 @@ const SimplePatientEntry: React.FC = () => {
       
       toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toLocaleString()}`);
       
+      // Auto-print receipt if enabled
+      if (formData.autoPrintReceipt && totalAmount > 0) {
+        try {
+          await printConsultationReceipt(newPatient.id);
+          toast.success('Receipt printed successfully!');
+        } catch (printError) {
+          console.error('Failed to print receipt:', printError);
+          toast.error('Failed to print receipt, but patient was saved successfully');
+        }
+      }
+      
       // Reset form
       setFormData({
         first_name: '',
@@ -235,6 +250,7 @@ const SimplePatientEntry: React.FC = () => {
         admissionDate: '',
         expectedDischarge: '',
         admissionNotes: '',
+        autoPrintReceipt: true,
       });
 
     } catch (error: any) {
@@ -613,6 +629,25 @@ const SimplePatientEntry: React.FC = () => {
                 rows={2}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Print Options */}
+        <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="autoPrintReceipt"
+              checked={formData.autoPrintReceipt}
+              onChange={(e) => setFormData({ ...formData, autoPrintReceipt: e.target.checked })}
+              className="mr-3 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+            />
+            <label htmlFor="autoPrintReceipt" className="text-sm font-medium text-green-700">
+              🖨️ Automatically print consultation receipt after registration
+            </label>
+          </div>
+          <div className="text-xs text-green-600 mt-1 ml-7">
+            Receipt will be printed if patient has consultation or entry fees
           </div>
         </div>
 

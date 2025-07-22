@@ -9,6 +9,7 @@ import type {
 } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 import DischargePatientModal from './DischargePatientModal';
+import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 // Normalize room type to match database constraint - FIXED
 const normalizeRoomType = (roomType: string): string => {
@@ -46,6 +47,9 @@ const EnhancedIPDManagement: React.FC = () => {
   // Discharge modal state
   const [showDischargeModal, setShowDischargeModal] = useState(false);
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<PatientAdmissionWithRelations | null>(null);
+  
+  // Receipt printing
+  const { printAdmissionReceipt, printDischargeReceipt } = useReceiptPrinting();
 
   useEffect(() => {
     console.log('🚀 IPD Management useEffect triggered, activeTab:', activeTab);
@@ -335,12 +339,30 @@ const EnhancedIPDManagement: React.FC = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex space-x-2">
+                          <button
+                            onClick={() => printAdmissionReceipt(admission.id)}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                            title="Print Admission Receipt"
+                          >
+                            🖨️ Print
+                          </button>
+                          
                           {activeTab === 'active' && (
                             <button
                               onClick={() => dischargePatient(admission)}
                               className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                             >
                               📤 Discharge
+                            </button>
+                          )}
+                          
+                          {activeTab === 'discharged' && (
+                            <button
+                              onClick={() => printDischargeReceipt(admission.id)}
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                              title="Print Discharge Summary"
+                            >
+                              📄 Summary
                             </button>
                           )}
                         </div>
