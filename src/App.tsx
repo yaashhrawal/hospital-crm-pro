@@ -10,6 +10,7 @@ import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
 import AuthDebugger from './components/AuthDebugger';
 import TransactionTypeTester from './components/TransactionTypeTester';
+import SimplePatientEntry from './components/SimplePatientEntry';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -218,9 +219,15 @@ const App: React.FC = () => {
     },
     { 
       id: 'patient-entry', 
-      name: '👤 New Patient', 
+      name: '👤 New Patient (Simple)', 
+      component: SimplePatientEntry,
+      description: 'Register patients without transactions (to avoid constraint errors)' 
+    },
+    { 
+      id: 'patient-entry-full', 
+      name: '👤 New Patient (Full)', 
       component: NewFlexiblePatientEntry,
-      description: 'Register new patients with flexible entry' 
+      description: 'Register patients with transactions (may have constraint errors)' 
     },
     { 
       id: 'patient-list', 

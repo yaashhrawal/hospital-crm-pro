@@ -88,7 +88,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (formData.entry_fee > 0) {
         transactions.push({
           patient_id: newPatient.id,
-          transaction_type: 'PAYMENT', // Changed from 'ADMISSION'
+          transaction_type: 'consultation', // Try lowercase
           description: 'Hospital Entry Fee',
           amount: formData.entry_fee,
           payment_mode: 'CASH',
@@ -100,7 +100,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (formData.consultation_fee > 0) {
         transactions.push({
           patient_id: newPatient.id,
-          transaction_type: 'CONSULTATION',
+          transaction_type: 'consultation', // Use same type for both
           description: 'Doctor Consultation Fee',
           amount: formData.consultation_fee,
           payment_mode: 'CASH',
@@ -112,7 +112,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (formData.discount_amount > 0) {
         transactions.push({
           patient_id: newPatient.id,
-          transaction_type: 'ADJUSTMENT', // Changed from 'REFUND'
+          transaction_type: 'consultation', // Use same type temporarily
           description: `Discount: ${formData.discount_reason || 'General discount'}`,
           amount: -formData.discount_amount,
           payment_mode: 'CASH',
