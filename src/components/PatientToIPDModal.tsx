@@ -20,7 +20,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     bed_number: '',
-    room_type: 'general' as 'general' | 'private' | 'icu',
+    room_type: 'GENERAL' as 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY',
     department: '',
     daily_rate: '',
     expected_discharge: '',
@@ -61,7 +61,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         .from('patient_admissions')
         .select('id')
         .eq('bed_number', formData.bed_number)
-        .eq('status', 'active')
+        .eq('status', 'ACTIVE')
         .single();
 
       if (bedCheckError && bedCheckError.code !== 'PGRST116') {
@@ -80,7 +80,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         .from('patient_admissions')
         .select('id')
         .eq('patient_id', patient.id)
-        .eq('status', 'active')
+        .eq('status', 'ACTIVE')
         .single();
 
       if (admissionCheckError && admissionCheckError.code !== 'PGRST116') {
@@ -102,15 +102,16 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         department: formData.department,
         daily_rate: parseFloat(formData.daily_rate),
         admission_date: new Date().toISOString().split('T')[0],
-        status: 'active',
+        status: 'ACTIVE',
         total_amount: 0
       };
 
       console.log('📤 Inserting admission data:', admissionData);
 
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('patient_admissions')
-        .insert([admissionData]);
+        .insert([admissionData])
+        .select();
 
       if (error) {
         console.error('ERROR DETAILS:', {
@@ -124,6 +125,24 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         });
         toast.error(`Failed to admit patient to IPD: ${error.message}`);
         return;
+      }
+
+      console.log('✅ IPD Admission successful:', insertedData);
+      console.log('🔍 Verifying admission was saved...');
+      
+      // Verify the admission was actually saved
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('patient_admissions')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (verifyError) {
+        console.error('❌ Error verifying admission:', verifyError);
+      } else {
+        console.log('✅ Verification result - admission exists:', verifyData);
       }
 
       toast.success(`${patient.first_name} ${patient.last_name} successfully admitted to IPD bed ${formData.bed_number}`);
@@ -140,7 +159,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
   const handleClose = () => {
     setFormData({
       bed_number: '',
-      room_type: 'general',
+      room_type: 'GENERAL',
       department: '',
       daily_rate: '',
       expected_discharge: '',
@@ -218,9 +237,10 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="general">🏨 General Ward</option>
-                <option value="private">🛏️ Private Room</option>
-                <option value="icu">🏥 ICU</option>
+                <option value="GENERAL">🏨 General Ward</option>
+                <option value="PRIVATE">🛏️ Private Room</option>
+                <option value="ICU">🏥 ICU</option>
+                <option value="EMERGENCY">🚨 Emergency</option>
               </select>
             </div>
 

@@ -42,26 +42,20 @@ const EnhancedIPDManagement: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'discharged' | 'beds'>('active');
-  const [showAdmitModal, setShowAdmitModal] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [selectedBed, setSelectedBed] = useState<BedWithRelations | null>(null);
-  const [admissionNotes, setAdmissionNotes] = useState('');
-  const [expectedDischarge, setExpectedDischarge] = useState('');
+  const [activeTab, setActiveTab] = useState<'active' | 'discharged'>('active');
 
   useEffect(() => {
+    console.log('🚀 IPD Management useEffect triggered, activeTab:', activeTab);
     loadData();
     loadStats();
   }, [activeTab]);
 
   const loadData = async () => {
+    console.log('📥 LoadData called for activeTab:', activeTab);
     setLoading(true);
     try {
-      if (activeTab === 'beds') {
-        await loadBeds();
-      } else {
-        await loadAdmissions();
-      }
+      console.log('👥 Loading admissions...');
+      await loadAdmissions();
       await loadPatients();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -73,17 +67,44 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const loadAdmissions = async () => {
     try {
-      // Fixed: Remove bed relationship since patient_admissions stores bed_number directly
+      console.log('🔍 Loading IPD admissions for tab:', activeTab);
+      const statusFilter = activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED';
+      console.log('🎯 Filtering for status:', statusFilter);
+
+      // First, check ALL admissions to see what exists
+      const { data: allAdmissions, error: allError } = await supabase
+        .from('patient_admissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (allError) {
+        console.error('❌ Error loading all admissions:', allError);
+      } else {
+        console.log('📊 ALL admissions in database:', allAdmissions);
+        console.log('📊 Status breakdown:', allAdmissions?.reduce((acc: any, admission) => {
+          const status = admission.status || 'NULL';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {}));
+      }
+
+      // Now load filtered admissions
       const { data, error } = await supabase
         .from('patient_admissions')
         .select(`
           *,
           patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group)
         `)
-        .eq('status', activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED')
+        .eq('status', statusFilter)
         .order('admission_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error loading filtered admissions:', error);
+        throw error;
+      }
+      
+      console.log('📋 Filtered admissions result:', data);
+      console.log('📋 Found', data?.length || 0, 'admissions with status:', statusFilter);
       
       // Manually add bed info by matching bed_number
       if (data) {
@@ -102,9 +123,10 @@ const EnhancedIPDManagement: React.FC = () => {
         }
       }
       
+      console.log('📋 Final admissions with bed data:', data);
       setAdmissions(data || []);
     } catch (error: any) {
-      console.error('Error loading admissions:', error);
+      console.error('❌ Error loading admissions:', error);
       toast.error(`Failed to load admissions: ${error.message}`);
     }
   };
@@ -170,103 +192,7 @@ const EnhancedIPDManagement: React.FC = () => {
     }
   };
 
-  const getAvailableBeds = () => {
-    return beds.filter(bed => bed.status === 'AVAILABLE' || !bed.current_admission);
-  };
 
-  const admitPatient = async () => {
-    if (!selectedPatient || !selectedBed) {
-      toast.error('Please select both a patient and a bed');
-      return;
-    }
-
-    try {
-      const currentUser = await HospitalService.getCurrentUser();
-      if (!currentUser) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      // Check if bed is still available (simplified check)
-      const { data: existingAdmission } = await supabase
-        .from('patient_admissions')
-        .select('id')
-        .eq('bed_number', selectedBed.bed_number)
-        .eq('status', 'ACTIVE')
-        .single();
-
-      if (existingAdmission) {
-        toast.error('Selected bed is no longer available');
-        return;
-      }
-
-      // Create admission - Fixed to use valid constraint room_type
-      const validRoomType = normalizeRoomType(selectedBed.room_type);
-      const admissionData = {
-        patient_id: selectedPatient.id,
-        bed_number: selectedBed.bed_number,
-        room_type: validRoomType, // Use normalized room type
-        department: selectedBed.department || 'GENERAL',
-        daily_rate: selectedBed.daily_rate,
-        admission_date: new Date().toISOString(),
-        expected_discharge_date: expectedDischarge ? new Date(expectedDischarge).toISOString().split('T')[0] : null,
-        admission_notes: admissionNotes || null,
-        services: {},
-        total_amount: 0,
-        amount_paid: 0,
-        balance_amount: 0, // Fixed field name
-        status: 'ACTIVE',
-        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
-      };
-
-      console.log('💉 Admission data with normalized room_type:', admissionData);
-
-      const { data: admission, error: admissionError } = await supabase
-        .from('patient_admissions')
-        .insert([admissionData])
-        .select()
-        .single();
-
-      if (admissionError) throw admissionError;
-
-      // Update bed status
-      const { error: bedError } = await supabase
-        .from('beds')
-        .update({ status: 'OCCUPIED' })
-        .eq('bed_number', selectedBed.bed_number);
-
-      if (bedError) throw bedError;
-
-      // Create admission fee transaction - use valid transaction type
-      const { error: transactionError } = await supabase
-        .from('patient_transactions')
-        .insert([{
-          patient_id: selectedPatient.id,
-          admission_id: admission.id,
-          transaction_type: 'ENTRY_FEE', // Use valid constraint value
-          amount: selectedBed.daily_rate,
-          payment_mode: 'CASH',
-          description: `Admission to bed ${selectedBed.bed_number} - ${selectedBed.room_type}`,
-          status: 'PENDING',
-          hospital_id: '550e8400-e29b-41d4-a716-446655440000'
-        }]);
-
-      if (transactionError) throw transactionError;
-
-      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} admitted to bed ${selectedBed.bed_number}`);
-      setShowAdmitModal(false);
-      setSelectedPatient(null);
-      setSelectedBed(null);
-      setAdmissionNotes('');
-      setExpectedDischarge('');
-      loadData();
-      loadStats();
-
-    } catch (error: any) {
-      console.error('Error admitting patient:', error);
-      toast.error(`Failed to admit patient: ${error.message}`);
-    }
-  };
 
   const dischargePatient = async (admission: PatientAdmissionWithRelations) => {
     if (!confirm(`Are you sure you want to discharge ${admission.patient?.first_name} ${admission.patient?.last_name}?`)) {
@@ -382,26 +308,9 @@ const EnhancedIPDManagement: React.FC = () => {
           >
             📋 Discharged
           </button>
-          <button
-            onClick={() => setActiveTab('beds')}
-            className={`px-6 py-2 rounded-md font-medium ${
-              activeTab === 'beds'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            🏨 Bed Management ({beds.length})
-          </button>
         </div>
 
         <div className="flex space-x-3">
-          <button
-            onClick={() => setShowAdmitModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
-          >
-            <span>➕</span>
-            <span>Admit Patient</span>
-          </button>
           <button
             onClick={loadData}
             disabled={loading}
@@ -413,77 +322,8 @@ const EnhancedIPDManagement: React.FC = () => {
       </div>
 
       {/* Content based on active tab */}
-      {activeTab === 'beds' ? (
-        // Bed Management View
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="p-4 bg-gray-50 border-b">
-            <h2 className="text-lg font-semibold">Bed Status Overview</h2>
-          </div>
-          
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-gray-600">Loading beds...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-              {beds.map((bed) => (
-                <div
-                  key={bed.id}
-                  className={`p-4 rounded-lg border-2 ${
-                    bed.status === 'AVAILABLE' 
-                      ? 'border-green-200 bg-green-50' 
-                      : bed.status === 'OCCUPIED'
-                      ? 'border-red-200 bg-red-50'
-                      : 'border-yellow-200 bg-yellow-50'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-bold text-lg">{bed.bed_number}</h3>
-                      <p className="text-sm text-gray-600">{bed.room_type} Room</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      bed.status === 'AVAILABLE' 
-                        ? 'bg-green-100 text-green-800'
-                        : bed.status === 'OCCUPIED'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {bed.status}
-                    </span>
-                  </div>
-                  
-                  <div className="text-sm space-y-1">
-                    <p><strong>Daily Rate:</strong> ₹{bed.daily_rate.toLocaleString()}</p>
-                    {bed.department && (
-                      <p><strong>Department:</strong> {bed.department.name}</p>
-                    )}
-                    
-                    {bed.current_admission && bed.current_admission.length > 0 && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="font-medium text-gray-800">Current Patient:</p>
-                        {bed.current_admission.map((admission: any) => (
-                          <div key={admission.id}>
-                            <p className="text-sm">
-                              {admission.patient?.first_name} {admission.patient?.last_name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Admitted: {new Date(admission.admission_date).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        // Admissions View (Active/Discharged)
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      {/* Admissions View (Active/Discharged) */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
@@ -568,126 +408,13 @@ const EnhancedIPDManagement: React.FC = () => {
                 }
               </p>
               {activeTab === 'active' && (
-                <button
-                  onClick={() => setShowAdmitModal(true)}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Admit First Patient
-                </button>
+                <p className="text-gray-400 text-sm">
+                  Use "Admit to IPD" button from Patient List to admit patients
+                </p>
               )}
             </div>
           )}
         </div>
-      )}
-
-      {/* Admission Modal */}
-      {showAdmitModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-screen overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">🛏️ Admit Patient to IPD</h2>
-              <button
-                onClick={() => setShowAdmitModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Patient Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Patient *
-                </label>
-                <select
-                  value={selectedPatient?.id || ''}
-                  onChange={(e) => {
-                    const patient = patients.find(p => p.id === e.target.value);
-                    setSelectedPatient(patient || null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">-- Select a patient --</option>
-                  {patients.map((patient) => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.first_name} {patient.last_name} ({patient.patient_id}) - Age: {patient.age}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Bed Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Available Bed *
-                </label>
-                <select
-                  value={selectedBed?.id || ''}
-                  onChange={(e) => {
-                    const bed = getAvailableBeds().find(b => b.id === e.target.value);
-                    setSelectedBed(bed || null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">-- Select an available bed --</option>
-                  {getAvailableBeds().map((bed) => (
-                    <option key={bed.id} value={bed.id}>
-                      {bed.bed_number} - {bed.room_type} (₹{bed.daily_rate}/day)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Expected Discharge Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expected Discharge Date
-                </label>
-                <input
-                  type="date"
-                  value={expectedDischarge}
-                  onChange={(e) => setExpectedDischarge(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Admission Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Admission Notes
-                </label>
-                <textarea
-                  value={admissionNotes}
-                  onChange={(e) => setAdmissionNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Enter admission notes, medical conditions, special instructions..."
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-3 pt-6 border-t">
-                <button
-                  onClick={() => setShowAdmitModal(false)}
-                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={admitPatient}
-                  disabled={!selectedPatient || !selectedBed}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  🛏️ Admit Patient
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

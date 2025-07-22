@@ -12,6 +12,7 @@ import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
+import IPDDataChecker from './components/IPDDataChecker';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
