@@ -14,6 +14,7 @@ import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import QuickIPDFix from './components/QuickIPDFix';
 import DatabaseConstraintInspector from './components/DatabaseConstraintInspector';
+import LiveConstraintDebugger from './components/LiveConstraintDebugger';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -267,6 +268,12 @@ const App: React.FC = () => {
       name: '🔍 Constraint Inspector', 
       component: DatabaseConstraintInspector,
       description: 'Inspect and fix database constraints in Supabase' 
+    },
+    { 
+      id: 'live-debugger', 
+      name: '🚨 Live Debugger', 
+      component: LiveConstraintDebugger,
+      description: 'Real-time debugging of your actual database right now' 
     }
   ];
 
