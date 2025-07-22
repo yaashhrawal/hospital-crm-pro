@@ -8,6 +8,7 @@ import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
+import AuthDebugger from './components/AuthDebugger';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -231,6 +232,12 @@ const App: React.FC = () => {
       name: '📅 Appointments', 
       component: FutureAppointmentsSystem,
       description: 'Schedule and manage appointments' 
+    },
+    { 
+      id: 'auth-debug', 
+      name: '🔍 Auth Debug', 
+      component: AuthDebugger,
+      description: 'Debug authentication issues' 
     },
   ];
 

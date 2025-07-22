@@ -45,9 +45,32 @@ export class HospitalService {
         .single();
       
       if (profileError) {
-        console.error('❌ Profile error:', profileError);
-        // Create user profile if it doesn't exist
-        return await this.createUserProfile(user);
+        console.log('ℹ️ No profile found in users table, creating one...');
+        
+        // If no profile exists, create one automatically
+        try {
+          return await this.createUserProfile(user);
+        } catch (createError: any) {
+          console.error('❌ Failed to create profile:', createError);
+          
+          // If users table doesn't exist or other errors, return a minimal user object
+          console.log('🔄 Returning minimal user object for auth user');
+          return {
+            id: user.id,
+            auth_id: user.id,
+            email: user.email || '',
+            first_name: user.email?.split('@')[0] || 'User',
+            last_name: '',
+            role: 'STAFF',
+            phone: '',
+            specialization: '',
+            consultation_fee: 0,
+            department: 'General',
+            hospital_id: HOSPITAL_ID,
+            is_active: true,
+            created_at: new Date().toISOString()
+          } as User;
+        }
       }
       
       console.log('✅ User profile found:', userProfile);
@@ -67,7 +90,7 @@ export class HospitalService {
       email: authUser.email,
       first_name: authUser.user_metadata?.first_name || authUser.email.split('@')[0],
       last_name: authUser.user_metadata?.last_name || '',
-      role: authUser.email === 'admin@hospital.com' ? 'ADMIN' : 'STAFF',
+      role: 'STAFF', // Default role for all users
       phone: authUser.user_metadata?.phone || '',
       specialization: '',
       consultation_fee: 0,
@@ -76,6 +99,7 @@ export class HospitalService {
       is_active: true
     };
     
+    // Try to create user profile, but handle duplicate key errors gracefully
     const { data, error } = await supabase
       .from('users')
       .insert([userData])
@@ -84,6 +108,25 @@ export class HospitalService {
     
     if (error) {
       console.error('❌ Failed to create user profile:', error);
+      
+      // If it's a duplicate key error, try to fetch existing profile
+      if (error.code === '23505') { // PostgreSQL unique violation
+        console.log('🔄 User profile already exists, fetching existing profile...');
+        const { data: existingUser, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', authUser.id)
+          .single();
+        
+        if (fetchError) {
+          console.error('❌ Failed to fetch existing user profile:', fetchError);
+          throw fetchError;
+        }
+        
+        console.log('✅ Found existing user profile:', existingUser);
+        return existingUser as User;
+      }
+      
       throw error;
     }
     
