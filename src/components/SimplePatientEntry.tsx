@@ -18,11 +18,12 @@ const SimplePatientEntry: React.FC = () => {
     blood_group: '',
     medical_history: '',
     allergies: '',
-    // Financial info for display only
+    // Financial info
     consultation_fee: 0,
     entry_fee: 0,
     discount_amount: 0,
     discount_reason: '',
+    payment_mode: 'CASH', // Default payment mode
     // Admission info
     isAdmitted: false,
     bedNumber: '',
@@ -98,7 +99,7 @@ const SimplePatientEntry: React.FC = () => {
           transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
           description: `Entry Fee - Patient Registration`,
           amount: formData.entry_fee,
-          payment_mode: 'CASH',
+          payment_mode: formData.payment_mode, // Use selected payment mode
           status: 'COMPLETED'
         });
       }
@@ -109,7 +110,7 @@ const SimplePatientEntry: React.FC = () => {
           transaction_type: 'CONSULTATION',
           description: `Consultation Fee - Doctor Visit`,
           amount: formData.consultation_fee,
-          payment_mode: 'CASH',
+          payment_mode: formData.payment_mode, // Use selected payment mode
           status: 'COMPLETED'
         });
       }
@@ -120,7 +121,7 @@ const SimplePatientEntry: React.FC = () => {
           transaction_type: 'PROCEDURE', // Use PROCEDURE with negative amount for discounts
           description: `Discount Applied: ${formData.discount_reason || 'General discount'}`,
           amount: -formData.discount_amount, // Negative amount for discount
-          payment_mode: 'CASH',
+          payment_mode: formData.payment_mode, // Use selected payment mode
           status: 'COMPLETED'
         });
       }
@@ -181,6 +182,7 @@ const SimplePatientEntry: React.FC = () => {
         entry_fee: 0,
         discount_amount: 0,
         discount_reason: '',
+        payment_mode: 'CASH',
         // Reset admission fields
         isAdmitted: false,
         bedNumber: '',
@@ -423,11 +425,48 @@ const SimplePatientEntry: React.FC = () => {
             </div>
           </div>
 
+          {/* Payment Mode Selection */}
+          {totalAmount > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, payment_mode: 'CASH' })}
+                  className={`p-3 rounded-lg border-2 flex items-center justify-center space-x-2 transition-all ${
+                    formData.payment_mode === 'CASH'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  <span className="text-2xl">💵</span>
+                  <span className="font-medium">Cash</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, payment_mode: 'ONLINE' })}
+                  className={`p-3 rounded-lg border-2 flex items-center justify-center space-x-2 transition-all ${
+                    formData.payment_mode === 'ONLINE'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  <span className="text-2xl">💳</span>
+                  <span className="font-medium">Online</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {totalAmount > 0 && (
             <div className="mt-4 p-3 bg-white rounded-lg border-2 border-blue-300">
               <div className="text-center">
                 <span className="text-xl font-bold text-blue-700">
                   Total Amount: ₹{totalAmount.toLocaleString()}
+                </span>
+                <span className="text-sm text-blue-600 block mt-1">
+                  Payment Mode: {formData.payment_mode === 'CASH' ? '💵 Cash' : '💳 Online'}
                 </span>
               </div>
             </div>
