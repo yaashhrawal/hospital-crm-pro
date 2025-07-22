@@ -13,6 +13,7 @@ import TransactionTypeTester from './components/TransactionTypeTester';
 import SimplePatientEntry from './components/SimplePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
+import ConstraintChecker from './components/ConstraintChecker';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -266,6 +267,12 @@ const App: React.FC = () => {
       name: '🧪 Transaction Test', 
       component: TransactionTypeTester,
       description: 'Test transaction types to fix constraint errors' 
+    },
+    { 
+      id: 'constraint-check', 
+      name: '🔍 Constraint Check', 
+      component: ConstraintChecker,
+      description: 'Find exact allowed transaction types' 
     },
   ];
 
