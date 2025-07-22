@@ -97,7 +97,9 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
         notes: formData.notes.trim() || undefined
       };
 
+      console.log('📝 Creating appointment with data:', appointmentData);
       await HospitalService.createAppointment(appointmentData);
+      console.log('✅ Appointment created successfully');
       
       toast.success('Appointment scheduled successfully!');
       
@@ -321,10 +323,13 @@ const FutureAppointmentsSystem: React.FC = () => {
 
   const loadAppointments = async () => {
     try {
+      console.log('🔍 Loading appointments...');
       setLoading(true);
       const appointmentsData = await HospitalService.getAppointments();
+      console.log('📅 Appointments loaded:', appointmentsData);
       setAppointments(appointmentsData);
     } catch (error: any) {
+      console.error('❌ Error loading appointments:', error);
       toast.error(`Failed to load appointments: ${error.message}`);
     } finally {
       setLoading(false);
