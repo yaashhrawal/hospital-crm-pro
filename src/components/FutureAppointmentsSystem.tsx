@@ -11,6 +11,7 @@ interface AppointmentFormProps {
 }
 
 const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSuccess }) => {
+  try {
   const [formData, setFormData] = useState({
     patient_id: '',
     doctor_id: '',
@@ -240,7 +241,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {APPOINTMENT_TYPES.map(type => (
-                  <option key={type} value={type}>{type.replace('_', ' ')}</option>
+                  <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
             </div>
@@ -307,6 +308,20 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
       </div>
     </div>
   );
+  } catch (error: any) {
+    console.error('Error in AppointmentForm:', error);
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h3 className="text-red-600 font-bold mb-2">Error in Appointment Form</h3>
+          <p className="text-gray-600 mb-4">{error.message || 'An error occurred'}</p>
+          <button onClick={onClose} className="bg-gray-600 text-white px-4 py-2 rounded">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 };
 
 const FutureAppointmentsSystem: React.FC = () => {
