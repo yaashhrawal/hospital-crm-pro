@@ -150,7 +150,6 @@ const EnhancedIPDManagement: React.FC = () => {
       const { data, error } = await supabase
         .from('patients')
         .select('id, patient_id, first_name, last_name, phone, age, blood_group')
-        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(50);
 
