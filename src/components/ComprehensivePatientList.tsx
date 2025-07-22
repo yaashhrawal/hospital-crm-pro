@@ -1,0 +1,448 @@
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import HospitalService from '../services/hospitalService';
+import type { PatientWithRelations } from '../config/supabaseNew';
+
+interface PatientHistoryModalProps {
+  patient: PatientWithRelations;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  const totalSpent = patient.totalSpent || 0;
+  const visitCount = patient.visitCount || 0;
+  const transactions = patient.transactions || [];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">
+            👤 {patient.first_name} {patient.last_name}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Patient Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">₹{totalSpent.toLocaleString()}</div>
+            <div className="text-blue-600">Total Spent</div>
+          </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-green-700">{visitCount}</div>
+            <div className="text-green-600">Total Visits</div>
+          </div>
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">
+              {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}
+            </div>
+            <div className="text-purple-600">Last Visit</div>
+          </div>
+        </div>
+
+        {/* Patient Details */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h3 className="text-lg font-semibold mb-3">Patient Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div><span className="font-medium">ID:</span> {patient.patient_id}</div>
+            <div><span className="font-medium">Phone:</span> {patient.phone || 'Not provided'}</div>
+            <div><span className="font-medium">Email:</span> {patient.email || 'Not provided'}</div>
+            <div><span className="font-medium">Gender:</span> {patient.gender}</div>
+            <div><span className="font-medium">Blood Group:</span> {patient.blood_group || 'Not specified'}</div>
+            <div><span className="font-medium">Date of Birth:</span> {patient.date_of_birth || 'Not provided'}</div>
+            {patient.address && (
+              <div className="md:col-span-2"><span className="font-medium">Address:</span> {patient.address}</div>
+            )}
+            {patient.medical_history && (
+              <div className="md:col-span-2"><span className="font-medium">Medical History:</span> {patient.medical_history}</div>
+            )}
+            {patient.allergies && (
+              <div className="md:col-span-2"><span className="font-medium">Allergies:</span> {patient.allergies}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Transaction History */}
+        <div>
+          <h3 className="text-lg font-semibold mb-3">Transaction History ({transactions.length})</h3>
+          {transactions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-left p-2">Type</th>
+                    <th className="text-left p-2">Description</th>
+                    <th className="text-left p-2">Amount</th>
+                    <th className="text-left p-2">Payment</th>
+                    <th className="text-left p-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((transaction, index) => (
+                    <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="p-2">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          transaction.transaction_type === 'CONSULTATION' ? 'bg-blue-100 text-blue-800' :
+                          transaction.transaction_type === 'ADMISSION' ? 'bg-green-100 text-green-800' :
+                          transaction.transaction_type === 'REFUND' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {transaction.transaction_type}
+                        </span>
+                      </td>
+                      <td className="p-2">{transaction.description}</td>
+                      <td className="p-2">
+                        <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          ₹{Math.abs(transaction.amount).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="p-2">{transaction.payment_mode}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          transaction.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {transaction.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">📝</div>
+              <p>No transaction history found</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ComprehensivePatientList: React.FC = () => {
+  const [patients, setPatients] = useState<PatientWithRelations[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<PatientWithRelations[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'visits' | 'spent'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterGender, setFilterGender] = useState<string>('all');
+  const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  useEffect(() => {
+    loadPatients();
+  }, []);
+
+  useEffect(() => {
+    filterAndSortPatients();
+  }, [patients, searchTerm, sortBy, sortOrder, filterGender]);
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 Loading patients from new schema...');
+      
+      const patientsData = await HospitalService.getPatients(200);
+      console.log(`✅ Loaded ${patientsData.length} patients`);
+      
+      setPatients(patientsData);
+    } catch (error: any) {
+      console.error('❌ Failed to load patients:', error);
+      toast.error(`Failed to load patients: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterAndSortPatients = () => {
+    let filtered = [...patients];
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(patient => 
+        patient.first_name.toLowerCase().includes(search) ||
+        patient.last_name.toLowerCase().includes(search) ||
+        patient.phone.includes(search) ||
+        patient.patient_id.toLowerCase().includes(search) ||
+        (patient.email && patient.email.toLowerCase().includes(search))
+      );
+    }
+
+    // Apply gender filter
+    if (filterGender !== 'all') {
+      filtered = filtered.filter(patient => patient.gender === filterGender);
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = (a.first_name + ' ' + a.last_name).localeCompare(b.first_name + ' ' + b.last_name);
+          break;
+        case 'date':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'visits':
+          comparison = (a.visitCount || 0) - (b.visitCount || 0);
+          break;
+        case 'spent':
+          comparison = (a.totalSpent || 0) - (b.totalSpent || 0);
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    setFilteredPatients(filtered);
+  };
+
+  const handlePatientClick = (patient: PatientWithRelations) => {
+    setSelectedPatient(patient);
+    setShowHistoryModal(true);
+  };
+
+  const handleSort = (newSortBy: typeof sortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc');
+    }
+  };
+
+  const getSortIcon = (column: typeof sortBy) => {
+    if (sortBy !== column) return '↕️';
+    return sortOrder === 'asc' ? '↑' : '↓';
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading patients...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">👥 Comprehensive Patient List</h1>
+        <p className="text-gray-600">Complete patient management with search, filter, and detailed history</p>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+          <div className="text-2xl font-bold text-blue-700">{patients.length}</div>
+          <div className="text-blue-600">Total Patients</div>
+        </div>
+        <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+          <div className="text-2xl font-bold text-green-700">{filteredPatients.length}</div>
+          <div className="text-green-600">Filtered Results</div>
+        </div>
+        <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
+          <div className="text-2xl font-bold text-purple-700">
+            ₹{patients.reduce((sum, p) => sum + (p.totalSpent || 0), 0).toLocaleString()}
+          </div>
+          <div className="text-purple-600">Total Revenue</div>
+        </div>
+        <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
+          <div className="text-2xl font-bold text-orange-700">
+            {patients.reduce((sum, p) => sum + (p.visitCount || 0), 0)}
+          </div>
+          <div className="text-orange-600">Total Visits</div>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Search by name, phone, email, or patient ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Gender Filter */}
+          <div className="min-w-[150px]">
+            <select
+              value={filterGender}
+              onChange={(e) => setFilterGender(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Genders</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            onClick={loadPatients}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Patient List */}
+      {filteredPatients.length > 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th 
+                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('name')}
+                  >
+                    Patient {getSortIcon('name')}
+                  </th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
+                  <th 
+                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('visits')}
+                  >
+                    Visits {getSortIcon('visits')}
+                  </th>
+                  <th 
+                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('spent')}
+                  >
+                    Total Spent {getSortIcon('spent')}
+                  </th>
+                  <th 
+                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('date')}
+                  >
+                    Last Visit {getSortIcon('date')}
+                  </th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPatients.map((patient, index) => (
+                  <tr 
+                    key={patient.id} 
+                    className={`border-b hover:bg-gray-50 cursor-pointer ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                    }`}
+                    onClick={() => handlePatientClick(patient)}
+                  >
+                    <td className="p-4">
+                      <div>
+                        <div className="font-semibold text-gray-800">
+                          {patient.first_name} {patient.last_name}
+                        </div>
+                        <div className="text-sm text-gray-500">ID: {patient.patient_id}</div>
+                        <div className="text-sm text-gray-500">
+                          {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm">
+                        <div>{patient.phone || 'No phone'}</div>
+                        <div className="text-gray-500">{patient.email || 'No email'}</div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
+                        {patient.visitCount || 0}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-green-600 font-semibold">
+                        ₹{(patient.totalSpent || 0).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-gray-600">
+                      {patient.lastVisit 
+                        ? new Date(patient.lastVisit).toLocaleDateString()
+                        : 'Never'
+                      }
+                    </td>
+                    <td className="p-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePatientClick(patient);
+                        }}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        View History
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+          <div className="text-6xl mb-4">👥</div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">No patients found</h3>
+          <p className="text-gray-600 mb-4">
+            {searchTerm || filterGender !== 'all' 
+              ? 'Try adjusting your search or filters'
+              : 'No patients have been registered yet'
+            }
+          </p>
+          <button
+            onClick={loadPatients}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            🔄 Refresh List
+          </button>
+        </div>
+      )}
+
+      {/* Patient History Modal */}
+      {selectedPatient && (
+        <PatientHistoryModal
+          patient={selectedPatient}
+          isOpen={showHistoryModal}
+          onClose={() => {
+            setShowHistoryModal(false);
+            setSelectedPatient(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ComprehensivePatientList;
