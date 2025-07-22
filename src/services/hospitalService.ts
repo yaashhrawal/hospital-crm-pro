@@ -559,6 +559,125 @@ export class HospitalService {
       service: 'Supabase'
     };
   }
+  
+  // ==================== DISCHARGE MANAGEMENT OPERATIONS ====================
+  
+  static async getPatientTransactionsByAdmission(patientId: string) {
+    try {
+      console.log('📊 Loading patient transactions for discharge billing...');
+      
+      const { data, error } = await supabase
+        .from('patient_transactions')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('status', 'COMPLETED')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      console.log(`✅ Loaded ${data?.length || 0} completed transactions`);
+      return data || [];
+      
+    } catch (error: any) {
+      console.error('❌ Error loading patient transactions:', error);
+      throw error;
+    }
+  }
+  
+  static async createDischargeSummary(summaryData: any) {
+    try {
+      console.log('📝 Creating discharge summary...');
+      
+      const { data, error } = await supabase
+        .from('discharge_summaries')
+        .insert(summaryData)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Discharge summary created successfully');
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error creating discharge summary:', error);
+      throw error;
+    }
+  }
+  
+  static async createDischargeBill(billData: any) {
+    try {
+      console.log('💰 Creating discharge bill...');
+      
+      const { data, error } = await supabase
+        .from('discharge_bills')
+        .insert(billData)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Discharge bill created successfully');
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error creating discharge bill:', error);
+      throw error;
+    }
+  }
+  
+  static async getDischargeHistory(patientId: string) {
+    try {
+      console.log('📋 Loading discharge history...');
+      
+      const { data, error } = await supabase
+        .from('discharge_summaries')
+        .select(`
+          *,
+          admission:patient_admissions(*),
+          bill:discharge_bills(*),
+          created_by_user:users(id, email, first_name, last_name)
+        `)
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      console.log(`✅ Loaded ${data?.length || 0} discharge records`);
+      return data || [];
+      
+    } catch (error: any) {
+      console.error('❌ Error loading discharge history:', error);
+      throw error;
+    }
+  }
+  
+  static async getDischargeSummaryWithBill(admissionId: string) {
+    try {
+      console.log('📄 Loading complete discharge record...');
+      
+      const { data, error } = await supabase
+        .from('discharge_summaries')
+        .select(`
+          *,
+          bill:discharge_bills(*),
+          admission:patient_admissions(*),
+          patient:patients(*),
+          created_by_user:users(id, email, first_name, last_name)
+        `)
+        .eq('admission_id', admissionId)
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Complete discharge record loaded');
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error loading discharge record:', error);
+      throw error;
+    }
+  }
 }
 
 export default HospitalService;

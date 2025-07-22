@@ -8,6 +8,7 @@ import type {
   User
 } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
+import DischargePatientModal from './DischargePatientModal';
 
 // Normalize room type to match database constraint - FIXED
 const normalizeRoomType = (roomType: string): string => {
@@ -41,6 +42,10 @@ const EnhancedIPDManagement: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'discharged'>('active');
+  
+  // Discharge modal state
+  const [showDischargeModal, setShowDischargeModal] = useState(false);
+  const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<PatientAdmissionWithRelations | null>(null);
 
   useEffect(() => {
     console.log('🚀 IPD Management useEffect triggered, activeTab:', activeTab);
@@ -86,12 +91,13 @@ const EnhancedIPDManagement: React.FC = () => {
         }, {}));
       }
 
-      // Now load filtered admissions
+      // Now load filtered admissions with bed details
       const { data, error } = await supabase
         .from('patient_admissions')
         .select(`
           *,
-          patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group)
+          patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group),
+          bed:beds(id, bed_number, room_type, daily_rate)
         `)
         .eq('status', statusFilter)
         .order('admission_date', { ascending: false });
@@ -138,46 +144,17 @@ const EnhancedIPDManagement: React.FC = () => {
 
 
 
-  const dischargePatient = async (admission: PatientAdmissionWithRelations) => {
-    if (!confirm(`Are you sure you want to discharge ${admission.patient?.first_name} ${admission.patient?.last_name}?`)) {
-      return;
-    }
+  // Open comprehensive discharge modal instead of simple discharge
+  const dischargePatient = (admission: PatientAdmissionWithRelations) => {
+    setSelectedAdmissionForDischarge(admission);
+    setShowDischargeModal(true);
+  };
 
-    try {
-      const currentUser = await HospitalService.getCurrentUser();
-      if (!currentUser) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      // Update admission status
-      const { error: admissionError } = await supabase
-        .from('patient_admissions')
-        .update({
-          status: 'DISCHARGED',
-          actual_discharge_date: new Date().toISOString().split('T')[0],
-          discharged_by: currentUser.id
-        })
-        .eq('id', admission.id);
-
-      if (admissionError) throw admissionError;
-
-      // Update bed status
-      const { error: bedError } = await supabase
-        .from('beds')
-        .update({ status: 'AVAILABLE' })
-        .eq('bed_number', admission.bed_number);
-
-      if (bedError) throw bedError;
-
-      toast.success('Patient discharged successfully');
-      loadData();
-      loadStats();
-
-    } catch (error: any) {
-      console.error('Error discharging patient:', error);
-      toast.error(`Failed to discharge patient: ${error.message}`);
-    }
+  const handleDischargeSuccess = () => {
+    setShowDischargeModal(false);
+    setSelectedAdmissionForDischarge(null);
+    loadData();
+    loadStats();
   };
 
   const calculateStayDuration = (admissionDate: string, dischargeDate?: string) => {
@@ -189,7 +166,7 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const calculateTotalAmount = (admission: PatientAdmissionWithRelations) => {
     const days = calculateStayDuration(admission.admission_date, admission.actual_discharge_date);
-    const dailyRate = admission.daily_rate || 0;
+    const dailyRate = admission.bed?.daily_rate || 0;
     return days * dailyRate;
   };
 
@@ -299,9 +276,9 @@ const EnhancedIPDManagement: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 font-medium">{admission.bed_number}</td>
-                      <td className="p-4">{admission.room_type}</td>
-                      <td className="p-4">₹{admission.daily_rate?.toLocaleString() || 'N/A'}</td>
+                      <td className="p-4 font-medium">{admission.bed?.bed_number || 'N/A'}</td>
+                      <td className="p-4">{admission.bed?.room_type || 'N/A'}</td>
+                      <td className="p-4">₹{admission.bed?.daily_rate?.toLocaleString() || 'N/A'}</td>
                       <td className="p-4">
                         <span className="font-medium">
                           {calculateStayDuration(admission.admission_date, admission.actual_discharge_date)} days
@@ -359,6 +336,17 @@ const EnhancedIPDManagement: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Comprehensive Discharge Modal */}
+        <DischargePatientModal
+          admission={selectedAdmissionForDischarge}
+          isOpen={showDischargeModal}
+          onClose={() => {
+            setShowDischargeModal(false);
+            setSelectedAdmissionForDischarge(null);
+          }}
+          onDischargeSuccess={handleDischargeSuccess}
+        />
     </div>
   );
 };

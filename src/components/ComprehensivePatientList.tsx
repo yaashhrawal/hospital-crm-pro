@@ -273,7 +273,7 @@ const ComprehensivePatientList: React.FC = () => {
         date_of_birth: patient.date_of_birth || '',
         medical_history: patient.medical_history || '',
         allergies: patient.allergies || '',
-        emergency_contact: patient.emergency_contact || '',
+        emergency_contact: patient.emergency_contact_name || '',
         visit_count: patient.visitCount || 0,
         total_spent: patient.totalSpent || 0,
         last_visit: patient.lastVisit || '',
