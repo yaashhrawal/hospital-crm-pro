@@ -68,18 +68,35 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const loadAdmissions = async () => {
     try {
+      // Fixed: Remove bed relationship since patient_admissions stores bed_number directly
       const { data, error } = await supabase
         .from('patient_admissions')
         .select(`
           *,
-          patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group),
-          bed:beds(id, bed_number, room_type, daily_rate),
-          admitted_by_user:users!patient_admissions_admitted_by_fkey(first_name, last_name)
+          patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group)
         `)
         .eq('status', activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED')
         .order('admission_date', { ascending: false });
 
       if (error) throw error;
+      
+      // Manually add bed info by matching bed_number
+      if (data) {
+        for (const admission of data) {
+          if (admission.bed_number) {
+            const { data: bedData } = await supabase
+              .from('beds')
+              .select('id, bed_number, room_type, daily_rate')
+              .eq('bed_number', admission.bed_number)
+              .single();
+            
+            if (bedData) {
+              admission.bed = bedData;
+            }
+          }
+        }
+      }
+      
       setAdmissions(data || []);
     } catch (error: any) {
       console.error('Error loading admissions:', error);
@@ -89,22 +106,34 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const loadBeds = async () => {
     try {
-      const { data, error } = await supabase
+      // Fixed: Load beds without problematic relationships
+      const { data: bedsData, error } = await supabase
         .from('beds')
-        .select(`
-          *,
-          department:departments(name),
-          current_admission:patient_admissions!beds_id_fkey(
-            id,
-            patient:patients(first_name, last_name, patient_id),
-            admission_date
-          )
-        `)
-        .eq('current_admission.status', 'ACTIVE')
+        .select('*')
         .order('bed_number');
 
       if (error) throw error;
-      setBeds(data || []);
+      
+      // Manually add current admission info by matching bed_number
+      if (bedsData) {
+        for (const bed of bedsData) {
+          const { data: admission } = await supabase
+            .from('patient_admissions')
+            .select(`
+              id, admission_date, status,
+              patient:patients(first_name, last_name, patient_id)
+            `)
+            .eq('bed_number', bed.bed_number)
+            .eq('status', 'ACTIVE')
+            .single();
+          
+          if (admission) {
+            bed.current_admission = [admission];
+          }
+        }
+      }
+
+      setBeds(bedsData || []);
     } catch (error: any) {
       console.error('Error loading beds:', error);
       toast.error(`Failed to load beds: ${error.message}`);
@@ -154,12 +183,15 @@ const EnhancedIPDManagement: React.FC = () => {
         return;
       }
 
-      // Check if bed is still available
-      const { data: bedCheck } = await supabase.rpc('is_bed_available', { 
-        bed_number: selectedBed.bed_number 
-      });
+      // Check if bed is still available (simplified check)
+      const { data: existingAdmission } = await supabase
+        .from('patient_admissions')
+        .select('id')
+        .eq('bed_number', selectedBed.bed_number)
+        .eq('status', 'ACTIVE')
+        .single();
 
-      if (!bedCheck) {
+      if (existingAdmission) {
         toast.error('Selected bed is no longer available');
         return;
       }
