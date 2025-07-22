@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "3.0.3-production-clean",
+  "version": "3.0.4-constraint-fix",
   "type": "module",
   "scripts": {
     "dev": "vite",

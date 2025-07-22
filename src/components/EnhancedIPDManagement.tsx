@@ -10,6 +10,27 @@ import type {
 } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 
+// Normalize room type to match database constraint
+const normalizeRoomType = (roomType: string): string => {
+  if (!roomType) return 'GENERAL';
+  
+  const normalized = roomType.toUpperCase().trim();
+  
+  // Map common variations to standard types
+  const roomTypeMap: { [key: string]: string } = {
+    'GENERAL': 'GENERAL',
+    'PRIVATE': 'PRIVATE', 
+    'ICU': 'ICU',
+    'EMERGENCY': 'EMERGENCY',
+    'SEMI_PRIVATE': 'PRIVATE',
+    'DELUXE': 'PRIVATE',
+    'STANDARD': 'GENERAL',
+    'VIP': 'PRIVATE'
+  };
+  
+  return roomTypeMap[normalized] || 'GENERAL';
+};
+
 const EnhancedIPDManagement: React.FC = () => {
   const [admissions, setAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
   const [beds, setBeds] = useState<BedWithRelations[]>([]);
@@ -143,11 +164,12 @@ const EnhancedIPDManagement: React.FC = () => {
         return;
       }
 
-      // Create admission - Fixed to match actual schema structure
+      // Create admission - Fixed to use valid constraint room_type
+      const validRoomType = normalizeRoomType(selectedBed.room_type);
       const admissionData = {
         patient_id: selectedPatient.id,
         bed_number: selectedBed.bed_number,
-        room_type: selectedBed.room_type, 
+        room_type: validRoomType, // Use normalized room type
         department: selectedBed.department || 'GENERAL',
         daily_rate: selectedBed.daily_rate,
         admission_date: new Date().toISOString(),
@@ -160,6 +182,8 @@ const EnhancedIPDManagement: React.FC = () => {
         status: 'ACTIVE',
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
+
+      console.log('💉 Admission data with normalized room_type:', admissionData);
 
       const { data: admission, error: admissionError } = await supabase
         .from('patient_admissions')

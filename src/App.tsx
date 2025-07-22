@@ -12,6 +12,7 @@ import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
+import QuickIPDFix from './components/QuickIPDFix';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -253,6 +254,12 @@ const App: React.FC = () => {
       name: '💰 Refunds', 
       component: RefundTab,
       description: 'Process patient refunds and maintain financial records' 
+    },
+    { 
+      id: 'quick-fix', 
+      name: '🚨 Quick IPD Fix', 
+      component: QuickIPDFix,
+      description: 'Emergency fix for IPD room_type constraint violation' 
     }
   ];
 
