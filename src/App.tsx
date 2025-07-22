@@ -3,7 +3,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
 
-// Import production components
+// Import production components only
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
@@ -12,10 +12,6 @@ import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
-import QuickIPDFix from './components/QuickIPDFix';
-import DatabaseConstraintInspector from './components/DatabaseConstraintInspector';
-import LiveConstraintDebugger from './components/LiveConstraintDebugger';
-import RealTimeIPDDebugger from './components/RealTimeIPDDebugger';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -214,7 +210,7 @@ const App: React.FC = () => {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // Main app navigation tabs - PRODUCTION READY
+  // Main app navigation tabs - CLEAN PRODUCTION
   const tabs = [
     { 
       id: 'dashboard', 
@@ -257,30 +253,6 @@ const App: React.FC = () => {
       name: '💰 Refunds', 
       component: RefundTab,
       description: 'Process patient refunds and maintain financial records' 
-    },
-    { 
-      id: 'quick-fix', 
-      name: '🚨 Quick IPD Fix', 
-      component: QuickIPDFix,
-      description: 'Emergency fix for IPD room_type constraint violation' 
-    },
-    { 
-      id: 'constraint-inspector', 
-      name: '🔍 Constraint Inspector', 
-      component: DatabaseConstraintInspector,
-      description: 'Inspect and fix database constraints in Supabase' 
-    },
-    { 
-      id: 'live-debugger', 
-      name: '🚨 Live Debugger', 
-      component: LiveConstraintDebugger,
-      description: 'Real-time debugging of your actual database right now' 
-    },
-    { 
-      id: 'real-ipd-debugger', 
-      name: '🔥 IPD Debugger', 
-      component: RealTimeIPDDebugger,
-      description: 'Debug the exact IPD admission that is failing right now' 
     }
   ];
 
