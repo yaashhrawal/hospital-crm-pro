@@ -13,6 +13,7 @@ import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import QuickIPDFix from './components/QuickIPDFix';
+import DatabaseConstraintInspector from './components/DatabaseConstraintInspector';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -260,6 +261,12 @@ const App: React.FC = () => {
       name: '🚨 Quick IPD Fix', 
       component: QuickIPDFix,
       description: 'Emergency fix for IPD room_type constraint violation' 
+    },
+    { 
+      id: 'constraint-inspector', 
+      name: '🔍 Constraint Inspector', 
+      component: DatabaseConstraintInspector,
+      description: 'Inspect and fix database constraints in Supabase' 
     }
   ];
 
