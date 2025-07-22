@@ -12,7 +12,8 @@ import type {
   CreateTransactionData,
   CreateAppointmentData,
   PatientWithRelations,
-  DashboardStats
+  DashboardStats,
+  AppointmentWithRelations
 } from '../config/supabaseNew';
 
 export class HospitalService {
@@ -396,7 +397,7 @@ export class HospitalService {
     }
   }
   
-  static async getAppointments(limit = 100): Promise<FutureAppointment[]> {
+  static async getAppointments(limit = 100): Promise<AppointmentWithRelations[]> {
     try {
       const { data: appointments, error } = await supabase
         .from('future_appointments')
@@ -414,7 +415,7 @@ export class HospitalService {
         throw error;
       }
       
-      return appointments as FutureAppointment[];
+      return appointments as AppointmentWithRelations[];
       
     } catch (error: any) {
       console.error('🚨 getAppointments error:', error);

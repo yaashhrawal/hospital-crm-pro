@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
-import type { FutureAppointment, PatientWithRelations, User, CreateAppointmentData } from '../config/supabaseNew';
+import type { FutureAppointment, PatientWithRelations, User, CreateAppointmentData, AppointmentWithRelations } from '../config/supabaseNew';
 import { APPOINTMENT_TYPES, APPOINTMENT_STATUS } from '../config/supabaseNew';
 
 interface AppointmentFormProps {
@@ -310,7 +310,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
 };
 
 const FutureAppointmentsSystem: React.FC = () => {
-  const [appointments, setAppointments] = useState<FutureAppointment[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -494,10 +494,10 @@ const FutureAppointmentsSystem: React.FC = () => {
                       </td>
                       <td className="p-4">
                         <div className="font-medium">
-                          {(appointment as any).patient?.first_name} {(appointment as any).patient?.last_name}
+                          {appointment.patient?.first_name} {appointment.patient?.last_name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {(appointment as any).patient?.phone}
+                          {appointment.patient?.phone || 'N/A'}
                         </div>
                       </td>
                       <td className="p-4">
