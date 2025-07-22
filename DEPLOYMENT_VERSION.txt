@@ -1,11 +1,13 @@
-Deployment Version: 2.0.1
-Last Updated: 2025-07-22 07:51:00 UTC
+Deployment Version: 2.1.0
+Last Updated: 2025-07-22 09:15:00 UTC
 
 Recent Changes:
-- Added age field to patient registration
-- Added age/DOB validation with error messages
-- Added payment mode selection (Cash/Online)
-- Fixed all transaction and expense constraints
-- Cleared all patient data for fresh start
+- Implemented complete IPD (In-Patient Department) module
+- Added IPD patient admission with bed allocation and room types
+- Created editable fields for bed numbers, services, amounts, and notes
+- Added IPD services management with service types and billing
+- Implemented patient discharge functionality
+- Added comprehensive IPD dashboard with real-time statistics
+- Created modal-based workflow for admissions and service management
 
-Build Timestamp: 1753168260
+Build Timestamp: 1753174500

@@ -13,6 +13,7 @@ import SimplePatientEntry from './components/SimplePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import ConstraintChecker from './components/ConstraintChecker';
+import IPDManagement from './components/IPDManagement';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -248,6 +249,12 @@ const App: React.FC = () => {
       name: '💰 Refunds', 
       component: RefundTab,
       description: 'Process patient refunds and maintain records' 
+    },
+    { 
+      id: 'ipd', 
+      name: '🛏️ IPD', 
+      component: IPDManagement,
+      description: 'In-Patient Department - Manage admitted patients with bed allocation, services, and billing' 
     },
     { 
       id: 'auth-debug', 
