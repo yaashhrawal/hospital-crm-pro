@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "3.0.0-enhanced-schema",
+  "version": "3.0.1-room-type-debug",
   "type": "module",
   "scripts": {
     "dev": "vite",

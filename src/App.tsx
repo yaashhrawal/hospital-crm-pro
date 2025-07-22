@@ -19,6 +19,7 @@ import SimpleIPDTest from './components/SimpleIPDTest';
 import MinimalIPDAdmission from './components/MinimalIPDAdmission';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
+import BedRoomTypeTest from './components/BedRoomTypeTest';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -278,6 +279,12 @@ const App: React.FC = () => {
       name: '⚡ Minimal IPD', 
       component: MinimalIPDAdmission,
       description: 'Minimal working IPD admission - if this fails, the database has issues' 
+    },
+    { 
+      id: 'bed-room-test', 
+      name: '🔍 Bed Test', 
+      component: BedRoomTypeTest,
+      description: 'Test bed room types and constraint issues - diagnose exact problem' 
     },
     { 
       id: 'auth-debug', 
