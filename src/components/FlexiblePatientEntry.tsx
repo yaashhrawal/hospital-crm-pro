@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import dataService from '../services/dataService';
+import PatientService from '../services/patientService';
 import type { Patient, PatientTransaction, Gender, PaymentMode } from '../types/index';
 
 const FlexiblePatientEntry: React.FC = () => {
@@ -80,7 +81,8 @@ const FlexiblePatientEntry: React.FC = () => {
       if (formData.emergency_contact_phone) patientData.emergency_contact_phone = formData.emergency_contact_phone;
       if (formData.email) patientData.email = formData.email;
 
-      const newPatient = await dataService.createPatient(patientData);
+      // Use the robust patient service instead of dataService
+      const newPatient = await PatientService.createPatient(patientData);
 
       // Create transactions only if amounts are specified
       const transactions = [];

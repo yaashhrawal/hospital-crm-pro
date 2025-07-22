@@ -5,6 +5,8 @@ import SupabaseTestComponent from './components/SupabaseTestComponent';
 import FlexiblePatientEntry from './components/FlexiblePatientEntry';
 import PatientListView from './components/PatientListView';
 import AppointmentManagement from './components/AppointmentManagement';
+import PatientAdmissionSystem from './components/PatientAdmissionSystem';
+import PatientDataFix from './components/PatientDataFix';
 import type { Patient, PatientTransaction, DailyExpense, Gender, PaymentMode } from './types/index';
 
 // Simple Patient Entry Form
@@ -929,11 +931,13 @@ const App: React.FC = () => {
   const tabs = [
     { id: 'flexible-entry', name: '➕ Quick Patient Entry', component: FlexiblePatientEntry },
     { id: 'patient-list', name: '👥 Patient Management', component: PatientListView },
+    { id: 'admissions', name: '🏥 Patient Admissions', component: PatientAdmissionSystem },
     { id: 'appointments', name: '📅 Appointments', component: AppointmentManagement },
     { id: 'daily-operations', name: '📊 Daily Operations', component: SimpleDailyOperations },
     { id: 'expense-entry', name: '💸 Expense Entry', component: SimpleExpenseEntry },
     { id: 'refund-entry', name: '💰 Refund Entry', component: SimpleRefundEntry },
     { id: 'legacy-entry', name: '📋 Legacy Entry', component: SimplePatientEntry },
+    { id: 'data-fix', name: '🔧 Data Troubleshooting', component: PatientDataFix },
     { id: 'supabase-test', name: '🧪 Database Test', component: SupabaseTestComponent },
   ];
 

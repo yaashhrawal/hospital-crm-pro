@@ -1,450 +1,142 @@
 import { supabase } from '../config/supabase';
-import type { 
-  Patient, 
-  PatientWithRelations, 
-  CreatePatientData, 
-  PaginatedResponse,
-  SupabaseQuery 
-} from '../config/supabase';
+import type { Patient } from '../types/index';
 
-export interface PatientFilters {
-  search?: string;
+export interface CreatePatientData {
+  first_name: string;
+  last_name?: string;
+  phone?: string;
+  address?: string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
-  bloodGroup?: string;
-  isActive?: boolean;
-  createdBy?: string;
-  dateRange?: {
-    start: string;
-    end: string;
-  };
+  date_of_birth?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  email?: string;
+  is_active?: boolean;
 }
 
-export interface PatientListParams {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  filters?: PatientFilters;
-}
-
-class PatientService {
+export class PatientService {
+  
   /**
-   * Get all patients with pagination and filters
+   * Create a new patient with robust error handling
    */
-  async getPatients(params: PatientListParams = {}): Promise<PaginatedResponse<PatientWithRelations>> {
+  static async createPatient(patientData: CreatePatientData): Promise<Patient> {
+    console.log('🏥 PatientService: Creating patient with data:', patientData);
+    
     try {
-      const {
-        page = 1,
-        limit = 20,
-        sortBy = 'created_at',
-        sortOrder = 'desc',
-        filters = {},
-      } = params;
-
-      const offset = (page - 1) * limit;
-
-      // Build query
-      let query = supabase
-        .from('patients')
-        .select(`
-          *,
-          created_by_user:users!patients_created_by_fkey(
-            id,
-            first_name,
-            last_name,
-            email,
-            role
-          )
-        `, { count: 'exact' });
-
-      // Apply filters
-      if (filters.search) {
-        query = query.or(`first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%,patient_id.ilike.%${filters.search}%`);
-      }
-
-      if (filters.gender) {
-        query = query.eq('gender', filters.gender);
-      }
-
-      if (filters.bloodGroup) {
-        query = query.eq('blood_group', filters.bloodGroup);
-      }
-
-      if (filters.isActive !== undefined) {
-        query = query.eq('is_active', filters.isActive);
-      }
-
-      if (filters.createdBy) {
-        query = query.eq('created_by', filters.createdBy);
-      }
-
-      if (filters.dateRange) {
-        query = query
-          .gte('created_at', filters.dateRange.start)
-          .lte('created_at', filters.dateRange.end);
-      }
-
-      // Apply sorting and pagination
-      query = query
-        .order(sortBy, { ascending: sortOrder === 'asc' })
-        .range(offset, offset + limit - 1);
-
-      const { data, error, count }: SupabaseQuery<PatientWithRelations> = await query;
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      return {
-        data: data || [],
-        count: count || 0,
-        page,
-        limit,
-        totalPages: Math.ceil((count || 0) / limit),
+      // Prepare data with defaults
+      const cleanedData = {
+        first_name: patientData.first_name?.trim() || '',
+        last_name: patientData.last_name?.trim() || '',
+        phone: patientData.phone?.trim() || '',
+        address: patientData.address?.trim() || '',
+        gender: patientData.gender || 'MALE',
+        date_of_birth: patientData.date_of_birth || null,
+        emergency_contact_name: patientData.emergency_contact_name?.trim() || '',
+        emergency_contact_phone: patientData.emergency_contact_phone?.trim() || '',
+        email: patientData.email?.trim() || null,
+        is_active: patientData.is_active !== false, // Default to true
       };
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      throw error;
-    }
-  }
 
-  /**
-   * Get a single patient by ID
-   */
-  async getPatientById(id: string): Promise<PatientWithRelations | null> {
-    try {
+      // Remove empty strings and replace with null for optional fields
+      const finalData = Object.fromEntries(
+        Object.entries(cleanedData).map(([key, value]) => [
+          key,
+          value === '' && !['first_name', 'gender', 'is_active'].includes(key) ? null : value
+        ])
+      );
+
+      console.log('📤 Sending cleaned data to Supabase:', finalData);
+
+      // Insert into Supabase
       const { data, error } = await supabase
         .from('patients')
-        .select(`
-          *,
-          created_by_user:users!patients_created_by_fkey(
-            id,
-            first_name,
-            last_name,
-            email,
-            role
-          ),
-          appointments(
-            *,
-            doctor:users!appointments_doctor_id_fkey(
-              id,
-              first_name,
-              last_name,
-              email
-            ),
-            department:departments(
-              id,
-              name,
-              description
-            )
-          ),
-          bills(
-            *,
-            appointment:appointments(
-              id,
-              appointment_id,
-              scheduled_at,
-              reason
-            )
-          )
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null; // Patient not found
-        }
-        throw new Error(error.message);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error fetching patient:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get patient by phone number
-   */
-  async getPatientByPhone(phone: string): Promise<Patient | null> {
-    try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('phone', phone)
-        .eq('is_active', true)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null; // Patient not found
-        }
-        throw new Error(error.message);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error fetching patient by phone:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create a new patient
-   */
-  async createPatient(patientData: CreatePatientData, createdBy: string): Promise<Patient> {
-    try {
-      // Generate patient ID
-      const patientId = await this.generatePatientId();
-
-      const { data, error } = await supabase
-        .from('patients')
-        .insert({
-          ...patientData,
-          patient_id: patientId,
-          created_by: createdBy,
-        })
+        .insert([finalData])
         .select()
         .single();
 
       if (error) {
-        throw new Error(error.message);
+        console.error('❌ Supabase insert error:', error);
+        throw new Error(`Database error: ${error.message}`);
       }
 
-      return data;
-    } catch (error) {
-      console.error('Error creating patient:', error);
-      throw error;
+      if (!data) {
+        throw new Error('No data returned from patient creation');
+      }
+
+      console.log('✅ Patient created successfully:', data);
+      return data as Patient;
+
+    } catch (error: any) {
+      console.error('🚨 PatientService error:', error);
+      
+      // Provide user-friendly error messages
+      if (error.message?.includes('duplicate key')) {
+        throw new Error('A patient with this information already exists');
+      } else if (error.message?.includes('not null violation')) {
+        throw new Error('Missing required patient information');
+      } else if (error.message?.includes('foreign key')) {
+        throw new Error('Invalid reference data provided');
+      } else if (error.message?.includes('permission denied') || error.message?.includes('RLS')) {
+        throw new Error('Database permission error - please check your login status');
+      } else {
+        throw new Error(`Failed to create patient: ${error.message}`);
+      }
     }
   }
 
   /**
-   * Update an existing patient
+   * Test database connection and permissions
    */
-  async updatePatient(id: string, updates: Partial<CreatePatientData>): Promise<Patient> {
+  static async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
+      console.log('🧪 Testing Supabase connection and permissions...');
+
+      // Test basic read access
       const { data, error } = await supabase
         .from('patients')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error updating patient:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Soft delete a patient (mark as inactive)
-   */
-  async deletePatient(id: string): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('patients')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-    } catch (error) {
-      console.error('Error deleting patient:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Restore a soft-deleted patient
-   */
-  async restorePatient(id: string): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('patients')
-        .update({
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-    } catch (error) {
-      console.error('Error restoring patient:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get patient statistics
-   */
-  async getPatientStats(): Promise<{
-    total: number;
-    active: number;
-    inactive: number;
-    newThisMonth: number;
-    genderDistribution: Record<string, number>;
-    bloodGroupDistribution: Record<string, number>;
-    ageGroups: Record<string, number>;
-  }> {
-    try {
-      // Get basic counts
-      const [totalResult, activeResult, inactiveResult] = await Promise.all([
-        supabase.from('patients').select('id', { count: 'exact', head: true }),
-        supabase.from('patients').select('id', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('patients').select('id', { count: 'exact', head: true }).eq('is_active', false),
-      ]);
-
-      // Get new patients this month
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { count: newThisMonth } = await supabase
-        .from('patients')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', startOfMonth.toISOString());
-
-      // Get all patients for detailed stats
-      const { data: patients } = await supabase
-        .from('patients')
-        .select('gender, blood_group, date_of_birth')
-        .eq('is_active', true);
-
-      // Calculate distributions
-      const genderDistribution: Record<string, number> = {};
-      const bloodGroupDistribution: Record<string, number> = {};
-      const ageGroups: Record<string, number> = {
-        '0-17': 0,
-        '18-30': 0,
-        '31-50': 0,
-        '51-70': 0,
-        '70+': 0,
-      };
-
-      patients?.forEach((patient) => {
-        // Gender distribution
-        genderDistribution[patient.gender] = (genderDistribution[patient.gender] || 0) + 1;
-
-        // Blood group distribution
-        if (patient.blood_group) {
-          bloodGroupDistribution[patient.blood_group] = (bloodGroupDistribution[patient.blood_group] || 0) + 1;
-        }
-
-        // Age groups
-        const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
-        if (age < 18) ageGroups['0-17']++;
-        else if (age <= 30) ageGroups['18-30']++;
-        else if (age <= 50) ageGroups['31-50']++;
-        else if (age <= 70) ageGroups['51-70']++;
-        else ageGroups['70+']++;
-      });
-
-      return {
-        total: totalResult.count || 0,
-        active: activeResult.count || 0,
-        inactive: inactiveResult.count || 0,
-        newThisMonth: newThisMonth || 0,
-        genderDistribution,
-        bloodGroupDistribution,
-        ageGroups,
-      };
-    } catch (error) {
-      console.error('Error fetching patient stats:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generate a unique patient ID
-   */
-  private async generatePatientId(): Promise<string> {
-    try {
-      const currentYear = new Date().getFullYear();
-      const prefix = `PAT${currentYear}`;
-
-      // Get the last patient ID for this year
-      const { data } = await supabase
-        .from('patients')
-        .select('patient_id')
-        .like('patient_id', `${prefix}%`)
-        .order('patient_id', { ascending: false })
+        .select('count')
         .limit(1);
 
-      let nextNumber = 1;
-      if (data && data.length > 0) {
-        const lastId = data[0].patient_id;
-        const lastNumber = parseInt(lastId.replace(prefix, ''));
-        nextNumber = lastNumber + 1;
+      if (error) {
+        return {
+          success: false,
+          message: `Database access failed: ${error.message}`,
+          details: error
+        };
       }
 
-      return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
-    } catch (error) {
-      console.error('Error generating patient ID:', error);
-      // Fallback to timestamp-based ID
-      return `PAT${Date.now()}`;
-    }
-  }
-
-  /**
-   * Subscribe to patient changes
-   */
-  subscribeToPatients(callback: (payload: any) => void) {
-    return supabase
-      .channel('patients_changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'patients' 
-        }, 
-        callback
-      )
-      .subscribe();
-  }
-
-  /**
-   * Bulk import patients
-   */
-  async bulkImportPatients(patients: CreatePatientData[], createdBy: string): Promise<{
-    successful: number;
-    failed: number;
-    errors: string[];
-  }> {
-    const results = {
-      successful: 0,
-      failed: 0,
-      errors: [] as string[],
-    };
-
-    for (let i = 0; i < patients.length; i++) {
-      try {
-        await this.createPatient(patients[i], createdBy);
-        results.successful++;
-      } catch (error) {
-        results.failed++;
-        results.errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Test authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        return {
+          success: false,
+          message: `Authentication check failed: ${authError.message}`,
+          details: authError
+        };
       }
-    }
 
-    return results;
+      if (!user) {
+        return {
+          success: false,
+          message: 'No authenticated user found'
+        };
+      }
+
+      return {
+        success: true,
+        message: `Connection successful. User: ${user.email}`,
+        details: { user: user.email, hasTableAccess: true }
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Connection test failed: ${error.message}`,
+        details: error
+      };
+    }
   }
 }
 
-export const patientService = new PatientService();
-export default patientService;
+export default PatientService;
