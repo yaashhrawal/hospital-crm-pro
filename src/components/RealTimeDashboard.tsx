@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import QuickReportsModal from './QuickReportsModal';
+import { supabase } from '../config/supabaseNew';
 import type { DashboardStats, PatientWithRelations, FutureAppointment } from '../config/supabaseNew';
 
 interface StatCardProps {
@@ -45,7 +47,7 @@ interface QuickActionProps {
 const QuickAction: React.FC<QuickActionProps> = ({ title, description, icon, color, onClick }) => (
   <button
     onClick={onClick}
-    className={`${color} text-white p-4 rounded-lg hover:opacity-90 transition-opacity text-left w-full`}
+    className={`${color} text-white p-4 rounded-lg hover:opacity-90 transition-opacity text-left w-full hover:shadow-lg transform hover:scale-105`}
   >
     <div className="flex items-center">
       <div className="text-2xl mr-3">{icon}</div>
@@ -196,7 +198,11 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dailyRevenue, weeklyRevenue
   );
 };
 
-const RealTimeDashboard: React.FC = () => {
+interface RealTimeDashboardProps {
+  onNavigate?: (tab: string) => void;
+}
+
+const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalPatients: 0,
     totalDoctors: 0,
@@ -212,9 +218,12 @@ const RealTimeDashboard: React.FC = () => {
   
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [appointments, setAppointments] = useState<FutureAppointment[]>([]);
+  const [dailyExpenses, setDailyExpenses] = useState<any[]>([]);
+  const [dailyRefunds, setDailyRefunds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [showReportsModal, setShowReportsModal] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -230,16 +239,37 @@ const RealTimeDashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
+      const today = new Date().toISOString().split('T')[0];
       
-      const [statsData, patientsData, appointmentsData] = await Promise.all([
+      const [
+        statsData, 
+        patientsData, 
+        appointmentsData,
+        expensesData,
+        refundsData
+      ] = await Promise.all([
         HospitalService.getDashboardStats(),
         HospitalService.getPatients(50),
-        HospitalService.getAppointments(100)
+        HospitalService.getAppointments(100),
+        // Load today's expenses
+        supabase
+          .from('daily_expenses')
+          .select('*')
+          .eq('expense_date', today),
+        // Load today's refunds
+        supabase
+          .from('patient_transactions')
+          .select('*')
+          .eq('transaction_type', 'REFUND')
+          .gte('created_at', `${today}T00:00:00.000Z`)
+          .lt('created_at', `${today}T23:59:59.999Z`)
       ]);
       
       setStats(statsData);
       setPatients(patientsData);
       setAppointments(appointmentsData);
+      setDailyExpenses(expensesData.data || []);
+      setDailyRefunds(refundsData.data || []);
       setLastUpdate(new Date());
       
     } catch (error: any) {
@@ -290,6 +320,11 @@ const RealTimeDashboard: React.FC = () => {
 
   const weeklyRevenue = calculateWeeklyRevenue();
 
+  // Calculate financial metrics
+  const todayExpenses = dailyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const todayRefunds = Math.abs(dailyRefunds.reduce((sum, refund) => sum + refund.amount, 0));
+  const netDailyValue = stats.todayRevenue - todayExpenses - todayRefunds;
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
@@ -309,6 +344,41 @@ const RealTimeDashboard: React.FC = () => {
         >
           {refreshing ? '⟳ Updating...' : '🔄 Refresh'}
         </button>
+      </div>
+
+      {/* Finance Summary */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">💰 Daily Finance Summary</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+            <div className="text-2xl font-bold text-green-700">₹{stats.todayRevenue.toLocaleString()}</div>
+            <div className="text-green-600 text-sm">Revenue (+)</div>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg border-2 border-red-200">
+            <div className="text-2xl font-bold text-red-700">₹{todayExpenses.toLocaleString()}</div>
+            <div className="text-red-600 text-sm">Expenses (-)</div>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
+            <div className="text-2xl font-bold text-orange-700">₹{todayRefunds.toLocaleString()}</div>
+            <div className="text-orange-600 text-sm">Refunds (-)</div>
+          </div>
+          <div className={`p-4 rounded-lg border-2 ${
+            netDailyValue >= 0 
+              ? 'bg-blue-50 border-blue-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <div className={`text-2xl font-bold ${
+              netDailyValue >= 0 ? 'text-blue-700' : 'text-red-700'
+            }`}>
+              ₹{netDailyValue.toLocaleString()}
+            </div>
+            <div className={`text-sm ${
+              netDailyValue >= 0 ? 'text-blue-600' : 'text-red-600'
+            }`}>
+              Net Daily Value {netDailyValue >= 0 ? '(+)' : '(-)'}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Key Stats */}
@@ -386,28 +456,46 @@ const RealTimeDashboard: React.FC = () => {
             description="Register new patient"
             icon="👤"
             color="bg-blue-600"
-            onClick={() => toast('Patient registration feature coming soon!')}
+            onClick={() => {
+              if (onNavigate) {
+                onNavigate('patient-entry');
+                toast.success('Opening patient registration...');
+              }
+            }}
           />
           <QuickAction
             title="Schedule Appointment"
             description="Book new appointment"
             icon="📅"
             color="bg-green-600"
-            onClick={() => toast('Appointment scheduling feature coming soon!')}
+            onClick={() => {
+              if (onNavigate) {
+                onNavigate('appointments');
+                toast.success('Opening appointment scheduling...');
+              }
+            }}
           />
           <QuickAction
             title="Patient List"
             description="View all patients"
             icon="📋"
             color="bg-purple-600"
-            onClick={() => toast('Patient list feature coming soon!')}
+            onClick={() => {
+              if (onNavigate) {
+                onNavigate('patient-list');
+                toast.success('Opening patient list...');
+              }
+            }}
           />
           <QuickAction
             title="Reports"
             description="Generate reports"
             icon="📊"
             color="bg-orange-600"
-            onClick={() => toast('Reports feature coming soon!')}
+            onClick={() => {
+              setShowReportsModal(true);
+              toast.success('Opening quick reports...');
+            }}
           />
         </div>
       </div>
@@ -436,6 +524,12 @@ const RealTimeDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Reports Modal */}
+      <QuickReportsModal
+        isOpen={showReportsModal}
+        onClose={() => setShowReportsModal(false)}
+      />
     </div>
   );
 };

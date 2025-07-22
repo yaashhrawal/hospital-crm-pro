@@ -22,6 +22,15 @@ const SimplePatientEntry: React.FC = () => {
     entry_fee: 0,
     discount_amount: 0,
     discount_reason: '',
+    // Admission info
+    isAdmitted: false,
+    bedNumber: '',
+    roomType: 'GENERAL',
+    department: 'General',
+    dailyRate: 0,
+    admissionDate: '',
+    expectedDischarge: '',
+    admissionNotes: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -98,6 +107,15 @@ const SimplePatientEntry: React.FC = () => {
         entry_fee: 0,
         discount_amount: 0,
         discount_reason: '',
+        // Reset admission fields
+        isAdmitted: false,
+        bedNumber: '',
+        roomType: 'GENERAL',
+        department: 'General',
+        dailyRate: 0,
+        admissionDate: '',
+        expectedDischarge: '',
+        admissionNotes: '',
       });
 
     } catch (error: any) {
@@ -184,6 +202,110 @@ const SimplePatientEntry: React.FC = () => {
               </select>
             </div>
           </div>
+        </div>
+
+        {/* Patient Admission Section */}
+        <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="isAdmitted"
+              checked={formData.isAdmitted}
+              onChange={(e) => setFormData({ ...formData, isAdmitted: e.target.checked })}
+              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+            />
+            <label htmlFor="isAdmitted" className="ml-2 text-lg font-semibold text-green-800">
+              🏥 Patient Admission
+            </label>
+          </div>
+          
+          {formData.isAdmitted && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bed Number</label>
+                <input
+                  type="text"
+                  value={formData.bedNumber}
+                  onChange={(e) => setFormData({ ...formData, bedNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., B101, ICU-5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                <select
+                  value={formData.roomType}
+                  onChange={(e) => setFormData({ ...formData, roomType: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="GENERAL">General Ward</option>
+                  <option value="PRIVATE">Private Room</option>
+                  <option value="ICU">ICU</option>
+                  <option value="EMERGENCY">Emergency</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <select
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="General">General</option>
+                  <option value="Cardiology">Cardiology</option>
+                  <option value="Orthopedics">Orthopedics</option>
+                  <option value="Pediatrics">Pediatrics</option>
+                  <option value="Surgery">Surgery</option>
+                  <option value="Emergency">Emergency</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Daily Rate (₹)</label>
+                <input
+                  type="number"
+                  value={formData.dailyRate}
+                  onChange={(e) => setFormData({ ...formData, dailyRate: Number(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Admission Date</label>
+                <input
+                  type="date"
+                  value={formData.admissionDate}
+                  onChange={(e) => setFormData({ ...formData, admissionDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Discharge</label>
+                <input
+                  type="date"
+                  value={formData.expectedDischarge}
+                  onChange={(e) => setFormData({ ...formData, expectedDischarge: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Admission Notes</label>
+                <textarea
+                  value={formData.admissionNotes}
+                  onChange={(e) => setFormData({ ...formData, admissionNotes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Notes about admission, condition, special requirements..."
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Financial Information (Display Only) */}

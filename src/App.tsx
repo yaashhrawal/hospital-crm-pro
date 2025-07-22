@@ -11,6 +11,8 @@ import RealTimeDashboard from './components/RealTimeDashboard';
 import AuthDebugger from './components/AuthDebugger';
 import TransactionTypeTester from './components/TransactionTypeTester';
 import SimplePatientEntry from './components/SimplePatientEntry';
+import DailyExpenseTab from './components/DailyExpenseTab';
+import RefundTab from './components/RefundTab';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -242,6 +244,18 @@ const App: React.FC = () => {
       description: 'Schedule and manage appointments' 
     },
     { 
+      id: 'expenses', 
+      name: '💸 Expenses', 
+      component: DailyExpenseTab,
+      description: 'Record and track daily hospital expenses' 
+    },
+    { 
+      id: 'refunds', 
+      name: '💰 Refunds', 
+      component: RefundTab,
+      description: 'Process patient refunds and maintain records' 
+    },
+    { 
       id: 'auth-debug', 
       name: '🔍 Auth Debug', 
       component: AuthDebugger,
@@ -257,6 +271,13 @@ const App: React.FC = () => {
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || RealTimeDashboard;
   const activeTabInfo = tabs.find(tab => tab.id === activeTab);
+
+  const renderActiveComponent = () => {
+    if (activeTab === 'dashboard') {
+      return <RealTimeDashboard onNavigate={setActiveTab} />;
+    }
+    return <ActiveComponent />;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -326,7 +347,7 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="py-6">
-        <ActiveComponent />
+        {renderActiveComponent()}
       </main>
 
       {/* Footer */}
