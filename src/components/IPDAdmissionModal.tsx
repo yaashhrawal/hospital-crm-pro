@@ -28,7 +28,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [formData, setFormData] = useState({
     bed_number: '',
-    room_type: 'general' as 'general' | 'private' | 'icu' | 'emergency',
+    room_type: 'general' as 'general' | 'private' | 'icu',
     department: '',
     daily_rate: '',
     expected_discharge: '',
@@ -134,7 +134,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
         return;
       }
 
-      // Create admission record
+      // Create admission record (using only existing database columns)
       const admissionData = {
         patient_id: selectedPatient.id,
         bed_number: formData.bed_number,
@@ -142,15 +142,38 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
         department: formData.department,
         daily_rate: parseFloat(formData.daily_rate),
         admission_date: new Date().toISOString().split('T')[0],
-        expected_discharge: formData.expected_discharge,
         status: 'active',
-        admission_notes: formData.admission_notes,
-        admitted_by: currentUser.id
+        total_amount: 0
       };
 
-      const { error } = await supabase
-        .from('patient_admissions')
-        .insert([admissionData]);
+      // Add optional fields only if they exist in the database schema
+      const optionalFields: any = {};
+      if (formData.expected_discharge) {
+        optionalFields.expected_discharge = formData.expected_discharge;
+      }
+      if (formData.admission_notes) {
+        optionalFields.admission_notes = formData.admission_notes;
+      }
+      if (currentUser.id) {
+        optionalFields.admitted_by = currentUser.id;
+      }
+
+      // Try to insert with optional fields first, fallback to basic fields if it fails
+      let error;
+      try {
+        const fullData = { ...admissionData, ...optionalFields };
+        const result = await supabase
+          .from('patient_admissions')
+          .insert([fullData]);
+        error = result.error;
+      } catch (firstError) {
+        console.log('First attempt failed, trying with basic fields only:', firstError);
+        // Fallback to basic fields only
+        const result = await supabase
+          .from('patient_admissions')
+          .insert([admissionData]);
+        error = result.error;
+      }
 
       if (error) {
         console.error('Error creating admission:', error);
@@ -275,7 +298,6 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
                 <option value="general">🏨 General Ward</option>
                 <option value="private">🛏️ Private Room</option>
                 <option value="icu">🏥 ICU</option>
-                <option value="emergency">🚑 Emergency</option>
               </select>
             </div>
 

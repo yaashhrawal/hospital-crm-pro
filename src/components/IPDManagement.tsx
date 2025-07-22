@@ -15,7 +15,7 @@ interface IPDPatient {
     patient_id: string;
   };
   bed_number: string;
-  room_type: 'general' | 'private' | 'icu' | 'emergency';
+  room_type: 'general' | 'private' | 'icu';
   department: string;
   daily_rate: number;
   admission_date: string;
@@ -317,8 +317,7 @@ const IPDManagement: React.FC = () => {
                         options={[
                           { value: 'general', label: 'General Ward' },
                           { value: 'private', label: 'Private Room' },
-                          { value: 'icu', label: 'ICU' },
-                          { value: 'emergency', label: 'Emergency' }
+                          { value: 'icu', label: 'ICU' }
                         ]}
                       />
                     </td>

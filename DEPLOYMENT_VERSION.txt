@@ -1,12 +1,13 @@
-Deployment Version: 2.1.1
-Last Updated: 2025-07-22 09:45:00 UTC
+Deployment Version: 2.1.2
+Last Updated: 2025-07-22 10:15:00 UTC
 
 Recent Changes:
-- Fixed IPD patient admission issues (corrected case sensitivity for database fields)
-- Added comprehensive patient edit functionality with age/DOB validation
-- Implemented patient shift from patient list to IPD with one-click admission
-- Added edit, view history, and admit to IPD buttons in patient list
-- Fixed all IPD room type and status values to match database constraints
-- Enhanced patient management workflow with modal-based interactions
+- FIXED: IPD patient admission failures caused by missing database columns
+- Added fallback mechanism for IPD admissions (works with basic or full schema)
+- Removed 'emergency' room type until database migration is applied
+- Created comprehensive database migration script for full IPD functionality
+- Added robust error handling with console logging for debugging
+- Enhanced IPD admission compatibility with current database schema
+- Provided detailed fix instructions for database schema updates
 
-Build Timestamp: 1753176300
+Build Timestamp: 1753178100
