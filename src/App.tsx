@@ -13,6 +13,7 @@ import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import IPDDataChecker from './components/IPDDataChecker';
+import AppointmentsDebugger from './components/AppointmentsDebugger';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -254,6 +255,12 @@ const App: React.FC = () => {
       name: '💰 Refunds', 
       component: RefundTab,
       description: 'Process patient refunds and maintain financial records' 
+    },
+    { 
+      id: 'appointments-debug', 
+      name: '🩺 Appointments Fix', 
+      component: AppointmentsDebugger,
+      description: 'Diagnose and fix appointments section issues' 
     }
   ];
 
