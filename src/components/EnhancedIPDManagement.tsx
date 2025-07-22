@@ -91,25 +91,59 @@ const EnhancedIPDManagement: React.FC = () => {
         }, {}));
       }
 
-      // Now load filtered admissions with bed details
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .select(`
-          *,
-          patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group),
-          bed:beds(id, bed_number, room_type, daily_rate)
-        `)
-        .eq('status', statusFilter)
-        .order('admission_date', { ascending: false });
+      // Try loading with relationships first
+      let admissionsData = [];
+      try {
+        const { data: relationshipData, error: relationshipError } = await supabase
+          .from('patient_admissions')
+          .select(`
+            *,
+            patient:patients(id, patient_id, first_name, last_name, phone, age, blood_group),
+            bed:beds(id, bed_number, room_type, daily_rate)
+          `)
+          .eq('status', statusFilter)
+          .order('admission_date', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error loading filtered admissions:', error);
-        throw error;
+        if (!relationshipError && relationshipData) {
+          console.log('✅ Successfully loaded with relationships');
+          admissionsData = relationshipData;
+        } else {
+          throw relationshipError;
+        }
+      } catch (relationshipError) {
+        console.warn('⚠️ Relationship query failed, trying manual join:', relationshipError);
+        
+        // Fallback: Load admissions and join manually
+        const { data: admissionsOnly, error: admissionsError } = await supabase
+          .from('patient_admissions')
+          .select('*')
+          .eq('status', statusFilter)
+          .order('admission_date', { ascending: false });
+
+        if (admissionsError) throw admissionsError;
+
+        // Load patients and beds separately
+        const patientIds = [...new Set(admissionsOnly?.map(a => a.patient_id) || [])];
+        const bedIds = [...new Set(admissionsOnly?.map(a => a.bed_id).filter(Boolean) || [])];
+
+        const [patientsResult, bedsResult] = await Promise.all([
+          supabase.from('patients').select('id, patient_id, first_name, last_name, phone, age, blood_group').in('id', patientIds),
+          supabase.from('beds').select('id, bed_number, room_type, daily_rate').in('id', bedIds)
+        ]);
+
+        // Manual join
+        admissionsData = (admissionsOnly || []).map(admission => ({
+          ...admission,
+          patient: patientsResult.data?.find(p => p.id === admission.patient_id),
+          bed: bedsResult.data?.find(b => b.id === admission.bed_id)
+        }));
+
+        console.log('✅ Successfully loaded with manual join');
       }
       
-      console.log('📋 Filtered admissions result:', data);
-      console.log('📋 Found', data?.length || 0, 'admissions with status:', statusFilter);
-      setAdmissions(data || []);
+      console.log('📋 Final admissions result:', admissionsData);
+      console.log('📋 Found', admissionsData?.length || 0, 'admissions with status:', statusFilter);
+      setAdmissions(admissionsData || []);
     } catch (error: any) {
       console.error('❌ Error loading admissions:', error);
       toast.error(`Failed to load admissions: ${error.message}`);

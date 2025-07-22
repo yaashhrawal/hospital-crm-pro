@@ -295,13 +295,18 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
 
       if (admissionError) throw admissionError;
 
-      // 5. Update bed status
-      const { error: bedError } = await supabase
-        .from('beds')
-        .update({ status: 'AVAILABLE' })
-        .eq('id', admission.bed_id);
+      // 5. Update bed status to available
+      if (admission.bed_id) {
+        const { error: bedError } = await supabase
+          .from('beds')
+          .update({ status: 'AVAILABLE' })
+          .eq('id', admission.bed_id);
 
-      if (bedError) throw bedError;
+        if (bedError) {
+          console.warn('Failed to update bed status:', bedError);
+          // Don't throw error as the main discharge process succeeded
+        }
+      }
 
       toast.success('Patient discharged successfully with complete documentation');
       onDischargeSuccess();

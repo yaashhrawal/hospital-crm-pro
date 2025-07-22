@@ -56,21 +56,17 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         return;
       }
 
-      // Check if bed number is already occupied
+      // Check if bed number is already occupied by checking beds table
       const { data: existingBed, error: bedCheckError } = await supabase
-        .from('patient_admissions')
-        .select('id')
+        .from('beds')
+        .select('id, status')
         .eq('bed_number', formData.bed_number)
-        .eq('status', 'ACTIVE')
         .single();
 
       if (bedCheckError && bedCheckError.code !== 'PGRST116') {
         console.error('Error checking bed availability:', bedCheckError);
-        toast.error('Failed to check bed availability');
-        return;
-      }
-
-      if (existingBed) {
+        // Continue anyway - we'll create the bed if needed
+      } else if (existingBed && existingBed.status === 'OCCUPIED') {
         toast.error(`Bed ${formData.bed_number} is already occupied`);
         return;
       }
@@ -94,16 +90,69 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         return;
       }
 
-      // Create admission record using ONLY existing database columns
+      // First, create or find the bed record
+      console.log('🛏️ Creating/finding bed record...');
+      
+      let bedRecord;
+      // Try to find existing bed with same number
+      const { data: existingBedRecord, error: bedFindError } = await supabase
+        .from('beds')
+        .select('*')
+        .eq('bed_number', formData.bed_number)
+        .single();
+
+      if (existingBedRecord && !bedFindError) {
+        console.log('✅ Found existing bed record:', existingBedRecord);
+        bedRecord = existingBedRecord;
+        
+        // Update bed status to occupied
+        await supabase
+          .from('beds')
+          .update({ 
+            status: 'OCCUPIED',
+            room_type: formData.room_type,
+            daily_rate: parseFloat(formData.daily_rate)
+          })
+          .eq('id', bedRecord.id);
+      } else {
+        console.log('➕ Creating new bed record...');
+        // Create new bed record
+        const { data: newBedData, error: bedCreateError } = await supabase
+          .from('beds')
+          .insert([{
+            bed_number: formData.bed_number,
+            room_type: formData.room_type,
+            daily_rate: parseFloat(formData.daily_rate),
+            status: 'OCCUPIED',
+            hospital_id: '550e8400-e29b-41d4-a716-446655440000'
+          }])
+          .select()
+          .single();
+
+        if (bedCreateError) {
+          console.error('❌ Error creating bed:', bedCreateError);
+          toast.error(`Failed to create bed: ${bedCreateError.message}`);
+          return;
+        }
+        
+        bedRecord = newBedData;
+        console.log('✅ Created new bed record:', bedRecord);
+      }
+
+      // Create admission record using proper schema
       const admissionData = {
         patient_id: patient.id,
-        bed_number: formData.bed_number,
-        room_type: formData.room_type,
-        department: formData.department,
-        daily_rate: parseFloat(formData.daily_rate),
+        bed_id: bedRecord.id,
         admission_date: new Date().toISOString().split('T')[0],
+        expected_discharge_date: formData.expected_discharge || null,
+        admission_notes: formData.admission_notes || null,
         status: 'ACTIVE',
-        total_amount: 0
+        total_amount: 0,
+        amount_paid: 0,
+        balance: 0,
+        admitted_by: currentUser.id,
+        services: {},
+        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
       console.log('📤 Inserting admission data:', admissionData);
