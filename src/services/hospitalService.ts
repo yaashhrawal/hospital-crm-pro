@@ -399,23 +399,42 @@ export class HospitalService {
   
   static async getAppointments(limit = 100): Promise<AppointmentWithRelations[]> {
     try {
+      console.log('📅 Fetching appointments from database...');
+      
+      // First try with relationships
       const { data: appointments, error } = await supabase
         .from('future_appointments')
         .select(`
           *,
-          patient:patients(*),
-          doctor:users(*)
+          patient:patients(id, patient_id, first_name, last_name, phone),
+          doctor:users(id, first_name, last_name, email)
         `)
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true })
         .limit(limit);
       
       if (error) {
-        console.error('❌ Get appointments error:', error);
-        throw error;
+        console.error('❌ Get appointments with relations error:', error);
+        
+        // If relationships fail, try simple query
+        console.log('🔄 Trying simple query without relationships...');
+        const { data: simpleAppointments, error: simpleError } = await supabase
+          .from('future_appointments')
+          .select('*')
+          .order('appointment_date', { ascending: true })
+          .limit(limit);
+        
+        if (simpleError) {
+          console.error('❌ Simple appointments query also failed:', simpleError);
+          throw simpleError;
+        }
+        
+        console.log('✅ Got appointments without relationships:', simpleAppointments);
+        return (simpleAppointments || []) as AppointmentWithRelations[];
       }
       
-      return appointments as AppointmentWithRelations[];
+      console.log('✅ Successfully loaded appointments with relationships:', appointments);
+      return (appointments || []) as AppointmentWithRelations[];
       
     } catch (error: any) {
       console.error('🚨 getAppointments error:', error);

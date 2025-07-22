@@ -327,10 +327,18 @@ const FutureAppointmentsSystem: React.FC = () => {
       setLoading(true);
       const appointmentsData = await HospitalService.getAppointments();
       console.log('📅 Appointments loaded:', appointmentsData);
-      setAppointments(appointmentsData);
+      setAppointments(appointmentsData || []);
     } catch (error: any) {
       console.error('❌ Error loading appointments:', error);
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       toast.error(`Failed to load appointments: ${error.message}`);
+      // Set empty array on error so component still renders
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -443,7 +451,7 @@ const FutureAppointmentsSystem: React.FC = () => {
             >
               <option value="all">All Statuses</option>
               {APPOINTMENT_STATUS.map(status => (
-                <option key={status} value={status}>{status.replace('_', ' ')}</option>
+                <option key={status.value} value={status.value}>{status.label}</option>
               ))}
             </select>
           </div>
