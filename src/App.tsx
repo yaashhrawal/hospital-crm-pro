@@ -15,6 +15,7 @@ import EnhancedDashboard from './components/EnhancedDashboard';
 import QuickIPDFix from './components/QuickIPDFix';
 import DatabaseConstraintInspector from './components/DatabaseConstraintInspector';
 import LiveConstraintDebugger from './components/LiveConstraintDebugger';
+import RealTimeIPDDebugger from './components/RealTimeIPDDebugger';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -274,6 +275,12 @@ const App: React.FC = () => {
       name: '🚨 Live Debugger', 
       component: LiveConstraintDebugger,
       description: 'Real-time debugging of your actual database right now' 
+    },
+    { 
+      id: 'real-ipd-debugger', 
+      name: '🔥 IPD Debugger', 
+      component: RealTimeIPDDebugger,
+      description: 'Debug the exact IPD admission that is failing right now' 
     }
   ];
 
