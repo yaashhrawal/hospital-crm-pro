@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
+import { exportToExcel, formatCurrency, formatDateTime } from '../utils/excelExport';
 
 interface LedgerEntry {
   id: string;
@@ -206,6 +207,52 @@ const OperationsLedger: React.FC = () => {
   const filteredEntries = getFilteredEntries();
   const totals = calculateTotals(filteredEntries);
 
+  const exportOperationsToExcel = () => {
+    try {
+      const exportData = filteredEntries.map(entry => ({
+        date: entry.date,
+        time: entry.time,
+        type: entry.type,
+        category: entry.category,
+        description: entry.description,
+        patient_name: entry.patient_name || '',
+        patient_id: entry.patient_id || '',
+        payment_mode: entry.payment_mode,
+        amount: entry.amount,
+        formatted_amount: formatCurrency(entry.amount)
+      }));
+
+      const success = exportToExcel({
+        filename: `Operations_Ledger_${dateFrom}_to_${dateTo}`,
+        headers: [
+          'Date',
+          'Time', 
+          'Type',
+          'Category',
+          'Description',
+          'Patient Name',
+          'Patient ID',
+          'Payment Mode',
+          'Amount',
+          'Formatted Amount'
+        ],
+        data: exportData,
+        formatters: {
+          amount: (value) => formatCurrency(value)
+        }
+      });
+
+      if (success) {
+        toast.success('Operations ledger exported successfully!');
+      } else {
+        toast.error('Failed to export operations ledger');
+      }
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast.error('Failed to export: ' + error.message);
+    }
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'REVENUE': return 'text-green-600';
@@ -282,13 +329,21 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-end">
+          <div className="flex items-end space-x-2">
             <button
               onClick={loadLedgerEntries}
               disabled={loading}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? '🔄 Loading...' : '🔍 Search'}
+            </button>
+            <button
+              onClick={exportOperationsToExcel}
+              disabled={loading || filteredEntries.length === 0}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 whitespace-nowrap"
+              title="Export to Excel"
+            >
+              📊 Export
             </button>
           </div>
         </div>

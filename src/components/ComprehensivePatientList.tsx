@@ -4,6 +4,7 @@ import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
 import PatientToIPDModal from './PatientToIPDModal';
+import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -257,6 +258,70 @@ const ComprehensivePatientList: React.FC = () => {
     return sortOrder === 'asc' ? '↑' : '↓';
   };
 
+  const exportPatientsToExcel = () => {
+    try {
+      const exportData = filteredPatients.map(patient => ({
+        patient_id: patient.patient_id,
+        first_name: patient.first_name,
+        last_name: patient.last_name,
+        phone: patient.phone || '',
+        email: patient.email || '',
+        gender: patient.gender || '',
+        age: patient.age || '',
+        blood_group: patient.blood_group || '',
+        address: patient.address || '',
+        date_of_birth: patient.date_of_birth || '',
+        medical_history: patient.medical_history || '',
+        allergies: patient.allergies || '',
+        emergency_contact: patient.emergency_contact || '',
+        visit_count: patient.visitCount || 0,
+        total_spent: patient.totalSpent || 0,
+        last_visit: patient.lastVisit || '',
+        registration_date: formatDate(patient.created_at),
+        formatted_total_spent: formatCurrency(patient.totalSpent || 0)
+      }));
+
+      const success = exportToExcel({
+        filename: `Patient_List_${new Date().toISOString().split('T')[0]}`,
+        headers: [
+          'Patient ID',
+          'First Name',
+          'Last Name', 
+          'Phone',
+          'Email',
+          'Gender',
+          'Age',
+          'Blood Group',
+          'Address',
+          'Date of Birth',
+          'Medical History',
+          'Allergies',
+          'Emergency Contact',
+          'Visit Count',
+          'Total Spent',
+          'Last Visit',
+          'Registration Date',
+          'Formatted Total Spent'
+        ],
+        data: exportData,
+        formatters: {
+          total_spent: (value) => formatCurrency(value),
+          last_visit: (value) => value ? formatDate(value) : '',
+          registration_date: (value) => formatDate(value)
+        }
+      });
+
+      if (success) {
+        toast.success(`Exported ${filteredPatients.length} patients to Excel!`);
+      } else {
+        toast.error('Failed to export patient list');
+      }
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast.error('Failed to export: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -330,13 +395,23 @@ const ComprehensivePatientList: React.FC = () => {
             </select>
           </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={loadPatients}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            🔄 Refresh
-          </button>
+          {/* Action Buttons */}
+          <div className="flex space-x-2">
+            <button
+              onClick={loadPatients}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              🔄 Refresh
+            </button>
+            <button
+              onClick={exportPatientsToExcel}
+              disabled={filteredPatients.length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export to Excel"
+            >
+              📊 Export
+            </button>
+          </div>
         </div>
       </div>
 
