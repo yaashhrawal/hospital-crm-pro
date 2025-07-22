@@ -143,19 +143,21 @@ const EnhancedIPDManagement: React.FC = () => {
         return;
       }
 
-      // Create admission
+      // Create admission - Fixed to match actual schema structure
       const admissionData = {
         patient_id: selectedPatient.id,
-        bed_id: selectedBed.id,
-        admission_date: new Date().toISOString().split('T')[0],
-        expected_discharge_date: expectedDischarge || null,
+        bed_number: selectedBed.bed_number,
+        room_type: selectedBed.room_type, 
+        department: selectedBed.department || 'GENERAL',
+        daily_rate: selectedBed.daily_rate,
+        admission_date: new Date().toISOString(),
+        expected_discharge_date: expectedDischarge ? new Date(expectedDischarge).toISOString().split('T')[0] : null,
         admission_notes: admissionNotes || null,
         services: {},
         total_amount: 0,
         amount_paid: 0,
-        balance: 0,
+        balance_amount: 0, // Fixed field name
         status: 'ACTIVE',
-        admitted_by: currentUser.id,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
@@ -171,23 +173,22 @@ const EnhancedIPDManagement: React.FC = () => {
       const { error: bedError } = await supabase
         .from('beds')
         .update({ status: 'OCCUPIED' })
-        .eq('id', selectedBed.id);
+        .eq('bed_number', selectedBed.bed_number);
 
       if (bedError) throw bedError;
 
-      // Create admission fee transaction
+      // Create admission fee transaction - use valid transaction type
       const { error: transactionError } = await supabase
         .from('patient_transactions')
         .insert([{
           patient_id: selectedPatient.id,
           admission_id: admission.id,
-          transaction_type: 'ADMISSION_FEE',
+          transaction_type: 'ENTRY_FEE', // Use valid constraint value
           amount: selectedBed.daily_rate,
           payment_mode: 'CASH',
-          description: `Admission to bed ${selectedBed.bed_number}`,
+          description: `Admission to bed ${selectedBed.bed_number} - ${selectedBed.room_type}`,
           status: 'PENDING',
-          hospital_id: '550e8400-e29b-41d4-a716-446655440000',
-          created_by: currentUser.id
+          hospital_id: '550e8400-e29b-41d4-a716-446655440000'
         }]);
 
       if (transactionError) throw transactionError;
@@ -235,7 +236,7 @@ const EnhancedIPDManagement: React.FC = () => {
       const { error: bedError } = await supabase
         .from('beds')
         .update({ status: 'AVAILABLE' })
-        .eq('id', admission.bed_id);
+        .eq('bed_number', admission.bed_number);
 
       if (bedError) throw bedError;
 

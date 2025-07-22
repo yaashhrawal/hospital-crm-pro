@@ -1,9 +1,12 @@
-Deployment Version: 3.0.1
-Last Updated: 2025-07-22 16:45:00 UTC
+Deployment Version: 3.0.2
+Last Updated: 2025-07-22 17:00:00 UTC
 
-MAJOR UPDATE: Complete Integration with Enhanced Database Schema + Room Type Debugging
+MAJOR UPDATE: Complete Integration with Enhanced Database Schema + IPD CONSTRAINT FIX
 
 Recent Changes:
+- 🔧 FIXED: IPD admission constraint violations - corrected schema field mapping
+- 📊 NEW: DatabaseConstraintAnalyzer for comprehensive schema analysis  
+- 🛠️ NEW: IPDConstraintFixer for automated constraint repair
 - 🔍 NEW: BedRoomTypeTest diagnostic component added to debug room_type constraint
 - 🚀 COMPLETE FRONTEND INTEGRATION with comprehensive database schema
 - ✅ Updated all TypeScript interfaces to match new enhanced schema

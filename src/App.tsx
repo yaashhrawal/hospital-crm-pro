@@ -20,6 +20,8 @@ import MinimalIPDAdmission from './components/MinimalIPDAdmission';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import BedRoomTypeTest from './components/BedRoomTypeTest';
+import DatabaseConstraintAnalyzer from './components/DatabaseConstraintAnalyzer';
+import IPDConstraintFixer from './components/IPDConstraintFixer';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -285,6 +287,18 @@ const App: React.FC = () => {
       name: '🔍 Bed Test', 
       component: BedRoomTypeTest,
       description: 'Test bed room types and constraint issues - diagnose exact problem' 
+    },
+    { 
+      id: 'constraint-analyzer', 
+      name: '📊 Schema Analyzer', 
+      component: DatabaseConstraintAnalyzer,
+      description: 'Comprehensive database constraint analysis and room_type debugging' 
+    },
+    { 
+      id: 'ipd-fixer', 
+      name: '🔧 IPD Fixer', 
+      component: IPDConstraintFixer,
+      description: 'Automated fix for patient_admissions room_type constraint violations' 
     },
     { 
       id: 'auth-debug', 
