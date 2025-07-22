@@ -17,6 +17,8 @@ import IPDManagement from './components/IPDManagement';
 import IPDDiagnostic from './components/IPDDiagnostic';
 import SimpleIPDTest from './components/SimpleIPDTest';
 import MinimalIPDAdmission from './components/MinimalIPDAdmission';
+import EnhancedIPDManagement from './components/EnhancedIPDManagement';
+import EnhancedDashboard from './components/EnhancedDashboard';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -220,8 +222,8 @@ const App: React.FC = () => {
     { 
       id: 'dashboard', 
       name: '📊 Dashboard', 
-      component: RealTimeDashboard,
-      description: 'Real-time analytics and overview' 
+      component: EnhancedDashboard,
+      description: 'Enhanced real-time analytics with comprehensive hospital overview' 
     },
     { 
       id: 'patient-entry', 
@@ -256,8 +258,8 @@ const App: React.FC = () => {
     { 
       id: 'ipd', 
       name: '🛏️ IPD', 
-      component: IPDManagement,
-      description: 'In-Patient Department - Manage admitted patients with bed allocation, services, and billing' 
+      component: EnhancedIPDManagement,
+      description: 'Enhanced IPD with comprehensive bed management, admissions, and real-time statistics' 
     },
     { 
       id: 'ipd-diagnostic', 
@@ -302,7 +304,7 @@ const App: React.FC = () => {
 
   const renderActiveComponent = () => {
     if (activeTab === 'dashboard') {
-      return <RealTimeDashboard onNavigate={setActiveTab} />;
+      return <EnhancedDashboard onNavigate={setActiveTab} />;
     }
     return <ActiveComponent />;
   };

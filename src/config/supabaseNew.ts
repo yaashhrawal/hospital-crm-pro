@@ -18,7 +18,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// EXACT DATABASE SCHEMA TYPES - MATCHING YOUR DATABASE
+// COMPREHENSIVE DATABASE SCHEMA TYPES - MATCHING NEW ENHANCED SCHEMA
+
 export interface Hospital {
   id: string;
   name: string;
@@ -28,6 +29,7 @@ export interface Hospital {
   registration_number: string;
   gst_number: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface User {
@@ -36,98 +38,122 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: string;
+  role: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF' | 'RECEPTIONIST';
   phone: string;
-  specialization: string;
-  consultation_fee: number;
-  department: string;
+  specialization?: string;
+  consultation_fee?: number;
+  department?: string;
   hospital_id: string;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Patient {
   id: string;
-  patient_id: string;
+  patient_id: string; // Auto-generated P0001, P0002, etc.
   first_name: string;
   last_name: string;
   date_of_birth: string;
-  gender: string;
+  age: number; // Calculated via trigger
+  gender: 'MALE' | 'FEMALE' | 'OTHER';
   phone: string;
-  email: string;
+  email?: string;
   address: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
-  blood_group: string;
-  medical_history: string;
-  allergies: string;
+  blood_group?: string;
+  medical_history?: string;
+  allergies?: string;
+  current_medications?: string;
+  insurance_provider?: string;
+  insurance_number?: string;
+  notes?: string;
   hospital_id: string;
+  is_active: boolean;
   created_at: string;
-}
-
-export interface PatientTransaction {
-  id: string;
-  patient_id: string;
-  transaction_type: string;
-  description: string;
-  amount: number;
-  payment_mode: string;
-  doctor_id: string;
-  department: string;
-  status: string;
-  transaction_reference: string;
-  created_at: string;
-}
-
-export interface PatientAdmission {
-  id: string;
-  patient_id: string;
-  bed_number: string;
-  room_type: string;
-  department: string;
-  daily_rate: number;
-  admission_date: string;
-  expected_discharge_date: string;
-  actual_discharge_date: string;
-  status: string;
-  admission_notes: string;
-  discharge_notes: string;
-  total_amount: number;
-  created_at: string;
-}
-
-export interface DailyExpense {
-  id: string;
-  expense_category: string;
-  description: string;
-  amount: number;
-  payment_mode: string;
-  expense_date: string;
-  approved_by: string;
-  status: string;
-  receipt_number: string;
-  hospital_id: string;
-  created_at: string;
+  updated_at: string;
+  created_by: string;
 }
 
 export interface Department {
   id: string;
   name: string;
-  description: string;
-  head_doctor_id: string;
+  description?: string;
+  head_doctor_id?: string;
   hospital_id: string;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Bed {
   id: string;
   bed_number: string;
-  room_type: string;
-  department: string;
-  status: string;
+  room_type: 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY';
+  department_id?: string;
   daily_rate: number;
+  status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'RESERVED';
   hospital_id: string;
   created_at: string;
+  updated_at: string;
+}
+
+export interface PatientAdmission {
+  id: string;
+  patient_id: string;
+  bed_id: string;
+  admission_date: string;
+  expected_discharge_date?: string;
+  actual_discharge_date?: string;
+  admission_notes?: string;
+  discharge_notes?: string;
+  services: any; // JSONB field
+  total_amount: number;
+  amount_paid: number;
+  balance: number;
+  status: 'ACTIVE' | 'DISCHARGED' | 'TRANSFERRED';
+  admitted_by: string;
+  discharged_by?: string;
+  hospital_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatientTransaction {
+  id: string;
+  patient_id: string;
+  admission_id?: string;
+  transaction_type: 'ENTRY_FEE' | 'CONSULTATION' | 'LAB_TEST' | 'XRAY' | 'MEDICINE' | 'PROCEDURE' | 'ADMISSION_FEE' | 'DAILY_CHARGE' | 'SERVICE' | 'REFUND';
+  amount: number;
+  payment_mode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'INSURANCE';
+  description: string;
+  doctor_id?: string;
+  department?: string;
+  receipt_number?: string;
+  notes?: string;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  hospital_id: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface DailyExpense {
+  id: string;
+  expense_category: 'STAFF_SALARY' | 'UTILITIES' | 'MEDICAL_SUPPLIES' | 'MAINTENANCE' | 'ADMINISTRATIVE' | 'EQUIPMENT' | 'RENT' | 'INSURANCE' | 'OTHER';
+  amount: number;
+  description: string;
+  payment_mode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'CHEQUE';
+  vendor_name?: string;
+  vendor_contact?: string;
+  receipt_number?: string;
+  expense_date: string;
+  approval_status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approved_by?: string;
+  notes?: string;
+  hospital_id: string;
+  created_at: string;
+  created_by: string;
 }
 
 export interface FutureAppointment {
@@ -136,16 +162,18 @@ export interface FutureAppointment {
   doctor_id: string;
   appointment_date: string;
   appointment_time: string;
-  duration_minutes: number;
-  appointment_type: string;
-  reason: string;
-  status: string;
-  estimated_cost: number;
-  notes: string;
+  appointment_type: 'CONSULTATION' | 'FOLLOW_UP' | 'EMERGENCY' | 'PROCEDURE' | 'CHECKUP';
+  status: 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+  estimated_cost?: number;
+  notes?: string;
+  reminder_sent: boolean;
+  hospital_id: string;
   created_at: string;
+  created_by: string;
 }
 
-// Extended types with relations
+// ENHANCED INTERFACES WITH RELATIONSHIPS
+
 export interface PatientWithRelations extends Patient {
   transactions?: PatientTransaction[];
   admissions?: PatientAdmission[];
@@ -155,101 +183,134 @@ export interface PatientWithRelations extends Patient {
   lastVisit?: string;
 }
 
-export interface DashboardStats {
-  totalPatients: number;
-  totalDoctors: number;
-  totalBeds: number;
-  occupiedBeds: number;
-  todayRevenue: number;
-  monthlyRevenue: number;
-  todayAppointments: number;
-  pendingAdmissions: number;
-  patientGrowthRate: number;
-  revenueGrowthRate: number;
+export interface PatientAdmissionWithRelations extends PatientAdmission {
+  patient?: Patient;
+  bed?: Bed;
+  transactions?: PatientTransaction[];
+  admitted_by_user?: User;
+  discharged_by_user?: User;
 }
 
-// Form data types
+export interface BedWithRelations extends Bed {
+  department?: Department;
+  current_admission?: PatientAdmission;
+  current_patient?: Patient;
+}
+
+export interface TransactionWithRelations extends PatientTransaction {
+  patient?: Patient;
+  doctor?: User;
+  admission?: PatientAdmission;
+}
+
+export interface AppointmentWithRelations extends FutureAppointment {
+  patient?: Patient;
+  doctor?: User;
+}
+
+// DASHBOARD STATISTICS TYPE
+export interface DashboardStats {
+  total_patients: number;
+  active_admissions: number;
+  available_beds: number;
+  total_beds: number;
+  today_revenue: number;
+  today_expenses: number;
+  net_revenue: number;
+  pending_appointments: number;
+  todays_appointments: number;
+  occupancy_rate: number;
+}
+
+// BED AVAILABILITY TYPE
+export interface BedAvailability {
+  bed_id: string;
+  bed_number: string;
+  room_type: string;
+  daily_rate: number;
+  is_available: boolean;
+  current_patient?: string;
+}
+
+// CREATE PATIENT DATA TYPE
 export interface CreatePatientData {
   first_name: string;
   last_name?: string;
-  phone?: string;
+  date_of_birth: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  phone: string;
   email?: string;
-  date_of_birth?: string;
-  gender?: string;
-  address?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
+  address: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
   blood_group?: string;
   medical_history?: string;
   allergies?: string;
+  current_medications?: string;
+  insurance_provider?: string;
+  insurance_number?: string;
+  notes?: string;
   hospital_id: string;
 }
 
-export interface CreateTransactionData {
+// CREATE ADMISSION DATA TYPE
+export interface CreateAdmissionData {
   patient_id: string;
-  transaction_type: string;
-  description: string;
-  amount: number;
-  payment_mode: string;
-  doctor_id?: string;
-  department?: string;
-  status?: string;
-  transaction_reference?: string;
+  bed_id: string;
+  admission_date: string;
+  expected_discharge_date?: string;
+  admission_notes?: string;
+  services?: any;
+  admitted_by: string;
+  hospital_id: string;
 }
 
-export interface CreateAppointmentData {
-  patient_id: string;
-  doctor_id: string;
-  appointment_date: string;
-  appointment_time: string;
-  duration_minutes?: number;
-  appointment_type?: string;
-  reason?: string;
-  status?: string;
-  estimated_cost?: number;
-  notes?: string;
+// PATIENT SEARCH FILTERS
+export interface PatientSearchFilters {
+  search?: string;
+  gender?: string;
+  blood_group?: string;
+  age_min?: number;
+  age_max?: number;
+  admission_status?: 'ALL' | 'ADMITTED' | 'NOT_ADMITTED';
+  date_from?: string;
+  date_to?: string;
 }
 
-// Constants
-export const HOSPITAL_ID = '550e8400-e29b-41d4-a716-446655440000'; // Default hospital ID
+// API RESPONSE TYPES
+export interface ApiResponse<T> {
+  data: T | null;
+  error: string | null;
+  count?: number;
+}
 
-export const TRANSACTION_TYPES = [
-  'CONSULTATION',
-  'ADMISSION',
-  'PHARMACY',
-  'LABORATORY',
-  'IMAGING',
-  'PROCEDURE',
-  'EMERGENCY',
-  'DISCHARGE',
-  'REFUND'
-] as const;
+export interface PaginatedResponse<T> {
+  data: T[];
+  count: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
 
-export const PAYMENT_MODES = [
-  'CASH',
-  'CARD',
-  'UPI',
-  'BANK_TRANSFER',
-  'INSURANCE',
-  'CREDIT'
-] as const;
+// DEFAULT HOSPITAL ID (City General Hospital from your schema)
+export const HOSPITAL_ID = '550e8400-e29b-41d4-a716-446655440000';
 
+// APPOINTMENT CONSTANTS
 export const APPOINTMENT_TYPES = [
-  'CONSULTATION',
-  'FOLLOW_UP',
-  'EMERGENCY',
-  'PROCEDURE',
-  'SURGERY'
-] as const;
+  { value: 'CONSULTATION', label: 'Consultation' },
+  { value: 'FOLLOW_UP', label: 'Follow-up' },
+  { value: 'EMERGENCY', label: 'Emergency' },
+  { value: 'PROCEDURE', label: 'Procedure' },
+  { value: 'CHECKUP', label: 'Checkup' }
+];
 
 export const APPOINTMENT_STATUS = [
-  'SCHEDULED',
-  'CONFIRMED',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'CANCELLED',
-  'NO_SHOW'
-] as const;
+  { value: 'SCHEDULED', label: 'Scheduled' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'NO_SHOW', label: 'No Show' }
+];
 
-// Export configured client as default
+// EXPORT DEFAULT CLIENT
 export default supabase;
