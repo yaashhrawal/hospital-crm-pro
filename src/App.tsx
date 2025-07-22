@@ -15,6 +15,8 @@ import RefundTab from './components/RefundTab';
 import ConstraintChecker from './components/ConstraintChecker';
 import IPDManagement from './components/IPDManagement';
 import IPDDiagnostic from './components/IPDDiagnostic';
+import SimpleIPDTest from './components/SimpleIPDTest';
+import MinimalIPDAdmission from './components/MinimalIPDAdmission';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -262,6 +264,18 @@ const App: React.FC = () => {
       name: '🔍 IPD Debug', 
       component: IPDDiagnostic,
       description: 'Diagnostic tool to debug IPD admission issues and check database connectivity' 
+    },
+    { 
+      id: 'simple-ipd-test', 
+      name: '🧪 IPD Test', 
+      component: SimpleIPDTest,
+      description: 'Simple step-by-step IPD admission test to isolate the exact issue' 
+    },
+    { 
+      id: 'minimal-ipd', 
+      name: '⚡ Minimal IPD', 
+      component: MinimalIPDAdmission,
+      description: 'Minimal working IPD admission - if this fails, the database has issues' 
     },
     { 
       id: 'auth-debug', 
