@@ -3,25 +3,15 @@ import toast, { Toaster } from 'react-hot-toast';
 import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
 
-// Import new components
+// Import production components
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
-import AuthDebugger from './components/AuthDebugger';
-import TransactionTypeTester from './components/TransactionTypeTester';
 import SimplePatientEntry from './components/SimplePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
-import ConstraintChecker from './components/ConstraintChecker';
-import IPDManagement from './components/IPDManagement';
-import IPDDiagnostic from './components/IPDDiagnostic';
-import SimpleIPDTest from './components/SimpleIPDTest';
-import MinimalIPDAdmission from './components/MinimalIPDAdmission';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
-import BedRoomTypeTest from './components/BedRoomTypeTest';
-import DatabaseConstraintAnalyzer from './components/DatabaseConstraintAnalyzer';
-import IPDConstraintFixer from './components/IPDConstraintFixer';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -220,31 +210,37 @@ const App: React.FC = () => {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // Main app navigation tabs
+  // Main app navigation tabs - PRODUCTION READY
   const tabs = [
     { 
       id: 'dashboard', 
       name: '📊 Dashboard', 
       component: EnhancedDashboard,
-      description: 'Enhanced real-time analytics with comprehensive hospital overview' 
+      description: 'Real-time analytics with comprehensive hospital overview' 
     },
     { 
       id: 'patient-entry', 
       name: '👤 New Patient', 
       component: SimplePatientEntry,
-      description: 'Register patients with integrated financial tracking' 
+      description: 'Register new patients with integrated financial tracking' 
     },
     { 
       id: 'patient-list', 
       name: '👥 Patient List', 
       component: ComprehensivePatientList,
-      description: 'View and manage all patients' 
+      description: 'View and manage all registered patients' 
     },
     { 
       id: 'appointments', 
       name: '📅 Appointments', 
       component: FutureAppointmentsSystem,
-      description: 'Schedule and manage appointments' 
+      description: 'Schedule and manage patient appointments' 
+    },
+    { 
+      id: 'ipd', 
+      name: '🛏️ IPD Management', 
+      component: EnhancedIPDManagement,
+      description: 'In-Patient Department with bed management and admissions' 
     },
     { 
       id: 'expenses', 
@@ -256,68 +252,8 @@ const App: React.FC = () => {
       id: 'refunds', 
       name: '💰 Refunds', 
       component: RefundTab,
-      description: 'Process patient refunds and maintain records' 
-    },
-    { 
-      id: 'ipd', 
-      name: '🛏️ IPD', 
-      component: EnhancedIPDManagement,
-      description: 'Enhanced IPD with comprehensive bed management, admissions, and real-time statistics' 
-    },
-    { 
-      id: 'ipd-diagnostic', 
-      name: '🔍 IPD Debug', 
-      component: IPDDiagnostic,
-      description: 'Diagnostic tool to debug IPD admission issues and check database connectivity' 
-    },
-    { 
-      id: 'simple-ipd-test', 
-      name: '🧪 IPD Test', 
-      component: SimpleIPDTest,
-      description: 'Simple step-by-step IPD admission test to isolate the exact issue' 
-    },
-    { 
-      id: 'minimal-ipd', 
-      name: '⚡ Minimal IPD', 
-      component: MinimalIPDAdmission,
-      description: 'Minimal working IPD admission - if this fails, the database has issues' 
-    },
-    { 
-      id: 'bed-room-test', 
-      name: '🔍 Bed Test', 
-      component: BedRoomTypeTest,
-      description: 'Test bed room types and constraint issues - diagnose exact problem' 
-    },
-    { 
-      id: 'constraint-analyzer', 
-      name: '📊 Schema Analyzer', 
-      component: DatabaseConstraintAnalyzer,
-      description: 'Comprehensive database constraint analysis and room_type debugging' 
-    },
-    { 
-      id: 'ipd-fixer', 
-      name: '🔧 IPD Fixer', 
-      component: IPDConstraintFixer,
-      description: 'Automated fix for patient_admissions room_type constraint violations' 
-    },
-    { 
-      id: 'auth-debug', 
-      name: '🔍 Auth Debug', 
-      component: AuthDebugger,
-      description: 'Debug authentication issues' 
-    },
-    { 
-      id: 'transaction-test', 
-      name: '🧪 Transaction Test', 
-      component: TransactionTypeTester,
-      description: 'Test transaction types to fix constraint errors' 
-    },
-    { 
-      id: 'constraint-check', 
-      name: '🔍 Constraint Check', 
-      component: ConstraintChecker,
-      description: 'Find exact allowed transaction types' 
-    },
+      description: 'Process patient refunds and maintain financial records' 
+    }
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || RealTimeDashboard;
@@ -413,7 +349,7 @@ const App: React.FC = () => {
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
                 System Online
               </span>
-              <span>Version 2.0</span>
+              <span>Version 3.0</span>
             </div>
           </div>
         </div>
