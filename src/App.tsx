@@ -14,6 +14,7 @@ import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import ConstraintChecker from './components/ConstraintChecker';
 import IPDManagement from './components/IPDManagement';
+import IPDDiagnostic from './components/IPDDiagnostic';
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -255,6 +256,12 @@ const App: React.FC = () => {
       name: '🛏️ IPD', 
       component: IPDManagement,
       description: 'In-Patient Department - Manage admitted patients with bed allocation, services, and billing' 
+    },
+    { 
+      id: 'ipd-diagnostic', 
+      name: '🔍 IPD Debug', 
+      component: IPDDiagnostic,
+      description: 'Diagnostic tool to debug IPD admission issues and check database connectivity' 
     },
     { 
       id: 'auth-debug', 

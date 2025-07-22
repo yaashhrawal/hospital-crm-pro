@@ -176,8 +176,17 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
       }
 
       if (error) {
-        console.error('Error creating admission:', error);
-        toast.error('Failed to admit patient');
+        console.error('ERROR DETAILS:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          formData,
+          selectedPatient: selectedPatient.id,
+          admissionData,
+          optionalFields
+        });
+        toast.error(`Failed to admit patient: ${error.message}`);
         return;
       }
 
