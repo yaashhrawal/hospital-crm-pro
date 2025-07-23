@@ -7,7 +7,7 @@ import type { User } from './config/supabaseNew';
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
 import RealTimeDashboard from './components/RealTimeDashboard';
-import SimplePatientEntry from './components/SimplePatientEntry';
+import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
@@ -223,8 +223,8 @@ const App: React.FC = () => {
     { 
       id: 'patient-entry', 
       name: '👤 New Patient', 
-      component: SimplePatientEntry,
-      description: 'Register new patients with integrated financial tracking' 
+      component: NewFlexiblePatientEntry,
+      description: 'Register new patients with comprehensive information and reference tracking' 
     },
     { 
       id: 'patient-list', 
