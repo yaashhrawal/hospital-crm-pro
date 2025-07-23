@@ -321,7 +321,7 @@ export class HospitalService {
         amount: data.amount,
         payment_mode: data.payment_mode,
         doctor_id: data.doctor_id || null,
-        department: data.department || null,
+        doctor_name: data.doctor_name || null,
         status: data.status || 'COMPLETED',
         transaction_reference: data.transaction_reference || null
       };
