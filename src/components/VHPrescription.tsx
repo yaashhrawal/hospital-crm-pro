@@ -35,7 +35,25 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
   // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    return patient.assigned_doctor || 'GENERAL PHYSICIAN';
+    const department = patient.department;
+    if (!department) return 'GENERAL PHYSICIAN';
+    
+    // Doctor-Department mapping
+    const doctorMapping: {[key: string]: string} = {
+      'ORTHOPEDIC': 'DR. HEMANT KHAJJA',
+      'DIETICIAN': 'DR. LALITA SUWALKA',
+      'GASTRO': 'DR. MILIND KIRIT AKHANI',
+      'GYN.': 'DR MEETU BABLE',
+      'NEUROLOGY': 'DR. AMIT PATANVADIYA',
+      'UROLOGY': 'DR. KISHAN PATEL',
+      'SURGICAL ONCOLOGY': 'DR. PARTH SHAH',
+      'MEDICAL ONCOLOGY': 'DR.RAJEEDP GUPTA',
+      'NEUROSURGERY': 'DR. KULDDEP VALA',
+      'ENDOCRINOLOGY': 'DR. SAURABH GUPTA',
+      'GENERAL PHYSICIAN': 'DR. BATUL PEEPAWALA'
+    };
+    
+    return doctorMapping[department] || patient.doctor || 'GENERAL PHYSICIAN';
   };
 
   return (
@@ -98,7 +116,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               {getDoctorName()}
             </div>
             <div className="text-violet-700 text-sm mt-1">
-              {patient.assigned_department || 'GENERAL PHYSICIAN'}
+              {patient.department || 'GENERAL PHYSICIAN'}
             </div>
           </div>
 
@@ -121,7 +139,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             {/* Department */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
-              <span className="text-base text-gray-900">{patient.assigned_department || 'GENERAL PHYSICIAN'}</span>
+              <span className="text-base text-gray-900">{patient.department || 'GENERAL PHYSICIAN'}</span>
             </div>
           </div>
 
