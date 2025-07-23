@@ -38,6 +38,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     console.log('🩺 Patient data for prescription:', patient);
     console.log('👨‍⚕️ Patient assigned_doctor field:', patient.assigned_doctor);
     console.log('🏥 Patient assigned_department field:', patient.assigned_department);
+    console.log('🔄 Database migration completed - using assigned_doctor column');
     return patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
   };
 
