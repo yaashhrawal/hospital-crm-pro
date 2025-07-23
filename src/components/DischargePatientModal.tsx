@@ -328,16 +328,19 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         }
       }
 
-      // 4. Update admission status
+      // 4. Update admission status only
       console.log('🏥 Updating admission status...');
+      
+      // Only update the status field since discharge_date column doesn't exist in actual table
+      const updateData = {
+        status: 'discharged'
+      };
+      
+      console.log('🔄 Attempting to update admission with:', updateData);
+      
       const { error: admissionError } = await supabase
         .from('patient_admissions')
-        .update({
-          status: 'DISCHARGED',
-          actual_discharge_date: dischargeDate.split('T')[0],
-          discharge_notes: formData.discharge_notes,
-          discharged_by: currentUser.id
-        })
+        .update(updateData)
         .eq('id', admission.id);
 
       if (admissionError) {
