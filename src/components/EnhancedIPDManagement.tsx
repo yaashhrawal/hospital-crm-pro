@@ -373,7 +373,7 @@ const EnhancedIPDManagement: React.FC = () => {
                             className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
                             title="Print Admission Receipt"
                           >
-                            🖨️ Print
+                            🖨️ Receipt
                           </button>
                           
                           {activeTab === 'active' && (
