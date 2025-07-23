@@ -53,9 +53,38 @@ const EnhancedIPDManagement: React.FC = () => {
 
   useEffect(() => {
     console.log('🚀 IPD Management useEffect triggered, activeTab:', activeTab);
+    // One-time migration to fix lowercase status values
+    migrateStatusValues();
     loadData();
     loadStats();
   }, [activeTab]);
+
+  // Temporary migration function to fix any lowercase status values
+  const migrateStatusValues = async () => {
+    try {
+      // Update any 'discharged' to 'DISCHARGED'
+      const { error: dischargedError } = await supabase
+        .from('patient_admissions')
+        .update({ status: 'DISCHARGED' })
+        .eq('status', 'discharged');
+      
+      if (dischargedError) {
+        console.error('Error migrating discharged status:', dischargedError);
+      }
+
+      // Update any 'active' to 'ACTIVE'
+      const { error: activeError } = await supabase
+        .from('patient_admissions')
+        .update({ status: 'ACTIVE' })
+        .eq('status', 'active');
+      
+      if (activeError) {
+        console.error('Error migrating active status:', activeError);
+      }
+    } catch (error) {
+      console.error('Error in status migration:', error);
+    }
+  };
 
   const loadData = async () => {
     console.log('📥 LoadData called for activeTab:', activeTab);

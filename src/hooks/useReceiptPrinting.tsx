@@ -31,6 +31,18 @@ export const useReceiptPrinting = () => {
     
     const handlePrint = () => {
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        // Cleanup
+        setTimeout(() => {
+          root.unmount();
+          document.body.removeChild(printContainer);
+        }, 100);
+        
+        // Show user-friendly error message
+        alert('Unable to open print window. Please check:\n\n1. Disable popup blocker for this site\n2. Allow popups in your browser settings\n3. Try again\n\nAlternatively, you can take a screenshot of the receipt.');
+        return;
+      }
+      
       if (printWindow) {
         printWindow.document.write(`
           <!DOCTYPE html>
@@ -170,6 +182,8 @@ export const useReceiptPrinting = () => {
   // Admission Receipt
   const printAdmissionReceipt = async (admissionId: string) => {
     try {
+      console.log('Printing admission receipt for ID:', admissionId);
+      
       const { data: admission, error } = await supabase
         .from('patient_admissions')
         .select(`
@@ -180,7 +194,19 @@ export const useReceiptPrinting = () => {
         .eq('id', admissionId)
         .single();
 
-      if (error || !admission) throw new Error('Admission not found');
+      if (error) {
+        console.error('Database error:', error);
+        throw new Error(`Failed to fetch admission data: ${error.message}`);
+      }
+      
+      if (!admission) {
+        throw new Error('Admission not found');
+      }
+      
+      if (!admission.patient) {
+        console.error('Admission data missing patient information:', admission);
+        throw new Error('Patient information not found for this admission');
+      }
 
       const receiptData: ReceiptData = {
         type: 'ADMISSION',
@@ -230,7 +256,10 @@ export const useReceiptPrinting = () => {
       printReceipt(receiptData);
     } catch (error) {
       console.error('Error printing admission receipt:', error);
-      alert('Failed to print admission receipt. Please try again.');
+      
+      // Show more specific error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to print admission receipt: ${errorMessage}\n\nPlease check the console for more details and try again.`);
     }
   };
 
