@@ -70,8 +70,8 @@ export interface Patient {
   insurance_number?: string;
   has_reference?: boolean; // Reference field
   reference_details?: string; // Reference details
-  doctor?: string; // Assigned doctor name (using existing column)
-  department?: string; // Assigned department (using existing column)
+  assigned_doctor?: string; // Assigned doctor name
+  assigned_department?: string; // Assigned department
   notes?: string;
   hospital_id: string;
   is_active: boolean;
@@ -255,8 +255,8 @@ export interface CreatePatientData {
   insurance_number?: string;
   has_reference?: boolean; // Reference field
   reference_details?: string; // Reference details
-  doctor?: string; // Assigned doctor name (using existing column)
-  department?: string; // Assigned department (using existing column)
+  assigned_doctor?: string; // Assigned doctor name
+  assigned_department?: string; // Assigned department
   notes?: string;
   hospital_id: string;
 }

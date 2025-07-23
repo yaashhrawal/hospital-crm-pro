@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import { getDoctorWithDegree } from '../data/doctorDegrees';
 
 interface VHPrescriptionProps {
   patient: PatientWithRelations;
@@ -33,13 +34,18 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     return new Date().toLocaleDateString('en-IN');
   };
 
-  // Get the correct doctor name from patient data
-  const getDoctorName = () => {
-    return patient.doctor || 'DR. BATUL PEEPAWALA';
+  // Get the correct doctor name and degree from patient data
+  const getDoctorInfo = () => {
+    console.log('🩺 VH Patient data for prescription:', patient);
+    console.log('👨‍⚕️ VH Patient assigned_doctor field:', patient.assigned_doctor);
+    console.log('🏥 VH Patient assigned_department field:', patient.assigned_department);
+    
+    const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    return getDoctorWithDegree(doctorName);
   };
 
   const getDepartmentName = () => {
-    return patient.department || 'GENERAL PHYSICIAN';
+    return patient.assigned_department || 'GENERAL PHYSICIAN';
   };
 
   return (
@@ -99,8 +105,13 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           {/* Doctor Name - Left Side below hospital text */}
           <div className="absolute top-24 left-12 text-left">
             <div className="text-violet-800 font-bold text-lg uppercase">
-              {getDoctorName()}
+              {getDoctorInfo().name}
             </div>
+            {getDoctorInfo().degree && (
+              <div className="text-violet-600 text-base mt-1 font-medium">
+                {getDoctorInfo().degree}
+              </div>
+            )}
             <div className="text-violet-700 text-sm mt-1">
               {getDepartmentName()}
             </div>
