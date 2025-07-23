@@ -118,6 +118,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
         // Reference information
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
+        // Doctor and Department assignment
+        assigned_doctor: formData.selected_doctor || undefined,
+        assigned_department: formData.selected_department || undefined,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
