@@ -158,6 +158,30 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Print-specific styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            @page {
+              margin: 0.5in;
+              size: A4;
+            }
+            body * {
+              visibility: hidden;
+            }
+            #receipt-content, #receipt-content * {
+              visibility: visible;
+            }
+            #receipt-content {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+            }
+          }
+        `
+      }} />
+      
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
         {/* Print and Close buttons */}
         <div className="flex justify-end gap-2 p-4 border-b print:hidden">
