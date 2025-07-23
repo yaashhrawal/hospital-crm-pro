@@ -267,14 +267,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-sm text-gray-600">Track daily expenses</div>
         </button>
 
-        <button
-          onClick={() => printDailySummary()}
-          className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow bg-gradient-to-br from-green-50 to-blue-50 border-green-200"
-        >
-          <div className="text-2xl mb-2">🖨️</div>
-          <div className="font-medium">Print Summary</div>
-          <div className="text-sm text-gray-600">Today's receipts</div>
-        </button>
       </div>
 
       {/* Recent Activity */}

@@ -268,6 +268,17 @@ const ComprehensivePatientList: React.FC = () => {
     loadPatients(); // Reload patients after IPD admission
   };
 
+  const handlePrescription = (patient: PatientWithRelations, template: string) => {
+    // For now, show a toast message - we'll implement actual prescription printing once templates are provided
+    if (template === 'valant') {
+      toast.success(`Generating Valant prescription for ${patient.first_name} ${patient.last_name}`);
+      // TODO: Open Valant prescription template
+    } else if (template === 'vh') {
+      toast.success(`Generating V+H prescription for ${patient.first_name} ${patient.last_name}`);
+      // TODO: Open V+H prescription template  
+    }
+  };
+
   const handleSort = (newSortBy: typeof sortBy) => {
     if (sortBy === newSortBy) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -548,16 +559,27 @@ const ComprehensivePatientList: React.FC = () => {
                         >
                           🧾 Receipt
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            printConsultationReceipt(patient.id);
-                          }}
-                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          title="Print Consultation Receipt"
-                        >
-                          🖨️ Print
-                        </button>
+                        <div className="relative inline-block">
+                          <select
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const selectedTemplate = e.target.value;
+                              if (selectedTemplate === 'valant') {
+                                handlePrescription(patient, 'valant');
+                              } else if (selectedTemplate === 'vh') {
+                                handlePrescription(patient, 'vh');
+                              }
+                              e.target.value = ''; // Reset selection
+                            }}
+                            className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                            title="Generate Prescription"
+                          >
+                            <option value="">📝 Prescription</option>
+                            <option value="valant">Valant Template</option>
+                            <option value="vh">V+H Template</option>
+                          </select>
+                        </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
