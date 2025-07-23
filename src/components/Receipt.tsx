@@ -211,9 +211,8 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
                 style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
               />
             </div>
-            <div className="text-sm text-gray-600 mb-2">Complete Healthcare Solutions</div>
-            <div className="text-sm text-gray-700 mt-2">
-              <p>123 Healthcare Street, Medical District, City - 123456</p>
+            <div className="text-sm text-gray-700 mt-4">
+              <p>10, Madhav Vihar Shobhagpura, Udaipur (313001)</p>
               <p>Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
               <p>Website: www.valanthospital.com</p>
             </div>
