@@ -184,17 +184,50 @@ export const useReceiptPrinting = () => {
     try {
       console.log('Printing admission receipt for ID:', admissionId);
       
-      const { data: admission, error } = await supabase
+      // First try with bed_id relationship (new schema)
+      let { data: admission, error } = await supabase
         .from('patient_admissions')
         .select(`
           *,
           patient:patients(*),
-          bed:beds(*)
+          bed:bed_id(*)
         `)
         .eq('id', admissionId)
         .single();
 
-      if (error) {
+      // If bed relationship fails, try without bed join (fallback)
+      if (error && error.message?.includes('relationship')) {
+        console.log('Bed relationship not found, trying without bed join...');
+        
+        const { data: admissionFallback, error: fallbackError } = await supabase
+          .from('patient_admissions')
+          .select(`
+            *,
+            patient:patients(*)
+          `)
+          .eq('id', admissionId)
+          .single();
+          
+        if (fallbackError) {
+          console.error('Fallback database error:', fallbackError);
+          throw new Error(`Failed to fetch admission data: ${fallbackError.message}`);
+        }
+        
+        admission = admissionFallback;
+        
+        // Try to get bed info separately if bed_number exists
+        if (admission?.bed_number) {
+          const { data: bedInfo } = await supabase
+            .from('beds')
+            .select('*')
+            .eq('bed_number', admission.bed_number)
+            .single();
+            
+          if (bedInfo) {
+            admission.bed = bedInfo;
+          }
+        }
+      } else if (error) {
         console.error('Database error:', error);
         throw new Error(`Failed to fetch admission data: ${error.message}`);
       }
@@ -224,8 +257,8 @@ export const useReceiptPrinting = () => {
         },
         charges: [
           {
-            description: `Bed Assignment - ${admission.bed?.bed_number || 'N/A'} (${admission.bed?.room_type || 'N/A'})`,
-            amount: admission.bed?.daily_rate || 0,
+            description: `Bed Assignment - ${admission.bed?.bed_number || admission.bed_number || 'N/A'} (${admission.bed?.room_type || admission.room_type || 'N/A'})`,
+            amount: admission.bed?.daily_rate || admission.daily_rate || 1000,
             quantity: 1
           },
           {
@@ -236,20 +269,20 @@ export const useReceiptPrinting = () => {
         ],
         payments: [{
           mode: 'CASH',
-          amount: admission.amount_paid || 0
+          amount: admission.amount_paid || admission.total_amount || 0
         }],
         totals: {
-          subtotal: (admission.bed?.daily_rate || 0) + 1000,
+          subtotal: (admission.bed?.daily_rate || admission.daily_rate || 1000) + 1000,
           discount: 0,
           insurance: 0,
-          netAmount: (admission.bed?.daily_rate || 0) + 1000,
-          amountPaid: admission.amount_paid || 0,
-          balance: ((admission.bed?.daily_rate || 0) + 1000) - (admission.amount_paid || 0)
+          netAmount: (admission.bed?.daily_rate || admission.daily_rate || 1000) + 1000,
+          amountPaid: admission.amount_paid || admission.total_amount || 0,
+          balance: ((admission.bed?.daily_rate || admission.daily_rate || 1000) + 1000) - (admission.amount_paid || admission.total_amount || 0)
         },
         staff: {
           processedBy: 'IPD Staff'
         },
-        notes: `Admission Date: ${admission.admission_date}\nBed: ${admission.bed?.bed_number || 'N/A'}\nRoom Type: ${admission.bed?.room_type || 'N/A'}`,
+        notes: `Admission Date: ${admission.admission_date}\nBed: ${admission.bed?.bed_number || admission.bed_number || 'N/A'}\nRoom Type: ${admission.bed?.room_type || admission.room_type || 'N/A'}`,
         isOriginal: true
       };
 

@@ -8,16 +8,25 @@ import IPDServicesModal from './IPDServicesModal';
 interface IPDPatient {
   id: string;
   patient_id: string;
+  bed_id: string;
   patient: {
     first_name: string;
     last_name: string;
     phone: string;
     patient_id: string;
   };
-  bed_number: string;
-  room_type: 'general' | 'private' | 'icu';
-  department: string;
-  daily_rate: number;
+  bed?: {
+    id: string;
+    bed_number: string;
+    room_type: 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY';
+    daily_rate: number;
+    department?: string;
+  };
+  // Legacy fields for backwards compatibility
+  bed_number?: string;
+  room_type?: 'general' | 'private' | 'icu';
+  department?: string;
+  daily_rate?: number;
   admission_date: string;
   discharge_date?: string;
   status: 'active' | 'discharged';
@@ -53,24 +62,65 @@ const IPDManagement: React.FC = () => {
   const loadIPDPatients = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .select(`
-          *,
-          patient:patients(first_name, last_name, phone, patient_id)
-        `)
-        .eq('status', activeTab === 'active' ? 'active' : 'discharged')
-        .order('admission_date', { ascending: false });
+      console.log('🔍 Loading IPD patients for tab:', activeTab);
+      const statusFilter = activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED';
+      console.log('🎯 Filtering for status:', statusFilter);
 
-      if (error) {
-        console.error('Error loading IPD patients:', error);
-        toast.error('Failed to load IPD patients');
-        return;
+      // Try loading with relationships first
+      let patientsData = [];
+      try {
+        const { data: relationshipData, error: relationshipError } = await supabase
+          .from('patient_admissions')
+          .select(`
+            *,
+            patient:patients(first_name, last_name, phone, patient_id),
+            bed:beds(id, bed_number, room_type, daily_rate, department)
+          `)
+          .eq('status', statusFilter)
+          .order('admission_date', { ascending: false });
+
+        if (!relationshipError && relationshipData) {
+          console.log('✅ Successfully loaded with relationships');
+          patientsData = relationshipData;
+        } else {
+          throw relationshipError;
+        }
+      } catch (relationshipError) {
+        console.warn('⚠️ Relationship query failed, trying manual join:', relationshipError);
+        
+        // Fallback: Load admissions and join manually
+        const { data: admissionsOnly, error: admissionsError } = await supabase
+          .from('patient_admissions')
+          .select('*')
+          .eq('status', statusFilter)
+          .order('admission_date', { ascending: false });
+
+        if (admissionsError) throw admissionsError;
+
+        // Load patients and beds separately
+        const patientIds = [...new Set(admissionsOnly?.map(a => a.patient_id) || [])];
+        const bedIds = [...new Set(admissionsOnly?.map(a => a.bed_id).filter(Boolean) || [])];
+
+        const [patientsResult, bedsResult] = await Promise.all([
+          supabase.from('patients').select('id, patient_id, first_name, last_name, phone').in('id', patientIds),
+          supabase.from('beds').select('id, bed_number, room_type, daily_rate, department').in('id', bedIds)
+        ]);
+
+        // Manual join
+        patientsData = (admissionsOnly || []).map(admission => ({
+          ...admission,
+          patient: patientsResult.data?.find(p => p.id === admission.patient_id),
+          bed: bedsResult.data?.find(b => b.id === admission.bed_id)
+        }));
+
+        console.log('✅ Successfully loaded with manual join');
       }
-
-      setIpdPatients(data || []);
+      
+      console.log('📋 Final patients result:', patientsData);
+      console.log('📋 Found', patientsData?.length || 0, 'patients with status:', statusFilter);
+      setIpdPatients(patientsData || []);
     } catch (error: any) {
-      console.error('Error loading IPD patients:', error);
+      console.error('❌ Error loading IPD patients:', error);
       toast.error(`Failed to load IPD patients: ${error.message}`);
     } finally {
       setLoading(false);
@@ -114,7 +164,9 @@ const IPDManagement: React.FC = () => {
 
   const calculateTotalAmount = (patient: IPDPatient) => {
     const days = calculateStayDuration(patient.admission_date, patient.discharge_date);
-    return days * patient.daily_rate;
+    // Use bed data if available, otherwise fall back to legacy fields
+    const dailyRate = patient.bed?.daily_rate || patient.daily_rate || 0;
+    return days * dailyRate;
   };
 
   const handleDischarge = async (patientId: string) => {
@@ -125,7 +177,7 @@ const IPDManagement: React.FC = () => {
       const { error } = await supabase
         .from('patient_admissions')
         .update({
-          status: 'discharged',
+          status: 'DISCHARGED',
           discharge_date: dischargeDate
         })
         .eq('id', patientId);
@@ -301,36 +353,17 @@ const IPDManagement: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="p-4">
-                      <EditableField
-                        value={patient.bed_number}
-                        onSave={(value) => handleEditField(patient.id, 'bed_number', value)}
-                      />
+                    <td className="p-4 font-medium">
+                      {patient.bed?.bed_number || patient.bed_number || 'N/A'}
                     </td>
                     <td className="p-4">
-                      <EditableField
-                        value={patient.room_type}
-                        onSave={(value) => handleEditField(patient.id, 'room_type', value)}
-                        type="select"
-                        options={[
-                          { value: 'general', label: 'General Ward' },
-                          { value: 'private', label: 'Private Room' },
-                          { value: 'icu', label: 'ICU' }
-                        ]}
-                      />
+                      {patient.bed?.room_type || patient.room_type || 'N/A'}
                     </td>
                     <td className="p-4">
-                      <EditableField
-                        value={patient.department}
-                        onSave={(value) => handleEditField(patient.id, 'department', value)}
-                      />
+                      {patient.bed?.department || patient.department || 'N/A'}
                     </td>
                     <td className="p-4">
-                      <EditableField
-                        value={patient.daily_rate}
-                        onSave={(value) => handleEditField(patient.id, 'daily_rate', value)}
-                        type="number"
-                      />
+                      ₹{(patient.bed?.daily_rate || patient.daily_rate || 0).toLocaleString()}
                     </td>
                     <td className="p-4">
                       <span className="font-medium">
@@ -417,7 +450,7 @@ const IPDManagement: React.FC = () => {
           </div>
           <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
             <div className="text-2xl font-bold text-purple-700">
-              {ipdPatients.filter(p => p.room_type === 'icu').length}
+              {ipdPatients.filter(p => (p.bed?.room_type || p.room_type)?.toUpperCase() === 'ICU').length}
             </div>
             <div className="text-purple-600 text-sm">ICU Patients</div>
           </div>
