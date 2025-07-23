@@ -200,44 +200,79 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
 
     setLoading(true);
     try {
+      console.log('🏥 Starting discharge process...');
+      
       const currentUser = await HospitalService.getCurrentUser();
       if (!currentUser) {
         toast.error('Authentication required');
         return;
       }
+      
+      console.log('👤 Current user:', currentUser);
+      console.log('🏨 Admission data:', admission);
+
+      // Validate required data
+      if (!admission.id) {
+        throw new Error('Admission ID is missing');
+      }
+      
+      if (!admission.patient?.id) {
+        throw new Error('Patient ID is missing from admission data');
+      }
+      
+      if (!currentUser.id) {
+        throw new Error('Current user ID is missing');
+      }
+      
+      if (!admission.hospital_id) {
+        console.warn('⚠️ Hospital ID missing from admission, using default');
+      }
 
       const dischargeDate = new Date().toISOString();
 
       // 1. Create discharge summary record
+      console.log('📝 Creating discharge summary...');
+      
+      // Prepare discharge summary data with validation
+      const dischargeSummaryData = {
+        admission_id: admission.id,
+        patient_id: admission.patient?.id,
+        final_diagnosis: formData.final_diagnosis?.trim() || 'Not specified',
+        treatment_summary: formData.treatment_summary?.trim() || 'Not specified', 
+        discharge_condition: formData.discharge_condition || 'STABLE',
+        follow_up_instructions: formData.follow_up_instructions?.trim() || null,
+        medicines_prescribed: formData.medicines_prescribed?.trim() || null,
+        dietary_instructions: formData.dietary_instructions?.trim() || null,
+        activity_restrictions: formData.activity_restrictions?.trim() || null,
+        next_appointment_date: formData.next_appointment_date || null,
+        doctor_name: formData.doctor_name?.trim() || null,
+        attendant_name: formData.attendant_name?.trim() || 'Not specified',
+        attendant_relationship: formData.attendant_relationship || 'FAMILY_MEMBER',
+        attendant_contact: formData.attendant_contact?.trim() || null,
+        documents_handed_over: formData.documents_handed_over || false,
+        discharge_notes: formData.discharge_notes?.trim() || null,
+        created_by: currentUser.id,
+        hospital_id: admission.hospital_id || '550e8400-e29b-41d4-a716-446655440000'
+      };
+      
+      console.log('📋 Discharge summary data:', dischargeSummaryData);
+      
       const { data: dischargeSummary, error: summaryError } = await supabase
         .from('discharge_summaries')
-        .insert({
-          admission_id: admission.id,
-          patient_id: admission.patient?.id,
-          final_diagnosis: formData.final_diagnosis,
-          treatment_summary: formData.treatment_summary,
-          discharge_condition: formData.discharge_condition,
-          follow_up_instructions: formData.follow_up_instructions,
-          medicines_prescribed: formData.medicines_prescribed,
-          dietary_instructions: formData.dietary_instructions,
-          activity_restrictions: formData.activity_restrictions,
-          next_appointment_date: formData.next_appointment_date || null,
-          doctor_name: formData.doctor_name,
-          attendant_name: formData.attendant_name,
-          attendant_relationship: formData.attendant_relationship,
-          attendant_contact: formData.attendant_contact,
-          documents_handed_over: formData.documents_handed_over,
-          discharge_notes: formData.discharge_notes,
-          created_by: currentUser.id,
-          hospital_id: admission.hospital_id
-        })
+        .insert(dischargeSummaryData)
         .select()
         .single();
 
-      if (summaryError) throw summaryError;
+      if (summaryError) {
+        console.error('❌ Discharge summary error:', summaryError);
+        throw summaryError;
+      }
+      
+      console.log('✅ Discharge summary created:', dischargeSummary);
 
       // 2. Create discharge bill if there are new charges
       if (totals.newCharges > 0) {
+        console.log('💰 Creating discharge bill...');
         const { error: billError } = await supabase
           .from('discharge_bills')
           .insert({
@@ -261,10 +296,16 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
             hospital_id: admission.hospital_id
           });
 
-        if (billError) throw billError;
+        if (billError) {
+          console.error('❌ Discharge bill error:', billError);
+          throw billError;
+        }
+        
+        console.log('✅ Discharge bill created successfully');
 
         // 3. Create final payment transaction if amount is being paid
         if (formData.amount_paid > 0) {
+          console.log('💳 Creating payment transaction...');
           const { error: transactionError } = await supabase
             .from('patient_transactions')
             .insert({
@@ -278,11 +319,17 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
               hospital_id: admission.hospital_id
             });
 
-          if (transactionError) throw transactionError;
+          if (transactionError) {
+            console.error('❌ Payment transaction error:', transactionError);
+            throw transactionError;
+          }
+          
+          console.log('✅ Payment transaction created successfully');
         }
       }
 
       // 4. Update admission status
+      console.log('🏥 Updating admission status...');
       const { error: admissionError } = await supabase
         .from('patient_admissions')
         .update({
@@ -293,28 +340,55 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         })
         .eq('id', admission.id);
 
-      if (admissionError) throw admissionError;
+      if (admissionError) {
+        console.error('❌ Admission update error:', admissionError);
+        throw admissionError;
+      }
+      
+      console.log('✅ Admission status updated to DISCHARGED');
 
       // 5. Update bed status to available
       if (admission.bed_id) {
+        console.log('🛏️ Updating bed status to available...');
         const { error: bedError } = await supabase
           .from('beds')
           .update({ status: 'AVAILABLE' })
           .eq('id', admission.bed_id);
 
         if (bedError) {
-          console.warn('Failed to update bed status:', bedError);
+          console.warn('⚠️ Failed to update bed status:', bedError);
           // Don't throw error as the main discharge process succeeded
+        } else {
+          console.log('✅ Bed status updated to AVAILABLE');
         }
       }
 
+      console.log('🎉 Discharge process completed successfully!');
       toast.success('Patient discharged successfully with complete documentation');
       onDischargeSuccess();
       onClose();
 
     } catch (error: any) {
       console.error('Error during discharge process:', error);
-      toast.error(`Failed to discharge patient: ${error.message}`);
+      
+      // Better error handling - check what type of error we have
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.details) {
+        errorMessage = error.details;
+      } else if (error?.hint) {
+        errorMessage = error.hint;
+      } else {
+        // Log the full error object to help debug
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+        errorMessage = 'Database operation failed. Please check console for details.';
+      }
+      
+      toast.error(`Failed to discharge patient: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
