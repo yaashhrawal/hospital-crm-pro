@@ -33,27 +33,9 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     return new Date().toLocaleDateString('en-IN');
   };
 
-  // Get the correct doctor name based on department
+  // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    const department = patient.assigned_department;
-    if (!department) return 'GENERAL PHYSICIAN';
-    
-    // Doctor-Department mapping
-    const doctorMapping: {[key: string]: string} = {
-      'ORTHOPEDIC': 'DR. HEMANT KHAJJA',
-      'DIETICIAN': 'DR. LALITA SUWALKA',
-      'GASTRO': 'DR. MILIND KIRIT AKHANI',
-      'GYN.': 'DR MEETU BABLE',
-      'NEUROLOGY': 'DR. AMIT PATANVADIYA',
-      'UROLOGY': 'DR. KISHAN PATEL',
-      'SURGICAL ONCOLOGY': 'DR. PARTH SHAH',
-      'MEDICAL ONCOLOGY': 'DR.RAJEEDP GUPTA',
-      'NEUROSURGERY': 'DR. KULDDEP VALA',
-      'ENDOCRINOLOGY': 'DR. SAURABH GUPTA',
-      'GENERAL PHYSICIAN': 'DR. BATUL PEEPAWALA'
-    };
-    
-    return doctorMapping[department] || patient.assigned_doctor || 'GENERAL PHYSICIAN';
+    return patient.assigned_doctor || 'GENERAL PHYSICIAN';
   };
 
   return (
