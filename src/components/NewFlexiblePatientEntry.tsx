@@ -137,6 +137,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
       const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
       const finalAmount = originalConsultationFee - discountAmount;
 
+      console.log('🧮 Billing calculation:');
+      console.log('- Original consultation fee:', originalConsultationFee);
+      console.log('- Discount percentage:', formData.discount_percentage + '%');
+      console.log('- Discount amount:', discountAmount);
+      console.log('- Final amount:', finalAmount);
+
       if (originalConsultationFee > 0) {
         // Store the ORIGINAL consultation fee (not discounted amount)
         transactions.push({

@@ -63,9 +63,15 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       let discountReason = '';
       let otherServices = 0;
 
+      // Debug: Log all transactions to see actual data structure
+      console.log('🔍 All transactions for receipt:', transactions);
+      
       // Analyze transactions to extract consultation fee and discount details
       transactions.forEach(transaction => {
+        console.log('📊 Processing transaction:', transaction);
+        
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
+          console.log('💰 Found consultation transaction:', transaction);
           // With new structure, consultation transaction contains original amount
           originalConsultationFee = transaction.amount;
           consultationFee = transaction.amount; // Will be adjusted if discount found
@@ -85,6 +91,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             }
           }
         } else if (transaction.transaction_type === 'DISCOUNT' || transaction.transaction_type === 'discount') {
+          console.log('💸 Found discount transaction:', transaction);
           // Handle separate discount transactions
           discountAmount += Math.abs(transaction.amount);
           
@@ -103,6 +110,42 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
           otherServices += transaction.amount;
         }
       });
+
+      console.log('📋 Final calculated values:');
+      console.log('- Original consultation fee:', originalConsultationFee);
+      console.log('- Consultation fee (after discount):', consultationFee);
+      console.log('- Discount amount:', discountAmount);
+      console.log('- Discount percentage:', discountPercentage);
+      console.log('- Discount reason:', discountReason);
+      console.log('- Other services:', otherServices);
+
+      // Handle old transaction format where discounted amount was stored directly
+      if (originalConsultationFee > 0 && discountAmount === 0) {
+        // Check if this is old format with discount info in description
+        const consultationTransaction = transactions.find(t => 
+          t.transaction_type === 'CONSULTATION' || t.transaction_type === 'consultation'
+        );
+        
+        if (consultationTransaction) {
+          const description = consultationTransaction.description || '';
+          console.log('🔍 Checking old format description:', description);
+          
+          // Look for old format: "Consultation Fee - Dr. X (20% discount applied)"
+          const oldDiscountMatch = description.match(/(\d+)%\s*discount\s*applied/i);
+          if (oldDiscountMatch) {
+            discountPercentage = parseInt(oldDiscountMatch[1]);
+            // The transaction amount is the discounted amount, so calculate original
+            consultationFee = originalConsultationFee; // This is actually the discounted amount
+            originalConsultationFee = consultationFee / (1 - discountPercentage / 100);
+            discountAmount = originalConsultationFee - consultationFee;
+            
+            console.log('📜 Detected old format:');
+            console.log('- Stored amount (discounted):', consultationFee);
+            console.log('- Calculated original fee:', originalConsultationFee);
+            console.log('- Calculated discount:', discountAmount);
+          }
+        }
+      }
 
       // If no consultation fee found, use the old calculation method
       if (originalConsultationFee === 0) {
