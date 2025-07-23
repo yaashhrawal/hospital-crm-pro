@@ -308,8 +308,6 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
           {/* Footer */}
           <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
             <p>Thank you for choosing VALANT HOSPITAL</p>
-            <p>For any queries, please contact us at +91-98765-43210</p>
-            <p className="mt-2">Generated on: {new Date().toLocaleString('en-IN')}</p>
           </div>
         </div>
       </div>
