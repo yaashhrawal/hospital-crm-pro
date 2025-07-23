@@ -3,6 +3,25 @@ import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { CreatePatientData, CreateTransactionData } from '../config/supabaseNew';
 
+// Doctors and Departments data
+const DOCTORS_DATA = [
+  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPEDIC' },
+  { name: 'DR. LALITA SUWALKA', department: 'DIETICIAN' },
+  { name: 'DR. MILIND KIRIT AKHANI', department: 'GASTRO' },
+  { name: 'DR MEETU BABLE', department: 'GYN.' },
+  { name: 'DR. AMIT PATANVADIYA', department: 'NEUROLOGY' },
+  { name: 'DR. KISHAN PATEL', department: 'UROLOGY' },
+  { name: 'DR. PARTH SHAH', department: 'SURGICAL ONCOLOGY' },
+  { name: 'DR.RAJEEDP GUPTA', department: 'MEDICAL ONCOLOGY' },
+  { name: 'DR. KULDDEP VALA', department: 'NEUROSURGERY' },
+  { name: 'DR. KURNAL PATEL', department: 'UROLOGY' },
+  { name: 'DR. SAURABH GUPTA', department: 'ENDOCRINOLOGY' },
+  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' }
+];
+
+// Get unique departments
+const DEPARTMENTS = [...new Set(DOCTORS_DATA.map(doc => doc.department))].sort();
+
 const NewFlexiblePatientEntry: React.FC = () => {
   const [formData, setFormData] = useState({
     first_name: '',
@@ -20,6 +39,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
     current_medications: '',
     has_reference: 'NO',
     reference_details: '',
+    // Doctor and Department
+    selected_department: '',
+    selected_doctor: '',
     // Transaction data
     consultation_fee: 0,
     discount_percentage: 0,
@@ -30,10 +52,25 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
+  const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
 
   useEffect(() => {
     testConnection();
   }, []);
+
+  // Filter doctors based on selected department
+  useEffect(() => {
+    if (formData.selected_department) {
+      const filtered = DOCTORS_DATA.filter(doc => doc.department === formData.selected_department);
+      setFilteredDoctors(filtered);
+      // Reset doctor selection if current doctor doesn't belong to selected department
+      if (formData.selected_doctor && !filtered.find(doc => doc.name === formData.selected_doctor)) {
+        setFormData(prev => ({ ...prev, selected_doctor: '' }));
+      }
+    } else {
+      setFilteredDoctors(DOCTORS_DATA);
+    }
+  }, [formData.selected_department]);
 
   const testConnection = async () => {
     try {
@@ -100,10 +137,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
         transactions.push({
           patient_id: newPatient.id,
           transaction_type: 'CONSULTATION', 
-          description: `Consultation Fee - Doctor Visit${formData.discount_percentage > 0 ? ` (${formData.discount_percentage}% discount applied)` : ''}`,
+          description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''}${formData.discount_percentage > 0 ? ` (${formData.discount_percentage}% discount applied)` : ''}`,
           amount: finalAmount,
           payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-          status: 'COMPLETED'
+          status: 'COMPLETED',
+          doctor_name: formData.selected_doctor || undefined,
+          department: formData.selected_department || undefined
         });
       }
 
@@ -118,7 +157,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
       } else {
-        toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toLocaleString()}`);
+        const doctorInfo = formData.selected_doctor ? ` - ${formData.selected_doctor}` : '';
+        const deptInfo = formData.selected_department ? ` (${formData.selected_department})` : '';
+        toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name}${doctorInfo}${deptInfo} - Total: ₹${totalAmount.toFixed(2)}`);
       }
       
       // Reset form
@@ -138,6 +179,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
         current_medications: '',
         has_reference: 'NO',
         reference_details: '',
+        selected_department: '',
+        selected_doctor: '',
         consultation_fee: 0,
         discount_percentage: 0,
         discount_reason: '',
@@ -352,6 +395,52 @@ const NewFlexiblePatientEntry: React.FC = () => {
               />
             </div>
           </div>
+        </div>
+
+        {/* Doctor and Department Assignment */}
+        <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
+          <h3 className="text-lg font-semibold text-purple-800 mb-4">👩‍⚕️ Doctor & Department Assignment</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select
+                value={formData.selected_department}
+                onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">Select Department</option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+              <select
+                value={formData.selected_doctor}
+                onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={!formData.selected_department}
+              >
+                <option value="">Select Doctor</option>
+                {filteredDoctors.map((doctor) => (
+                  <option key={doctor.name} value={doctor.name}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {formData.selected_department && (
+            <div className="mt-2 text-sm text-purple-600">
+              💡 Department: <strong>{formData.selected_department}</strong>
+              {formData.selected_doctor && (
+                <span> • Doctor: <strong>{formData.selected_doctor}</strong></span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Payment Information */}
