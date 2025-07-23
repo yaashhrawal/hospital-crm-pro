@@ -328,15 +328,21 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         }
       }
 
-      // 4. Update admission status
+      // 4. Update admission status and discharge date
       console.log('🏥 Updating admission status...');
+      
+      // Based on the original schema, use only fields that actually exist
+      const updateData = {
+        status: 'discharged',
+        discharge_date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('🔄 Attempting to update admission with:', updateData);
+      
       const { error: admissionError } = await supabase
         .from('patient_admissions')
-        .update({
-          status: 'discharged', // Use lowercase to match existing schema
-          discharge_date: dischargeDate.split('T')[0], // Use existing column name
-          // Remove discharged_by and discharge_notes if columns don't exist
-        })
+        .update(updateData)
         .eq('id', admission.id);
 
       if (admissionError) {
