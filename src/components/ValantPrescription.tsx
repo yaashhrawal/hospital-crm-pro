@@ -33,6 +33,29 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     return new Date().toLocaleDateString('en-IN');
   };
 
+  // Get the correct doctor name based on department
+  const getDoctorName = () => {
+    const department = patient.assigned_department;
+    if (!department) return 'GENERAL PHYSICIAN';
+    
+    // Doctor-Department mapping
+    const doctorMapping: {[key: string]: string} = {
+      'ORTHOPEDIC': 'DR. HEMANT KHAJJA',
+      'DIETICIAN': 'DR. LALITA SUWALKA',
+      'GASTRO': 'DR. MILIND KIRIT AKHANI',
+      'GYN.': 'DR MEETU BABLE',
+      'NEUROLOGY': 'DR. AMIT PATANVADIYA',
+      'UROLOGY': 'DR. KISHAN PATEL',
+      'SURGICAL ONCOLOGY': 'DR. PARTH SHAH',
+      'MEDICAL ONCOLOGY': 'DR.RAJEEDP GUPTA',
+      'NEUROSURGERY': 'DR. KULDDEP VALA',
+      'ENDOCRINOLOGY': 'DR. SAURABH GUPTA',
+      'GENERAL PHYSICIAN': 'DR. BATUL PEEPAWALA'
+    };
+    
+    return doctorMapping[department] || patient.assigned_doctor || 'GENERAL PHYSICIAN';
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       {/* Print-specific styles */}
@@ -88,17 +111,20 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           }}
         >
           {/* Doctor Name - Top Right for Valant */}
-          <div className="absolute top-12 right-12">
-            <div className="text-violet-800 font-semibold text-lg">
-              {patient.assigned_doctor || 'General Physician'}
+          <div className="absolute top-12 right-12 text-right">
+            <div className="text-violet-800 font-bold text-lg uppercase">
+              {getDoctorName()}
+            </div>
+            <div className="text-violet-700 text-sm mt-1">
+              {patient.assigned_department || 'GENERAL PHYSICIAN'}
             </div>
           </div>
 
-          {/* Patient Details - Moved down a bit */}
+          {/* Patient Details - Left Side */}
           <div className="absolute top-40 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
-              <span className="w-20 text-sm font-medium text-gray-700">Name:</span>
+              <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
               <span className="text-base font-medium text-gray-900">
                 {patient.first_name} {patient.last_name}
               </span>
@@ -106,10 +132,19 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
 
             {/* Patient No */}
             <div className="flex items-center">
-              <span className="w-20 text-sm font-medium text-gray-700">Patient No:</span>
+              <span className="w-24 text-sm font-medium text-gray-700">Patient No:</span>
               <span className="text-base text-gray-900">{patient.patient_id}</span>
             </div>
 
+            {/* Department */}
+            <div className="flex items-center">
+              <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
+              <span className="text-base text-gray-900">{patient.assigned_department || 'GENERAL PHYSICIAN'}</span>
+            </div>
+          </div>
+
+          {/* Date and Age/Sex - Right Side */}
+          <div className="absolute top-40 right-12 space-y-2">
             {/* Date */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Date:</span>
