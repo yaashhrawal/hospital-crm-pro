@@ -179,13 +179,15 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
         <div className="p-8 print:p-6" id="receipt-content">
           {/* Header */}
           <div className="text-center border-b-2 border-gray-300 pb-4 mb-6">
-            <div className="flex items-center justify-center mb-2">
-              <div className="text-4xl mr-4">🏥</div>
-              <div>
-                <h1 className="text-3xl font-bold text-violet-800">VALANT HOSPITAL</h1>
-                <p className="text-sm text-gray-600">Complete Healthcare Solutions</p>
-              </div>
+            <div className="flex items-center justify-center mb-4">
+              <img 
+                src="/logo.png" 
+                alt="VALANT Hospital Logo" 
+                className="h-16 w-auto"
+                style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
+              />
             </div>
+            <div className="text-sm text-gray-600 mb-2">Complete Healthcare Solutions</div>
             <div className="text-sm text-gray-700 mt-2">
               <p>123 Healthcare Street, Medical District, City - 123456</p>
               <p>Phone: +91-98765-43210 | Email: info@valanthospital.com</p>
