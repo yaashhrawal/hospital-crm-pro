@@ -308,6 +308,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
           <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
             <p>Thank you for choosing VALANT HOSPITAL</p>
             <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
+            <p className="font-bold mt-2">** ORIGINAL COPY **</p>
           </div>
         </div>
       </div>

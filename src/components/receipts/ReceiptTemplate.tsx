@@ -329,7 +329,6 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         <p>Thank you for choosing {data.hospital.name}</p>
         <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
         {data.isOriginal !== false && <p className="font-bold mt-2">** ORIGINAL COPY **</p>}
-        <p className="mt-1">Computer Generated Receipt - No signature required</p>
         <p className="mt-1">Generated on {data.date} at {data.time}</p>
       </div>
     </div>
