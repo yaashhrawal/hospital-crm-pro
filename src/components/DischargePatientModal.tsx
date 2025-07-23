@@ -333,10 +333,9 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       const { error: admissionError } = await supabase
         .from('patient_admissions')
         .update({
-          status: 'DISCHARGED',
-          actual_discharge_date: dischargeDate.split('T')[0],
-          discharge_notes: formData.discharge_notes,
-          discharged_by: currentUser.id
+          status: 'discharged', // Use lowercase to match existing schema
+          discharge_date: dischargeDate.split('T')[0], // Use existing column name
+          // Remove discharged_by and discharge_notes if columns don't exist
         })
         .eq('id', admission.id);
 
