@@ -193,6 +193,8 @@ export class HospitalService {
         blood_group: data.blood_group || null,
         medical_history: data.medical_history || null,
         allergies: data.allergies || null,
+        assigned_doctor: data.assigned_doctor || null,
+        assigned_department: data.assigned_department || null,
         hospital_id: HOSPITAL_ID
       };
       
