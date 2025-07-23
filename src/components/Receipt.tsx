@@ -98,14 +98,21 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
   };
 
   const getAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+    if (!dateOfBirth) return 'N/A';
+    try {
+      const today = new Date();
+      const birthDate = new Date(dateOfBirth);
+      if (isNaN(birthDate.getTime())) return 'N/A';
+      
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    } catch (error) {
+      return 'N/A';
     }
-    return age;
   };
 
   const convertTransactionsToServices = (transactions: PatientTransaction[]): ServiceItem[] => {
@@ -195,7 +202,6 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
                 <p><strong>REG DATE:</strong> {receiptData.regDate}</p>
               </div>
               <div className="text-right">
-                <p><strong>DOCTOR:</strong> {receiptData.doctor}</p>
                 <p><strong>Patient ID:</strong> {patient.patient_id}</p>
                 <p><strong>PAYMENT MODE:</strong> {receiptData.paymentMode}</p>
               </div>
@@ -208,13 +214,12 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p><strong>NAME:</strong> {patient.first_name} {patient.last_name}</p>
-                <p><strong>AGE/SEX:</strong> {patient.date_of_birth ? getAge(patient.date_of_birth) : 'N/A'} / {patient.gender}</p>
+                <p><strong>AGE/SEX:</strong> {getAge(patient.date_of_birth)} / {patient.gender}</p>
                 <p><strong>MOBILE:</strong> {patient.phone || 'N/A'}</p>
               </div>
               <div>
                 <p><strong>ADDRESS:</strong> {patient.address || 'N/A'}</p>
                 <p><strong>EMAIL:</strong> {patient.email || 'N/A'}</p>
-                <p><strong>DEPARTMENT:</strong> {patient.assigned_department || 'N/A'}</p>
               </div>
             </div>
           </div>
