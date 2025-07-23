@@ -103,7 +103,7 @@ export const useReceiptPrinting = () => {
   const printConsultationReceipt = async (patientId: string, transactionId?: string) => {
     try {
       // Load patient data
-      const patient = await HospitalService.getPatient(patientId);
+      const patient = await HospitalService.getPatientById(patientId);
       if (!patient) throw new Error('Patient not found');
 
       // Load transaction data if provided
