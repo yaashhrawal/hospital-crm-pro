@@ -5,6 +5,8 @@ import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
 import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
+import ValantPrescription from './ValantPrescription';
+import VHPrescription from './VHPrescription';
 import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -167,6 +169,9 @@ const ComprehensivePatientList: React.FC = () => {
   const [showIPDModal, setShowIPDModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
+  const [showValantPrescription, setShowValantPrescription] = useState(false);
+  const [showVHPrescription, setShowVHPrescription] = useState(false);
+  const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -269,13 +274,11 @@ const ComprehensivePatientList: React.FC = () => {
   };
 
   const handlePrescription = (patient: PatientWithRelations, template: string) => {
-    // For now, show a toast message - we'll implement actual prescription printing once templates are provided
+    setSelectedPatientForPrescription(patient);
     if (template === 'valant') {
-      toast.success(`Generating Valant prescription for ${patient.first_name} ${patient.last_name}`);
-      // TODO: Open Valant prescription template
+      setShowValantPrescription(true);
     } else if (template === 'vh') {
-      toast.success(`Generating V+H prescription for ${patient.first_name} ${patient.last_name}`);
-      // TODO: Open V+H prescription template  
+      setShowVHPrescription(true);
     }
   };
 
@@ -662,6 +665,28 @@ const ComprehensivePatientList: React.FC = () => {
           onClose={() => {
             setShowReceiptModal(false);
             setSelectedPatientForReceipt(null);
+          }}
+        />
+      )}
+
+      {/* Valant Prescription Modal */}
+      {showValantPrescription && selectedPatientForPrescription && (
+        <ValantPrescription
+          patient={selectedPatientForPrescription}
+          onClose={() => {
+            setShowValantPrescription(false);
+            setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* V+H Prescription Modal */}
+      {showVHPrescription && selectedPatientForPrescription && (
+        <VHPrescription
+          patient={selectedPatientForPrescription}
+          onClose={() => {
+            setShowVHPrescription(false);
+            setSelectedPatientForPrescription(null);
           }}
         />
       )}
