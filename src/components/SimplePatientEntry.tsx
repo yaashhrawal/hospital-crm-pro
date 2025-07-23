@@ -56,7 +56,6 @@ const SimplePatientEntry: React.FC = () => {
     allergies: '',
     // Financial info
     consultation_fee: 0,
-    entry_fee: 0,
     discount_amount: 0,
     discount_reason: '',
     payment_mode: 'CASH', // Default payment mode
@@ -134,21 +133,11 @@ const SimplePatientEntry: React.FC = () => {
       console.log('✅ Patient created successfully:', newPatient);
 
       // Create financial transactions and update patient notes
-      const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
+      const totalAmount = formData.consultation_fee - formData.discount_amount;
       
       // Create transactions for fees
       const transactions = [];
       
-      if (formData.entry_fee > 0) {
-        transactions.push({
-          patient_id: newPatient.id,
-          transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
-          description: `Entry Fee - Patient Registration`,
-          amount: formData.entry_fee,
-          payment_mode: formData.payment_mode, // Use selected payment mode
-          status: 'COMPLETED'
-        });
-      }
 
       if (formData.consultation_fee > 0) {
         transactions.push({
@@ -186,7 +175,7 @@ const SimplePatientEntry: React.FC = () => {
       
       if (totalAmount > 0) {
         try {
-          const financialSummary = `FINANCIAL_RECORD: Entry Fee: ₹${formData.entry_fee}, Consultation Fee: ₹${formData.consultation_fee}, Discount: ₹${formData.discount_amount}, Total: ₹${totalAmount} (${new Date().toLocaleString()})`;
+          const financialSummary = `FINANCIAL_RECORD: Consultation Fee: ₹${formData.consultation_fee}, Discount: ₹${formData.discount_amount}, Total: ₹${totalAmount} (${new Date().toLocaleString()})`;
           
           // Update patient with financial info in medical_history
           const { error: updateError } = await supabase
@@ -237,7 +226,6 @@ const SimplePatientEntry: React.FC = () => {
         medical_history: '',
         allergies: '',
         consultation_fee: 0,
-        entry_fee: 0,
         discount_amount: 0,
         discount_reason: '',
         payment_mode: 'CASH',
@@ -261,7 +249,7 @@ const SimplePatientEntry: React.FC = () => {
     }
   };
 
-  const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
+  const totalAmount = formData.consultation_fee - formData.discount_amount;
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
@@ -488,19 +476,7 @@ const SimplePatientEntry: React.FC = () => {
         {/* Financial Information */}
         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
           <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Financial Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>
-              <input
-                type="number"
-                value={formData.entry_fee}
-                onChange={(e) => setFormData({ ...formData, entry_fee: Number(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
               <input
