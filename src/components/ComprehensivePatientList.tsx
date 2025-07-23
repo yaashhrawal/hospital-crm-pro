@@ -5,7 +5,8 @@ import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
 import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
-import PrescriptionModal from './PrescriptionModal';
+import ValantPrescription from './ValantPrescription';
+import VHPrescription from './VHPrescription';
 import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -168,9 +169,9 @@ const ComprehensivePatientList: React.FC = () => {
   const [showIPDModal, setShowIPDModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [showValantPrescription, setShowValantPrescription] = useState(false);
+  const [showVHPrescription, setShowVHPrescription] = useState(false);
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
-  const [prescriptionTemplate, setPrescriptionTemplate] = useState<'VALANT' | 'VH'>('VALANT');
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -273,17 +274,12 @@ const ComprehensivePatientList: React.FC = () => {
   };
 
   const handlePrescription = (patient: PatientWithRelations, template: string) => {
-    console.log('📋 Opening prescription for patient:', {
-      patientId: patient.patient_id,
-      patientName: `${patient.first_name} ${patient.last_name}`,
-      assignedDoctor: patient.assigned_doctor,
-      assignedDepartment: patient.assigned_department,
-      template: template
-    });
-    
     setSelectedPatientForPrescription(patient);
-    setPrescriptionTemplate(template === 'valant' ? 'VALANT' : 'VH');
-    setShowPrescriptionModal(true);
+    if (template === 'valant') {
+      setShowValantPrescription(true);
+    } else if (template === 'vh') {
+      setShowVHPrescription(true);
+    }
   };
 
   const handleSort = (newSortBy: typeof sortBy) => {
@@ -673,14 +669,23 @@ const ComprehensivePatientList: React.FC = () => {
         />
       )}
 
-      {/* Prescription Modal */}
-      {showPrescriptionModal && selectedPatientForPrescription && (
-        <PrescriptionModal
+      {/* Valant Prescription Modal */}
+      {showValantPrescription && selectedPatientForPrescription && (
+        <ValantPrescription
           patient={selectedPatientForPrescription}
-          isOpen={showPrescriptionModal}
-          template={prescriptionTemplate}
           onClose={() => {
-            setShowPrescriptionModal(false);
+            setShowValantPrescription(false);
+            setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* V+H Prescription Modal */}
+      {showVHPrescription && selectedPatientForPrescription && (
+        <VHPrescription
+          patient={selectedPatientForPrescription}
+          onClose={() => {
+            setShowVHPrescription(false);
             setSelectedPatientForPrescription(null);
           }}
         />

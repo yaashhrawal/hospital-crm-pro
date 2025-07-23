@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  HOSPITAL_SERVICES, 
-  HospitalService as HospitalServiceType, 
+  MEDICAL_SERVICES, 
+  SERVICE_CATEGORIES, 
   getServicesByCategory, 
   searchServices, 
   calculateServiceTotal,
-  getServiceCategories,
-  getSubCategories,
-  getServicePrice
-} from '../data/hospitalServices';
+  type MedicalService, 
+  type ServiceOrder, 
+  type OrderedService,
+  type ServiceCategory 
+} from '../data/medicalServices';
 import HospitalService from '../services/hospitalService';
 import { supabase } from '../config/supabaseNew';
 import { useReceiptPrinting } from '../hooks/useReceiptPrinting';
-import ServiceTransactionService from '../services/serviceTransactionService';
 
 interface Patient {
   id: string;
@@ -25,36 +25,10 @@ interface Patient {
   blood_group?: string;
 }
 
-interface OrderedService {
-  serviceId: string;
-  serviceName: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  isCorporate?: boolean;
-}
-
-interface ServiceOrder {
-  id: string;
-  patientId: string;
-  services: OrderedService[];
-  totalAmount: number;
-  discountAmount: number;
-  netAmount: number;
-  paymentMode: 'CASH' | 'ONLINE' | 'INSURANCE' | 'CREDIT';
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  orderedBy: string;
-  orderedAt: string;
-  completedAt?: string;
-  notes?: string;
-}
-
 const HospitalServices: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('ALL');
+  const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceCart, setServiceCart] = useState<OrderedService[]>([]);
   const [showOrderForm, setShowOrderForm] = useState(false);
@@ -65,7 +39,6 @@ const HospitalServices: React.FC = () => {
   const [showPatientSearch, setShowPatientSearch] = useState(false);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([]);
-  const [isCorporate, setIsCorporate] = useState(false);
 
   const { printServiceReceipt } = useReceiptPrinting();
 
@@ -101,22 +74,15 @@ const HospitalServices: React.FC = () => {
   };
 
   // Filter services based on category and search
-  const getFilteredServices = (): HospitalServiceType[] => {
-    let filteredServices = HOSPITAL_SERVICES;
+  const getFilteredServices = (): MedicalService[] => {
+    let filteredServices = MEDICAL_SERVICES.filter(service => service.isActive);
 
-    // Apply search filter
+    if (selectedCategory !== 'ALL') {
+      filteredServices = getServicesByCategory(selectedCategory);
+    }
+
     if (searchQuery.trim()) {
       filteredServices = searchServices(searchQuery);
-    }
-
-    // Apply category filter
-    if (selectedCategory !== 'ALL') {
-      filteredServices = filteredServices.filter(service => service.category === selectedCategory);
-    }
-
-    // Apply sub-category filter
-    if (selectedSubCategory !== 'ALL') {
-      filteredServices = filteredServices.filter(service => service.subCategory === selectedSubCategory);
     }
 
     return filteredServices;
@@ -136,9 +102,8 @@ const HospitalServices: React.FC = () => {
   };
 
   // Add service to cart
-  const addToCart = (service: HospitalServiceType, quantity: number = 1) => {
+  const addToCart = (service: MedicalService, quantity: number = 1) => {
     const existingItem = serviceCart.find(item => item.serviceId === service.id);
-    const unitPrice = getServicePrice(service.id, isCorporate);
     
     if (existingItem) {
       setServiceCart(cart => 
@@ -147,7 +112,7 @@ const HospitalServices: React.FC = () => {
             ? { 
                 ...item, 
                 quantity: item.quantity + quantity,
-                totalPrice: (item.quantity + quantity) * unitPrice
+                totalPrice: (item.quantity + quantity) * item.unitPrice
               }
             : item
         )
@@ -157,10 +122,9 @@ const HospitalServices: React.FC = () => {
         serviceId: service.id,
         serviceName: service.name,
         quantity,
-        unitPrice: unitPrice,
-        totalPrice: unitPrice * quantity,
-        status: 'PENDING',
-        isCorporate: isCorporate
+        unitPrice: service.basePrice,
+        totalPrice: service.basePrice * quantity,
+        status: 'PENDING'
       };
       setServiceCart(cart => [...cart, newItem]);
     }
@@ -193,7 +157,7 @@ const HospitalServices: React.FC = () => {
 
   // Calculate totals
   const calculateTotals = () => {
-    const subtotal = serviceCart.reduce((total, item) => total + item.totalPrice, 0);
+    const subtotal = calculateServiceTotal(serviceCart);
     const netAmount = subtotal - discountAmount;
     return { subtotal, discountAmount, netAmount };
   };
@@ -279,16 +243,8 @@ const HospitalServices: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">🏥 Hospital Services</h1>
-            <p className="text-gray-600 mt-1">Comprehensive medical services with transparent pricing - {HOSPITAL_SERVICES.length} services available</p>
-            <div className="flex space-x-4 mt-2 text-sm text-gray-500">
-              <span>🧪 Laboratory ({getServicesByCategory('LABORATORY').length})</span>
-              <span>🔬 Radiology ({getServicesByCategory('RADIOLOGY').length})</span>
-              <span>🧲 MRI ({getServicesByCategory('MRI').length})</span>
-              <span>❤️ Cardiology ({getServicesByCategory('CARDIOLOGY').length})</span>
-              <span>🏥 Procedures ({getServicesByCategory('PROCEDURES').length})</span>
-              <span>🦷 Dental ({getServicesByCategory('DENTAL').length})</span>
-            </div>
+            <h1 className="text-3xl font-bold text-gray-900">Hospital Services</h1>
+            <p className="text-gray-600 mt-1">Medical services and diagnostic tests</p>
           </div>
           <div className="flex space-x-3">
             <button
@@ -401,14 +357,11 @@ const HospitalServices: React.FC = () => {
               />
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+            <div className="bg-white rounded-lg shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3">Categories</h3>
               <div className="space-y-2">
                 <button
-                  onClick={() => {
-                    setSelectedCategory('ALL');
-                    setSelectedSubCategory('ALL');
-                  }}
+                  onClick={() => setSelectedCategory('ALL')}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                     selectedCategory === 'ALL' 
                       ? 'bg-blue-100 text-blue-800' 
@@ -417,185 +370,109 @@ const HospitalServices: React.FC = () => {
                 >
                   📋 All Services
                 </button>
-                {getServiceCategories().map((category) => (
+                {Object.entries(SERVICE_CATEGORIES).map(([key, category]) => (
                   <button
-                    key={category}
-                    onClick={() => {
-                      setSelectedCategory(category);
-                      setSelectedSubCategory('ALL');
-                    }}
+                    key={key}
+                    onClick={() => setSelectedCategory(key as ServiceCategory)}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      selectedCategory === category 
+                      selectedCategory === key 
                         ? 'bg-blue-100 text-blue-800' 
                         : 'hover:bg-gray-100'
                     }`}
                   >
-                    {category === 'LABORATORY' && '🧪'} 
-                    {category === 'RADIOLOGY' && '🔬'} 
-                    {category === 'MRI' && '🧲'} 
-                    {category === 'CARDIOLOGY' && '❤️'} 
-                    {category === 'PROCEDURES' && '🏥'} 
-                    {category === 'DENTAL' && '🦷'} 
-                    {category.replace('_', ' ')}
+                    {category.icon} {category.name}
+                    <div className="text-xs text-gray-500 mt-1">{category.description}</div>
                   </button>
                 ))}
               </div>
             </div>
-
-            {/* Sub-categories */}
-            {selectedCategory !== 'ALL' && (
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Sub-Categories</h3>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setSelectedSubCategory('ALL')}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                      selectedSubCategory === 'ALL' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    All {selectedCategory.replace('_', ' ')}
-                  </button>
-                  {getSubCategories(selectedCategory as HospitalServiceType['category']).map((subCategory) => (
-                    <button
-                      key={subCategory}
-                      onClick={() => setSelectedSubCategory(subCategory)}
-                      className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                        selectedSubCategory === subCategory 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'hover:bg-gray-100'
-                      }`}
-                    >
-                      {subCategory}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Services List */}
           <div className="lg:col-span-3">
-            {/* Corporate Rate Toggle */}
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">Pricing</h3>
-                  <p className="text-sm text-gray-600">Select applicable rate for the patient</p>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="rateType"
-                      checked={!isCorporate}
-                      onChange={() => setIsCorporate(false)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    <span className="text-sm font-medium text-gray-700">General Rate</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="rateType"
-                      checked={isCorporate}
-                      onChange={() => setIsCorporate(true)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Corporate Rate</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {getFilteredServices().map((service) => {
-                const currentPrice = getServicePrice(service.id, isCorporate);
-                const otherPrice = getServicePrice(service.id, !isCorporate);
-                
-                return (
-                  <div key={service.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                        <p className="text-sm text-gray-600 mb-1">Code: {service.id}</p>
-                        <p className="text-sm text-gray-700 mb-2">{service.description}</p>
-                        
-                        <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2">
-                          <span>🏥 {service.category}</span>
-                          <span>⏱️ {service.duration} min</span>
-                          {service.subCategory && <span>📋 {service.subCategory}</span>}
-                        </div>
-                      </div>
+              {getFilteredServices().map((service) => (
+                <div key={service.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">{service.name}</h3>
+                      <p className="text-sm text-gray-600 mb-1">Code: {service.code}</p>
+                      <p className="text-sm text-gray-700 mb-2">{service.description}</p>
                       
-                      <div className="text-right ml-4">
-                        <div className="text-lg font-bold text-green-600">
-                          ₹{currentPrice.toLocaleString()}
-                        </div>
-                        {currentPrice !== otherPrice && (
-                          <div className="text-xs text-gray-500">
-                            {isCorporate ? 'General' : 'Corporate'}: ₹{otherPrice.toLocaleString()}
-                          </div>
-                        )}
-                        <div className={`text-xs px-2 py-1 rounded-full mt-1 ${
-                          service.category === 'LABORATORY' ? 'bg-green-100 text-green-800' :
-                          service.category === 'RADIOLOGY' ? 'bg-blue-100 text-blue-800' :
-                          service.category === 'MRI' ? 'bg-purple-100 text-purple-800' :
-                          service.category === 'CARDIOLOGY' ? 'bg-red-100 text-red-800' :
-                          service.category === 'PROCEDURES' ? 'bg-orange-100 text-orange-800' :
-                          service.category === 'DENTAL' ? 'bg-indigo-100 text-indigo-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {service.category}
-                        </div>
+                      <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2">
+                        <span>🏥 {service.department}</span>
+                        <span>⏱️ {service.duration} min</span>
+                        {service.fastingRequired && <span>🚫 Fasting Required</span>}
+                        {service.preparationRequired && <span>📋 Preparation Needed</span>}
                       </div>
-                    </div>
 
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center space-x-2">
-                        {serviceCart.find(item => item.serviceId === service.id) && (
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => {
-                                const item = serviceCart.find(i => i.serviceId === service.id);
-                                if (item) updateCartQuantity(service.id, item.quantity - 1);
-                              }}
-                              className="w-6 h-6 bg-red-100 text-red-600 rounded-full text-sm"
-                            >
-                              −
-                            </button>
-                            <span className="text-sm font-medium">
-                              {serviceCart.find(item => item.serviceId === service.id)?.quantity || 0}
-                            </span>
-                            <button
-                              onClick={() => {
-                                const item = serviceCart.find(i => i.serviceId === service.id);
-                                if (item) updateCartQuantity(service.id, item.quantity + 1);
-                              }}
-                              className="w-6 h-6 bg-green-100 text-green-600 rounded-full text-sm"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
+                      {service.instructions && (
+                        <p className="text-xs text-blue-600 mb-3">
+                          📝 {service.instructions}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-4">
+                      <div className="text-lg font-bold text-green-600">
+                        ₹{service.basePrice.toLocaleString()}
                       </div>
-                      
-                      <button
-                        onClick={() => addToCart(service)}
-                        disabled={!selectedPatient}
-                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-                          !selectedPatient
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {serviceCart.find(item => item.serviceId === service.id) ? 'Add More' : 'Add to Cart'}
-                      </button>
+                      <div className={`text-xs px-2 py-1 rounded-full ${
+                        SERVICE_CATEGORIES[service.category]?.color === 'blue' ? 'bg-blue-100 text-blue-800' :
+                        SERVICE_CATEGORIES[service.category]?.color === 'green' ? 'bg-green-100 text-green-800' :
+                        SERVICE_CATEGORIES[service.category]?.color === 'red' ? 'bg-red-100 text-red-800' :
+                        SERVICE_CATEGORIES[service.category]?.color === 'purple' ? 'bg-purple-100 text-purple-800' :
+                        SERVICE_CATEGORIES[service.category]?.color === 'orange' ? 'bg-orange-100 text-orange-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {SERVICE_CATEGORIES[service.category]?.name}
+                      </div>
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-2">
+                      {serviceCart.find(item => item.serviceId === service.id) && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => {
+                              const item = serviceCart.find(i => i.serviceId === service.id);
+                              if (item) updateCartQuantity(service.id, item.quantity - 1);
+                            }}
+                            className="w-6 h-6 bg-red-100 text-red-600 rounded-full text-sm"
+                          >
+                            −
+                          </button>
+                          <span className="text-sm font-medium">
+                            {serviceCart.find(item => item.serviceId === service.id)?.quantity || 0}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const item = serviceCart.find(i => i.serviceId === service.id);
+                              if (item) updateCartQuantity(service.id, item.quantity + 1);
+                            }}
+                            className="w-6 h-6 bg-green-100 text-green-600 rounded-full text-sm"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button
+                      onClick={() => addToCart(service)}
+                      disabled={!selectedPatient}
+                      className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                        !selectedPatient
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {serviceCart.find(item => item.serviceId === service.id) ? 'Add More' : 'Add to Cart'}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
