@@ -4,6 +4,7 @@ import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
 import PatientToIPDModal from './PatientToIPDModal';
+import Receipt from './Receipt';
 import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -164,6 +165,8 @@ const ComprehensivePatientList: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showIPDModal, setShowIPDModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -249,6 +252,11 @@ const ComprehensivePatientList: React.FC = () => {
   const handleAdmitToIPD = (patient: PatientWithRelations) => {
     setSelectedPatient(patient);
     setShowIPDModal(true);
+  };
+
+  const handleViewReceipt = (patient: PatientWithRelations) => {
+    setSelectedPatientForReceipt(patient);
+    setShowReceiptModal(true);
   };
 
   const handlePatientUpdated = () => {
@@ -533,6 +541,16 @@ const ComprehensivePatientList: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            handleViewReceipt(patient);
+                          }}
+                          className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          title="View Receipt"
+                        >
+                          🧾 Receipt
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             printConsultationReceipt(patient.id);
                           }}
                           className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -612,6 +630,17 @@ const ComprehensivePatientList: React.FC = () => {
             setSelectedPatient(null);
           }}
           onAdmissionSuccess={handleIPDAdmissionSuccess}
+        />
+      )}
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedPatientForReceipt && (
+        <Receipt
+          patientId={selectedPatientForReceipt.id}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setSelectedPatientForReceipt(null);
+          }}
         />
       )}
     </div>

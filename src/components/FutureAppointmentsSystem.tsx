@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import Receipt from './Receipt';
 import type { FutureAppointment, PatientWithRelations, User, CreateAppointmentData, AppointmentWithRelations } from '../config/supabaseNew';
 import { APPOINTMENT_TYPES, APPOINTMENT_STATUS } from '../config/supabaseNew';
 
@@ -328,6 +329,8 @@ const FutureAppointmentsSystem: React.FC = () => {
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [filterDate, setFilterDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -493,6 +496,7 @@ const FutureAppointmentsSystem: React.FC = () => {
                   <th className="text-left p-4 font-semibold text-gray-700">Duration</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Status</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Est. Cost</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -544,6 +548,21 @@ const FutureAppointmentsSystem: React.FC = () => {
                           ₹{(appointment.estimated_cost || 0).toLocaleString()}
                         </span>
                       </td>
+                      <td className="p-4">
+                        {appointment.patient && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPatientForReceipt(appointment.patient!);
+                              setShowReceiptModal(true);
+                            }}
+                            className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            title="View Receipt"
+                          >
+                            🧾 Receipt
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -576,6 +595,17 @@ const FutureAppointmentsSystem: React.FC = () => {
         onClose={() => setShowForm(false)}
         onSuccess={loadAppointments}
       />
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedPatientForReceipt && (
+        <Receipt
+          patientId={selectedPatientForReceipt.id}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setSelectedPatientForReceipt(null);
+          }}
+        />
+      )}
     </div>
   );
 };
