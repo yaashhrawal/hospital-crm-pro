@@ -214,7 +214,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             <div className="text-sm text-gray-600 mb-2">Complete Healthcare Solutions</div>
             <div className="text-sm text-gray-700 mt-2">
               <p>123 Healthcare Street, Medical District, City - 123456</p>
-              <p>Phone: +91-98765-43210 | Email: info@valanthospital.com</p>
+              <p>Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
               <p>Website: www.valanthospital.com</p>
             </div>
           </div>
@@ -308,6 +308,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
           {/* Footer */}
           <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
             <p>Thank you for choosing VALANT HOSPITAL</p>
+            <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
           </div>
         </div>
       </div>
