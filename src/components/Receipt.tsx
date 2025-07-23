@@ -64,8 +64,10 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       // Generate bill number (could be enhanced with actual sequence)
       const billNo = `BILL-${Date.now().toString().slice(-6)}`;
       
-      // Get doctor name from patient assignment or transactions
-      const doctor = patient.assigned_doctor || 'Dr. General';
+      // Get doctor name from patient assignment or transactions  
+      const doctor = patient.assigned_doctor || 
+                    transactions.find(t => t.doctor_name)?.doctor_name || 
+                    'General Physician';
       
       // Get payment mode from the most recent transaction
       const paymentMode = transactions.length > 0 ? transactions[0].payment_mode || 'Cash' : 'Cash';
