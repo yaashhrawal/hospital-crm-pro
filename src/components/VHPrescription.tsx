@@ -102,8 +102,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             backgroundPosition: 'center top'
           }}
         >
-          {/* Doctor Name - Left Side below hospital text */}
-          <div className="absolute top-24 left-12 text-left">
+          {/* Doctor Name - Left Side above black line */}
+          <div className="absolute top-36 left-12 text-left">
             <div className="text-violet-800 font-bold text-lg uppercase">
               {getDoctorInfo().name}
             </div>
@@ -117,8 +117,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             </div>
           </div>
 
-          {/* Patient Details - Left Side after black line */}
-          <div className="absolute top-48 left-12 space-y-2">
+          {/* Patient Details - Left Side just after doctor details (below black line) */}
+          <div className="absolute top-52 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
@@ -140,8 +140,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             </div>
           </div>
 
-          {/* Date and Age/Sex - Right Side after black line */}
-          <div className="absolute top-48 right-12 space-y-2">
+          {/* Date and Age/Sex - Right Side aligned with patient details */}
+          <div className="absolute top-52 right-12 space-y-2">
             {/* Date */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Date:</span>
