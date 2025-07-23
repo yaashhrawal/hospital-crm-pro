@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import { getDoctorWithDegree } from '../data/doctorDegrees';
 
 interface ValantPrescriptionProps {
   patient: PatientWithRelations;
@@ -33,13 +34,15 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     return new Date().toLocaleDateString('en-IN');
   };
 
-  // Get the correct doctor name from patient data
-  const getDoctorName = () => {
+  // Get the correct doctor name and degree from patient data
+  const getDoctorInfo = () => {
     console.log('🩺 Patient data for prescription:', patient);
     console.log('👨‍⚕️ Patient assigned_doctor field:', patient.assigned_doctor);
     console.log('🏥 Patient assigned_department field:', patient.assigned_department);
     console.log('🔄 Database migration completed - using assigned_doctor column');
-    return patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    
+    const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    return getDoctorWithDegree(doctorName);
   };
 
   const getDepartmentName = () => {
@@ -103,8 +106,13 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           {/* Doctor Name - Top Right for Valant */}
           <div className="absolute top-12 right-12 text-right">
             <div className="text-violet-800 font-bold text-lg uppercase">
-              {getDoctorName()}
+              {getDoctorInfo().name}
             </div>
+            {getDoctorInfo().degree && (
+              <div className="text-violet-600 text-base mt-1 font-medium">
+                {getDoctorInfo().degree}
+              </div>
+            )}
             <div className="text-violet-700 text-sm mt-1">
               {getDepartmentName()}
             </div>
