@@ -333,7 +333,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       // Only update the status field since discharge_date column doesn't exist in actual table
       const updateData = {
-        status: 'discharged'
+        status: 'DISCHARGED'
       };
       
       console.log('🔄 Attempting to update admission with:', updateData);
