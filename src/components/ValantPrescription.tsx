@@ -35,11 +35,14 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
 
   // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    return patient.doctor || 'DR. BATUL PEEPAWALA';
+    console.log('🩺 Patient data for prescription:', patient);
+    console.log('👨‍⚕️ Patient assigned_doctor field:', patient.assigned_doctor);
+    console.log('🏥 Patient assigned_department field:', patient.assigned_department);
+    return patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
   };
 
   const getDepartmentName = () => {
-    return patient.department || 'GENERAL PHYSICIAN';
+    return patient.assigned_department || 'GENERAL PHYSICIAN';
   };
 
   return (
