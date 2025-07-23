@@ -68,6 +68,8 @@ export interface Patient {
   current_medications?: string;
   insurance_provider?: string;
   insurance_number?: string;
+  has_reference?: boolean; // Reference field
+  reference_details?: string; // Reference details
   notes?: string;
   hospital_id: string;
   is_active: boolean;
@@ -236,19 +238,21 @@ export interface BedAvailability {
 export interface CreatePatientData {
   first_name: string;
   last_name?: string;
-  date_of_birth: string;
+  date_of_birth?: string;
   gender: 'MALE' | 'FEMALE' | 'OTHER';
-  phone: string;
+  phone?: string;
   email?: string;
-  address: string;
-  emergency_contact_name: string;
-  emergency_contact_phone: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   blood_group?: string;
   medical_history?: string;
   allergies?: string;
   current_medications?: string;
   insurance_provider?: string;
   insurance_number?: string;
+  has_reference?: boolean; // Reference field
+  reference_details?: string; // Reference details
   notes?: string;
   hospital_id: string;
 }

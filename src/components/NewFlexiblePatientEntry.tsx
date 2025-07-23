@@ -17,15 +17,19 @@ const NewFlexiblePatientEntry: React.FC = () => {
     blood_group: '',
     medical_history: '',
     allergies: '',
+    current_medications: '',
+    has_reference: 'NO',
+    reference_details: '',
     // Transaction data
     consultation_fee: 0,
     entry_fee: 0,
     discount_amount: 0,
     discount_reason: '',
+    payment_mode: 'CASH',
+    online_payment_method: 'UPI',
   });
 
   const [loading, setLoading] = useState(false);
-  const [showOptionalFields, setShowOptionalFields] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
 
   useEffect(() => {
@@ -74,6 +78,10 @@ const NewFlexiblePatientEntry: React.FC = () => {
         blood_group: formData.blood_group || undefined,
         medical_history: formData.medical_history.trim() || undefined,
         allergies: formData.allergies.trim() || undefined,
+        current_medications: formData.current_medications.trim() || undefined,
+        // Reference information
+        has_reference: formData.has_reference === 'YES',
+        reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
@@ -92,7 +100,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
           description: `Entry Fee - Patient Registration`,
           amount: formData.entry_fee,
-          payment_mode: 'CASH',
+          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
           status: 'COMPLETED'
         });
       }
@@ -103,7 +111,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           transaction_type: 'CONSULTATION', 
           description: `Consultation Fee - Doctor Visit`,
           amount: formData.consultation_fee,
-          payment_mode: 'CASH',
+          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
           status: 'COMPLETED'
         });
       }
@@ -114,7 +122,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           transaction_type: 'PROCEDURE', // Use PROCEDURE with negative amount for discounts
           description: `Discount Applied`,
           amount: -formData.discount_amount,
-          payment_mode: 'CASH', 
+          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode, 
           status: 'COMPLETED'
         });
       }
@@ -147,12 +155,16 @@ const NewFlexiblePatientEntry: React.FC = () => {
         blood_group: '',
         medical_history: '',
         allergies: '',
+        current_medications: '',
+        has_reference: 'NO',
+        reference_details: '',
         consultation_fee: 0,
         entry_fee: 0,
         discount_amount: 0,
         discount_reason: '',
+        payment_mode: 'CASH',
+        online_payment_method: 'UPI',
       });
-      setShowOptionalFields(false);
 
     } catch (error: any) {
       console.error('🚨 Patient creation failed:', error);
@@ -177,9 +189,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
       </div>
       
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-        {/* Essential Information - Always Visible */}
+        {/* Essential Information - All Fields */}
         <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-          <h3 className="text-lg font-semibold text-green-800 mb-4">✅ Essential Information</h3>
+          <h3 className="text-lg font-semibold text-green-800 mb-4">✅ Patient Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -202,18 +214,17 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter last name (optional)"
+                placeholder="Enter last name"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
               <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                type="date"
+                value={formData.date_of_birth}
+                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter phone number"
               />
             </div>
 
@@ -229,13 +240,145 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 <option value="OTHER">Other</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter phone number"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="patient@email.com"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <textarea
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter full address"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
+              <input
+                type="text"
+                value={formData.emergency_contact_name}
+                onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Emergency contact name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Phone</label>
+              <input
+                type="tel"
+                value={formData.emergency_contact_phone}
+                onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Emergency contact phone"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+              <select
+                value={formData.blood_group}
+                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Blood Group</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+              <select
+                value={formData.has_reference}
+                onChange={(e) => setFormData({ ...formData, has_reference: e.target.value, reference_details: e.target.value === 'NO' ? '' : formData.reference_details })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="NO">No</option>
+                <option value="YES">Yes</option>
+              </select>
+            </div>
+
+            {formData.has_reference === 'YES' && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reference Details</label>
+                <input
+                  type="text"
+                  value={formData.reference_details}
+                  onChange={(e) => setFormData({ ...formData, reference_details: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter reference details (doctor name, hospital, person, etc.)"
+                />
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
+              <textarea
+                value={formData.medical_history}
+                onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Previous medical conditions"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
+              <textarea
+                value={formData.allergies}
+                onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Known allergies"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Medications</label>
+              <textarea
+                value={formData.current_medications}
+                onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Current medicines"
+                rows={2}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Quick Charges - Optional */}
+        {/* Payment Information */}
         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Quick Charges (Optional)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Payment Details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>
               <input
@@ -271,6 +414,83 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 min="0"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+              <select
+                value={formData.payment_mode}
+                onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="CASH">Cash</option>
+                <option value="ONLINE">Online</option>
+              </select>
+            </div>
+
+            {formData.payment_mode === 'ONLINE' && (
+              <div className="lg:col-span-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Online Payment Method</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="online_payment_method"
+                      value="UPI"
+                      checked={formData.online_payment_method === 'UPI'}
+                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
+                      className="mr-2"
+                    />
+                    UPI
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="online_payment_method"
+                      value="CARD"
+                      checked={formData.online_payment_method === 'CARD'}
+                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
+                      className="mr-2"
+                    />
+                    Card
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="online_payment_method"
+                      value="BANK_TRANSFER"
+                      checked={formData.online_payment_method === 'BANK_TRANSFER'}
+                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
+                      className="mr-2"
+                    />
+                    Cheque
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="online_payment_method"
+                      value="INSURANCE"
+                      checked={formData.online_payment_method === 'INSURANCE'}
+                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
+                      className="mr-2"
+                    />
+                    Insurance
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {formData.discount_amount > 0 && (
+              <div className="lg:col-span-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
+                <input
+                  type="text"
+                  value={formData.discount_reason}
+                  onChange={(e) => setFormData({ ...formData, discount_reason: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Reason for discount"
+                />
+              </div>
+            )}
           </div>
 
           {totalAmount > 0 && (
@@ -279,138 +499,14 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 <span className="text-xl font-bold text-green-700">
                   Total Amount: ₹{totalAmount.toLocaleString()}
                 </span>
+                <div className="text-sm text-gray-600 mt-1">
+                  Payment Method: {formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Toggle Optional Fields */}
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={() => setShowOptionalFields(!showOptionalFields)}
-            className="text-blue-600 hover:text-blue-800 font-medium"
-          >
-            {showOptionalFields ? '▲ Hide Additional Fields' : '▼ Show Additional Fields'}
-          </button>
-        </div>
-
-        {/* Optional Fields - Collapsible */}
-        {showOptionalFields && (
-          <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">📝 Additional Information (All Optional)</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="patient@email.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
-                <select
-                  value={formData.blood_group}
-                  onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Blood Group</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
-                <input
-                  type="text"
-                  value={formData.emergency_contact_name}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Emergency contact name"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Phone</label>
-                <input
-                  type="tel"
-                  value={formData.emergency_contact_phone}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Emergency contact phone"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter full address"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
-                <textarea
-                  value={formData.medical_history}
-                  onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Previous medical conditions"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
-                <textarea
-                  value={formData.allergies}
-                  onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Known allergies"
-                  rows={2}
-                />
-              </div>
-
-              {formData.discount_amount > 0 && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
-                  <input
-                    type="text"
-                    value={formData.discount_reason}
-                    onChange={(e) => setFormData({ ...formData, discount_reason: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Reason for discount"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
@@ -434,13 +530,13 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
       {/* Help Text */}
       <div className="mt-6 p-4 bg-blue-100 rounded-lg">
-        <h4 className="font-semibold text-blue-800 mb-2">💡 Ultra-Flexible Entry:</h4>
+        <h4 className="font-semibold text-blue-800 mb-2">💡 Enhanced Patient Entry:</h4>
         <ul className="text-blue-700 text-sm space-y-1">
-          <li>• <strong>Only First Name Required:</strong> Minimum entry for quick registration</li>
-          <li>• <strong>Save as Draft:</strong> Preserve incomplete information for later</li>
-          <li>• <strong>Instant Charging:</strong> Add fees and charges during registration</li>
-          <li>• <strong>Optional Everything:</strong> All fields except first name are optional</li>
-          <li>• <strong>Direct Supabase:</strong> No LocalStorage fallback - pure database integration</li>
+          <li>• <strong>Comprehensive Information:</strong> All patient details in one form</li>
+          <li>• <strong>Reference Tracking:</strong> Option to record patient referrals</li>
+          <li>• <strong>Flexible Payment:</strong> Cash and online payment options with sub-methods</li>
+          <li>• <strong>Essential Details:</strong> Address and date of birth included by default</li>
+          <li>• <strong>Database Integration:</strong> Direct Supabase integration for reliable storage</li>
         </ul>
       </div>
     </div>
