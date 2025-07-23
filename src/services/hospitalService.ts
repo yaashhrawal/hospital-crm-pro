@@ -196,9 +196,6 @@ export class HospitalService {
         // Reference information
         has_reference: data.has_reference || false,
         reference_details: data.reference_details || null,
-        // Doctor and Department assignment (using existing columns)
-        doctor: data.assigned_doctor || null,
-        department: data.assigned_department || null,
         hospital_id: HOSPITAL_ID
       };
       

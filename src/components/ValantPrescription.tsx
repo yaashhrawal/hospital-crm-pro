@@ -35,25 +35,8 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
 
   // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    const department = patient.department;
-    if (!department) return 'GENERAL PHYSICIAN';
-    
-    // Doctor-Department mapping
-    const doctorMapping: {[key: string]: string} = {
-      'ORTHOPEDIC': 'DR. HEMANT KHAJJA',
-      'DIETICIAN': 'DR. LALITA SUWALKA',
-      'GASTRO': 'DR. MILIND KIRIT AKHANI',
-      'GYN.': 'DR MEETU BABLE',
-      'NEUROLOGY': 'DR. AMIT PATANVADIYA',
-      'UROLOGY': 'DR. KISHAN PATEL',
-      'SURGICAL ONCOLOGY': 'DR. PARTH SHAH',
-      'MEDICAL ONCOLOGY': 'DR.RAJEEDP GUPTA',
-      'NEUROSURGERY': 'DR. KULDDEP VALA',
-      'ENDOCRINOLOGY': 'DR. SAURABH GUPTA',
-      'GENERAL PHYSICIAN': 'DR. BATUL PEEPAWALA'
-    };
-    
-    return doctorMapping[department] || patient.doctor || 'GENERAL PHYSICIAN';
+    // For now, return default doctor until we know the exact column names
+    return 'DR. BATUL PEEPAWALA';
   };
 
   return (
@@ -116,7 +99,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               {getDoctorName()}
             </div>
             <div className="text-violet-700 text-sm mt-1">
-              {patient.department || 'GENERAL PHYSICIAN'}
+              GENERAL PHYSICIAN
             </div>
           </div>
 
@@ -139,7 +122,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             {/* Department */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
-              <span className="text-base text-gray-900">{patient.department || 'GENERAL PHYSICIAN'}</span>
+              <span className="text-base text-gray-900">GENERAL PHYSICIAN</span>
             </div>
           </div>
 

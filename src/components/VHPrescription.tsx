@@ -35,25 +35,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
   // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    const department = patient.department;
-    if (!department) return 'GENERAL PHYSICIAN';
-    
-    // Doctor-Department mapping
-    const doctorMapping: {[key: string]: string} = {
-      'ORTHOPEDIC': 'DR. HEMANT KHAJJA',
-      'DIETICIAN': 'DR. LALITA SUWALKA',
-      'GASTRO': 'DR. MILIND KIRIT AKHANI',
-      'GYN.': 'DR MEETU BABLE',
-      'NEUROLOGY': 'DR. AMIT PATANVADIYA',
-      'UROLOGY': 'DR. KISHAN PATEL',
-      'SURGICAL ONCOLOGY': 'DR. PARTH SHAH',
-      'MEDICAL ONCOLOGY': 'DR.RAJEEDP GUPTA',
-      'NEUROSURGERY': 'DR. KULDDEP VALA',
-      'ENDOCRINOLOGY': 'DR. SAURABH GUPTA',
-      'GENERAL PHYSICIAN': 'DR. BATUL PEEPAWALA'
-    };
-    
-    return doctorMapping[department] || patient.doctor || 'GENERAL PHYSICIAN';
+    // For now, return default doctor until we know the exact column names
+    return 'DR. BATUL PEEPAWALA';
   };
 
   return (
