@@ -35,8 +35,11 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
   // Get the correct doctor name from patient data
   const getDoctorName = () => {
-    // For now, return default doctor until we know the exact column names
-    return 'DR. BATUL PEEPAWALA';
+    return patient.doctor || 'DR. BATUL PEEPAWALA';
+  };
+
+  const getDepartmentName = () => {
+    return patient.department || 'GENERAL PHYSICIAN';
   };
 
   return (
@@ -99,7 +102,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               {getDoctorName()}
             </div>
             <div className="text-violet-700 text-sm mt-1">
-              {patient.department || 'GENERAL PHYSICIAN'}
+              {getDepartmentName()}
             </div>
           </div>
 
@@ -122,7 +125,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             {/* Department */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
-              <span className="text-base text-gray-900">{patient.department || 'GENERAL PHYSICIAN'}</span>
+              <span className="text-base text-gray-900">{getDepartmentName()}</span>
             </div>
           </div>
 
