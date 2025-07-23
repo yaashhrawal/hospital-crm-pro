@@ -92,217 +92,246 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
     }
   };
 
+  const convertCharges = () => {
+    return data.charges.map((charge, index) => ({
+      sr: index + 1,
+      service: charge.description,
+      qty: charge.quantity || 1,
+      rate: charge.rate || charge.amount / (charge.quantity || 1),
+      amount: charge.amount
+    }));
+  };
+
+  const services = convertCharges();
+
   return (
-    <div className={`receipt-template bg-white p-6 text-sm font-mono ${className}`}>
-      {/* Hospital Header */}
-      <div className="text-center border-b-2 border-black pb-4 mb-4">
-        <h1 className="text-2xl font-bold text-black">{data.hospital.name}</h1>
-        <div className="mt-2 text-xs">
-          <div>{data.hospital.address}</div>
-          <div>Phone: {data.hospital.phone} | Email: {data.hospital.email}</div>
-          <div>Reg. No: {data.hospital.registration} | GST: {data.hospital.gst}</div>
+    <div className={`receipt-template bg-white p-6 max-w-4xl mx-auto ${className}`}>
+      {/* Print-specific styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            @page {
+              margin: 0.5in;
+              size: A4;
+            }
+            body * {
+              visibility: hidden;
+            }
+            .receipt-template, .receipt-template * {
+              visibility: visible;
+            }
+            .receipt-template {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+            }
+            .print\\:hidden {
+              display: none !important;
+            }
+          }
+        `
+      }} />
+      
+      {/* Header */}
+      <div className="text-center border-b-2 border-gray-300 pb-4 mb-6">
+        <div className="flex items-center justify-center mb-4">
+          <img 
+            src="/logo.png" 
+            alt="VALANT Hospital Logo" 
+            className="h-16 w-auto"
+            style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
+          />
+        </div>
+        <div className="text-sm text-gray-700 mt-4">
+          <p>{data.hospital.address}</p>
+          <p>Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
+          <p>Reg. No: {data.hospital.registration} | GST: {data.hospital.gst}</p>
         </div>
       </div>
 
-      {/* Receipt Title & Number */}
-      <div className="text-center mb-4">
-        <h2 className="text-lg font-bold underline">{getReceiptTitle()}</h2>
-        <div className="mt-2 flex justify-between text-xs">
-          <span>Receipt No: <strong>{data.receiptNumber}</strong></span>
-          <span>Date: <strong>{data.date}</strong></span>
-          <span>Time: <strong>{data.time}</strong></span>
+      {/* Bill Header */}
+      <div className="mb-6">
+        <div className="text-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">{getReceiptTitle()}</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p><strong>RECEIPT NO:</strong> {data.receiptNumber}</p>
+            <p><strong>DATE:</strong> {data.date}</p>
+            <p><strong>TIME:</strong> {data.time}</p>
+          </div>
+          <div className="text-right">
+            <p><strong>Patient ID:</strong> {data.patient.id}</p>
+            <p><strong>PAYMENT MODE:</strong> {data.payments[0]?.mode || 'CASH'}</p>
+          </div>
         </div>
       </div>
 
       {/* Patient Information */}
-      <div className="mb-4 border border-black p-2">
-        <h3 className="font-bold underline mb-2">PATIENT DETAILS:</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div>Patient ID: <strong>{data.patient.id}</strong></div>
-          <div>Name: <strong>{data.patient.name}</strong></div>
-          {data.patient.age && <div>Age: <strong>{data.patient.age} years</strong></div>}
-          {data.patient.gender && <div>Gender: <strong>{data.patient.gender}</strong></div>}
-          {data.patient.phone && <div>Phone: <strong>{data.patient.phone}</strong></div>}
-          {data.patient.bloodGroup && <div>Blood Group: <strong>{data.patient.bloodGroup}</strong></div>}
-        </div>
-        {data.patient.address && (
-          <div className="mt-2 text-xs">
-            Address: <strong>{data.patient.address}</strong>
+      <div className="bg-gray-50 p-4 rounded-lg mb-6">
+        <h3 className="font-semibold mb-3 text-gray-800">Patient Information</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p><strong>NAME:</strong> {data.patient.name}</p>
+            <p><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} / {data.patient.gender || 'N/A'}</p>
+            <p><strong>MOBILE:</strong> {data.patient.phone || 'N/A'}</p>
           </div>
-        )}
+          <div>
+            <p><strong>BLOOD GROUP:</strong> {data.patient.bloodGroup || 'N/A'}</p>
+            <p><strong>ADDRESS:</strong> {data.patient.address || 'N/A'}</p>
+            {data.staff.processedBy && <p><strong>PROCESSED BY:</strong> {data.staff.processedBy}</p>}
+          </div>
+        </div>
       </div>
 
       {/* Medical Information (for discharge receipts) */}
       {data.medical && data.type === 'DISCHARGE' && (
-        <div className="mb-4 border border-black p-2">
-          <h3 className="font-bold underline mb-2">MEDICAL SUMMARY:</h3>
-          <div className="text-xs space-y-1">
+        <div className="bg-blue-50 p-4 rounded-lg mb-6">
+          <h3 className="font-semibold mb-3 text-gray-800">Medical Summary</h3>
+          <div className="text-sm space-y-2">
             {data.medical.diagnosis && (
-              <div><strong>Diagnosis:</strong> {data.medical.diagnosis}</div>
+              <p><strong>Diagnosis:</strong> {data.medical.diagnosis}</p>
             )}
             {data.medical.treatment && (
-              <div><strong>Treatment:</strong> {data.medical.treatment}</div>
+              <p><strong>Treatment:</strong> {data.medical.treatment}</p>
             )}
             {data.medical.condition && (
-              <div><strong>Condition at Discharge:</strong> {data.medical.condition}</div>
+              <p><strong>Condition at Discharge:</strong> {data.medical.condition}</p>
             )}
             {data.medical.doctor && (
-              <div><strong>Attending Doctor:</strong> {data.medical.doctor}</div>
+              <p><strong>Attending Doctor:</strong> {data.medical.doctor}</p>
             )}
             {data.medical.admissionDate && data.medical.dischargeDate && (
-              <div>
-                <strong>Admission:</strong> {data.medical.admissionDate} to {data.medical.dischargeDate}
+              <p>
+                <strong>Stay Duration:</strong> {data.medical.admissionDate} to {data.medical.dischargeDate}
                 {data.medical.stayDuration && ` (${data.medical.stayDuration} days)`}
-              </div>
+              </p>
             )}
             {data.medical.followUp && (
-              <div><strong>Follow-up:</strong> {data.medical.followUp}</div>
+              <p><strong>Follow-up Instructions:</strong> {data.medical.followUp}</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Charges Table */}
-      <div className="mb-4">
-        <h3 className="font-bold underline mb-2">CHARGES:</h3>
-        <table className="w-full border-collapse border border-black text-xs">
+      {/* Services Table */}
+      <div className="mb-6">
+        <h3 className="font-semibold mb-3 text-gray-800">Services & Charges</h3>
+        <table className="w-full border-collapse border border-gray-300">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border border-black p-1 text-left">Description</th>
-              <th className="border border-black p-1 text-center">Qty</th>
-              <th className="border border-black p-1 text-right">Rate</th>
-              <th className="border border-black p-1 text-right">Amount</th>
+              <th className="border border-gray-300 px-3 py-2 text-left">Sr</th>
+              <th className="border border-gray-300 px-3 py-2 text-left">Service</th>
+              <th className="border border-gray-300 px-3 py-2 text-center">Qty</th>
+              <th className="border border-gray-300 px-3 py-2 text-right">Rate (₹)</th>
+              <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {data.charges.map((charge, index) => (
-              <tr key={index}>
-                <td className="border border-black p-1">{charge.description}</td>
-                <td className="border border-black p-1 text-center">{charge.quantity || 1}</td>
-                <td className="border border-black p-1 text-right">
-                  ₹{(charge.rate || charge.amount).toLocaleString('en-IN')}
-                </td>
-                <td className="border border-black p-1 text-right">
-                  ₹{charge.amount.toLocaleString('en-IN')}
+            {services.length > 0 ? services.map((service) => (
+              <tr key={service.sr}>
+                <td className="border border-gray-300 px-3 py-2">{service.sr}</td>
+                <td className="border border-gray-300 px-3 py-2">{service.service}</td>
+                <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
+                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate.toFixed(2)}</td>
+                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount.toFixed(2)}</td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={5} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
+                  No services recorded
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
-          <tfoot>
-            <tr className="bg-gray-100 font-bold">
-              <td colSpan={3} className="border border-black p-1 text-right">SUBTOTAL:</td>
-              <td className="border border-black p-1 text-right">
-                ₹{data.totals.subtotal.toLocaleString('en-IN')}
-              </td>
-            </tr>
-            {data.totals.discount > 0 && (
-              <tr>
-                <td colSpan={3} className="border border-black p-1 text-right">Discount:</td>
-                <td className="border border-black p-1 text-right">
-                  -₹{data.totals.discount.toLocaleString('en-IN')}
-                </td>
-              </tr>
-            )}
-            {data.totals.insurance > 0 && (
-              <tr>
-                <td colSpan={3} className="border border-black p-1 text-right">Insurance Covered:</td>
-                <td className="border border-black p-1 text-right">
-                  -₹{data.totals.insurance.toLocaleString('en-IN')}
-                </td>
-              </tr>
-            )}
-            <tr className="bg-gray-200 font-bold">
-              <td colSpan={3} className="border border-black p-1 text-right">NET AMOUNT:</td>
-              <td className="border border-black p-1 text-right">
-                ₹{data.totals.netAmount.toLocaleString('en-IN')}
-              </td>
-            </tr>
-          </tfoot>
         </table>
       </div>
 
-      {/* Payment Information */}
+      {/* Payment Details */}
       {data.payments.length > 0 && (
-        <div className="mb-4">
-          <h3 className="font-bold underline mb-2">PAYMENT DETAILS:</h3>
-          <table className="w-full border-collapse border border-black text-xs">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-black p-1 text-left">Mode</th>
-                <th className="border border-black p-1 text-left">Reference</th>
-                <th className="border border-black p-1 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.payments.map((payment, index) => (
-                <tr key={index}>
-                  <td className="border border-black p-1">{payment.mode}</td>
-                  <td className="border border-black p-1">{payment.reference || '-'}</td>
-                  <td className="border border-black p-1 text-right">
-                    ₹{payment.amount.toLocaleString('en-IN')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-100 font-bold">
-                <td colSpan={2} className="border border-black p-1 text-right">TOTAL PAID:</td>
-                <td className="border border-black p-1 text-right">
-                  ₹{data.totals.amountPaid.toLocaleString('en-IN')}
-                </td>
-              </tr>
-              {data.totals.balance !== 0 && (
-                <tr className="font-bold">
-                  <td colSpan={2} className="border border-black p-1 text-right">
-                    {data.totals.balance > 0 ? 'BALANCE DUE:' : 'EXCESS PAID:'}
-                  </td>
-                  <td className="border border-black p-1 text-right">
-                    ₹{Math.abs(data.totals.balance).toLocaleString('en-IN')}
-                  </td>
-                </tr>
-              )}
-            </tfoot>
-          </table>
+        <div className="mb-6">
+          <h3 className="font-semibold mb-3 text-gray-800">Payment Details</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            {data.payments.map((payment, index) => (
+              <div key={index} className="flex justify-between text-sm mb-1">
+                <span><strong>{payment.mode}:</strong> {payment.reference ? `(Ref: ${payment.reference})` : ''}</span>
+                <span>₹{payment.amount.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Additional Notes */}
+      {/* Summary */}
+      <div className="border-t-2 border-gray-300 pt-4 mb-6">
+        <div className="flex justify-end">
+          <div className="w-64">
+            <div className="flex justify-between mb-2">
+              <span>Total Amount:</span>
+              <span>₹{data.totals.subtotal.toFixed(2)}</span>
+            </div>
+            {data.totals.discount > 0 && (
+              <div className="flex justify-between mb-2 text-red-600">
+                <span>Discount:</span>
+                <span>- ₹{data.totals.discount.toFixed(2)}</span>
+              </div>
+            )}
+            {data.totals.insurance > 0 && (
+              <div className="flex justify-between mb-2 text-blue-600">
+                <span>Insurance Covered:</span>
+                <span>- ₹{data.totals.insurance.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2">
+              <span>Net Amount:</span>
+              <span>₹{data.totals.netAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between mt-2">
+              <span>Amount Paid:</span>
+              <span>₹{data.totals.amountPaid.toFixed(2)}</span>
+            </div>
+            {data.totals.balance !== 0 && (
+              <div className={`flex justify-between mt-2 font-semibold ${data.totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <span>{data.totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
+                <span>₹{Math.abs(data.totals.balance).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
       {data.notes && (
-        <div className="mb-4 border border-black p-2">
-          <h3 className="font-bold underline mb-2">NOTES:</h3>
-          <div className="text-xs">{data.notes}</div>
+        <div className="mb-6 bg-yellow-50 p-4 rounded-lg">
+          <h3 className="font-semibold mb-2 text-gray-800">Notes:</h3>
+          <p className="text-sm text-gray-700">{data.notes}</p>
         </div>
       )}
 
-      {/* Signatures Section */}
-      <div className="mb-6 grid grid-cols-2 gap-8 text-xs">
-        <div>
-          <div className="border-t border-black pt-1 mt-8">Patient/Attendant Signature</div>
+      {/* Signature Section */}
+      <div className="grid grid-cols-2 gap-8 mb-6">
+        <div className="text-center">
+          <div className="border-t border-gray-400 mt-12 pt-2">
+            <p className="text-sm">Patient/Guardian Signature</p>
+          </div>
         </div>
-        <div>
-          <div className="border-t border-black pt-1 mt-8">Authorized Signature</div>
+        <div className="text-center">
+          <div className="border-t border-gray-400 mt-12 pt-2">
+            <p className="text-sm">Authorized Signature</p>
+            {data.staff.authorizedBy && <p className="text-xs text-gray-600 mt-1">{data.staff.authorizedBy}</p>}
+          </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t-2 border-black pt-2 text-center">
-        <div className="text-xs">
-          <div className="font-bold">Thank you for choosing {data.hospital.name}</div>
-          <div className="mt-1">
-            {data.isOriginal !== false && '★ ORIGINAL COPY ★'}
-          </div>
-          <div className="mt-1">Computer Generated Receipt - No signature required</div>
-          <div>Printed on: {new Date().toLocaleString('en-IN')}</div>
-        </div>
+      <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+        <p>Thank you for choosing {data.hospital.name}</p>
+        <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
+        {data.isOriginal !== false && <p className="font-bold mt-2">** ORIGINAL COPY **</p>}
+        <p className="mt-1">Computer Generated Receipt - No signature required</p>
+        <p className="mt-1">Generated on {data.date} at {data.time}</p>
       </div>
-
-      {/* Staff Information */}
-      {(data.staff.processedBy || data.staff.authorizedBy) && (
-        <div className="mt-4 text-xs text-gray-600 border-t pt-2">
-          {data.staff.processedBy && <div>Processed by: {data.staff.processedBy}</div>}
-          {data.staff.authorizedBy && <div>Authorized by: {data.staff.authorizedBy}</div>}
-        </div>
-      )}
     </div>
   );
 };

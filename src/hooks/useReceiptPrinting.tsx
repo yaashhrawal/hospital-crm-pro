@@ -24,88 +24,44 @@ export const useReceiptPrinting = () => {
   };
 
   const printReceipt = (data: ReceiptData, preview = false) => {
-    const printContainer = document.createElement('div');
-    document.body.appendChild(printContainer);
+    // Create modal container
+    const modalContainer = document.createElement('div');
+    modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    document.body.appendChild(modalContainer);
     
-    const root = createRoot(printContainer);
+    const root = createRoot(modalContainer);
     
     const handlePrint = () => {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        // Cleanup
-        setTimeout(() => {
-          root.unmount();
-          document.body.removeChild(printContainer);
-        }, 100);
-        
-        // Show user-friendly error message
-        alert('Unable to open print window. Please check:\n\n1. Disable popup blocker for this site\n2. Allow popups in your browser settings\n3. Try again\n\nAlternatively, you can take a screenshot of the receipt.');
-        return;
-      }
-      
-      if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Receipt - ${data.receiptNumber}</title>
-              <style>
-                body { 
-                  font-family: 'Courier New', monospace; 
-                  margin: 0; 
-                  padding: 20px;
-                  font-size: 12px;
-                  line-height: 1.4;
-                }
-                .receipt-template { 
-                  max-width: 800px; 
-                  margin: 0 auto; 
-                }
-                @media print {
-                  body { padding: 0; }
-                  .no-print { display: none !important; }
-                  .receipt-template { 
-                    box-shadow: none; 
-                    border: none; 
-                  }
-                }
-                @page {
-                  size: A4;
-                  margin: 0.5in;
-                }
-              </style>
-            </head>
-            <body>
-              <div id="receipt-content">${printContainer.innerHTML}</div>
-              <div class="no-print" style="text-align: center; margin-top: 20px;">
-                <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">Print</button>
-                <button onclick="window.close()" style="padding: 10px 20px; font-size: 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        
-        if (!preview) {
-          printWindow.onload = () => {
-            printWindow.print();
-            printWindow.close();
-          };
-        }
-      }
-      
-      // Cleanup
-      setTimeout(() => {
-        root.unmount();
-        document.body.removeChild(printContainer);
-      }, 100);
+      window.print();
+    };
+    
+    const handleClose = () => {
+      root.unmount();
+      document.body.removeChild(modalContainer);
     };
 
+    // Render modal with receipt
     root.render(
-      <div>
-        <ReceiptTemplate data={data} />
-        <div style={{ display: 'none' }}>
-          {setTimeout(handlePrint, 100)}
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+        {/* Print and Close buttons */}
+        <div className="flex justify-end gap-2 p-4 border-b print:hidden">
+          <button
+            onClick={handlePrint}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+          >
+            <span>🖨️</span> Print Receipt
+          </button>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Receipt Content with ID for print targeting */}
+        <div className="p-8 print:p-6" id="receipt-content">
+          <ReceiptTemplate data={data} />
         </div>
       </div>
     );
