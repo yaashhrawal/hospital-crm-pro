@@ -10,6 +10,7 @@ interface ReceiptData {
   date: string;
   regDate: string;
   doctor: string;
+  paymentMode: string;
   totalAmount: number;
   discount: number;
   netAmount: number;
@@ -63,9 +64,11 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       // Generate bill number (could be enhanced with actual sequence)
       const billNo = `BILL-${Date.now().toString().slice(-6)}`;
       
-      // Get doctor name from transactions or patient assignment
-      const doctorTransaction = transactions.find(t => t.doctor_name);
-      const doctor = doctorTransaction?.doctor_name || patient.assigned_doctor || 'N/A';
+      // Get doctor name from patient assignment or transactions
+      const doctor = patient.assigned_doctor || 'Dr. General';
+      
+      // Get payment mode from the most recent transaction
+      const paymentMode = transactions.length > 0 ? transactions[0].payment_mode || 'Cash' : 'Cash';
 
       setReceiptData({
         patient,
@@ -74,6 +77,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
         date: new Date().toLocaleDateString('en-IN'),
         regDate: new Date(patient.created_at).toLocaleDateString('en-IN'),
         doctor,
+        paymentMode,
         totalAmount,
         discount,
         netAmount
@@ -169,7 +173,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             <div className="flex items-center justify-center mb-2">
               <div className="text-4xl mr-4">🏥</div>
               <div>
-                <h1 className="text-3xl font-bold text-blue-800">VALANT HOSPITAL</h1>
+                <h1 className="text-3xl font-bold text-violet-800">VALANT HOSPITAL</h1>
                 <p className="text-sm text-gray-600">Complete Healthcare Solutions</p>
               </div>
             </div>
@@ -191,6 +195,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
               <div className="text-right">
                 <p><strong>DOCTOR:</strong> {receiptData.doctor}</p>
                 <p><strong>Patient ID:</strong> {patient.patient_id}</p>
+                <p><strong>PAYMENT MODE:</strong> {receiptData.paymentMode}</p>
               </div>
             </div>
           </div>
