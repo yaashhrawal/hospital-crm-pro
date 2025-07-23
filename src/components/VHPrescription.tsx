@@ -102,37 +102,23 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             backgroundPosition: 'center top'
           }}
         >
-          {/* Doctor Information Card - Professional Right Side Layout */}
-          <div className="absolute top-8 right-8 bg-white bg-opacity-90 rounded-lg shadow-lg p-4 border-l-4 border-violet-600 max-w-xs">
-            <div className="text-center">
-              <div className="text-violet-800 font-bold text-base uppercase mb-2">
-                {getDoctorInfo().name}
+          {/* Doctor Name - Left Side above black line */}
+          <div className="absolute top-36 left-12 text-left">
+            <div className="text-violet-800 font-bold text-lg uppercase">
+              {getDoctorInfo().name}
+            </div>
+            {getDoctorInfo().degree && (
+              <div className="text-violet-600 text-base mt-1 font-medium">
+                {getDoctorInfo().degree}
               </div>
-              {getDoctorInfo().degree && (
-                <div className="text-violet-600 text-sm font-medium mb-2 border-b border-violet-200 pb-2">
-                  {getDoctorInfo().degree}
-                </div>
-              )}
-              <div className="text-violet-700 text-xs font-semibold uppercase bg-violet-50 px-3 py-1 rounded-full">
-                {getDepartmentName()}
-              </div>
+            )}
+            <div className="text-violet-700 text-sm mt-1">
+              {getDepartmentName()}
             </div>
           </div>
 
-          {/* V+H Dual Hospital Branding Header */}
-          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 text-center">
-            <div className="bg-gradient-to-r from-blue-600 to-violet-600 text-white px-6 py-2 rounded-lg shadow-md">
-              <div className="text-sm font-bold tracking-wider">
-                VALANT + HEALTH1 HOSPITAL
-              </div>
-              <div className="text-xs mt-1 opacity-90">
-                Joint Healthcare Excellence
-              </div>
-            </div>
-          </div>
-
-          {/* Patient Details - Left Side */}
-          <div className="absolute top-48 left-12 space-y-2">
+          {/* Patient Details - Left Side moved further down */}
+          <div className="absolute top-60 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
@@ -154,8 +140,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             </div>
           </div>
 
-          {/* Date and Age/Sex - Right Side */}
-          <div className="absolute top-64 right-12 space-y-2">
+          {/* Date and Age/Sex - Right Side aligned with patient details */}
+          <div className="absolute top-60 right-12 space-y-2">
             {/* Date */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Date:</span>
