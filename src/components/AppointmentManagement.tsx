@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import dataService from '../services/dataService';
+import { PatientService } from '../services/patientService';
+import { appointmentService } from '../services/appointmentService';
 import type { Patient } from '../types/index';
 
 interface Appointment {
@@ -30,11 +32,43 @@ const AppointmentManagement: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [patientSelectionType, setPatientSelectionType] = useState<'existing' | 'new'>('existing');
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [showPatientSearch, setShowPatientSearch] = useState(false);
+  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const [selectedPatientFromSearch, setSelectedPatientFromSearch] = useState<Patient | null>(null);
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm();
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Filter patients based on search query
+  useEffect(() => {
+    if (patientSearchQuery.trim() === '') {
+      setFilteredPatients(patients.slice(0, 10)); // Show first 10 patients
+    } else {
+      const filtered = patients.filter(patient => 
+        `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+        patient.phone?.includes(patientSearchQuery) ||
+        patient.patient_id?.toLowerCase().includes(patientSearchQuery.toLowerCase())
+      );
+      setFilteredPatients(filtered.slice(0, 10)); // Limit to 10 results
+    }
+  }, [patientSearchQuery, patients]);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.patient-search-container')) {
+        setShowPatientSearch(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadData = async () => {
@@ -129,15 +163,102 @@ const AppointmentManagement: React.FC = () => {
     }
   }, [watchedAppointmentType, watchedDoctorId, doctors, setValue]);
 
+  // Handle patient search input
+  const handlePatientSearch = (query: string) => {
+    setPatientSearchQuery(query);
+    setShowPatientSearch(true);
+    setSelectedPatientFromSearch(null);
+  };
+
+  // Handle patient selection from search results
+  const handlePatientSelect = (patient: Patient) => {
+    setSelectedPatientFromSearch(patient);
+    setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
+    setShowPatientSearch(false);
+    setValue('patient_id', patient.id);
+  };
+
+  // Handle creating new patient from search query
+  const handleCreatePatientFromSearch = async () => {
+    if (!patientSearchQuery.trim()) return;
+
+    try {
+      const nameParts = patientSearchQuery.trim().split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+
+      const newPatientData = {
+        first_name: firstName,
+        last_name: lastName || '',
+        phone: '',
+        email: '',
+        gender: 'MALE' as const,
+        address: '',
+      };
+
+      const newPatient = await PatientService.createPatient(newPatientData);
+      
+      // Update local patients list
+      setPatients(prev => [...prev, newPatient]);
+      
+      // Select the newly created patient
+      setSelectedPatientFromSearch(newPatient);
+      setValue('patient_id', newPatient.id);
+      setShowPatientSearch(false);
+      
+      toast.success(`New patient "${newPatient.first_name} ${newPatient.last_name}" created successfully`);
+    } catch (error: any) {
+      console.error('Error creating patient from search:', error);
+      toast.error(error.message || 'Failed to create patient');
+    }
+  };
+
   const onSubmit = async (data: any) => {
     try {
-      const selectedPatient = patients.find(p => p.id === data.patient_id);
+      let patientId = data.patient_id;
+      let patientName = '';
+
+      // Handle new patient creation
+      if (patientSelectionType === 'new') {
+        const newPatientData = {
+          first_name: data.new_patient_first_name,
+          last_name: data.new_patient_last_name || '',
+          phone: data.new_patient_phone || '',
+          email: data.new_patient_email || '',
+          gender: data.new_patient_gender as 'MALE' | 'FEMALE' | 'OTHER' || 'MALE',
+          address: data.new_patient_address || '',
+        };
+
+        const newPatient = await PatientService.createPatient(newPatientData);
+        patientId = newPatient.id;
+        patientName = `${newPatient.first_name} ${newPatient.last_name || ''}`.trim();
+        
+        // Update local patients list
+        setPatients(prev => [...prev, newPatient]);
+        toast.success(`New patient "${patientName}" created successfully`);
+      } else {
+        // Handle existing patient selection (either from dropdown or search)
+        let selectedPatient = patients.find(p => p.id === data.patient_id);
+        
+        // If no patient found but we have a search selection, use that
+        if (!selectedPatient && selectedPatientFromSearch) {
+          selectedPatient = selectedPatientFromSearch;
+          patientId = selectedPatient.id;
+        }
+        
+        if (selectedPatient) {
+          patientName = `${selectedPatient.first_name} ${selectedPatient.last_name || ''}`.trim();
+        } else {
+          throw new Error('Please select a patient or create a new one');
+        }
+      }
+
       const selectedDoctor = doctors.find(d => d.id === data.doctor_id);
 
       const newAppointment: Appointment = {
         id: Date.now().toString(),
-        patient_id: data.patient_id,
-        patient_name: `${selectedPatient?.first_name} ${selectedPatient?.last_name}`,
+        patient_id: patientId,
+        patient_name: patientName,
         doctor_id: data.doctor_id,
         doctor_name: selectedDoctor?.name || 'Unknown Doctor',
         department: data.department,
@@ -151,14 +272,23 @@ const AppointmentManagement: React.FC = () => {
         created_at: new Date().toISOString(),
       };
 
-      // In real implementation, save to Supabase
+      // Save to Supabase in production - for now using mock data
+      // TODO: Replace with appointmentService.createAppointment(appointmentData) for production
       setAppointments(prev => [...prev, newAppointment]);
       
-      toast.success(`Appointment scheduled for ${newAppointment.patient_name} on ${new Date(data.appointment_date).toLocaleDateString()}`);
+      toast.success(`Appointment scheduled for ${patientName} on ${new Date(data.appointment_date).toLocaleDateString()}`);
       setShowNewAppointment(false);
+      setPatientSelectionType('existing');
+      
+      // Reset all search states
+      setPatientSearchQuery('');
+      setShowPatientSearch(false);
+      setSelectedPatientFromSearch(null);
+      
       reset();
-    } catch (error) {
-      toast.error('Failed to schedule appointment');
+    } catch (error: any) {
+      console.error('Error scheduling appointment:', error);
+      toast.error(error.message || 'Failed to schedule appointment');
     }
   };
 
@@ -276,22 +406,212 @@ const AppointmentManagement: React.FC = () => {
           <div className="px-6 py-4 bg-gray-50 border-b">
             <h3 className="text-lg font-semibold mb-4">Schedule New Appointment</h3>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient *</label>
-                  <select
-                    {...register('patient_id', { required: 'Patient is required' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              {/* Patient Selection Type Toggle */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Patient Information</label>
+                <div className="flex gap-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPatientSelectionType('existing');
+                      // Clear new patient fields when switching
+                      setValue('new_patient_first_name', '');
+                      setValue('new_patient_last_name', '');
+                      setValue('new_patient_phone', '');
+                      setValue('new_patient_email', '');
+                      setValue('new_patient_address', '');
+                      // Clear search states
+                      setPatientSearchQuery('');
+                      setShowPatientSearch(false);
+                      setSelectedPatientFromSearch(null);
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      patientSelectionType === 'existing'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
                   >
-                    <option value="">Select Patient</option>
-                    {patients.map(patient => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.first_name} {patient.last_name} - {patient.phone}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.patient_id && <p className="text-red-500 text-sm">{errors.patient_id.message as string}</p>}
+                    👤 Select Existing Patient
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPatientSelectionType('new');
+                      // Clear existing patient selection when switching
+                      setValue('patient_id', '');
+                      // Clear search states
+                      setPatientSearchQuery('');
+                      setShowPatientSearch(false);
+                      setSelectedPatientFromSearch(null);
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      patientSelectionType === 'new'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    ➕ Create New Patient
+                  </button>
                 </div>
+
+                {/* Existing Patient Selection with Search */}
+                {patientSelectionType === 'existing' && (
+                  <div className="relative patient-search-container">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Search or Select Patient
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={patientSearchQuery}
+                        onChange={(e) => handlePatientSearch(e.target.value)}
+                        onFocus={() => setShowPatientSearch(true)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md pr-10"
+                        placeholder="Type patient name, phone, or ID..."
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Search Results Dropdown */}
+                    {showPatientSearch && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {filteredPatients.length > 0 ? (
+                          <>
+                            {filteredPatients.map(patient => (
+                              <div
+                                key={patient.id}
+                                onClick={() => handlePatientSelect(patient)}
+                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100"
+                              >
+                                <div className="font-medium text-gray-900">
+                                  {patient.first_name} {patient.last_name}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {patient.phone && `📱 ${patient.phone}`} {patient.patient_id && `• ID: ${patient.patient_id}`}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="px-3 py-4">
+                            <div className="text-gray-500 text-center mb-3">
+                              No patients found matching "{patientSearchQuery}"
+                            </div>
+                            {patientSearchQuery.trim() && (
+                              <button
+                                type="button"
+                                onClick={handleCreatePatientFromSearch}
+                                className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors"
+                              >
+                                ➕ Create new patient "{patientSearchQuery}"
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Close button */}
+                        <div className="border-t border-gray-200 p-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowPatientSearch(false)}
+                            className="w-full text-gray-500 text-sm hover:text-gray-700"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Selected Patient Display */}
+                    {selectedPatientFromSearch && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                        <span className="text-green-700">✓ Selected: </span>
+                        <span className="font-medium">{selectedPatientFromSearch.first_name} {selectedPatientFromSearch.last_name}</span>
+                        {selectedPatientFromSearch.phone && <span className="text-gray-600 ml-2">• {selectedPatientFromSearch.phone}</span>}
+                      </div>
+                    )}
+
+                    {/* Hidden input for form validation */}
+                    <input
+                      type="hidden"
+                      {...register('patient_id', { 
+                        required: patientSelectionType === 'existing' ? false : false // Made optional since we handle it in submit
+                      })}
+                    />
+                  </div>
+                )}
+
+                {/* New Patient Form */}
+                {patientSelectionType === 'new' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                      <input
+                        type="text"
+                        {...register('new_patient_first_name', { 
+                          required: patientSelectionType === 'new' ? 'First name is required' : false 
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Enter first name"
+                      />
+                      {errors.new_patient_first_name && <p className="text-red-500 text-sm">{errors.new_patient_first_name.message as string}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        {...register('new_patient_last_name')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Enter last name (optional)"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        {...register('new_patient_phone')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        {...register('new_patient_email')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                      <select
+                        {...register('new_patient_gender')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      >
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <input
+                        type="text"
+                        {...register('new_patient_address')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Enter address"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Doctor *</label>

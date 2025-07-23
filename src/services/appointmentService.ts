@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { PatientService, type CreatePatientData } from './patientService';
 import type { 
   Appointment, 
   AppointmentWithRelations, 
@@ -193,6 +194,30 @@ class AppointmentService {
       return data;
     } catch (error) {
       console.error('Error fetching appointment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new appointment with a new patient
+   */
+  async createAppointmentWithNewPatient(
+    appointmentData: Omit<CreateAppointmentData, 'patient_id'>,
+    patientData: CreatePatientData
+  ): Promise<{ appointment: Appointment; patient: any }> {
+    try {
+      // First create the new patient
+      const newPatient = await PatientService.createPatient(patientData);
+      
+      // Then create the appointment with the new patient ID
+      const appointment = await this.createAppointment({
+        ...appointmentData,
+        patient_id: newPatient.id,
+      });
+
+      return { appointment, patient: newPatient };
+    } catch (error) {
+      console.error('Error creating appointment with new patient:', error);
       throw error;
     }
   }
