@@ -66,30 +66,41 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       // Analyze transactions to extract consultation fee and discount details
       transactions.forEach(transaction => {
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
-          consultationFee = transaction.amount;
+          // With new structure, consultation transaction contains original amount
+          originalConsultationFee = transaction.amount;
+          consultationFee = transaction.amount; // Will be adjusted if discount found
           
-          // Try to extract discount information from description
+          // Extract discount information from enhanced description
           const description = transaction.description || '';
-          const discountMatch = description.match(/(\d+)%\s*discount/i);
+          const discountMatch = description.match(/Discount:\s*(\d+)%\s*\(₹([\d.]+)\)/i);
           if (discountMatch) {
             discountPercentage = parseInt(discountMatch[1]);
-            // Calculate original fee from discounted amount
-            originalConsultationFee = consultationFee / (1 - discountPercentage / 100);
-            discountAmount = originalConsultationFee - consultationFee;
+            discountAmount = parseFloat(discountMatch[2]);
+            consultationFee = originalConsultationFee - discountAmount;
             
             // Extract discount reason if available
-            const reasonMatch = description.match(/discount[^)]*\(([^)]+)\)/i);
+            const reasonMatch = description.match(/Reason:\s*([^|]+)/i);
             if (reasonMatch) {
-              discountReason = reasonMatch[1];
+              discountReason = reasonMatch[1].trim();
             }
-          } else {
-            originalConsultationFee = consultationFee;
+          }
+        } else if (transaction.transaction_type === 'DISCOUNT' || transaction.transaction_type === 'discount') {
+          // Handle separate discount transactions
+          discountAmount += Math.abs(transaction.amount);
+          
+          // Extract discount percentage and reason from discount transaction
+          const description = transaction.description || '';
+          const percentMatch = description.match(/(\d+)%/);
+          if (percentMatch) {
+            discountPercentage = parseInt(percentMatch[1]);
+          }
+          
+          const reasonMatch = description.match(/-\s*(.+)$/);
+          if (reasonMatch) {
+            discountReason = reasonMatch[1].trim();
           }
         } else if (transaction.amount > 0) {
           otherServices += transaction.amount;
-        } else if (transaction.amount < 0) {
-          // Handle explicit discount transactions
-          discountAmount += Math.abs(transaction.amount);
         }
       });
 

@@ -133,20 +133,36 @@ const NewFlexiblePatientEntry: React.FC = () => {
       const transactions = [];
 
       // Calculate discount amount from percentage
-      const discountAmount = formData.consultation_fee * (formData.discount_percentage / 100);
-      const finalAmount = formData.consultation_fee - discountAmount;
+      const originalConsultationFee = formData.consultation_fee;
+      const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
+      const finalAmount = originalConsultationFee - discountAmount;
 
-      if (formData.consultation_fee > 0) {
+      if (originalConsultationFee > 0) {
+        // Store the ORIGINAL consultation fee (not discounted amount)
         transactions.push({
           patient_id: newPatient.id,
           transaction_type: 'CONSULTATION', 
-          description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''}${formData.discount_percentage > 0 ? ` (${formData.discount_percentage}% discount applied)` : ''}`,
-          amount: finalAmount,
+          description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
+          amount: originalConsultationFee, // Store ORIGINAL amount, not discounted
           payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
           status: 'COMPLETED',
           doctor_name: formData.selected_doctor || undefined,
           department: formData.selected_department || undefined
         });
+
+        // If there's a discount, add a separate discount transaction
+        if (formData.discount_percentage > 0 && discountAmount > 0) {
+          transactions.push({
+            patient_id: newPatient.id,
+            transaction_type: 'DISCOUNT',
+            description: `Consultation Discount (${formData.discount_percentage}%)${formData.discount_reason ? ` - ${formData.discount_reason}` : ''}`,
+            amount: -discountAmount, // Negative amount for discount
+            payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
+            status: 'COMPLETED',
+            doctor_name: formData.selected_doctor || undefined,
+            department: formData.selected_department || undefined
+          });
+        }
       }
 
       // Create all transactions
@@ -155,7 +171,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         await HospitalService.createTransaction(transactionData as CreateTransactionData);
       }
 
-      const totalAmount = formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100));
+      const totalAmount = finalAmount; // Use the calculated final amount
       
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
