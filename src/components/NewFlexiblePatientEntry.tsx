@@ -22,8 +22,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     reference_details: '',
     // Transaction data
     consultation_fee: 0,
-    entry_fee: 0,
-    discount_amount: 0,
+    discount_percentage: 0,
     discount_reason: '',
     payment_mode: 'CASH',
     online_payment_method: 'UPI',
@@ -93,36 +92,17 @@ const NewFlexiblePatientEntry: React.FC = () => {
       // Create transactions if amounts specified
       const transactions = [];
 
-      // Create transactions for fees
-      if (formData.entry_fee > 0) {
-        transactions.push({
-          patient_id: newPatient.id,
-          transaction_type: 'ENTRY_FEE', // Use ENTRY_FEE for entry fees
-          description: `Entry Fee - Patient Registration`,
-          amount: formData.entry_fee,
-          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-          status: 'COMPLETED'
-        });
-      }
+      // Calculate discount amount from percentage
+      const discountAmount = formData.consultation_fee * (formData.discount_percentage / 100);
+      const finalAmount = formData.consultation_fee - discountAmount;
 
       if (formData.consultation_fee > 0) {
         transactions.push({
           patient_id: newPatient.id,
           transaction_type: 'CONSULTATION', 
-          description: `Consultation Fee - Doctor Visit`,
-          amount: formData.consultation_fee,
+          description: `Consultation Fee - Doctor Visit${formData.discount_percentage > 0 ? ` (${formData.discount_percentage}% discount applied)` : ''}`,
+          amount: finalAmount,
           payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-          status: 'COMPLETED'
-        });
-      }
-
-      if (formData.discount_amount > 0) {
-        transactions.push({
-          patient_id: newPatient.id,
-          transaction_type: 'PROCEDURE', // Use PROCEDURE with negative amount for discounts
-          description: `Discount Applied`,
-          amount: -formData.discount_amount,
-          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode, 
           status: 'COMPLETED'
         });
       }
@@ -133,7 +113,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         await HospitalService.createTransaction(transactionData as CreateTransactionData);
       }
 
-      const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
+      const totalAmount = formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100));
       
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
@@ -159,8 +139,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         has_reference: 'NO',
         reference_details: '',
         consultation_fee: 0,
-        entry_fee: 0,
-        discount_amount: 0,
+        discount_percentage: 0,
         discount_reason: '',
         payment_mode: 'CASH',
         online_payment_method: 'UPI',
@@ -174,7 +153,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     }
   };
 
-  const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
+  const totalAmount = formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100));
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
@@ -378,19 +357,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         {/* Payment Information */}
         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
           <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Payment Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>
-              <input
-                type="number"
-                value={formData.entry_fee}
-                onChange={(e) => setFormData({ ...formData, entry_fee: Number(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
               <input
@@ -404,14 +371,15 @@ const NewFlexiblePatientEntry: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
               <input
                 type="number"
-                value={formData.discount_amount}
-                onChange={(e) => setFormData({ ...formData, discount_amount: Number(e.target.value) || 0 })}
+                value={formData.discount_percentage}
+                onChange={(e) => setFormData({ ...formData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="0"
                 min="0"
+                max="100"
               />
             </div>
 
@@ -479,8 +447,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
               </div>
             )}
 
-            {formData.discount_amount > 0 && (
-              <div className="lg:col-span-4">
+            {formData.discount_percentage > 0 && (
+              <div className="lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
                 <input
                   type="text"
@@ -493,11 +461,16 @@ const NewFlexiblePatientEntry: React.FC = () => {
             )}
           </div>
 
-          {totalAmount > 0 && (
+          {formData.consultation_fee > 0 && (
             <div className="mt-4 p-3 bg-white rounded-lg border-2 border-green-300">
               <div className="text-center">
+                {formData.discount_percentage > 0 && (
+                  <div className="text-sm text-gray-600 mb-1">
+                    Original: ₹{formData.consultation_fee.toLocaleString()} - Discount ({formData.discount_percentage}%): ₹{(formData.consultation_fee * (formData.discount_percentage / 100)).toFixed(2)}
+                  </div>
+                )}
                 <span className="text-xl font-bold text-green-700">
-                  Total Amount: ₹{totalAmount.toLocaleString()}
+                  Total Amount: ₹{totalAmount.toFixed(2)}
                 </span>
                 <div className="text-sm text-gray-600 mt-1">
                   Payment Method: {formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode}
