@@ -94,8 +94,8 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             </div>
           </div>
 
-          {/* Patient Details - Positioned based on template layout */}
-          <div className="absolute top-32 left-12 space-y-2">
+          {/* Patient Details - Moved down a bit */}
+          <div className="absolute top-40 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Name:</span>
@@ -122,16 +122,6 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               <span className="text-base text-gray-900">
                 {getAge(patient.date_of_birth)} / {patient.gender}
               </span>
-            </div>
-          </div>
-
-          {/* Prescription content area - for future medication details */}
-          <div className="absolute top-64 left-12 right-12 bottom-12">
-            <div className="h-full border-2 border-dashed border-gray-300 rounded-lg p-4 bg-white bg-opacity-50">
-              <div className="text-center text-gray-500 mt-20">
-                <p className="text-lg">Prescription Details</p>
-                <p className="text-sm">Medication details will be added here</p>
-              </div>
             </div>
           </div>
         </div>
