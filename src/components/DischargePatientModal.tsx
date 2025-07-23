@@ -328,14 +328,12 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         }
       }
 
-      // 4. Update admission status and discharge date
+      // 4. Update admission status only
       console.log('🏥 Updating admission status...');
       
-      // Based on the original schema, use only fields that actually exist
+      // Only update the status field since discharge_date column doesn't exist in actual table
       const updateData = {
-        status: 'discharged',
-        discharge_date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
-        updated_at: new Date().toISOString()
+        status: 'discharged'
       };
       
       console.log('🔄 Attempting to update admission with:', updateData);
