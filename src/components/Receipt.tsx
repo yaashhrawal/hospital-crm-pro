@@ -270,16 +270,38 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
     return result.trim() + ' Rupees';
   };
 
-  const convertTransactionsToServices = (transactions: PatientTransaction[]): ServiceItem[] => {
-    return transactions
+  const convertTransactionsToServices = (
+    transactions: PatientTransaction[], 
+    receiptData: ReceiptData
+  ): ServiceItem[] => {
+    const services: ServiceItem[] = [];
+    let srCounter = 1;
+
+    transactions
       .filter(transaction => transaction.amount > 0) // Only positive amounts (actual services)
-      .map((transaction, index) => ({
-        sr: index + 1,
-        service: transaction.description || transaction.transaction_type,
-        qty: 1,
-        rate: transaction.amount,
-        amount: transaction.amount
-      }));
+      .forEach(transaction => {
+        if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
+          // For consultation, show original rate and discounted amount
+          services.push({
+            sr: srCounter++,
+            service: transaction.description || 'Consultation Fee',
+            qty: 1,
+            rate: receiptData.originalConsultationFee, // Original rate (₹750)
+            amount: receiptData.originalConsultationFee - receiptData.discountAmount // Discounted amount (₹600)
+          });
+        } else {
+          // For other services, show normal rate = amount
+          services.push({
+            sr: srCounter++,
+            service: transaction.description || transaction.transaction_type,
+            qty: 1,
+            rate: transaction.amount,
+            amount: transaction.amount
+          });
+        }
+      });
+
+    return services;
   };
 
   if (loading) {
@@ -309,7 +331,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
   }
 
   const { patient, transactions } = receiptData;
-  const services = convertTransactionsToServices(transactions);
+  const services = convertTransactionsToServices(transactions, receiptData);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
