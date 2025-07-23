@@ -193,6 +193,9 @@ export class HospitalService {
         blood_group: data.blood_group || null,
         medical_history: data.medical_history || null,
         allergies: data.allergies || null,
+        // Doctor and Department information
+        doctor: data.doctor || null,
+        department: data.department || null,
         // Reference information
         has_reference: data.has_reference || false,
         reference_details: data.reference_details || null,
