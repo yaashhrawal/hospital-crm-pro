@@ -102,9 +102,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[210mm] print:h-[297mm]"
           style={{ 
             backgroundImage: 'url(/vh-prescription-template.png)',
-            backgroundSize: '100% 100%',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundSize: 'contain',
+            backgroundPosition: 'center top'
           }}
         >
           {/* Doctor Name - Left Side above black line */}

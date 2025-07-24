@@ -103,9 +103,8 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[210mm] print:h-[297mm]"
           style={{ 
             backgroundImage: 'url(/valant-prescription-template.png)',
-            backgroundSize: '100% 100%',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundSize: 'contain',
+            backgroundPosition: 'center top'
           }}
         >
           {/* Doctor Name - Top Right for Valant */}
