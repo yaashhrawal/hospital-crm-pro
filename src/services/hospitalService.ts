@@ -291,6 +291,9 @@ export class HospitalService {
         return null;
       }
       
+      console.log('🔍 Raw patient data from database:', patient);
+      console.log('🎂 Age field in raw data:', patient?.age, 'Type:', typeof patient?.age);
+      
       return patient as PatientWithRelations;
       
     } catch (error: any) {
