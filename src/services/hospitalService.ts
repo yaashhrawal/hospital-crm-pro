@@ -186,6 +186,7 @@ export class HospitalService {
         phone: data.phone || '',
         email: data.email || null,
         date_of_birth: data.date_of_birth || null,
+        age: data.age || null,
         gender: data.gender || 'MALE',
         address: data.address || '',
         emergency_contact_name: data.emergency_contact_name || '',

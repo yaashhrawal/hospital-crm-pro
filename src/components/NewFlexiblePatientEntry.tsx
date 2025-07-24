@@ -28,7 +28,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
     last_name: '',
     phone: '',
     email: '',
-    age: 0,
+    date_of_birth: '',
+    age: '',
     gender: 'MALE',
     address: '',
     emergency_contact_name: '',
@@ -107,6 +108,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
         date_of_birth: formData.date_of_birth || undefined,
+        age: formData.age.trim() || undefined,
         gender: formData.gender || 'MALE',
         address: formData.address.trim() || undefined,
         emergency_contact_name: formData.emergency_contact_name.trim() || undefined,
@@ -192,6 +194,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         phone: '',
         email: '',
         date_of_birth: '',
+        age: '',
         gender: 'MALE',
         address: '',
         emergency_contact_name: '',
@@ -266,13 +269,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
               <input
-                type="number"
-                value={formData.age || ''}
-                onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                type="text"
+                value={formData.age}
+                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter age"
-                min="0"
-                max="150"
+                placeholder="Enter age (e.g., 25, 30 years, 6 months)"
               />
             </div>
 
