@@ -45,8 +45,7 @@ const SimplePatientEntry: React.FC = () => {
     last_name: '',
     phone: '',
     email: '',
-    date_of_birth: '',
-    age: '',
+    age: 0,
     gender: 'MALE',
     address: '',
     emergency_contact_name: '',
@@ -316,26 +315,11 @@ const SimplePatientEntry: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
               <input
                 type="number"
-                value={formData.age}
+                value={formData.age || ''}
                 onChange={(e) => {
-                  const newAge = e.target.value;
-                  const newFormData = { 
-                    ...formData, 
-                    age: newAge,
-                    date_of_birth: newAge && !formData.date_of_birth ? calculateDOBFromAge(newAge) : formData.date_of_birth
-                  };
-                  setFormData(newFormData);
-                  
-                  // Validate age and DOB match
-                  if (newAge && formData.date_of_birth) {
-                    if (!validateAgeAndDOB(newAge, formData.date_of_birth)) {
-                      setAgeError('Age does not match Date of Birth. Please check your entries.');
-                    } else {
-                      setAgeError('');
-                    }
-                  } else {
-                    setAgeError('');
-                  }
+                  const newAge = parseInt(e.target.value) || 0;
+                  setFormData({ ...formData, age: newAge });
+                  setAgeError('');
                 }}
                 className={`w-full px-3 py-2 border ${ageError ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 ${ageError ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
                 placeholder="Enter age"
@@ -565,35 +549,6 @@ const SimplePatientEntry: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => {
-                  const newDOB = e.target.value;
-                  const calculatedAge = newDOB ? calculateAgeFromDOB(newDOB) : '';
-                  const newFormData = { 
-                    ...formData, 
-                    date_of_birth: newDOB,
-                    age: formData.age || calculatedAge // Keep manually entered age if exists
-                  };
-                  setFormData(newFormData);
-                  
-                  // Validate age and DOB match
-                  if (formData.age && newDOB) {
-                    if (!validateAgeAndDOB(formData.age, newDOB)) {
-                      setAgeError('Age does not match Date of Birth. Please check your entries.');
-                    } else {
-                      setAgeError('');
-                    }
-                  } else {
-                    setAgeError('');
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>

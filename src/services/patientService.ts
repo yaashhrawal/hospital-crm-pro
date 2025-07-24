@@ -7,7 +7,7 @@ export interface CreatePatientData {
   phone?: string;
   address?: string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
-  date_of_birth?: string;
+  age: number;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   email?: string;
@@ -30,7 +30,7 @@ export class PatientService {
         phone: patientData.phone?.trim() || '',
         address: patientData.address?.trim() || '',
         gender: patientData.gender || 'MALE',
-        date_of_birth: patientData.date_of_birth || null,
+        age: patientData.age,
         emergency_contact_name: patientData.emergency_contact_name?.trim() || '',
         emergency_contact_phone: patientData.emergency_contact_phone?.trim() || '',
         email: patientData.email?.trim() || null,

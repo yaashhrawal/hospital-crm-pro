@@ -13,8 +13,7 @@ export interface Patient {
   email?: string;
   phone: string;
   address: string;
-  dateOfBirth?: Date;
-  date_of_birth?: string;
+  age: number;
   gender: Gender;
   bloodGroup?: string;
   emergencyContact?: {

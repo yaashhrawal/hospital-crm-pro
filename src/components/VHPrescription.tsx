@@ -12,23 +12,6 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     window.print();
   };
 
-  const getAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return 'N/A';
-    try {
-      const today = new Date();
-      const birthDate = new Date(dateOfBirth);
-      if (isNaN(birthDate.getTime())) return 'N/A';
-      
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      return age;
-    } catch (error) {
-      return 'N/A';
-    }
-  };
 
   const getCurrentDate = () => {
     return new Date().toLocaleDateString('en-IN');
@@ -156,7 +139,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center justify-end">
               <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-base text-gray-900">
-                {getAge(patient.date_of_birth)} / {patient.gender}
+                {patient.age} / {patient.gender}
               </span>
             </div>
           </div>

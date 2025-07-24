@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS patients (
     patient_id TEXT UNIQUE NOT NULL,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
-    date_of_birth DATE NOT NULL,
+    age INTEGER NOT NULL CHECK (age >= 0 AND age <= 150),
     gender TEXT NOT NULL CHECK (gender IN ('MALE', 'FEMALE', 'OTHER')),
     phone TEXT NOT NULL,
     email TEXT,

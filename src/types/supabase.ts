@@ -28,7 +28,7 @@ export interface DatabaseTables {
     patient_id: string;
     first_name: string;
     last_name: string;
-    date_of_birth: string;
+    age: number;
     gender: 'MALE' | 'FEMALE' | 'OTHER';
     phone: string;
     email?: string;
