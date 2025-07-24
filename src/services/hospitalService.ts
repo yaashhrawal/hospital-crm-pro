@@ -219,6 +219,8 @@ export class HospitalService {
       }
       
       console.log('✅ Patient created successfully:', patient);
+      console.log('🎂 Age in returned patient data:', patient?.age, 'Type:', typeof patient?.age);
+      
       return patient as Patient;
       
     } catch (error: any) {
