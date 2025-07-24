@@ -143,13 +143,16 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
       const admissionData = {
         patient_id: patient.id,
         bed_number: formData.bed_number,
-        room_type: formData.room_type.toLowerCase(),
+        room_type: formData.room_type,
         department: formData.department,
         daily_rate: parseFloat(formData.daily_rate),
-        admission_date: new Date().toISOString().split('T')[0],
-        discharge_date: null,
-        status: 'active',
-        total_amount: 0
+        admission_date: new Date().toISOString(),
+        status: 'ACTIVE',
+        services: {},
+        total_amount: 0,
+        amount_paid: 0,
+        balance_amount: 0,
+        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
       console.log('📤 Inserting admission data:', admissionData);
