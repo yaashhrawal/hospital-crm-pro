@@ -142,17 +142,14 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
       // Create admission record using proper schema
       const admissionData = {
         patient_id: patient.id,
-        bed_id: bedRecord.id,
+        bed_number: formData.bed_number,
+        room_type: formData.room_type.toLowerCase(),
+        department: formData.department,
+        daily_rate: parseFloat(formData.daily_rate),
         admission_date: new Date().toISOString().split('T')[0],
-        expected_discharge_date: formData.expected_discharge || null,
-        admission_notes: formData.admission_notes || null,
-        status: 'ACTIVE',
-        total_amount: 0,
-        amount_paid: 0,
-        balance: 0,
-        admitted_by: currentUser.id,
-        services: {},
-        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
+        discharge_date: null,
+        status: 'active',
+        total_amount: 0
       };
 
       console.log('📤 Inserting admission data:', admissionData);
