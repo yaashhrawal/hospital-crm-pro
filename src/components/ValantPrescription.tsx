@@ -146,16 +146,16 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           </div>
 
           {/* Date and Age/Sex - Right Side */}
-          <div className="absolute top-72 right-12 space-y-2 print:right-12">
+          <div className="absolute top-72 right-0 mr-12 space-y-2 text-right">
             {/* Date */}
-            <div className="flex items-center">
-              <span className="w-20 text-sm font-medium text-gray-700">Date:</span>
+            <div className="flex items-center justify-end">
+              <span className="text-sm font-medium text-gray-700 mr-2">Date:</span>
               <span className="text-base text-gray-900">{getCurrentDate()}</span>
             </div>
 
             {/* Age/Sex */}
-            <div className="flex items-center">
-              <span className="w-20 text-sm font-medium text-gray-700">Age/Sex:</span>
+            <div className="flex items-center justify-end">
+              <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-base text-gray-900">
                 {getAge(patient.date_of_birth)} / {patient.gender}
               </span>
