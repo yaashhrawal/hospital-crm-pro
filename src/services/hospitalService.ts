@@ -186,7 +186,7 @@ export class HospitalService {
         phone: data.phone || '',
         email: data.email || null,
         date_of_birth: data.date_of_birth || null,
-        age: data.age || null,
+        age: data.age && data.age.trim() !== '' ? data.age : null,
         gender: data.gender || 'MALE',
         address: data.address || '',
         emergency_contact_name: data.emergency_contact_name || '',
@@ -203,6 +203,8 @@ export class HospitalService {
         hospital_id: HOSPITAL_ID
       };
       
+      console.log('🎂 Age from input data:', data.age, 'Type:', typeof data.age);
+      console.log('🎂 Age being stored:', patientData.age, 'Type:', typeof patientData.age);
       console.log('📤 Inserting patient:', patientData);
       
       const { data: patient, error } = await supabase
@@ -217,6 +219,8 @@ export class HospitalService {
       }
       
       console.log('✅ Patient created successfully:', patient);
+      console.log('🎂 Age in returned patient data:', patient?.age, 'Type:', typeof patient?.age);
+      
       return patient as Patient;
       
     } catch (error: any) {
@@ -288,6 +292,9 @@ export class HospitalService {
         console.error('❌ Get patient by ID error:', error);
         return null;
       }
+      
+      console.log('🔍 Raw patient data from database:', patient);
+      console.log('🎂 Age field in raw data:', patient?.age, 'Type:', typeof patient?.age);
       
       return patient as PatientWithRelations;
       

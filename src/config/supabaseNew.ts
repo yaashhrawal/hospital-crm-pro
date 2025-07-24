@@ -54,7 +54,7 @@ export interface Patient {
   patient_id: string; // Auto-generated P0001, P0002, etc.
   first_name: string;
   last_name: string;
-  age: number;
+  age: string | null; // User-entered age as string for flexibility
   gender: 'MALE' | 'FEMALE' | 'OTHER';
   phone: string;
   email?: string;
@@ -240,7 +240,7 @@ export interface CreatePatientData {
   first_name: string;
   last_name?: string;
   date_of_birth?: string;
-  age?: string; // Manual age entry as string to allow flexible formats
+  age?: string | null; // Manual age entry as string to allow flexible formats
   gender: 'MALE' | 'FEMALE' | 'OTHER';
   phone?: string;
   email?: string;

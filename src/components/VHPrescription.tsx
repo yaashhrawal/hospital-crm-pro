@@ -22,6 +22,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     console.log('🩺 VH Patient data for prescription:', patient);
     console.log('👨‍⚕️ VH Patient assigned_doctor field:', patient.assigned_doctor);
     console.log('🏥 VH Patient assigned_department field:', patient.assigned_department);
+    console.log('🎂 VH Patient age field:', patient.age, 'Type:', typeof patient.age);
     
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
     return getDoctorWithDegree(doctorName);
@@ -139,7 +140,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center justify-end">
               <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-base text-gray-900">
-                {patient.age !== undefined && patient.age !== null ? patient.age : 'N/A'} / {patient.gender}
+                {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}
               </span>
             </div>
           </div>

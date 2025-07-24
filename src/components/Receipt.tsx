@@ -200,23 +200,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
     window.print();
   };
 
-  const getAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return 'N/A';
-    try {
-      const today = new Date();
-      const birthDate = new Date(dateOfBirth);
-      if (isNaN(birthDate.getTime())) return 'N/A';
-      
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      return age;
-    } catch (error) {
-      return 'N/A';
-    }
-  };
+  // getAge function removed - now using stored patient.age field directly
 
   const convertNumberToWords = (num: number): string => {
     if (num === 0) return 'Zero';
@@ -416,7 +400,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p><strong>NAME:</strong> {patient.first_name} {patient.last_name}</p>
-                <p><strong>AGE/SEX:</strong> {getAge(patient.date_of_birth)} / {patient.gender}</p>
+                <p><strong>AGE/SEX:</strong> {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}</p>
                 <p><strong>MOBILE:</strong> {patient.phone || 'N/A'}</p>
               </div>
               <div>

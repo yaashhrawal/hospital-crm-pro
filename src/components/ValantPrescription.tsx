@@ -22,6 +22,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     console.log('🩺 Patient data for prescription:', patient);
     console.log('👨‍⚕️ Patient assigned_doctor field:', patient.assigned_doctor);
     console.log('🏥 Patient assigned_department field:', patient.assigned_department);
+    console.log('🎂 Patient age field:', patient.age, 'Type:', typeof patient.age);
     console.log('🔄 Database migration completed - using assigned_doctor column');
     
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
@@ -140,7 +141,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             <div className="flex items-center justify-end">
               <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-base text-gray-900">
-                {patient.age !== undefined && patient.age !== null ? patient.age : 'N/A'} / {patient.gender}
+                {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}
               </span>
             </div>
           </div>
