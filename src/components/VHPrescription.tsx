@@ -92,21 +92,21 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
         >
           {/* Doctor Name - Bottom Right above signature */}
           <div className="absolute bottom-72 right-8 text-right">
-            <div className="font-bold text-4xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+            <div className="font-bold text-5xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
             </div>
             {getDoctorInfo().degree && (
-              <div className="text-xl mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+              <div className="text-2xl mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
                 {getDoctorInfo().degree}
               </div>
             )}
-            <div className="text-xl mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+            <div className="text-2xl mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDepartmentName()}
             </div>
           </div>
 
-          {/* Patient Details - Upper Side */}
-          <div className="absolute top-32 left-12 space-y-3">
+          {/* Patient Details - Just after black line */}
+          <div className="absolute top-56 left-12 space-y-3">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
@@ -129,7 +129,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Date and Age/Sex - Right Side aligned with patient details */}
-          <div className="absolute top-32 right-0 mr-12 space-y-3 text-right">
+          <div className="absolute top-56 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
               <span className="text-lg font-medium text-gray-700 mr-2">Date:</span>
