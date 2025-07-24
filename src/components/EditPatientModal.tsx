@@ -20,8 +20,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [formData, setFormData] = useState({
     first_name: patient.first_name,
     last_name: patient.last_name,
-    date_of_birth: patient.date_of_birth,
-    age: patient.age || '',
+    age: patient.age || 0,
     gender: patient.gender,
     phone: patient.phone,
     email: patient.email || '',
@@ -35,57 +34,11 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     notes: patient.notes || '',
   });
 
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    
-    return age;
-  };
-
-  const validateAge = (dob: string, age: string) => {
-    if (!dob || !age) return true;
-    const calculatedAge = calculateAge(dob);
-    const enteredAge = parseInt(age);
-    return Math.abs(calculatedAge - enteredAge) <= 1; // Allow 1 year difference for precision
-  };
-
-  const handleDateOfBirthChange = (newDob: string) => {
-    setFormData(prev => {
-      const calculatedAge = calculateAge(newDob);
-      return {
-        ...prev,
-        date_of_birth: newDob,
-        age: calculatedAge.toString()
-      };
-    });
-  };
-
-  const handleAgeChange = (newAge: string) => {
-    setFormData(prev => ({
-      ...prev,
-      age: newAge
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate age and DOB match
-    if (!validateAge(formData.date_of_birth, formData.age)) {
-      toast.error('Date of birth does not match with the entered age');
-      return;
-    }
-
-    if (!formData.first_name || !formData.last_name || !formData.phone || !formData.address) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    // No validation required - all fields optional
 
     setLoading(true);
 
@@ -93,8 +46,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       const updateData = {
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
-        date_of_birth: formData.date_of_birth,
-        age: parseInt(formData.age) || null,
+        age: parseInt(formData.age.toString()) || 0,
         gender: formData.gender,
         phone: formData.phone.trim(),
         email: formData.email.trim() || null,
@@ -153,75 +105,51 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name *
+                  First Name
                 </label>
                 <input
                   type="text"
                   value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name *
+                  Last Name
                 </label>
                 <input
                   type="text"
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date of Birth *
-                </label>
-                <input
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => handleDateOfBirthChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Age *
+                  Age
                 </label>
                 <input
                   type="number"
-                  value={formData.age}
-                  onChange={(e) => handleAgeChange(e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    validateAge(formData.date_of_birth, formData.age)
-                      ? 'border-gray-300 focus:ring-blue-500'
-                      : 'border-red-500 focus:ring-red-500'
-                  }`}
+                  value={formData.age || ''}
+                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="0"
-                  max="120"
-                  required
+                  max="150"
                 />
-                {!validateAge(formData.date_of_birth, formData.age) && (
-                  <p className="text-red-500 text-sm mt-1">Age does not match date of birth</p>
-                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gender *
-                </label>
+                  Gender                </label>
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
+                                  >
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
                   <option value="OTHER">Other</option>
@@ -257,15 +185,13 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number *
-                </label>
+                  Phone Number                </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                                  />
               </div>
 
               <div>
@@ -282,15 +208,13 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
 
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address *
-                </label>
+                  Address                </label>
                 <textarea
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows={2}
-                  required
-                />
+                                  />
               </div>
             </div>
           </div>
@@ -301,28 +225,24 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Emergency Contact Name *
-                </label>
+                  Emergency Contact Name                </label>
                 <input
                   type="text"
                   value={formData.emergency_contact_name}
                   onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                                  />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Emergency Contact Phone *
-                </label>
+                  Emergency Contact Phone                </label>
                 <input
                   type="tel"
                   value={formData.emergency_contact_phone}
                   onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                                  />
               </div>
             </div>
           </div>
