@@ -239,7 +239,8 @@ export interface BedAvailability {
 export interface CreatePatientData {
   first_name: string;
   last_name?: string;
-  age: number;
+  date_of_birth?: string;
+  age?: string; // Manual age entry as string to allow flexible formats
   gender: 'MALE' | 'FEMALE' | 'OTHER';
   phone?: string;
   email?: string;
