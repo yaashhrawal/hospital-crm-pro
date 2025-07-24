@@ -92,15 +92,15 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
         >
           {/* Doctor Name - Top Right for Valant */}
           <div className="absolute top-12 right-12 text-right">
-            <div className="text-violet-800 font-bold text-lg uppercase">
+            <div className="text-black font-bold text-2xl uppercase font-sans">
               {getDoctorInfo().name}
             </div>
             {getDoctorInfo().degree && (
-              <div className="text-violet-600 text-base mt-1 font-medium">
+              <div className="text-black text-lg mt-1 font-medium font-sans">
                 {getDoctorInfo().degree}
               </div>
             )}
-            <div className="text-violet-700 text-sm mt-1">
+            <div className="text-black text-lg mt-1 font-sans">
               {getDepartmentName()}
             </div>
           </div>
