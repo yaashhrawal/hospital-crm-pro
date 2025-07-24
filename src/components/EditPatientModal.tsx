@@ -18,15 +18,15 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    first_name: patient.first_name,
-    last_name: patient.last_name,
+    first_name: patient.first_name || '',
+    last_name: patient.last_name || '',
     age: patient.age || 0,
-    gender: patient.gender,
-    phone: patient.phone,
+    gender: patient.gender || 'MALE',
+    phone: patient.phone || '',
     email: patient.email || '',
-    address: patient.address,
-    emergency_contact_name: patient.emergency_contact_name,
-    emergency_contact_phone: patient.emergency_contact_phone,
+    address: patient.address || '',
+    emergency_contact_name: patient.emergency_contact_name || '',
+    emergency_contact_phone: patient.emergency_contact_phone || '',
     blood_group: patient.blood_group || '',
     medical_history: patient.medical_history || '',
     allergies: patient.allergies || '',
