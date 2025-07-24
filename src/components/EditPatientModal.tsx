@@ -57,9 +57,11 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         medical_history: formData.medical_history || null,
         allergies: formData.allergies || null,
         current_medications: formData.current_medications || null,
-        notes: formData.notes || null,
-        updated_at: new Date().toISOString()
+        notes: formData.notes || null
       };
+
+      console.log('Updating patient with data:', updateData);
+      console.log('Patient ID:', patient.id);
 
       const { error } = await supabase
         .from('patients')
@@ -68,9 +70,12 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
 
       if (error) {
         console.error('Error updating patient:', error);
-        toast.error('Failed to update patient');
+        console.error('Error details:', error.message, error.details, error.hint);
+        toast.error(`Failed to update patient: ${error.message}`);
         return;
       }
+
+      console.log('Patient updated successfully');
 
       toast.success('Patient updated successfully');
       onPatientUpdated();
