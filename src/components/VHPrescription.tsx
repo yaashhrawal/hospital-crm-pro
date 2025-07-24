@@ -85,7 +85,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           id="prescription-content" 
           className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[297mm] print:h-[420mm]"
           style={{ 
-            backgroundImage: 'url(/vh-prescription-template.png)',
+            backgroundImage: 'url(/vh-prescription-template.jpg)',
             backgroundSize: '100% 100%',
             backgroundPosition: 'center'
           }}
