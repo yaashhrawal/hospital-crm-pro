@@ -152,8 +152,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           amount: originalConsultationFee, // Store ORIGINAL amount, not discounted
           payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
           status: 'COMPLETED',
-          doctor_name: formData.selected_doctor || undefined,
-          department: formData.selected_department || undefined
+          doctor_name: formData.selected_doctor || undefined
         });
 
         // If there's a discount, add a separate discount transaction
@@ -165,8 +164,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
             amount: -discountAmount, // Negative amount for discount
             payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
             status: 'COMPLETED',
-            doctor_name: formData.selected_doctor || undefined,
-            department: formData.selected_department || undefined
+            doctor_name: formData.selected_doctor || undefined
           });
         }
       }

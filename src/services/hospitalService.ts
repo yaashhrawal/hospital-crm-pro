@@ -193,9 +193,6 @@ export class HospitalService {
         blood_group: data.blood_group || null,
         medical_history: data.medical_history || null,
         allergies: data.allergies || null,
-        // Doctor and Department information
-        doctor: data.doctor || null,
-        department: data.department || null,
         // Reference information
         has_reference: data.has_reference || false,
         reference_details: data.reference_details || null,
@@ -321,7 +318,7 @@ export class HospitalService {
         amount: data.amount,
         payment_mode: data.payment_mode,
         doctor_id: data.doctor_id || null,
-        department: data.department || null,
+        doctor_name: data.doctor_name || null,
         status: data.status || 'COMPLETED',
         transaction_reference: data.transaction_reference || null
       };
