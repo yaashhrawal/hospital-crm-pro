@@ -90,8 +90,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             backgroundPosition: 'center'
           }}
         >
-          {/* Doctor Name - Bottom Left above signature */}
-          <div className="absolute bottom-32 left-16 text-left">
+          {/* Doctor Name - Bottom Right above signature */}
+          <div className="absolute bottom-48 right-16 text-right">
             <div className="font-bold text-3xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
             </div>
