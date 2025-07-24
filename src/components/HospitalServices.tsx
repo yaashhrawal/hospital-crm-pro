@@ -60,8 +60,9 @@ const HospitalServices: React.FC = () => {
   const loadRecentOrders = async () => {
     try {
       const { data, error } = await supabase
-        .from('service_orders')
+        .from('patient_transactions')
         .select('*, patient:patients(first_name, last_name, patient_id)')
+        .eq('transaction_type', 'service')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -185,23 +186,14 @@ const HospitalServices: React.FC = () => {
         notes: orderNotes
       };
 
-      // Save order to database
-      const { data: order, error } = await supabase
-        .from('service_orders')
-        .insert([orderData])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Create transaction entry
+      // Create transaction entry directly (no service_orders table)
       const transactionData = {
         patient_id: selectedPatient.id,
-        transaction_type: 'SERVICE_ORDER',
+        transaction_type: 'service',
         amount: netAmount,
-        payment_mode: paymentMode,
-        description: `Medical Services - Order #${order.id}`,
-        status: 'COMPLETED',
+        payment_mode: paymentMode.toLowerCase(),
+        department: 'Medical Services',
+        description: `Medical Services - ${serviceCart.map(s => s.serviceName).join(', ')}`,
         created_at: new Date().toISOString()
       };
 
@@ -623,13 +615,13 @@ const HospitalServices: React.FC = () => {
                         Patient
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Services
+                        Description
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Amount
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        Payment Mode
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Date
@@ -647,23 +639,18 @@ const HospitalServices: React.FC = () => {
                           <div className="text-xs text-gray-500">ID: {order.patient?.patient_id}</div>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {order.services?.length || 0} service(s)
+                          {order.description}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ₹{order.netAmount?.toLocaleString() || '0'}
+                          ₹{order.amount?.toLocaleString() || '0'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            order.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                            order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {order.status}
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            {order.payment_mode?.toUpperCase()}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(order.orderedAt || order.created_at).toLocaleDateString('en-IN')}
+                          {new Date(order.created_at).toLocaleDateString('en-IN')}
                         </td>
                       </tr>
                     ))}
