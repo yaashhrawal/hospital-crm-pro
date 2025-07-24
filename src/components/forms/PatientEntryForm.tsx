@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 
 // Validation schema
 const patientEntrySchema = z.object({
+  prefix: z.enum(['Mr', 'Mrs', 'Ms', 'Dr', 'Prof']),
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
   last_name: z.string().min(2, 'Last name must be at least 2 characters'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
@@ -118,6 +119,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
     try {
       // Step 1: Create Patient
       const patientData = {
+        prefix: data.prefix,
         first_name: data.first_name,
         last_name: data.last_name,
         date_of_birth: data.date_of_birth,
@@ -286,7 +288,21 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         {/* Patient Basic Information */}
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Patient Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prefix *</label>
+              <select
+                {...register('prefix')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Mr">Mr</option>
+                <option value="Mrs">Mrs</option>
+                <option value="Ms">Ms</option>
+                <option value="Dr">Dr</option>
+                <option value="Prof">Prof</option>
+              </select>
+              {errors.prefix && <p className="text-red-500 text-xs mt-1">{errors.prefix.message}</p>}
+            </div>
             <div>
               <Input
                 label="First Name *"
@@ -303,6 +319,9 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                 placeholder="Enter last name"
               />
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
               <Input
                 label="Date of Birth *"
