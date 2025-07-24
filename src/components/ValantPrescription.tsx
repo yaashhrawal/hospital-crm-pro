@@ -123,7 +123,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           </div>
 
           {/* Patient Details - Left Side */}
-          <div className="absolute top-40 left-12 space-y-2">
+          <div className="absolute top-72 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
@@ -146,7 +146,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           </div>
 
           {/* Date and Age/Sex - Right Side */}
-          <div className="absolute top-40 right-12 space-y-2">
+          <div className="absolute top-72 right-12 space-y-2">
             {/* Date */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Date:</span>

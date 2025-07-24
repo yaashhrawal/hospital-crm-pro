@@ -122,7 +122,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Patient Details - Left Side moved further down */}
-          <div className="absolute top-60 left-12 space-y-2">
+          <div className="absolute top-80 left-12 space-y-2">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
@@ -145,7 +145,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Date and Age/Sex - Right Side aligned with patient details */}
-          <div className="absolute top-60 right-12 space-y-2">
+          <div className="absolute top-80 right-12 space-y-2">
             {/* Date */}
             <div className="flex items-center">
               <span className="w-20 text-sm font-medium text-gray-700">Date:</span>
