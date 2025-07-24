@@ -69,8 +69,12 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               position: absolute;
               left: 0;
               top: 0;
-              width: 100%;
-              height: 100%;
+              width: 210mm;
+              height: 297mm;
+            }
+            #prescription-content > div {
+              width: 210mm;
+              height: 297mm;
             }
           }
         `
@@ -96,11 +100,12 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
         {/* Prescription Content */}
         <div 
           id="prescription-content" 
-          className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:h-screen"
+          className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[210mm] print:h-[297mm]"
           style={{ 
             backgroundImage: 'url(/valant-prescription-template.png)',
-            backgroundSize: 'contain',
-            backgroundPosition: 'center top'
+            backgroundSize: '100% 100%',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
           }}
         >
           {/* Doctor Name - Top Right for Valant */}
