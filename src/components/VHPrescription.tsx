@@ -92,15 +92,15 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
         >
           {/* Doctor Name - Left Side above black line */}
           <div className="absolute top-48 left-16 text-left">
-            <div className="font-bold text-3xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#FFCB05' }}>
+            <div className="font-bold text-3xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
             </div>
             {getDoctorInfo().degree && (
-              <div className="text-lg mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#FFCB05' }}>
+              <div className="text-lg mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
                 {getDoctorInfo().degree}
               </div>
             )}
-            <div className="text-lg mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#FFCB05' }}>
+            <div className="text-lg mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDepartmentName()}
             </div>
           </div>
