@@ -55,9 +55,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         emergency_contact_phone: (formData.emergency_contact_phone || '').trim(),
         blood_group: formData.blood_group || null,
         medical_history: formData.medical_history || null,
-        allergies: formData.allergies || null,
-        current_medications: formData.current_medications || null,
-        notes: formData.notes || null
+        allergies: formData.allergies || null
       };
 
       console.log('Updating patient with data:', updateData);
