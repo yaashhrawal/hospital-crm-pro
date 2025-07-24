@@ -20,7 +20,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [formData, setFormData] = useState({
     first_name: patient.first_name || '',
     last_name: patient.last_name || '',
-    age: patient.age || 0,
+    age: patient.age || '',
     gender: patient.gender || 'MALE',
     phone: patient.phone || '',
     email: patient.email || '',
@@ -46,7 +46,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       const updateData = {
         first_name: (formData.first_name || '').trim(),
         last_name: (formData.last_name || '').trim(),
-        age: typeof formData.age === 'number' ? formData.age : (parseInt(formData.age) || 0),
+        age: formData.age && formData.age.trim() !== '' ? formData.age.trim() : null,
         gender: formData.gender || 'MALE',
         phone: (formData.phone || '').trim(),
         email: (formData.email || '').trim() || null,
@@ -136,12 +136,11 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                   Age
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.age || ''}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  max="150"
+                  placeholder="Enter age (e.g., 25, 30 years, 6 months)"
                 />
               </div>
 
