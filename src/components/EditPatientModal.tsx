@@ -58,13 +58,17 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         allergies: formData.allergies || null
       };
 
+      console.log('🎂 Age from form data:', formData.age, 'Type:', typeof formData.age);
+      console.log('🎂 Age in updateData:', updateData.age, 'Type:', typeof updateData.age);
       console.log('Updating patient with data:', updateData);
       console.log('Patient ID:', patient.id);
 
-      const { error } = await supabase
+      const { data: updatedPatient, error } = await supabase
         .from('patients')
         .update(updateData)
-        .eq('id', patient.id);
+        .eq('id', patient.id)
+        .select()
+        .single();
 
       if (error) {
         console.error('Error updating patient:', error);
@@ -74,6 +78,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       }
 
       console.log('Patient updated successfully');
+      console.log('🎂 Age in updated patient:', updatedPatient?.age, 'Type:', typeof updatedPatient?.age);
 
       toast.success('Patient updated successfully');
       onPatientUpdated();
