@@ -92,54 +92,54 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
         >
           {/* Doctor Name - Bottom Right above signature */}
           <div className="absolute bottom-72 right-8 text-right">
-            <div className="font-bold text-3xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+            <div className="font-bold text-4xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
             </div>
             {getDoctorInfo().degree && (
-              <div className="text-lg mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+              <div className="text-xl mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
                 {getDoctorInfo().degree}
               </div>
             )}
-            <div className="text-lg mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+            <div className="text-xl mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDepartmentName()}
             </div>
           </div>
 
-          {/* Patient Details - Left Side moved further down */}
-          <div className="absolute top-80 left-12 space-y-2">
+          {/* Patient Details - Upper Side */}
+          <div className="absolute top-32 left-12 space-y-3">
             {/* Name */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
-              <span className="text-base font-medium text-gray-900">
+              <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
+              <span className="text-xl font-medium text-gray-900">
                 {patient.first_name} {patient.last_name}
               </span>
             </div>
 
             {/* Patient No */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Patient No:</span>
-              <span className="text-base text-gray-900">{patient.patient_id}</span>
+              <span className="w-32 text-lg font-medium text-gray-700">Patient No:</span>
+              <span className="text-xl text-gray-900">{patient.patient_id}</span>
             </div>
 
             {/* Department */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
-              <span className="text-base text-gray-900">{getDepartmentName()}</span>
+              <span className="w-32 text-lg font-medium text-gray-700">Department:</span>
+              <span className="text-xl text-gray-900">{getDepartmentName()}</span>
             </div>
           </div>
 
           {/* Date and Age/Sex - Right Side aligned with patient details */}
-          <div className="absolute top-80 right-0 mr-12 space-y-2 text-right">
+          <div className="absolute top-32 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
-              <span className="text-sm font-medium text-gray-700 mr-2">Date:</span>
-              <span className="text-base text-gray-900">{getCurrentDate()}</span>
+              <span className="text-lg font-medium text-gray-700 mr-2">Date:</span>
+              <span className="text-xl text-gray-900">{getCurrentDate()}</span>
             </div>
 
             {/* Age/Sex */}
             <div className="flex items-center justify-end">
-              <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
-              <span className="text-base text-gray-900">
+              <span className="text-lg font-medium text-gray-700 mr-2">Age/Sex:</span>
+              <span className="text-xl text-gray-900">
                 {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}
               </span>
             </div>
