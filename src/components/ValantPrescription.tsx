@@ -140,7 +140,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             <div className="flex items-center justify-end">
               <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-base text-gray-900">
-                {patient.age || 'N/A'} / {patient.gender}
+                {patient.age !== undefined && patient.age !== null ? patient.age : 'N/A'} / {patient.gender}
               </span>
             </div>
           </div>
