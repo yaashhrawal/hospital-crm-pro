@@ -22,6 +22,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     console.log('🩺 VH Patient data for prescription:', patient);
     console.log('👨‍⚕️ VH Patient assigned_doctor field:', patient.assigned_doctor);
     console.log('🏥 VH Patient assigned_department field:', patient.assigned_department);
+    console.log('🎂 VH Patient age field:', patient.age, 'Type:', typeof patient.age);
     
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
     return getDoctorWithDegree(doctorName);

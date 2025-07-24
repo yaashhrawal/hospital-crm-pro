@@ -203,6 +203,8 @@ export class HospitalService {
         hospital_id: HOSPITAL_ID
       };
       
+      console.log('🎂 Age from input data:', data.age, 'Type:', typeof data.age);
+      console.log('🎂 Age being stored:', patientData.age, 'Type:', typeof patientData.age);
       console.log('📤 Inserting patient:', patientData);
       
       const { data: patient, error } = await supabase
