@@ -52,6 +52,7 @@ export interface User {
 export interface Patient {
   id: string;
   patient_id: string; // Auto-generated P0001, P0002, etc.
+  prefix?: 'Mr' | 'Mrs' | 'Ms' | 'Dr' | 'Prof';
   first_name: string;
   last_name: string;
   age: string | null; // User-entered age as string for flexibility
@@ -237,6 +238,7 @@ export interface BedAvailability {
 
 // CREATE PATIENT DATA TYPE
 export interface CreatePatientData {
+  prefix?: 'Mr' | 'Mrs' | 'Ms' | 'Dr' | 'Prof';
   first_name: string;
   last_name?: string;
   date_of_birth?: string;
