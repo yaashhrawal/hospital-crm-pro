@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS patient_transactions (
     amount NUMERIC(10,2) NOT NULL,
     payment_mode TEXT NOT NULL CHECK (payment_mode IN ('cash', 'online', 'card', 'upi', 'insurance', 'adjustment')),
     doctor_id TEXT,
+    doctor_name TEXT,
     department TEXT NOT NULL,
     description TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
