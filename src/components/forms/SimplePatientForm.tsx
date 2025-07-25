@@ -107,9 +107,9 @@ export const SimplePatientForm: React.FC<SimplePatientFormProps> = ({
             {...register('gender')}
             className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
           >
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
+            <option value="M">M</option>
+            <option value="F">F</option>
+            <option value="OTHER">Other</option>
           </select>
         </div>
         <Input

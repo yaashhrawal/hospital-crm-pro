@@ -1,5 +1,5 @@
 // Core types
-export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
+export type Gender = 'M' | 'F' | 'OTHER';
 export type UserRole = 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF' | 'admin' | 'doctor' | 'staff';
 export type PaymentMode = 'cash' | 'online' | 'card' | 'upi' | 'insurance' | 'adjustment';
 export type TransactionType = 'entry_fee' | 'consultation' | 'service' | 'admission' | 'medicine' | 'discount' | 'refund';
