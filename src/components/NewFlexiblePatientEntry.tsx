@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
-import type { CreatePatientData, CreateTransactionData } from '../config/supabaseNew';
+import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
 
 // Doctors and Departments data
 const DOCTORS_DATA = [
@@ -41,9 +41,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
     current_medications: '',
     has_reference: 'NO',
     reference_details: '',
-    // Doctor and Department
+    // Doctor and Department (single selection for backward compatibility)
     selected_department: '',
     selected_doctor: '',
+    // Multiple doctors selection
+    consultation_mode: 'single', // 'single' or 'multiple'
     // Transaction data
     consultation_fee: 0,
     discount_percentage: 0,
@@ -55,6 +57,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
   const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
+  
+  // Multiple doctors state
+  const [selectedDoctors, setSelectedDoctors] = useState<AssignedDoctor[]>([]);
+  const [tempDepartment, setTempDepartment] = useState('');
+  const [tempDoctor, setTempDoctor] = useState('');
+  const [tempFee, setTempFee] = useState<number>(0);
 
   useEffect(() => {
     testConnection();
@@ -73,6 +81,71 @@ const NewFlexiblePatientEntry: React.FC = () => {
       setFilteredDoctors(DOCTORS_DATA);
     }
   }, [formData.selected_department]);
+
+  // Filter doctors for multiple selection based on temp department
+  React.useEffect(() => {
+    if (tempDepartment) {
+      const filtered = DOCTORS_DATA.filter(doc => doc.department === tempDepartment);
+      setFilteredDoctors(filtered);
+      if (tempDoctor && !filtered.find(doc => doc.name === tempDoctor)) {
+        setTempDoctor('');
+      }
+    } else {
+      setFilteredDoctors(DOCTORS_DATA);
+    }
+  }, [tempDepartment]);
+
+  // Multiple doctors management functions
+  const addDoctor = () => {
+    if (!tempDoctor || !tempDepartment) {
+      toast.error('Please select both department and doctor');
+      return;
+    }
+
+    if (tempFee <= 0) {
+      toast.error('Please enter a valid consultation fee');
+      return;
+    }
+
+    // Check if doctor already selected
+    if (selectedDoctors.some(doc => doc.name === tempDoctor)) {
+      toast.error('This doctor is already selected');
+      return;
+    }
+
+    const newDoctor: AssignedDoctor = {
+      name: tempDoctor,
+      department: tempDepartment,
+      consultationFee: tempFee,
+      isPrimary: selectedDoctors.length === 0 // First doctor is primary
+    };
+
+    setSelectedDoctors(prev => [...prev, newDoctor]);
+    setTempDoctor('');
+    setTempDepartment('');
+    setTempFee(0);
+    toast.success(`${tempDoctor} added successfully with fee ₹${tempFee}`);
+  };
+
+  const removeDoctor = (doctorName: string) => {
+    setSelectedDoctors(prev => {
+      const updated = prev.filter(doc => doc.name !== doctorName);
+      // If we removed the primary doctor, make the first remaining doctor primary
+      if (updated.length > 0 && !updated.some(doc => doc.isPrimary)) {
+        updated[0].isPrimary = true;
+      }
+      return updated;
+    });
+  };
+
+  const setPrimaryDoctor = (doctorName: string) => {
+    setSelectedDoctors(prev => 
+      prev.map(doc => ({
+        ...doc,
+        isPrimary: doc.name === doctorName
+      }))
+    );
+  };
 
   const testConnection = async () => {
     try {
@@ -122,9 +195,16 @@ const NewFlexiblePatientEntry: React.FC = () => {
         // Reference information
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
-        // Doctor and Department assignment
-        assigned_doctor: formData.selected_doctor || undefined,
-        assigned_department: formData.selected_department || undefined,
+        // Doctor and Department assignment (backward compatibility + multiple doctors)
+        assigned_doctor: formData.consultation_mode === 'single' 
+          ? formData.selected_doctor || undefined 
+          : selectedDoctors.find(doc => doc.isPrimary)?.name || selectedDoctors[0]?.name || undefined,
+        assigned_department: formData.consultation_mode === 'single'
+          ? formData.selected_department || undefined
+          : selectedDoctors.find(doc => doc.isPrimary)?.department || selectedDoctors[0]?.department || undefined,
+        assigned_doctors: formData.consultation_mode === 'multiple' && selectedDoctors.length > 0 
+          ? selectedDoctors 
+          : undefined,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
@@ -136,40 +216,61 @@ const NewFlexiblePatientEntry: React.FC = () => {
       // Create transactions if amounts specified
       const transactions = [];
 
-      // Calculate discount amount from percentage
-      const originalConsultationFee = formData.consultation_fee;
-      const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
-      const finalAmount = originalConsultationFee - discountAmount;
+      if (formData.consultation_mode === 'single') {
+        // Single doctor consultation - original logic
+        const originalConsultationFee = formData.consultation_fee;
+        const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
+        const finalAmount = originalConsultationFee - discountAmount;
 
-      console.log('🧮 Billing calculation:');
-      console.log('- Original consultation fee:', originalConsultationFee);
-      console.log('- Discount percentage:', formData.discount_percentage + '%');
-      console.log('- Discount amount:', discountAmount);
-      console.log('- Final amount:', finalAmount);
+        console.log('🧮 Single Doctor Billing calculation:');
+        console.log('- Original consultation fee:', originalConsultationFee);
+        console.log('- Discount percentage:', formData.discount_percentage + '%');
+        console.log('- Discount amount:', discountAmount);
+        console.log('- Final amount:', finalAmount);
 
-      if (originalConsultationFee > 0) {
-        // Store the ORIGINAL consultation fee (not discounted amount)
-        transactions.push({
-          patient_id: newPatient.id,
-          transaction_type: 'CONSULTATION', 
-          description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
-          amount: originalConsultationFee, // Store ORIGINAL amount, not discounted
-          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-          status: 'COMPLETED',
-          doctor_name: formData.selected_doctor || undefined
-        });
-
-        // If there's a discount, add a separate discount transaction
-        if (formData.discount_percentage > 0 && discountAmount > 0) {
+        if (originalConsultationFee > 0) {
           transactions.push({
             patient_id: newPatient.id,
-            transaction_type: 'DISCOUNT',
-            description: `Consultation Discount (${formData.discount_percentage}%)${formData.discount_reason ? ` - ${formData.discount_reason}` : ''}`,
-            amount: -discountAmount, // Negative amount for discount
+            transaction_type: 'CONSULTATION', 
+            description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
+            amount: finalAmount, // Store FINAL amount after discount
             payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
             status: 'COMPLETED',
             doctor_name: formData.selected_doctor || undefined
           });
+        }
+      } else {
+        // Multiple doctors consultation - new logic
+        const totalOriginalFee = selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0);
+        const totalDiscountAmount = totalOriginalFee * (formData.discount_percentage / 100);
+        const totalFinalAmount = totalOriginalFee - totalDiscountAmount;
+
+        console.log('🧮 Multiple Doctors Billing calculation:');
+        console.log('- Total original consultation fees:', totalOriginalFee);
+        console.log('- Discount percentage:', formData.discount_percentage + '%');
+        console.log('- Total discount amount:', totalDiscountAmount);
+        console.log('- Total final amount:', totalFinalAmount);
+
+        // Create separate transaction for each doctor
+        if (selectedDoctors.length > 0 && totalOriginalFee > 0) {
+          for (const doctor of selectedDoctors) {
+            const doctorFee = doctor.consultationFee || 0;
+            if (doctorFee > 0) {
+              // Calculate proportional discount for this doctor
+              const doctorDiscountAmount = (doctorFee / totalOriginalFee) * totalDiscountAmount;
+              const doctorFinalAmount = doctorFee - doctorDiscountAmount;
+
+              transactions.push({
+                patient_id: newPatient.id,
+                transaction_type: 'CONSULTATION',
+                description: `Consultation Fee - ${doctor.name} (${doctor.department}) | Original: ₹${doctorFee} | Discount: ${formData.discount_percentage}% (₹${doctorDiscountAmount.toFixed(2)}) | Net: ₹${doctorFinalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
+                amount: doctorFinalAmount, // Store FINAL amount after proportional discount
+                payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
+                status: 'COMPLETED',
+                doctor_name: doctor.name
+              });
+            }
+          }
         }
       }
 
@@ -179,13 +280,21 @@ const NewFlexiblePatientEntry: React.FC = () => {
         await HospitalService.createTransaction(transactionData as CreateTransactionData);
       }
 
-      const totalAmount = finalAmount; // Use the calculated final amount
+      // Calculate total amount based on consultation mode
+      const totalAmount = formData.consultation_mode === 'single' 
+        ? formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))
+        : selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) - 
+          (selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) * (formData.discount_percentage / 100));
       
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
       } else {
-        const doctorInfo = formData.selected_doctor ? ` - ${formData.selected_doctor}` : '';
-        const deptInfo = formData.selected_department ? ` (${formData.selected_department})` : '';
+        const doctorInfo = formData.consultation_mode === 'single' 
+          ? (formData.selected_doctor ? ` - ${formData.selected_doctor}` : '')
+          : (selectedDoctors.length > 0 ? ` - ${selectedDoctors.length} doctors assigned` : '');
+        const deptInfo = formData.consultation_mode === 'single'
+          ? (formData.selected_department ? ` (${formData.selected_department})` : '')
+          : '';
         toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name}${doctorInfo}${deptInfo} - Total: ₹${totalAmount.toFixed(2)}`);
       }
       
@@ -209,12 +318,18 @@ const NewFlexiblePatientEntry: React.FC = () => {
         reference_details: '',
         selected_department: '',
         selected_doctor: '',
+        consultation_mode: 'single',
         consultation_fee: 0,
         discount_percentage: 0,
         discount_reason: '',
         payment_mode: 'CASH',
         online_payment_method: 'UPI',
       });
+
+      // Reset multiple doctors selection
+      setSelectedDoctors([]);
+      setTempDepartment('');
+      setTempDoctor('');
 
     } catch (error: any) {
       console.error('🚨 Patient creation failed:', error);
@@ -447,44 +562,206 @@ const NewFlexiblePatientEntry: React.FC = () => {
         {/* Doctor and Department Assignment */}
         <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
           <h3 className="text-lg font-semibold text-purple-800 mb-4">👩‍⚕️ Doctor & Department Assignment</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <select
-                value={formData.selected_department}
-                onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">Select Department</option>
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-              <select
-                value={formData.selected_doctor}
-                onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={!formData.selected_department}
-              >
-                <option value="">Select Doctor</option>
-                {filteredDoctors.map((doctor) => (
-                  <option key={doctor.name} value={doctor.name}>
-                    {doctor.name}
-                  </option>
-                ))}
-              </select>
+          
+          {/* Consultation Mode Toggle */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Consultation Mode</label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="consultation_mode"
+                  value="single"
+                  checked={formData.consultation_mode === 'single'}
+                  onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
+                  className="mr-2"
+                />
+                <span className="text-sm">👨‍⚕️ Single Doctor</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="consultation_mode"
+                  value="multiple"
+                  checked={formData.consultation_mode === 'multiple'}
+                  onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
+                  className="mr-2"
+                />
+                <span className="text-sm">👨‍⚕️👩‍⚕️ Multiple Doctors</span>
+              </label>
             </div>
           </div>
-          {formData.selected_department && (
-            <div className="mt-2 text-sm text-purple-600">
-              💡 Department: <strong>{formData.selected_department}</strong>
-              {formData.selected_doctor && (
-                <span> • Doctor: <strong>{formData.selected_doctor}</strong></span>
+
+          {formData.consultation_mode === 'single' ? (
+            /* Single Doctor Selection */
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select
+                    value={formData.selected_department}
+                    onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select Department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+                  <select
+                    value={formData.selected_doctor}
+                    onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={!formData.selected_department}
+                  >
+                    <option value="">Select Doctor</option>
+                    {filteredDoctors.map((doctor) => (
+                      <option key={doctor.name} value={doctor.name}>
+                        {doctor.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {formData.selected_department && (
+                <div className="mt-2 text-sm text-purple-600">
+                  💡 Department: <strong>{formData.selected_department}</strong>
+                  {formData.selected_doctor && (
+                    <span> • Doctor: <strong>{formData.selected_doctor}</strong></span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Multiple Doctors Selection */
+            <div className="space-y-4">
+              {/* Add Doctor Form */}
+              <div className="bg-white p-4 rounded-lg border border-purple-200">
+                <h4 className="text-md font-semibold text-purple-700 mb-3">➕ Add Doctor</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <select
+                      value={tempDepartment}
+                      onChange={(e) => setTempDepartment(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="">Select Department</option>
+                      {DEPARTMENTS.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+                    <select
+                      value={tempDoctor}
+                      onChange={(e) => setTempDoctor(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled={!tempDepartment}
+                    >
+                      <option value="">Select Doctor</option>
+                      {filteredDoctors.map((doctor) => (
+                        <option key={doctor.name} value={doctor.name}>
+                          {doctor.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
+                    <input
+                      type="number"
+                      value={tempFee || ''}
+                      onChange={(e) => setTempFee(Number(e.target.value) || 0)}
+                      placeholder="Enter fee"
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={addDoctor}
+                      disabled={!tempDoctor || !tempDepartment || tempFee <= 0}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ➕ Add Doctor
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selected Doctors List */}
+              {selectedDoctors.length > 0 && (
+                <div className="bg-white p-4 rounded-lg border border-purple-200">
+                  <h4 className="text-md font-semibold text-purple-700 mb-3">
+                    👨‍⚕️ Selected Doctors ({selectedDoctors.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedDoctors.map((doctor, index) => (
+                      <div
+                        key={doctor.name}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          doctor.isPrimary ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-gray-800">{doctor.name}</span>
+                            {doctor.isPrimary && (
+                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">{doctor.department}</div>
+                          <div className="text-sm font-medium text-purple-600">
+                            💰 Fee: ₹{doctor.consultationFee || 0}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {!doctor.isPrimary && (
+                            <button
+                              type="button"
+                              onClick={() => setPrimaryDoctor(doctor.name)}
+                              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                              title="Set as primary doctor"
+                            >
+                              Set Primary
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeDoctor(doctor.name)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Remove doctor"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">Total Consultation Fees:</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        ₹{selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-purple-600">
+                      💡 <strong>Primary doctor</strong> will be used for prescriptions and primary consultation records.
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

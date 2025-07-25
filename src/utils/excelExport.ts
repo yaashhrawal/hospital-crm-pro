@@ -100,16 +100,39 @@ export const exportMultiSheetExcel = (sheets: ExcelExportOptions[], filename: st
   return false;
 };
 
-// Format currency for export
+// Format currency for export - clean numeric value for Excel
 export const formatCurrency = (amount: number): string => {
   return `₹${amount.toLocaleString('en-IN')}`;
 };
 
+// Format currency for Excel export - returns clean number without currency symbols
+export const formatCurrencyForExcel = (amount: number): string => {
+  return amount.toString();
+};
+
+// Format currency with Rupee symbol for Excel export
+export const formatCurrencyWithSymbol = (amount: number): string => {
+  return `₹${amount}`;
+};
+
 // Format date for export
 export const formatDate = (date: string | Date): string => {
-  if (!date) return '';
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  return dateObj.toLocaleDateString('en-IN');
+  if (!date) return 'N/A';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      console.warn('Invalid date provided to formatDate:', date);
+      return 'Invalid Date';
+    }
+    
+    return dateObj.toLocaleDateString('en-IN');
+  } catch (error) {
+    console.error('Error formatting date:', date, error);
+    return 'Invalid Date';
+  }
 };
 
 // Format date and time for export

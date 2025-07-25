@@ -7,7 +7,9 @@ import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
-import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
+import MultiplePrescriptionGenerator from './MultiplePrescriptionGenerator';
+import PatientServiceManager from './PatientServiceManager';
+import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface PatientHistoryModalProps {
@@ -171,7 +173,11 @@ const ComprehensivePatientList: React.FC = () => {
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const [showValantPrescription, setShowValantPrescription] = useState(false);
   const [showVHPrescription, setShowVHPrescription] = useState(false);
+  const [showMultiplePrescription, setShowMultiplePrescription] = useState(false);
+  const [multiplePrescriptionType, setMultiplePrescriptionType] = useState<'valant' | 'vh'>('valant');
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
+  const [showServiceManager, setShowServiceManager] = useState(false);
+  const [selectedPatientForServices, setSelectedPatientForServices] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -264,6 +270,11 @@ const ComprehensivePatientList: React.FC = () => {
     setShowReceiptModal(true);
   };
 
+  const handleManageServices = (patient: PatientWithRelations) => {
+    setSelectedPatientForServices(patient);
+    setShowServiceManager(true);
+  };
+
   const handlePatientUpdated = () => {
     loadPatients(); // Reload patients after update
   };
@@ -275,10 +286,21 @@ const ComprehensivePatientList: React.FC = () => {
 
   const handlePrescription = (patient: PatientWithRelations, template: string) => {
     setSelectedPatientForPrescription(patient);
-    if (template === 'valant') {
-      setShowValantPrescription(true);
-    } else if (template === 'vh') {
-      setShowVHPrescription(true);
+    
+    // Check if patient has multiple doctors
+    const hasMultipleDoctors = patient.assigned_doctors && patient.assigned_doctors.length > 1;
+    
+    if (hasMultipleDoctors) {
+      // Use multiple prescription generator
+      setMultiplePrescriptionType(template as 'valant' | 'vh');
+      setShowMultiplePrescription(true);
+    } else {
+      // Use single prescription (original behavior)
+      if (template === 'valant') {
+        setShowValantPrescription(true);
+      } else if (template === 'vh') {
+        setShowVHPrescription(true);
+      }
     }
   };
 
@@ -298,26 +320,37 @@ const ComprehensivePatientList: React.FC = () => {
 
   const exportPatientsToExcel = () => {
     try {
-      const exportData = filteredPatients.map(patient => ({
-        patient_id: patient.patient_id,
-        first_name: patient.first_name,
-        last_name: patient.last_name,
-        phone: patient.phone || '',
-        email: patient.email || '',
-        gender: patient.gender || '',
-        age: patient.age || '',
-        blood_group: patient.blood_group || '',
-        address: patient.address || '',
-        date_of_birth: patient.date_of_birth || '',
-        medical_history: patient.medical_history || '',
-        allergies: patient.allergies || '',
-        emergency_contact: patient.emergency_contact_name || '',
-        visit_count: patient.visitCount || 0,
-        total_spent: patient.totalSpent || 0,
-        last_visit: patient.lastVisit || '',
-        registration_date: formatDate(patient.created_at),
-        formatted_total_spent: formatCurrency(patient.totalSpent || 0)
-      }));
+      console.log('🔍 Exporting patients, checking registration dates...');
+      
+      const exportData = filteredPatients.map(patient => {
+        console.log(`Patient ${patient.patient_id}: created_at = ${patient.created_at}, type = ${typeof patient.created_at}`);
+        
+        // Debug registration date formatting
+        const regDate = patient.created_at || '';
+        console.log(`Registration date raw: ${regDate}`);
+        const formattedRegDate = formatDate(regDate);
+        console.log(`Registration date formatted: ${formattedRegDate}`);
+        
+        return {
+          patient_id: patient.patient_id,
+          first_name: patient.first_name,
+          last_name: patient.last_name,
+          phone: patient.phone || '',
+          email: patient.email || '',
+          gender: patient.gender || '',
+          age: patient.age || '',
+          blood_group: patient.blood_group || '',
+          address: patient.address || '',
+          date_of_birth: patient.date_of_birth || '',
+          medical_history: patient.medical_history || '',
+          allergies: patient.allergies || '',
+          emergency_contact: patient.emergency_contact_name || '',
+          visit_count: patient.visitCount || 0,
+          total_spent: patient.totalSpent || 0, // Clean numeric value
+          last_visit: formatDate(patient.lastVisit || ''),
+          registration_date: patient.created_at || '', // Store raw date
+        };
+      });
 
       const success = exportToExcel({
         filename: `Patient_List_${new Date().toISOString().split('T')[0]}`,
@@ -338,14 +371,13 @@ const ComprehensivePatientList: React.FC = () => {
           'Visit Count',
           'Total Spent',
           'Last Visit',
-          'Registration Date',
-          'Formatted Total Spent'
+          'Registration Date'
         ],
         data: exportData,
         formatters: {
-          total_spent: (value) => formatCurrency(value),
-          last_visit: (value) => value ? formatDate(value) : '',
-          registration_date: (value) => formatDate(value)
+          total_spent: (value) => formatCurrencyForExcel(value), // Clean numeric value
+          last_visit: (value) => value ? formatDate(value) : 'Never',
+          registration_date: (value) => value ? formatDate(value) : 'Unknown'
         }
       });
 
@@ -506,6 +538,24 @@ const ComprehensivePatientList: React.FC = () => {
                         <div className="text-sm text-gray-500">
                           {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
                         </div>
+                        <div className="text-sm text-purple-600 mt-1">
+                          {patient.assigned_doctors && patient.assigned_doctors.length > 0 ? (
+                            <div>
+                              <span className="font-medium">
+                                👨‍⚕️ {patient.assigned_doctors.find(d => d.isPrimary)?.name || patient.assigned_doctors[0]?.name}
+                              </span>
+                              {patient.assigned_doctors.length > 1 && (
+                                <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                                  +{patient.assigned_doctors.length - 1} more
+                                </span>
+                              )}
+                            </div>
+                          ) : patient.assigned_doctor ? (
+                            <span className="font-medium">👨‍⚕️ {patient.assigned_doctor}</span>
+                          ) : (
+                            <span className="text-gray-400">No doctor assigned</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4">
@@ -551,6 +601,16 @@ const ComprehensivePatientList: React.FC = () => {
                           title="Edit Patient Details"
                         >
                           ✏️ Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleManageServices(patient);
+                          }}
+                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          title="Manage Medical Services"
+                        >
+                          🔬 Services
                         </button>
                         <button
                           onClick={(e) => {
@@ -687,6 +747,32 @@ const ComprehensivePatientList: React.FC = () => {
           onClose={() => {
             setShowVHPrescription(false);
             setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* Multiple Prescription Generator Modal */}
+      {showMultiplePrescription && selectedPatientForPrescription && (
+        <MultiplePrescriptionGenerator
+          patient={selectedPatientForPrescription}
+          prescriptionType={multiplePrescriptionType}
+          onClose={() => {
+            setShowMultiplePrescription(false);
+            setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* Patient Service Manager Modal */}
+      {showServiceManager && selectedPatientForServices && (
+        <PatientServiceManager
+          patient={selectedPatientForServices}
+          onClose={() => {
+            setShowServiceManager(false);
+            setSelectedPatientForServices(null);
+          }}
+          onServicesUpdated={() => {
+            loadPatients(); // Reload to update totals
           }}
         />
       )}

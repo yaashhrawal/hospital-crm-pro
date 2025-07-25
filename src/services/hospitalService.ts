@@ -200,6 +200,16 @@ export class HospitalService {
         // Doctor assignment
         assigned_doctor: data.assigned_doctor || null,
         assigned_department: data.assigned_department || null,
+        // Multiple doctors support with fees
+        assigned_doctors: data.assigned_doctors || null,
+        consultation_fees: data.assigned_doctors && data.assigned_doctors.length > 0 
+          ? data.assigned_doctors.map(doctor => ({
+              doctorName: doctor.name,
+              department: doctor.department,
+              fee: doctor.consultationFee || 0,
+              isPrimary: doctor.isPrimary || false
+            }))
+          : null,
         hospital_id: HOSPITAL_ID
       };
       
@@ -249,6 +259,15 @@ export class HospitalService {
       }
       
       console.log(`✅ Fetched ${patients?.length || 0} patients`);
+      
+      // Log first patient to check created_at field
+      if (patients && patients.length > 0) {
+        console.log('🔍 First patient data:', {
+          patient_id: patients[0].patient_id,
+          created_at: patients[0].created_at,
+          created_at_type: typeof patients[0].created_at
+        });
+      }
       
       // Enhance patients with calculated fields
       const enhancedPatients = patients?.map(patient => {

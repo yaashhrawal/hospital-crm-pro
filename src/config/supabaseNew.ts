@@ -20,6 +20,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // COMPREHENSIVE DATABASE SCHEMA TYPES - MATCHING NEW ENHANCED SCHEMA
 
+export interface AssignedDoctor {
+  name: string;
+  department: string;
+  consultationFee?: number; // Individual consultation fee for this doctor
+  isPrimary?: boolean; // Indicates if this is the primary consulting doctor
+}
+
 export interface Hospital {
   id: string;
   name: string;
@@ -70,8 +77,10 @@ export interface Patient {
   insurance_number?: string;
   has_reference?: boolean; // Reference field
   reference_details?: string; // Reference details
-  assigned_doctor?: string; // Assigned doctor name
-  assigned_department?: string; // Assigned department
+  assigned_doctor?: string; // Primary assigned doctor name (backward compatibility)
+  assigned_department?: string; // Primary assigned department (backward compatibility)
+  assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
+  consultation_fees?: any; // JSONB field storing individual doctor consultation fees
   notes?: string;
   hospital_id: string;
   is_active: boolean;
@@ -257,8 +266,9 @@ export interface CreatePatientData {
   insurance_number?: string;
   has_reference?: boolean; // Reference field
   reference_details?: string; // Reference details
-  assigned_doctor?: string; // Assigned doctor name
-  assigned_department?: string; // Assigned department
+  assigned_doctor?: string; // Primary assigned doctor name (backward compatibility)
+  assigned_department?: string; // Primary assigned department (backward compatibility)
+  assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
   notes?: string;
   hospital_id: string;
 }
