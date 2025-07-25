@@ -2,6 +2,25 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import HospitalService from '../services/hospitalService';
+
+// Doctors and Departments data
+const DOCTORS_DATA = [
+  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPEDIC' },
+  { name: 'DR. LALITA SUWALKA', department: 'DIETICIAN' },
+  { name: 'DR. MILIND KIRIT AKHANI', department: 'GASTRO' },
+  { name: 'DR MEETU BABLE', department: 'GYN.' },
+  { name: 'DR. AMIT PATANVADIYA', department: 'NEUROLOGY' },
+  { name: 'DR. KISHAN PATEL', department: 'UROLOGY' },
+  { name: 'DR. PARTH SHAH', department: 'SURGICAL ONCOLOGY' },
+  { name: 'DR.RAJEEDP GUPTA', department: 'MEDICAL ONCOLOGY' },
+  { name: 'DR. KULDDEP VALA', department: 'NEUROSURGERY' },
+  { name: 'DR. KURNAL PATEL', department: 'UROLOGY' },
+  { name: 'DR. SAURABH GUPTA', department: 'ENDOCRINOLOGY' },
+  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' }
+];
+
+const DEPARTMENTS = [...new Set(DOCTORS_DATA.map(doc => doc.department))].sort();
 
 interface EditPatientModalProps {
   patient: PatientWithRelations;
@@ -17,6 +36,9 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   onPatientUpdated
 }) => {
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'payment'>('details');
+  const [transactionLoading, setTransactionLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     first_name: patient.first_name || '',
     last_name: patient.last_name || '',
@@ -34,6 +56,34 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     notes: patient.notes || '',
   });
 
+  // Transaction form data
+  const [transactionData, setTransactionData] = useState({
+    selected_department: patient.assigned_department || '',
+    selected_doctor: patient.assigned_doctor || '',
+    consultation_fee: 0,
+    discount_percentage: 0,
+    discount_reason: '',
+    payment_mode: 'CASH',
+    online_payment_method: 'UPI',
+    transaction_type: 'CONSULTATION',
+    description: ''
+  });
+
+  const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
+
+  // Filter doctors based on selected department
+  React.useEffect(() => {
+    if (transactionData.selected_department) {
+      const filtered = DOCTORS_DATA.filter(doc => doc.department === transactionData.selected_department);
+      setFilteredDoctors(filtered);
+      // Reset doctor selection if current doctor doesn't belong to selected department
+      if (transactionData.selected_doctor && !filtered.find(doc => doc.name === transactionData.selected_doctor)) {
+        setTransactionData(prev => ({ ...prev, selected_doctor: '' }));
+      }
+    } else {
+      setFilteredDoctors(DOCTORS_DATA);
+    }
+  }, [transactionData.selected_department]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,13 +141,104 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     }
   };
 
+  const handleAddTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!transactionData.consultation_fee || transactionData.consultation_fee <= 0) {
+      toast.error('Please enter a valid consultation fee');
+      return;
+    }
+
+    if (!transactionData.selected_doctor) {
+      toast.error('Please select a doctor');
+      return;
+    }
+
+    setTransactionLoading(true);
+
+    try {
+      // Calculate discount amount from percentage
+      const originalConsultationFee = transactionData.consultation_fee;
+      const discountAmount = originalConsultationFee * (transactionData.discount_percentage / 100);
+      const finalAmount = originalConsultationFee - discountAmount;
+
+      console.log('💰 Adding transaction for patient:', patient.id);
+      console.log('🧮 Billing calculation:');
+      console.log('- Original consultation fee:', originalConsultationFee);
+      console.log('- Discount percentage:', transactionData.discount_percentage + '%');
+      console.log('- Discount amount:', discountAmount);
+      console.log('- Final amount:', finalAmount);
+
+      const transactions = [];
+
+      // Create main consultation transaction with ORIGINAL amount
+      const mainTransaction = {
+        patient_id: patient.id,
+        transaction_type: transactionData.transaction_type as any,
+        description: transactionData.description || `Consultation Fee${transactionData.selected_doctor ? ` - ${transactionData.selected_doctor}` : ''}${transactionData.selected_department ? ` (${transactionData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${transactionData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${transactionData.discount_reason ? ` | Reason: ${transactionData.discount_reason}` : ''}`,
+        amount: originalConsultationFee, // Store ORIGINAL amount
+        payment_mode: transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode,
+        status: 'COMPLETED' as any,
+        doctor_name: transactionData.selected_doctor,
+        hospital_id: '550e8400-e29b-41d4-a716-446655440000',
+        created_by: 'system'
+      };
+
+      await HospitalService.createTransaction(mainTransaction as any);
+      console.log('✅ Main transaction created');
+
+      // If there's a discount, add a separate discount transaction
+      if (transactionData.discount_percentage > 0 && discountAmount > 0) {
+        const discountTransaction = {
+          patient_id: patient.id,
+          transaction_type: 'DISCOUNT' as any,
+          description: `Consultation Discount (${transactionData.discount_percentage}%)${transactionData.discount_reason ? ` - ${transactionData.discount_reason}` : ''}`,
+          amount: -discountAmount, // Negative amount for discount
+          payment_mode: transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode,
+          status: 'COMPLETED' as any,
+          doctor_name: transactionData.selected_doctor,
+          hospital_id: '550e8400-e29b-41d4-a716-446655440000',
+          created_by: 'system'
+        };
+
+        await HospitalService.createTransaction(discountTransaction as any);
+        console.log('✅ Discount transaction created');
+      }
+
+      toast.success(`Transaction added successfully! ₹${finalAmount.toFixed(2)} - ${transactionData.selected_doctor}`);
+      
+      // Reset transaction form
+      setTransactionData({
+        selected_department: patient.assigned_department || '',
+        selected_doctor: patient.assigned_doctor || '',
+        consultation_fee: 0,
+        discount_percentage: 0,
+        discount_reason: '',
+        payment_mode: 'CASH',
+        online_payment_method: 'UPI',
+        transaction_type: 'CONSULTATION',
+        description: ''
+      });
+
+      // Switch back to details tab and refresh parent
+      setActiveTab('details');
+      onPatientUpdated();
+
+    } catch (error: any) {
+      console.error('🚨 Transaction creation failed:', error);
+      toast.error(`Failed to add transaction: ${error.message}`);
+    } finally {
+      setTransactionLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">✏️ Edit Patient</h2>
+          <h2 className="text-2xl font-bold text-gray-800">✏️ Edit Patient - {patient.first_name} {patient.last_name}</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -106,10 +247,38 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <div className="border-b pb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
+        {/* Tab Navigation */}
+        <div className="flex border-b border-gray-200 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('details')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'details'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            👤 Patient Details
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('payment')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'payment'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            💰 Add Payment
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'details' ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Basic Information */}
+            <div className="border-b pb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -337,6 +506,213 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             </button>
           </div>
         </form>
+        ) : (
+          /* Payment Tab */
+          <form onSubmit={handleAddTransaction} className="space-y-6">
+            {/* Transaction Type */}
+            <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+              <h3 className="text-lg font-semibold text-green-800 mb-4">💳 Add Payment/Transaction</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+                  <select
+                    value={transactionData.transaction_type}
+                    onChange={(e) => setTransactionData({ ...transactionData, transaction_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="CONSULTATION">Consultation Fee</option>
+                    <option value="LAB_TEST">Lab Test</option>
+                    <option value="XRAY">X-Ray</option>
+                    <option value="MEDICINE">Medicine</option>
+                    <option value="PROCEDURE">Procedure</option>
+                    <option value="SERVICE">Other Service</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
+                  <input
+                    type="number"
+                    value={transactionData.consultation_fee}
+                    onChange={(e) => setTransactionData({ ...transactionData, consultation_fee: Number(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Enter amount"
+                    min="0"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Doctor and Department */}
+            <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
+              <h3 className="text-lg font-semibold text-purple-800 mb-4">👩‍⚕️ Doctor & Department</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select
+                    value={transactionData.selected_department}
+                    onChange={(e) => setTransactionData({ ...transactionData, selected_department: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select Department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor *</label>
+                  <select
+                    value={transactionData.selected_doctor}
+                    onChange={(e) => setTransactionData({ ...transactionData, selected_doctor: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required
+                  >
+                    <option value="">Select Doctor</option>
+                    {filteredDoctors.map((doctor) => (
+                      <option key={doctor.name} value={doctor.name}>
+                        {doctor.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Details */}
+            <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+              <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Payment & Discount</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
+                  <input
+                    type="number"
+                    value={transactionData.discount_percentage}
+                    onChange={(e) => setTransactionData({ ...transactionData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                  <select
+                    value={transactionData.payment_mode}
+                    onChange={(e) => setTransactionData({ ...transactionData, payment_mode: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="ONLINE">Online</option>
+                  </select>
+                </div>
+
+                {transactionData.payment_mode === 'ONLINE' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Online Method</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="online_payment_method"
+                          value="UPI"
+                          checked={transactionData.online_payment_method === 'UPI'}
+                          onChange={(e) => setTransactionData({ ...transactionData, online_payment_method: e.target.value })}
+                          className="mr-2"
+                        />
+                        UPI
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="online_payment_method"
+                          value="CARD"
+                          checked={transactionData.online_payment_method === 'CARD'}
+                          onChange={(e) => setTransactionData({ ...transactionData, online_payment_method: e.target.value })}
+                          className="mr-2"
+                        />
+                        Card
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {transactionData.discount_percentage > 0 && (
+                  <div className="lg:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
+                    <input
+                      type="text"
+                      value={transactionData.discount_reason}
+                      onChange={(e) => setTransactionData({ ...transactionData, discount_reason: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Reason for discount"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Amount Summary */}
+              {transactionData.consultation_fee > 0 && (
+                <div className="mt-4 p-3 bg-white rounded-lg border-2 border-green-300">
+                  <div className="text-center">
+                    {transactionData.discount_percentage > 0 && (
+                      <div className="text-sm text-gray-600 mb-1">
+                        Original: ₹{transactionData.consultation_fee.toLocaleString()} - Discount ({transactionData.discount_percentage}%): ₹{(transactionData.consultation_fee * (transactionData.discount_percentage / 100)).toFixed(2)}
+                      </div>
+                    )}
+                    <span className="text-xl font-bold text-green-700">
+                      Total Amount: ₹{(transactionData.consultation_fee - (transactionData.consultation_fee * (transactionData.discount_percentage / 100))).toFixed(2)}
+                    </span>
+                    <div className="text-sm text-gray-600 mt-1">
+                      Payment: {transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+              <textarea
+                value={transactionData.description}
+                onChange={(e) => setTransactionData({ ...transactionData, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                rows={2}
+                placeholder="Additional notes about this transaction"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-6 border-t">
+              <button
+                type="button"
+                onClick={() => setActiveTab('details')}
+                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                ← Back to Details
+              </button>
+              <button
+                type="submit"
+                disabled={transactionLoading || !transactionData.consultation_fee || !transactionData.selected_doctor}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {transactionLoading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Adding Transaction...
+                  </div>
+                ) : (
+                  '💳 Add Transaction'
+                )}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
