@@ -58,10 +58,11 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       // Calculate detailed totals for proper accounting format
       let consultationFee = 0;
       let originalConsultationFee = 0;
-      let discountAmount = 0;
+      let totalDiscountAmount = 0;
       let discountPercentage = 0;
       let discountReason = '';
       let otherServices = 0;
+      let consultationTransactions = [];
 
       // Debug: Log all transactions to see actual data structure
       console.log('🔍 All transactions for receipt:', transactions);
@@ -72,28 +73,55 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
         
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
           console.log('💰 Found consultation transaction:', transaction);
-          // With new structure, consultation transaction contains original amount
-          originalConsultationFee = transaction.amount;
-          consultationFee = transaction.amount; // Will be adjusted if discount found
+          consultationTransactions.push(transaction);
           
-          // Extract discount information from enhanced description
+          // Extract original and net amounts from description for multiple doctors
           const description = transaction.description || '';
+          const originalMatch = description.match(/Original:\s*₹([\d.]+)/i);
+          const netMatch = description.match(/Net:\s*₹([\d.]+)/i);
           const discountMatch = description.match(/Discount:\s*(\d+)%\s*\(₹([\d.]+)\)/i);
-          if (discountMatch) {
-            discountPercentage = parseInt(discountMatch[1]);
-            discountAmount = parseFloat(discountMatch[2]);
-            consultationFee = originalConsultationFee - discountAmount;
+          
+          if (originalMatch && netMatch && discountMatch) {
+            // Multiple doctor format - extract from transaction description
+            const transactionOriginal = parseFloat(originalMatch[1]);
+            const transactionNet = parseFloat(netMatch[1]);
+            const transactionDiscount = parseFloat(discountMatch[2]);
             
-            // Extract discount reason if available
-            const reasonMatch = description.match(/Reason:\s*([^|]+)/i);
-            if (reasonMatch) {
-              discountReason = reasonMatch[1].trim();
+            originalConsultationFee += transactionOriginal;
+            consultationFee += transactionNet;
+            totalDiscountAmount += transactionDiscount;
+            
+            // Get discount details from the first transaction
+            if (discountPercentage === 0) {
+              discountPercentage = parseInt(discountMatch[1]);
+              const reasonMatch = description.match(/Reason:\s*([^|]+)/i);
+              if (reasonMatch) {
+                discountReason = reasonMatch[1].trim();
+              }
+            }
+          } else {
+            // Single doctor format or old format
+            const transactionAmount = transaction.amount;
+            originalConsultationFee += transactionAmount;
+            consultationFee += transactionAmount;
+            
+            // Try to extract discount info from description
+            if (discountMatch) {
+              discountPercentage = parseInt(discountMatch[1]);
+              const transactionDiscount = parseFloat(discountMatch[2]);
+              totalDiscountAmount += transactionDiscount;
+              consultationFee = originalConsultationFee - totalDiscountAmount;
+              
+              const reasonMatch = description.match(/Reason:\s*([^|]+)/i);
+              if (reasonMatch) {
+                discountReason = reasonMatch[1].trim();
+              }
             }
           }
         } else if (transaction.transaction_type === 'DISCOUNT' || transaction.transaction_type === 'discount') {
           console.log('💸 Found discount transaction:', transaction);
           // Handle separate discount transactions
-          discountAmount += Math.abs(transaction.amount);
+          totalDiscountAmount += Math.abs(transaction.amount);
           
           // Extract discount percentage and reason from discount transaction
           const description = transaction.description || '';
@@ -111,23 +139,29 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
         }
       });
 
+      // Use totalDiscountAmount for calculations
+      const discountAmount = totalDiscountAmount;
+
       console.log('📋 Final calculated values:');
-      console.log('- Original consultation fee:', originalConsultationFee);
-      console.log('- Consultation fee (after discount):', consultationFee);
-      console.log('- Discount amount:', discountAmount);
+      console.log('- Number of consultation transactions:', consultationTransactions.length);
+      console.log('- Total original consultation fee:', originalConsultationFee);
+      console.log('- Total consultation fee (after discount):', consultationFee);
+      console.log('- Total discount amount:', discountAmount);
       console.log('- Discount percentage:', discountPercentage);
       console.log('- Discount reason:', discountReason);
       console.log('- Other services:', otherServices);
 
       // Handle old transaction format where discounted amount was stored directly
-      if (originalConsultationFee > 0 && discountAmount === 0) {
+      if (originalConsultationFee > 0 && discountAmount === 0 && consultationTransactions.length > 0) {
         // Check if this is old format with discount info in description
-        const consultationTransaction = transactions.find(t => 
-          t.transaction_type === 'CONSULTATION' || t.transaction_type === 'consultation'
-        );
+        const hasOldFormatDiscount = consultationTransactions.some(transaction => {
+          const description = transaction.description || '';
+          return description.match(/(\d+)%\s*discount\s*applied/i);
+        });
         
-        if (consultationTransaction) {
-          const description = consultationTransaction.description || '';
+        if (hasOldFormatDiscount) {
+          const firstTransaction = consultationTransactions[0];
+          const description = firstTransaction.description || '';
           console.log('🔍 Checking old format description:', description);
           
           // Look for old format: "Consultation Fee - Dr. X (20% discount applied)"
@@ -135,8 +169,9 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
           if (oldDiscountMatch) {
             discountPercentage = parseInt(oldDiscountMatch[1]);
             // The transaction amount is the discounted amount, so calculate original
-            consultationFee = originalConsultationFee; // This is actually the discounted amount
-            originalConsultationFee = consultationFee / (1 - discountPercentage / 100);
+            const currentTotal = consultationFee;
+            consultationFee = currentTotal;
+            originalConsultationFee = currentTotal / (1 - discountPercentage / 100);
             discountAmount = originalConsultationFee - consultationFee;
             
             console.log('📜 Detected old format:');
