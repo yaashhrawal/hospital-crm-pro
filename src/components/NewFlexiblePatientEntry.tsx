@@ -62,6 +62,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const [selectedDoctors, setSelectedDoctors] = useState<AssignedDoctor[]>([]);
   const [tempDepartment, setTempDepartment] = useState('');
   const [tempDoctor, setTempDoctor] = useState('');
+  const [tempFee, setTempFee] = useState<number>(0);
 
   useEffect(() => {
     testConnection();
@@ -101,6 +102,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
       return;
     }
 
+    if (tempFee <= 0) {
+      toast.error('Please enter a valid consultation fee');
+      return;
+    }
+
     // Check if doctor already selected
     if (selectedDoctors.some(doc => doc.name === tempDoctor)) {
       toast.error('This doctor is already selected');
@@ -110,13 +116,15 @@ const NewFlexiblePatientEntry: React.FC = () => {
     const newDoctor: AssignedDoctor = {
       name: tempDoctor,
       department: tempDepartment,
+      consultationFee: tempFee,
       isPrimary: selectedDoctors.length === 0 // First doctor is primary
     };
 
     setSelectedDoctors(prev => [...prev, newDoctor]);
     setTempDoctor('');
     setTempDepartment('');
-    toast.success(`${tempDoctor} added successfully`);
+    setTempFee(0);
+    toast.success(`${tempDoctor} added successfully with fee ₹${tempFee}`);
   };
 
   const removeDoctor = (doctorName: string) => {
@@ -208,40 +216,61 @@ const NewFlexiblePatientEntry: React.FC = () => {
       // Create transactions if amounts specified
       const transactions = [];
 
-      // Calculate discount amount from percentage
-      const originalConsultationFee = formData.consultation_fee;
-      const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
-      const finalAmount = originalConsultationFee - discountAmount;
+      if (formData.consultation_mode === 'single') {
+        // Single doctor consultation - original logic
+        const originalConsultationFee = formData.consultation_fee;
+        const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
+        const finalAmount = originalConsultationFee - discountAmount;
 
-      console.log('🧮 Billing calculation:');
-      console.log('- Original consultation fee:', originalConsultationFee);
-      console.log('- Discount percentage:', formData.discount_percentage + '%');
-      console.log('- Discount amount:', discountAmount);
-      console.log('- Final amount:', finalAmount);
+        console.log('🧮 Single Doctor Billing calculation:');
+        console.log('- Original consultation fee:', originalConsultationFee);
+        console.log('- Discount percentage:', formData.discount_percentage + '%');
+        console.log('- Discount amount:', discountAmount);
+        console.log('- Final amount:', finalAmount);
 
-      if (originalConsultationFee > 0) {
-        // Store the ORIGINAL consultation fee (not discounted amount)
-        transactions.push({
-          patient_id: newPatient.id,
-          transaction_type: 'CONSULTATION', 
-          description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
-          amount: originalConsultationFee, // Store ORIGINAL amount, not discounted
-          payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-          status: 'COMPLETED',
-          doctor_name: formData.selected_doctor || undefined
-        });
-
-        // If there's a discount, add a separate discount transaction
-        if (formData.discount_percentage > 0 && discountAmount > 0) {
+        if (originalConsultationFee > 0) {
           transactions.push({
             patient_id: newPatient.id,
-            transaction_type: 'DISCOUNT',
-            description: `Consultation Discount (${formData.discount_percentage}%)${formData.discount_reason ? ` - ${formData.discount_reason}` : ''}`,
-            amount: -discountAmount, // Negative amount for discount
+            transaction_type: 'CONSULTATION', 
+            description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
+            amount: finalAmount, // Store FINAL amount after discount
             payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
             status: 'COMPLETED',
             doctor_name: formData.selected_doctor || undefined
           });
+        }
+      } else {
+        // Multiple doctors consultation - new logic
+        const totalOriginalFee = selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0);
+        const totalDiscountAmount = totalOriginalFee * (formData.discount_percentage / 100);
+        const totalFinalAmount = totalOriginalFee - totalDiscountAmount;
+
+        console.log('🧮 Multiple Doctors Billing calculation:');
+        console.log('- Total original consultation fees:', totalOriginalFee);
+        console.log('- Discount percentage:', formData.discount_percentage + '%');
+        console.log('- Total discount amount:', totalDiscountAmount);
+        console.log('- Total final amount:', totalFinalAmount);
+
+        // Create separate transaction for each doctor
+        if (selectedDoctors.length > 0 && totalOriginalFee > 0) {
+          for (const doctor of selectedDoctors) {
+            const doctorFee = doctor.consultationFee || 0;
+            if (doctorFee > 0) {
+              // Calculate proportional discount for this doctor
+              const doctorDiscountAmount = (doctorFee / totalOriginalFee) * totalDiscountAmount;
+              const doctorFinalAmount = doctorFee - doctorDiscountAmount;
+
+              transactions.push({
+                patient_id: newPatient.id,
+                transaction_type: 'CONSULTATION',
+                description: `Consultation Fee - ${doctor.name} (${doctor.department}) | Original: ₹${doctorFee} | Discount: ${formData.discount_percentage}% (₹${doctorDiscountAmount.toFixed(2)}) | Net: ₹${doctorFinalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
+                amount: doctorFinalAmount, // Store FINAL amount after proportional discount
+                payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
+                status: 'COMPLETED',
+                doctor_name: doctor.name
+              });
+            }
+          }
         }
       }
 
@@ -251,7 +280,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
         await HospitalService.createTransaction(transactionData as CreateTransactionData);
       }
 
-      const totalAmount = finalAmount; // Use the calculated final amount
+      // Calculate total amount based on consultation mode
+      const totalAmount = formData.consultation_mode === 'single' 
+        ? formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))
+        : selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) - 
+          (selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) * (formData.discount_percentage / 100));
       
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
@@ -610,7 +643,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
               {/* Add Doctor Form */}
               <div className="bg-white p-4 rounded-lg border border-purple-200">
                 <h4 className="text-md font-semibold text-purple-700 mb-3">➕ Add Doctor</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                     <select
@@ -642,11 +675,22 @@ const NewFlexiblePatientEntry: React.FC = () => {
                       ))}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
+                    <input
+                      type="number"
+                      value={tempFee || ''}
+                      onChange={(e) => setTempFee(Number(e.target.value) || 0)}
+                      placeholder="Enter fee"
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
                   <div className="flex items-end">
                     <button
                       type="button"
                       onClick={addDoctor}
-                      disabled={!tempDoctor || !tempDepartment}
+                      disabled={!tempDoctor || !tempDepartment || tempFee <= 0}
                       className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ➕ Add Doctor
@@ -679,6 +723,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
                             )}
                           </div>
                           <div className="text-sm text-gray-600">{doctor.department}</div>
+                          <div className="text-sm font-medium text-purple-600">
+                            💰 Fee: ₹{doctor.consultationFee || 0}
+                          </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           {!doctor.isPrimary && (
@@ -703,8 +750,16 @@ const NewFlexiblePatientEntry: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 text-sm text-purple-600">
-                    💡 <strong>Primary doctor</strong> will be used for prescriptions and primary consultation records.
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">Total Consultation Fees:</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        ₹{selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-purple-600">
+                      💡 <strong>Primary doctor</strong> will be used for prescriptions and primary consultation records.
+                    </div>
                   </div>
                 </div>
               )}

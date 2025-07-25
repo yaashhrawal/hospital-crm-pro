@@ -23,6 +23,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export interface AssignedDoctor {
   name: string;
   department: string;
+  consultationFee?: number; // Individual consultation fee for this doctor
   isPrimary?: boolean; // Indicates if this is the primary consulting doctor
 }
 
@@ -79,6 +80,7 @@ export interface Patient {
   assigned_doctor?: string; // Primary assigned doctor name (backward compatibility)
   assigned_department?: string; // Primary assigned department (backward compatibility)
   assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
+  consultation_fees?: any; // JSONB field storing individual doctor consultation fees
   notes?: string;
   hospital_id: string;
   is_active: boolean;

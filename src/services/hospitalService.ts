@@ -200,6 +200,16 @@ export class HospitalService {
         // Doctor assignment
         assigned_doctor: data.assigned_doctor || null,
         assigned_department: data.assigned_department || null,
+        // Multiple doctors support with fees
+        assigned_doctors: data.assigned_doctors || null,
+        consultation_fees: data.assigned_doctors && data.assigned_doctors.length > 0 
+          ? data.assigned_doctors.map(doctor => ({
+              doctorName: doctor.name,
+              department: doctor.department,
+              fee: doctor.consultationFee || 0,
+              isPrimary: doctor.isPrimary || false
+            }))
+          : null,
         hospital_id: HOSPITAL_ID
       };
       

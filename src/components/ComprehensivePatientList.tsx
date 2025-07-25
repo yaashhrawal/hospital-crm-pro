@@ -7,6 +7,7 @@ import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
+import MultiplePrescriptionGenerator from './MultiplePrescriptionGenerator';
 import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -171,6 +172,8 @@ const ComprehensivePatientList: React.FC = () => {
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const [showValantPrescription, setShowValantPrescription] = useState(false);
   const [showVHPrescription, setShowVHPrescription] = useState(false);
+  const [showMultiplePrescription, setShowMultiplePrescription] = useState(false);
+  const [multiplePrescriptionType, setMultiplePrescriptionType] = useState<'valant' | 'vh'>('valant');
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
@@ -275,10 +278,21 @@ const ComprehensivePatientList: React.FC = () => {
 
   const handlePrescription = (patient: PatientWithRelations, template: string) => {
     setSelectedPatientForPrescription(patient);
-    if (template === 'valant') {
-      setShowValantPrescription(true);
-    } else if (template === 'vh') {
-      setShowVHPrescription(true);
+    
+    // Check if patient has multiple doctors
+    const hasMultipleDoctors = patient.assigned_doctors && patient.assigned_doctors.length > 1;
+    
+    if (hasMultipleDoctors) {
+      // Use multiple prescription generator
+      setMultiplePrescriptionType(template as 'valant' | 'vh');
+      setShowMultiplePrescription(true);
+    } else {
+      // Use single prescription (original behavior)
+      if (template === 'valant') {
+        setShowValantPrescription(true);
+      } else if (template === 'vh') {
+        setShowVHPrescription(true);
+      }
     }
   };
 
@@ -516,6 +530,24 @@ const ComprehensivePatientList: React.FC = () => {
                         <div className="text-sm text-gray-500">
                           {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
                         </div>
+                        <div className="text-sm text-purple-600 mt-1">
+                          {patient.assigned_doctors && patient.assigned_doctors.length > 0 ? (
+                            <div>
+                              <span className="font-medium">
+                                👨‍⚕️ {patient.assigned_doctors.find(d => d.isPrimary)?.name || patient.assigned_doctors[0]?.name}
+                              </span>
+                              {patient.assigned_doctors.length > 1 && (
+                                <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                                  +{patient.assigned_doctors.length - 1} more
+                                </span>
+                              )}
+                            </div>
+                          ) : patient.assigned_doctor ? (
+                            <span className="font-medium">👨‍⚕️ {patient.assigned_doctor}</span>
+                          ) : (
+                            <span className="text-gray-400">No doctor assigned</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4">
@@ -696,6 +728,18 @@ const ComprehensivePatientList: React.FC = () => {
           patient={selectedPatientForPrescription}
           onClose={() => {
             setShowVHPrescription(false);
+            setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* Multiple Prescription Generator Modal */}
+      {showMultiplePrescription && selectedPatientForPrescription && (
+        <MultiplePrescriptionGenerator
+          patient={selectedPatientForPrescription}
+          prescriptionType={multiplePrescriptionType}
+          onClose={() => {
+            setShowMultiplePrescription(false);
             setSelectedPatientForPrescription(null);
           }}
         />

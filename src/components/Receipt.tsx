@@ -265,13 +265,37 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       .filter(transaction => transaction.amount > 0) // Only positive amounts (actual services)
       .forEach(transaction => {
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
-          // For consultation, show original rate and discounted amount
+          // Enhanced consultation handling for both single and multiple doctors
+          const description = transaction.description || 'Consultation Fee';
+          
+          // Check if this is a multiple doctor consultation (has doctor name in description)
+          const doctorMatch = description.match(/Consultation Fee - (.+?)\s*\(/);
+          const doctorName = doctorMatch ? doctorMatch[1] : null;
+          
+          // Extract original and net amounts from description for multi-doctor transactions
+          const originalMatch = description.match(/Original: ₹(\d+(?:\.\d{2})?)/);
+          const netMatch = description.match(/Net: ₹(\d+(?:\.\d{2})?)/);
+          
+          let originalAmount, finalAmount, serviceLabel;
+          
+          if (originalMatch && netMatch && doctorName) {
+            // Multiple doctor format - extract from transaction description
+            originalAmount = parseFloat(originalMatch[1]);
+            finalAmount = parseFloat(netMatch[1]);
+            serviceLabel = `${doctorName} Consultation`;
+          } else {
+            // Single doctor format - use receipt data
+            originalAmount = receiptData.originalConsultationFee;
+            finalAmount = receiptData.originalConsultationFee - receiptData.discountAmount;
+            serviceLabel = description.replace(/\s*\|.*$/, ''); // Remove calculation details
+          }
+          
           services.push({
             sr: srCounter++,
-            service: transaction.description || 'Consultation Fee',
+            service: serviceLabel,
             qty: 1,
-            rate: receiptData.originalConsultationFee, // Original rate (₹750)
-            amount: receiptData.originalConsultationFee - receiptData.discountAmount // Discounted amount (₹600)
+            rate: originalAmount, // Original rate
+            amount: finalAmount // Final amount after discount
           });
         } else {
           // For other services, show normal rate = amount
