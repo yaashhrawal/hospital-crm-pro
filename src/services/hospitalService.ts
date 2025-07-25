@@ -250,6 +250,15 @@ export class HospitalService {
       
       console.log(`✅ Fetched ${patients?.length || 0} patients`);
       
+      // Log first patient to check created_at field
+      if (patients && patients.length > 0) {
+        console.log('🔍 First patient data:', {
+          patient_id: patients[0].patient_id,
+          created_at: patients[0].created_at,
+          created_at_type: typeof patients[0].created_at
+        });
+      }
+      
       // Enhance patients with calculated fields
       const enhancedPatients = patients?.map(patient => {
         const transactions = patient.transactions || [];

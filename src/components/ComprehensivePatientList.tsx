@@ -303,6 +303,12 @@ const ComprehensivePatientList: React.FC = () => {
       const exportData = filteredPatients.map(patient => {
         console.log(`Patient ${patient.patient_id}: created_at = ${patient.created_at}, type = ${typeof patient.created_at}`);
         
+        // Debug registration date formatting
+        const regDate = patient.created_at || '';
+        console.log(`Registration date raw: ${regDate}`);
+        const formattedRegDate = formatDate(regDate);
+        console.log(`Registration date formatted: ${formattedRegDate}`);
+        
         return {
           patient_id: patient.patient_id,
           first_name: patient.first_name,
@@ -319,8 +325,8 @@ const ComprehensivePatientList: React.FC = () => {
           emergency_contact: patient.emergency_contact_name || '',
           visit_count: patient.visitCount || 0,
           total_spent: patient.totalSpent || 0,
-          last_visit: patient.lastVisit || '',
-          registration_date: formatDate(patient.created_at),
+          last_visit: formatDate(patient.lastVisit || ''),
+          registration_date: patient.created_at || '', // Store raw date
           formatted_total_spent: formatCurrency(patient.totalSpent || 0)
         };
       });
@@ -350,8 +356,8 @@ const ComprehensivePatientList: React.FC = () => {
         data: exportData,
         formatters: {
           total_spent: (value) => formatCurrency(value),
-          last_visit: (value) => value ? formatDate(value) : '',
-          registration_date: (value) => formatDate(value)
+          last_visit: (value) => value ? formatDate(value) : 'Never',
+          registration_date: (value) => value ? formatDate(value) : 'Unknown'
         }
       });
 
