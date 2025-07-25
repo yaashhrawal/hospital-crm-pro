@@ -561,39 +561,40 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
           {formData.consultation_mode === 'single' ? (
             /* Single Doctor Selection */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <select
-                value={formData.selected_department}
-                onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">Select Department</option>
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-              <select
-                value={formData.selected_doctor}
-                onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={!formData.selected_department}
-              >
-                <option value="">Select Doctor</option>
-                {filteredDoctors.map((doctor) => (
-                  <option key={doctor.name} value={doctor.name}>
-                    {doctor.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select
+                    value={formData.selected_department}
+                    onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select Department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+                  <select
+                    value={formData.selected_doctor}
+                    onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={!formData.selected_department}
+                  >
+                    <option value="">Select Doctor</option>
+                    {filteredDoctors.map((doctor) => (
+                      <option key={doctor.name} value={doctor.name}>
+                        {doctor.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               {formData.selected_department && (
                 <div className="mt-2 text-sm text-purple-600">
                   💡 Department: <strong>{formData.selected_department}</strong>
