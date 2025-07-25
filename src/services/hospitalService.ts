@@ -182,6 +182,7 @@ export class HospitalService {
       
       const patientData = {
         patient_id: patientId,
+        prefix: data.prefix || null,
         first_name: data.first_name,
         last_name: data.last_name || '',
         phone: data.phone || '',
