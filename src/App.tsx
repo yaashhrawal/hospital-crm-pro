@@ -13,7 +13,7 @@ import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import OperationsLedger from './components/OperationsLedger';
-import HospitalServices from './components/HospitalServices';
+// import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
 // Login Component
 const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -261,12 +261,6 @@ const App: React.FC = () => {
       name: '📊 Operations', 
       component: OperationsLedger,
       description: 'Complete financial ledger with all revenue, expenses and net calculations' 
-    },
-    { 
-      id: 'services', 
-      name: '🔬 Services', 
-      component: HospitalServices,
-      description: 'Medical services, diagnostic tests and hospital procedures' 
     }
   ];
 
