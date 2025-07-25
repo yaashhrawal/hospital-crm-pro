@@ -7,7 +7,7 @@ import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
-import { exportToExcel, formatCurrency, formatDate } from '../utils/excelExport';
+import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface PatientHistoryModalProps {
@@ -324,10 +324,9 @@ const ComprehensivePatientList: React.FC = () => {
           allergies: patient.allergies || '',
           emergency_contact: patient.emergency_contact_name || '',
           visit_count: patient.visitCount || 0,
-          total_spent: patient.totalSpent || 0,
+          total_spent: patient.totalSpent || 0, // Clean numeric value
           last_visit: formatDate(patient.lastVisit || ''),
           registration_date: patient.created_at || '', // Store raw date
-          formatted_total_spent: formatCurrency(patient.totalSpent || 0)
         };
       });
 
@@ -350,12 +349,11 @@ const ComprehensivePatientList: React.FC = () => {
           'Visit Count',
           'Total Spent',
           'Last Visit',
-          'Registration Date',
-          'Formatted Total Spent'
+          'Registration Date'
         ],
         data: exportData,
         formatters: {
-          total_spent: (value) => formatCurrency(value),
+          total_spent: (value) => formatCurrencyForExcel(value), // Clean numeric value
           last_visit: (value) => value ? formatDate(value) : 'Never',
           registration_date: (value) => value ? formatDate(value) : 'Unknown'
         }

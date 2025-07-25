@@ -100,9 +100,19 @@ export const exportMultiSheetExcel = (sheets: ExcelExportOptions[], filename: st
   return false;
 };
 
-// Format currency for export
+// Format currency for export - clean numeric value for Excel
 export const formatCurrency = (amount: number): string => {
   return `₹${amount.toLocaleString('en-IN')}`;
+};
+
+// Format currency for Excel export - returns clean number without currency symbols
+export const formatCurrencyForExcel = (amount: number): string => {
+  return amount.toString();
+};
+
+// Format currency with Rupee symbol for Excel export
+export const formatCurrencyWithSymbol = (amount: number): string => {
+  return `₹${amount}`;
 };
 
 // Format date for export
