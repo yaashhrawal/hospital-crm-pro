@@ -8,6 +8,7 @@ import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
 import MultiplePrescriptionGenerator from './MultiplePrescriptionGenerator';
+import PatientServiceManager from './PatientServiceManager';
 import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -175,6 +176,8 @@ const ComprehensivePatientList: React.FC = () => {
   const [showMultiplePrescription, setShowMultiplePrescription] = useState(false);
   const [multiplePrescriptionType, setMultiplePrescriptionType] = useState<'valant' | 'vh'>('valant');
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
+  const [showServiceManager, setShowServiceManager] = useState(false);
+  const [selectedPatientForServices, setSelectedPatientForServices] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -265,6 +268,11 @@ const ComprehensivePatientList: React.FC = () => {
   const handleViewReceipt = (patient: PatientWithRelations) => {
     setSelectedPatientForReceipt(patient);
     setShowReceiptModal(true);
+  };
+
+  const handleManageServices = (patient: PatientWithRelations) => {
+    setSelectedPatientForServices(patient);
+    setShowServiceManager(true);
   };
 
   const handlePatientUpdated = () => {
@@ -597,6 +605,16 @@ const ComprehensivePatientList: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            handleManageServices(patient);
+                          }}
+                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          title="Manage Medical Services"
+                        >
+                          🔬 Services
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleViewReceipt(patient);
                           }}
                           className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -741,6 +759,20 @@ const ComprehensivePatientList: React.FC = () => {
           onClose={() => {
             setShowMultiplePrescription(false);
             setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
+      {/* Patient Service Manager Modal */}
+      {showServiceManager && selectedPatientForServices && (
+        <PatientServiceManager
+          patient={selectedPatientForServices}
+          onClose={() => {
+            setShowServiceManager(false);
+            setSelectedPatientForServices(null);
+          }}
+          onServicesUpdated={() => {
+            loadPatients(); // Reload to update totals
           }}
         />
       )}

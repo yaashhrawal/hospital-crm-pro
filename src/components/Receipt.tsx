@@ -140,7 +140,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       });
 
       // Use totalDiscountAmount for calculations
-      const discountAmount = totalDiscountAmount;
+      let discountAmount = totalDiscountAmount;
 
       console.log('📋 Final calculated values:');
       console.log('- Number of consultation transactions:', consultationTransactions.length);
