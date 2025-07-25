@@ -298,26 +298,32 @@ const ComprehensivePatientList: React.FC = () => {
 
   const exportPatientsToExcel = () => {
     try {
-      const exportData = filteredPatients.map(patient => ({
-        patient_id: patient.patient_id,
-        first_name: patient.first_name,
-        last_name: patient.last_name,
-        phone: patient.phone || '',
-        email: patient.email || '',
-        gender: patient.gender || '',
-        age: patient.age || '',
-        blood_group: patient.blood_group || '',
-        address: patient.address || '',
-        date_of_birth: patient.date_of_birth || '',
-        medical_history: patient.medical_history || '',
-        allergies: patient.allergies || '',
-        emergency_contact: patient.emergency_contact_name || '',
-        visit_count: patient.visitCount || 0,
-        total_spent: patient.totalSpent || 0,
-        last_visit: patient.lastVisit || '',
-        registration_date: formatDate(patient.created_at),
-        formatted_total_spent: formatCurrency(patient.totalSpent || 0)
-      }));
+      console.log('🔍 Exporting patients, checking registration dates...');
+      
+      const exportData = filteredPatients.map(patient => {
+        console.log(`Patient ${patient.patient_id}: created_at = ${patient.created_at}, type = ${typeof patient.created_at}`);
+        
+        return {
+          patient_id: patient.patient_id,
+          first_name: patient.first_name,
+          last_name: patient.last_name,
+          phone: patient.phone || '',
+          email: patient.email || '',
+          gender: patient.gender || '',
+          age: patient.age || '',
+          blood_group: patient.blood_group || '',
+          address: patient.address || '',
+          date_of_birth: patient.date_of_birth || '',
+          medical_history: patient.medical_history || '',
+          allergies: patient.allergies || '',
+          emergency_contact: patient.emergency_contact_name || '',
+          visit_count: patient.visitCount || 0,
+          total_spent: patient.totalSpent || 0,
+          last_visit: patient.lastVisit || '',
+          registration_date: formatDate(patient.created_at),
+          formatted_total_spent: formatCurrency(patient.totalSpent || 0)
+        };
+      });
 
       const success = exportToExcel({
         filename: `Patient_List_${new Date().toISOString().split('T')[0]}`,

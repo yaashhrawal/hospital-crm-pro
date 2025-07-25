@@ -107,9 +107,22 @@ export const formatCurrency = (amount: number): string => {
 
 // Format date for export
 export const formatDate = (date: string | Date): string => {
-  if (!date) return '';
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  return dateObj.toLocaleDateString('en-IN');
+  if (!date) return 'N/A';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      console.warn('Invalid date provided to formatDate:', date);
+      return 'Invalid Date';
+    }
+    
+    return dateObj.toLocaleDateString('en-IN');
+  } catch (error) {
+    console.error('Error formatting date:', date, error);
+    return 'Invalid Date';
+  }
 };
 
 // Format date and time for export
