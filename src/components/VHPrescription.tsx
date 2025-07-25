@@ -111,7 +111,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center">
               <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
               <span className="text-xl font-medium text-gray-900">
-                {patient.first_name} {patient.last_name}
+                {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
               </span>
             </div>
 

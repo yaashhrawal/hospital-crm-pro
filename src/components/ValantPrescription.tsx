@@ -112,7 +112,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             <div className="flex items-center">
               <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
               <span className="text-base font-medium text-gray-900">
-                {patient.first_name} {patient.last_name}
+                {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
               </span>
             </div>
 
