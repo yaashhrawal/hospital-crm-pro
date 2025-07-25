@@ -171,12 +171,25 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
 
       const transactions = [];
 
-      // Create main consultation transaction with ORIGINAL amount
+      // Create single transaction with final discounted amount
+      // Store discount details in description instead of separate transaction
+      const transactionDescription = transactionData.description || 
+        `${transactionData.transaction_type === 'CONSULTATION' ? 'Consultation Fee' : 
+          transactionData.transaction_type === 'LAB_TEST' ? 'Lab Test' :
+          transactionData.transaction_type === 'XRAY' ? 'X-Ray' :
+          transactionData.transaction_type === 'MEDICINE' ? 'Medicine' :
+          transactionData.transaction_type === 'PROCEDURE' ? 'Procedure' :
+          'Service'}${transactionData.selected_doctor ? ` - ${transactionData.selected_doctor}` : ''}${transactionData.selected_department ? ` (${transactionData.selected_department})` : ''}${
+          transactionData.discount_percentage > 0 ? 
+          ` | Original: ₹${originalConsultationFee} | Discount: ${transactionData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${transactionData.discount_reason ? ` | Reason: ${transactionData.discount_reason}` : ''}` :
+          ` | Amount: ₹${finalAmount.toFixed(2)}`
+        }`;
+
       const mainTransaction = {
         patient_id: patient.id,
         transaction_type: transactionData.transaction_type as any,
-        description: transactionData.description || `Consultation Fee${transactionData.selected_doctor ? ` - ${transactionData.selected_doctor}` : ''}${transactionData.selected_department ? ` (${transactionData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${transactionData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${transactionData.discount_reason ? ` | Reason: ${transactionData.discount_reason}` : ''}`,
-        amount: originalConsultationFee, // Store ORIGINAL amount
+        description: transactionDescription,
+        amount: finalAmount, // Store FINAL discounted amount
         payment_mode: transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode,
         status: 'COMPLETED' as any,
         doctor_name: transactionData.selected_doctor,
@@ -185,25 +198,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       };
 
       await HospitalService.createTransaction(mainTransaction as any);
-      console.log('✅ Main transaction created');
-
-      // If there's a discount, add a separate discount transaction
-      if (transactionData.discount_percentage > 0 && discountAmount > 0) {
-        const discountTransaction = {
-          patient_id: patient.id,
-          transaction_type: 'DISCOUNT' as any,
-          description: `Consultation Discount (${transactionData.discount_percentage}%)${transactionData.discount_reason ? ` - ${transactionData.discount_reason}` : ''}`,
-          amount: -discountAmount, // Negative amount for discount
-          payment_mode: transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode,
-          status: 'COMPLETED' as any,
-          doctor_name: transactionData.selected_doctor,
-          hospital_id: '550e8400-e29b-41d4-a716-446655440000',
-          created_by: 'system'
-        };
-
-        await HospitalService.createTransaction(discountTransaction as any);
-        console.log('✅ Discount transaction created');
-      }
+      console.log('✅ Transaction created with final amount:', finalAmount);
 
       toast.success(`Transaction added successfully! ₹${finalAmount.toFixed(2)} - ${transactionData.selected_doctor}`);
       
