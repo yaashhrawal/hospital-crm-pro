@@ -8,7 +8,10 @@ import type {
   User
 } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
-import DischargePatientModal from './DischargePatientModal';
+import EnhancedDischargeModal from './EnhancedDischargeModal';
+import IPDServiceManager from './IPDServiceManager';
+import IPDPartialBilling from './IPDPartialBilling';
+import IPDNavigation from './IPDNavigation';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 // Normalize room type to match database constraint - FIXED
@@ -47,6 +50,18 @@ const EnhancedIPDManagement: React.FC = () => {
   // Discharge modal state
   const [showDischargeModal, setShowDischargeModal] = useState(false);
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<PatientAdmissionWithRelations | null>(null);
+  
+  // IPD Service Manager modal state
+  const [showServiceManager, setShowServiceManager] = useState(false);
+  const [selectedAdmissionForServices, setSelectedAdmissionForServices] = useState<PatientAdmissionWithRelations | null>(null);
+  
+  // IPD Partial Billing modal state
+  const [showPartialBilling, setShowPartialBilling] = useState(false);
+  const [selectedAdmissionForBilling, setSelectedAdmissionForBilling] = useState<PatientAdmissionWithRelations | null>(null);
+  
+  // IPD Documents modal state
+  const [showIPDDocuments, setShowIPDDocuments] = useState(false);
+  const [selectedAdmissionForDocuments, setSelectedAdmissionForDocuments] = useState<PatientAdmissionWithRelations | null>(null);
   
   // Receipt printing
   const { printAdmissionReceipt, printDischargeReceipt } = useReceiptPrinting();
@@ -224,6 +239,31 @@ const EnhancedIPDManagement: React.FC = () => {
     loadStats();
   };
 
+  const handleManageServices = (admission: PatientAdmissionWithRelations) => {
+    setSelectedAdmissionForServices(admission);
+    setShowServiceManager(true);
+  };
+
+  const handleServicesUpdated = () => {
+    loadData();
+    loadStats();
+  };
+
+  const handleManageBilling = (admission: PatientAdmissionWithRelations) => {
+    setSelectedAdmissionForBilling(admission);
+    setShowPartialBilling(true);
+  };
+
+  const handleBillCreated = () => {
+    loadData();
+    loadStats();
+  };
+
+  const handleShowDocuments = (admission: PatientAdmissionWithRelations) => {
+    setSelectedAdmissionForDocuments(admission);
+    setShowIPDDocuments(true);
+  };
+
   const calculateStayDuration = (admissionDate: string, dischargeDate?: string) => {
     const start = new Date(admissionDate);
     const end = dischargeDate ? new Date(dischargeDate) : new Date();
@@ -232,9 +272,8 @@ const EnhancedIPDManagement: React.FC = () => {
   };
 
   const calculateTotalAmount = (admission: PatientAdmissionWithRelations) => {
-    const days = calculateStayDuration(admission.admission_date, admission.actual_discharge_date);
-    const dailyRate = admission.bed?.daily_rate || 0;
-    return days * dailyRate;
+    // Use service-based total instead of daily rate calculation
+    return admission.total_amount || 0;
   };
 
   return (
@@ -325,9 +364,9 @@ const EnhancedIPDManagement: React.FC = () => {
                     <th className="text-left p-4 font-semibold text-gray-700">Patient</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Bed</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Room Type</th>
-                    <th className="text-left p-4 font-semibold text-gray-700">Daily Rate</th>
+                    <th className="text-left p-4 font-semibold text-gray-700">Services</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Days</th>
-                    <th className="text-left p-4 font-semibold text-gray-700">Total Amount</th>
+                    <th className="text-left p-4 font-semibold text-gray-700">Amount & Billing</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Admission Date</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Actions</th>
                   </tr>
@@ -345,16 +384,33 @@ const EnhancedIPDManagement: React.FC = () => {
                       </td>
                       <td className="p-4 font-medium">{admission.bed?.bed_number || 'N/A'}</td>
                       <td className="p-4">{admission.bed?.room_type || 'N/A'}</td>
-                      <td className="p-4">₹{admission.bed?.daily_rate?.toLocaleString() || 'N/A'}</td>
+                      <td className="p-4">
+                        <button
+                          onClick={() => handleManageServices(admission)}
+                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700"
+                          title="Manage IPD Services"
+                        >
+                          🔬 Manage
+                        </button>
+                      </td>
                       <td className="p-4">
                         <span className="font-medium">
                           {calculateStayDuration(admission.admission_date, admission.actual_discharge_date)} days
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="font-semibold text-green-600">
-                          ₹{calculateTotalAmount(admission).toLocaleString()}
-                        </span>
+                        <div>
+                          <div className="font-semibold text-green-600">
+                            ₹{calculateTotalAmount(admission).toLocaleString()}
+                          </div>
+                          <button
+                            onClick={() => handleManageBilling(admission)}
+                            className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 mt-1"
+                            title="Manage Billing & Payments"
+                          >
+                            💰 Billing
+                          </button>
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="text-sm">
@@ -368,6 +424,14 @@ const EnhancedIPDManagement: React.FC = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleShowDocuments(admission)}
+                            className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700"
+                            title="IPD Documents (Slip, Card, Stickers)"
+                          >
+                            📋 Documents
+                          </button>
+                          
                           <button
                             onClick={() => printAdmissionReceipt(admission.id)}
                             className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
@@ -423,7 +487,7 @@ const EnhancedIPDManagement: React.FC = () => {
         </div>
 
         {/* Comprehensive Discharge Modal */}
-        <DischargePatientModal
+        <EnhancedDischargeModal
           admission={selectedAdmissionForDischarge}
           isOpen={showDischargeModal}
           onClose={() => {
@@ -432,6 +496,43 @@ const EnhancedIPDManagement: React.FC = () => {
           }}
           onDischargeSuccess={handleDischargeSuccess}
         />
+
+        {/* IPD Service Manager Modal */}
+        {selectedAdmissionForServices && (
+          <IPDServiceManager
+            patientAdmission={selectedAdmissionForServices}
+            isOpen={showServiceManager}
+            onClose={() => {
+              setShowServiceManager(false);
+              setSelectedAdmissionForServices(null);
+            }}
+            onServicesUpdated={handleServicesUpdated}
+          />
+        )}
+
+        {/* IPD Partial Billing Modal */}
+        {selectedAdmissionForBilling && (
+          <IPDPartialBilling
+            patientAdmission={selectedAdmissionForBilling}
+            isOpen={showPartialBilling}
+            onClose={() => {
+              setShowPartialBilling(false);
+              setSelectedAdmissionForBilling(null);
+            }}
+            onBillCreated={handleBillCreated}
+          />
+        )}
+
+        {/* IPD Documents Modal */}
+        {selectedAdmissionForDocuments && (
+          <IPDNavigation
+            admission={selectedAdmissionForDocuments}
+            onClose={() => {
+              setShowIPDDocuments(false);
+              setSelectedAdmissionForDocuments(null);
+            }}
+          />
+        )}
     </div>
   );
 };
