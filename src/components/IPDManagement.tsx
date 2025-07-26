@@ -4,6 +4,8 @@ import { supabase } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 import IPDAdmissionModal from './IPDAdmissionModal';
 import IPDServicesModal from './IPDServicesModal';
+import DischargeCard from './DischargeCard';
+import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface IPDPatient {
   id: string;
@@ -31,6 +33,9 @@ interface IPDPatient {
   discharge_date?: string;
   status: 'active' | 'discharged';
   total_amount: number;
+  history_present_illness?: string;
+  past_medical_history?: string;
+  procedure_planned?: string;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +59,8 @@ const IPDManagement: React.FC = () => {
   const [editingPatient, setEditingPatient] = useState<IPDPatient | null>(null);
   const [showServicesModal, setShowServicesModal] = useState<string | null>(null);
   const [servicesPatientName, setServicesPatientName] = useState<string>('');
+  const [showDischargeCardModal, setShowDischargeCardModal] = useState(false);
+  const [dischargeCardData, setDischargeCardData] = useState<any>(null);
 
   useEffect(() => {
     loadIPDPatients();
@@ -74,7 +81,10 @@ const IPDManagement: React.FC = () => {
           .select(`
             *,
             patient:patients(first_name, last_name, phone, patient_id),
-            bed:beds(id, bed_number, room_type, daily_rate, department)
+            bed:beds(id, bed_number, room_type, daily_rate, department),
+            history_present_illness,
+            past_medical_history,
+            procedure_planned
           `)
           .eq('status', statusFilter)
           .order('admission_date', { ascending: false });
@@ -194,6 +204,62 @@ const IPDManagement: React.FC = () => {
       console.error('Error discharging patient:', error);
       toast.error(`Failed to discharge patient: ${error.message}`);
     }
+  };
+
+  const handleGenerateDischargeCard = (patient: IPDPatient) => {
+    const hospitalInfo = {
+      name: "VALANT Hospital",
+      address: "123 Hospital Road, Health City",
+      phone: "+91 98765 43210",
+      email: "info@valanthospital.com",
+      registration: "REG12345",
+      gst: "GSTIN123456789",
+    };
+
+    const dischargeData = {
+      type: 'DISCHARGE' as const,
+      receiptNumber: `DC-${patient.id.substring(0, 8).toUpperCase()}`,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
+      hospital: hospitalInfo,
+      patient: {
+        id: patient.patient.patient_id,
+        name: `${patient.patient.first_name} ${patient.patient.last_name}`,
+        age: patient.patient.age, // Assuming patient object has age
+        gender: patient.patient.gender, // Assuming patient object has gender
+        phone: patient.patient.phone,
+        address: patient.patient.address, // Assuming patient object has address
+        bloodGroup: patient.patient.blood_group, // Assuming patient object has blood_group
+      },
+      medical: {
+        diagnosis: patient.history_present_illness || 'N/A', // Using history_present_illness as diagnosis
+        treatment: patient.procedure_planned || 'N/A', // Using procedure_planned as treatment
+        condition: 'Stable', // Placeholder, ideally from discharge notes
+        followUp: 'Follow up with referring doctor in 7 days.', // Placeholder
+        doctor: 'Dr. Attending Physician', // Placeholder, ideally from patient.doctor
+        admissionDate: new Date(patient.admission_date).toLocaleDateString(),
+        dischargeDate: patient.discharge_date ? new Date(patient.discharge_date).toLocaleDateString() : new Date().toLocaleDateString(),
+        stayDuration: calculateStayDuration(patient.admission_date, patient.discharge_date),
+      },
+      charges: [], // Discharge card doesn't need charges
+      payments: [], // Discharge card doesn't need payments
+      totals: {
+        subtotal: 0,
+        discount: 0,
+        insurance: 0,
+        netAmount: 0,
+        amountPaid: 0,
+        balance: 0,
+      },
+      staff: {
+        processedBy: 'System', // Placeholder
+        authorizedBy: 'Dr. Admin', // Placeholder
+      },
+      notes: `Patient admitted for ${patient.history_present_illness || 'general admission'}. Discharged in stable condition.`,
+    };
+
+    setDischargeCardData(dischargeData);
+    setShowDischargeCardModal(true);
   };
 
   const EditableField: React.FC<{
@@ -354,10 +420,10 @@ const IPDManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4 font-medium">
-                      {patient.bed?.bed_number || patient.bed_number || 'N/A'}
+                      <strong>{patient.bed?.bed_number || patient.bed_number || 'N/A'}</strong>
                     </td>
                     <td className="p-4">
-                      {patient.bed?.room_type || patient.room_type || 'N/A'}
+                      <strong>{patient.bed?.room_type || patient.room_type || 'N/A'}</strong>
                     </td>
                     <td className="p-4">
                       {patient.bed?.department || patient.department || 'N/A'}
@@ -397,11 +463,27 @@ const IPDManagement: React.FC = () => {
                           💊 Services
                         </button>
                         {activeTab === 'active' && (
+                          <>
+                            <button
+                              onClick={() => handleDischarge(patient.id)}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                            >
+                              📤 Discharge
+                            </button>
+                            <button
+                              onClick={() => printAdmissionReceipt(patient.id, 'IP_STICKER')}
+                              className="bg-yellow-600 text-white px-3 py-1 rounded text-sm hover:bg-yellow-700"
+                            >
+                              🏷️ IP Sticker
+                            </button>
+                          </>
+                        )}
+                        {activeTab === 'discharged' && (
                           <button
-                            onClick={() => handleDischarge(patient.id)}
-                            className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                            onClick={() => handleGenerateDischargeCard(patient)}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
                           >
-                            📤 Discharge
+                            📄 Discharge Card
                           </button>
                         )}
                       </div>
@@ -479,6 +561,30 @@ const IPDManagement: React.FC = () => {
         admissionId={showServicesModal || ''}
         patientName={servicesPatientName}
       />
+
+      {/* Discharge Card Modal */}
+      {showDischargeCardModal && dischargeCardData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-screen overflow-y-auto relative">
+            <button
+              onClick={() => setShowDischargeCardModal(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ✕
+            </button>
+            <DischargeCard data={dischargeCardData} />
+            <div className="flex justify-end mt-4 print:hidden">
+              <button
+                onClick={() => window.print()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <span>🖨️</span>
+                <span>Print Discharge Card</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

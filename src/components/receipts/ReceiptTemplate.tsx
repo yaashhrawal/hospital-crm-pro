@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface ReceiptData {
-  type: 'CONSULTATION' | 'ADMISSION' | 'DISCHARGE' | 'SERVICE' | 'PAYMENT' | 'DAILY_SUMMARY';
+  type: 'CONSULTATION' | 'ADMISSION' | 'DISCHARGE' | 'SERVICE' | 'PAYMENT' | 'DAILY_SUMMARY' | 'IP_STICKER';
   receiptNumber: string;
   date: string;
   time: string;
@@ -25,6 +25,9 @@ export interface ReceiptData {
     phone?: string;
     address?: string;
     bloodGroup?: string;
+    history_present_illness?: string;
+    past_medical_history?: string;
+    procedure_planned?: string;
   };
   
   // Medical Information (for discharge)
@@ -84,6 +87,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
     switch (data.type) {
       case 'CONSULTATION': return 'CONSULTATION RECEIPT';
       case 'ADMISSION': return 'IPD ADMISSION RECEIPT';
+      case 'IP_STICKER': return 'IP STICKER';
       case 'DISCHARGE': return 'DISCHARGE SUMMARY & BILL';
       case 'SERVICE': return 'SERVICE RECEIPT';
       case 'PAYMENT': return 'PAYMENT RECEIPT';
@@ -176,11 +180,20 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             <p><strong>NAME:</strong> {data.patient.name}</p>
             <p><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} / {data.patient.gender || 'N/A'}</p>
             <p><strong>MOBILE:</strong> {data.patient.phone || 'N/A'}</p>
+            {data.type === 'IP_STICKER' && data.patient.history_present_illness && (
+              <p><strong>HPI:</strong> {data.patient.history_present_illness}</p>
+            )}
+            {data.type === 'IP_STICKER' && data.patient.past_medical_history && (
+              <p><strong>PMH:</strong> {data.patient.past_medical_history}</p>
+            )}
           </div>
           <div>
             <p><strong>BLOOD GROUP:</strong> {data.patient.bloodGroup || 'N/A'}</p>
             <p><strong>ADDRESS:</strong> {data.patient.address || 'N/A'}</p>
             {data.staff.processedBy && <p><strong>PROCESSED BY:</strong> {data.staff.processedBy}</p>}
+            {data.type === 'IP_STICKER' && data.patient.procedure_planned && (
+              <p><strong>Procedure:</strong> {data.patient.procedure_planned}</p>
+            )}
           </div>
         </div>
       </div>
@@ -234,8 +247,8 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
                 <td className="border border-gray-300 px-3 py-2">{service.sr}</td>
                 <td className="border border-gray-300 px-3 py-2">{service.service}</td>
                 <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
-                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate.toFixed(2)}</td>
-                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount.toFixed(2)}</td>
+                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate}</td>
+                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount}</td>
               </tr>
             )) : (
               <tr>
@@ -248,58 +261,62 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         </table>
       </div>
 
-      {/* Payment Details */}
-      {data.payments.length > 0 && (
-        <div className="mb-6">
-          <h3 className="font-semibold mb-3 text-gray-800">Payment Details</h3>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            {data.payments.map((payment, index) => (
-              <div key={index} className="flex justify-between text-sm mb-1">
-                <span><strong>{payment.mode}:</strong> {payment.reference ? `(Ref: ${payment.reference})` : ''}</span>
-                <span>₹{payment.amount.toFixed(2)}</span>
+      {/* Payment Details & Summary (Hidden for IP Sticker/Admission) */}
+      {(data.type !== 'IP_STICKER' && data.type !== 'ADMISSION') && (
+        <>
+          {data.payments.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-semibold mb-3 text-gray-800">Payment Details</h3>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                {data.payments.map((payment, index) => (
+                  <div key={index} className="flex justify-between text-sm mb-1">
+                    <span><strong>{payment.mode}:</strong> {payment.reference ? `(Ref: ${payment.reference})` : ''}</span>
+                    <span>₹{payment.amount}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Summary */}
-      <div className="border-t-2 border-gray-300 pt-4 mb-6">
-        <div className="flex justify-end">
-          <div className="w-64">
-            <div className="flex justify-between mb-2">
-              <span>Total Amount:</span>
-              <span>₹{data.totals.subtotal.toFixed(2)}</span>
-            </div>
-            {data.totals.discount > 0 && (
-              <div className="flex justify-between mb-2 text-red-600">
-                <span>Discount:</span>
-                <span>- ₹{data.totals.discount.toFixed(2)}</span>
+          {/* Summary */}
+          <div className="border-t-2 border-gray-300 pt-4 mb-6">
+            <div className="flex justify-end">
+              <div className="w-64">
+                <div className="flex justify-between mb-2">
+                  <span>Total Amount:</span>
+                  <span>₹{data.totals.subtotal}</span>
+                </div>
+                {data.totals.discount > 0 && (
+                  <div className="flex justify-between mb-2 text-red-600">
+                    <span>Discount:</span>
+                    <span>- ₹{data.totals.discount}</span>
+                  </div>
+                )}
+                {data.totals.insurance > 0 && (
+                  <div className="flex justify-between mb-2 text-blue-600">
+                    <span>Insurance Covered:</span>
+                    <span>- ₹{data.totals.insurance}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2">
+                  <span>Net Amount:</span>
+                  <span>₹{data.totals.netAmount}</span>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span>Amount Paid:</span>
+                  <span>₹{data.totals.amountPaid}</span>
+                </div>
+                {data.totals.balance !== 0 && (
+                  <div className={`flex justify-between mt-2 font-semibold ${data.totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <span>{data.totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
+                    <span>₹{Math.abs(data.totals.balance)}</span>
+                  </div>
+                )}
               </div>
-            )}
-            {data.totals.insurance > 0 && (
-              <div className="flex justify-between mb-2 text-blue-600">
-                <span>Insurance Covered:</span>
-                <span>- ₹{data.totals.insurance.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2">
-              <span>Net Amount:</span>
-              <span>₹{data.totals.netAmount.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between mt-2">
-              <span>Amount Paid:</span>
-              <span>₹{data.totals.amountPaid.toFixed(2)}</span>
-            </div>
-            {data.totals.balance !== 0 && (
-              <div className={`flex justify-between mt-2 font-semibold ${data.totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                <span>{data.totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
-                <span>₹{Math.abs(data.totals.balance).toFixed(2)}</span>
-              </div>
-            )}
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Notes */}
       {data.notes && (

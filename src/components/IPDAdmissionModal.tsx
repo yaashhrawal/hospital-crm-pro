@@ -310,8 +310,6 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
                 onChange={(e) => setFormData({ ...formData, daily_rate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter daily rate"
-                min="0"
-                step="0.01"
                 required
               />
             </div>

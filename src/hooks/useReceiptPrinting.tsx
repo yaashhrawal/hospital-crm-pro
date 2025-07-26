@@ -136,7 +136,7 @@ export const useReceiptPrinting = () => {
   };
 
   // Admission Receipt
-  const printAdmissionReceipt = async (admissionId: string) => {
+  const printAdmissionReceipt = async (admissionId: string, receiptType: 'ADMISSION' | 'IP_STICKER' = 'ADMISSION') => {
     try {
       console.log('Printing admission receipt for ID:', admissionId);
       
@@ -146,7 +146,10 @@ export const useReceiptPrinting = () => {
         .select(`
           *,
           patient:patients(*),
-          bed:bed_id(*)
+          bed:beds(id, bed_number, room_type, daily_rate, department),
+          history_present_illness,
+          past_medical_history,
+          procedure_planned
         `)
         .eq('id', admissionId)
         .single();
@@ -198,7 +201,7 @@ export const useReceiptPrinting = () => {
       }
 
       const receiptData: ReceiptData = {
-        type: 'ADMISSION',
+        type: receiptType,
         receiptNumber: generateReceiptNumber('ADM'),
         date: new Date().toLocaleDateString('en-IN'),
         time: new Date().toLocaleTimeString('en-IN'),
@@ -209,7 +212,10 @@ export const useReceiptPrinting = () => {
           age: admission.patient?.age,
           gender: admission.patient?.gender,
           phone: admission.patient?.phone,
-          bloodGroup: admission.patient?.blood_group
+          bloodGroup: admission.patient?.blood_group,
+          history_present_illness: admission.history_present_illness,
+          past_medical_history: admission.past_medical_history,
+          procedure_planned: admission.procedure_planned
         },
         charges: [
           {

@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS patient_admissions (
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'discharged')),
     total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    history_present_illness TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
