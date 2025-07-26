@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { PatientAdmissionWithRelations } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
+import InsurancePaymentForm from './InsurancePaymentForm';
 
 interface DischargeModalProps {
   admission: PatientAdmissionWithRelations | null;
@@ -34,7 +35,7 @@ interface DischargeFormData {
   insurance_covered: number;
   
   // Payment Details
-  payment_mode: 'CASH' | 'ONLINE' | 'INSURANCE';
+  payment_mode: 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'INSURANCE';
   amount_paid: number;
   
   // Legal/Administrative
@@ -82,8 +83,12 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
   });
 
   const [existingCharges, setExistingCharges] = useState(0);
+  const [totalPaid, setTotalPaid] = useState(0);
+  const [balanceDue, setBalanceDue] = useState(0);
   const [patientTransactions, setPatientTransactions] = useState<any[]>([]);
   const [stayDuration, setStayDuration] = useState(0);
+  const [showInsuranceForm, setShowInsuranceForm] = useState(false);
+  const [insuranceData, setInsuranceData] = useState<any>(null);
 
   useEffect(() => {
     if (admission && isOpen) {
@@ -97,18 +102,29 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     if (!admission?.patient?.id) return;
 
     try {
-      const { data: transactions, error } = await supabase
-        .from('patient_transactions')
-        .select('*')
-        .eq('patient_id', admission.patient.id)
-        .eq('status', 'COMPLETED')
-        .order('created_at', { ascending: false });
+      const transactions = await HospitalService.getTransactionsByPatient(admission.patient.id);
+      
+      // Filter transactions after admission date
+      const admissionTransactions = transactions.filter(t => 
+        new Date(t.created_at) >= new Date(admission.admission_date) &&
+        t.status === 'COMPLETED'
+      );
 
-      if (error) throw error;
-
-      setPatientTransactions(transactions || []);
-      const totalExisting = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-      setExistingCharges(totalExisting);
+      setPatientTransactions(admissionTransactions);
+      
+      // Calculate totals for service-based charges
+      const serviceCharges = admissionTransactions
+        .filter(t => t.transaction_type !== 'IPD_PAYMENT' && t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const paymentsReceived = admissionTransactions
+        .filter(t => t.transaction_type === 'IPD_PAYMENT')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      setExistingCharges(serviceCharges);
+      setTotalPaid(paymentsReceived);
+      setBalanceDue(serviceCharges - paymentsReceived);
+      
     } catch (error: any) {
       console.error('Error loading patient charges:', error);
     }
@@ -131,35 +147,38 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
 
-    // Calculate bed charges based on stay duration and bed daily rate
-    const bedDailyRate = admission.bed?.daily_rate || 1000; // Default rate if not found
-    const bedCharges = stayDuration * bedDailyRate;
-
     setFormData(prev => ({
       ...prev,
-      nursing_charges: bedCharges,
       next_appointment_date: nextWeek.toISOString().split('T')[0],
-      attendant_contact: admission.patient?.phone || ''
+      attendant_contact: admission.patient?.phone || '',
+      // Set amount paid to current balance due if any outstanding
+      amount_paid: balanceDue > 0 ? balanceDue : 0
     }));
   };
 
   const calculateTotalCharges = () => {
-    const newCharges = formData.doctor_fees + 
-                      formData.nursing_charges + 
-                      formData.medicine_charges + 
-                      formData.diagnostic_charges + 
-                      formData.operation_charges + 
-                      formData.other_charges;
+    // New discharge charges (if any additional charges)
+    const additionalCharges = formData.doctor_fees + 
+                             formData.nursing_charges + 
+                             formData.medicine_charges + 
+                             formData.diagnostic_charges + 
+                             formData.operation_charges + 
+                             formData.other_charges;
     
-    const totalBeforeDeductions = existingCharges + newCharges;
-    const totalAfterDeductions = totalBeforeDeductions - formData.discount_amount - formData.insurance_covered;
+    const totalServices = existingCharges + additionalCharges;
+    const totalAfterDeductions = totalServices - formData.discount_amount - formData.insurance_covered;
+    const grandTotal = totalAfterDeductions;
+    const totalPayments = totalPaid + formData.amount_paid;
+    const finalBalance = grandTotal - totalPayments;
     
     return {
       existingCharges,
-      newCharges,
-      totalBeforeDeductions,
-      totalAfterDeductions,
-      bedCharges: stayDuration * (admission?.bed?.daily_rate || 1000)
+      additionalCharges,
+      totalServices,
+      totalAfterDeductions: grandTotal,
+      totalPayments,
+      finalBalance,
+      currentBalance: balanceDue
     };
   };
 
@@ -193,9 +212,16 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     }
 
     const totals = calculateTotalCharges();
-    if (formData.amount_paid < totals.totalAfterDeductions) {
-      toast.error('Payment amount is less than total charges');
-      return;
+    
+    // Check if there's a balance and final payment is required
+    if (totals.finalBalance > 0 && formData.amount_paid < totals.finalBalance) {
+      const confirmDischarge = window.confirm(
+        `There is a pending balance of ₹${totals.finalBalance.toLocaleString()}. ` +
+        `Do you want to proceed with discharge? The patient can settle this later.`
+      );
+      if (!confirmDischarge) {
+        return;
+      }
     }
 
     setLoading(true);
@@ -270,62 +296,104 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       console.log('✅ Discharge summary created:', dischargeSummary);
 
-      // 2. Create discharge bill if there are new charges
-      if (totals.newCharges > 0) {
-        console.log('💰 Creating discharge bill...');
-        const { error: billError } = await supabase
-          .from('discharge_bills')
-          .insert({
-            admission_id: admission.id,
-            patient_id: admission.patient?.id,
-            discharge_summary_id: dischargeSummary.id,
-            doctor_fees: formData.doctor_fees,
-            nursing_charges: formData.nursing_charges,
-            medicine_charges: formData.medicine_charges,
-            diagnostic_charges: formData.diagnostic_charges,
-            operation_charges: formData.operation_charges,
-            other_charges: formData.other_charges,
-            total_charges: totals.totalBeforeDeductions,
-            discount_amount: formData.discount_amount,
-            insurance_covered: formData.insurance_covered,
-            net_amount: totals.totalAfterDeductions,
-            payment_mode: formData.payment_mode,
-            amount_paid: formData.amount_paid,
-            stay_duration: stayDuration,
-            created_by: currentUser.id,
-            hospital_id: admission.hospital_id
-          });
+      // 2. Create final discharge bill (comprehensive summary)
+      console.log('💰 Creating final discharge bill...');
+      const { data: dischargeBill, error: billError } = await supabase
+        .from('discharge_bills')
+        .insert({
+          admission_id: admission.id,
+          patient_id: admission.patient?.id,
+          discharge_summary_id: dischargeSummary.id,
+          doctor_fees: formData.doctor_fees,
+          nursing_charges: formData.nursing_charges,
+          medicine_charges: formData.medicine_charges,
+          diagnostic_charges: formData.diagnostic_charges,
+          operation_charges: formData.operation_charges,
+          other_charges: formData.other_charges,
+          existing_services: totals.existingCharges, // Services rendered during stay
+          total_charges: totals.totalServices,
+          discount_amount: formData.discount_amount,
+          insurance_covered: formData.insurance_covered,
+          net_amount: totals.totalAfterDeductions,
+          previous_payments: totalPaid, // Partial payments made
+          final_payment: formData.amount_paid, // Final payment at discharge
+          total_paid: totals.totalPayments,
+          balance_amount: totals.finalBalance,
+          payment_mode: formData.payment_mode,
+          stay_duration: stayDuration,
+          created_by: currentUser.id,
+          hospital_id: admission.hospital_id
+        })
+        .select()
+        .single();
 
-        if (billError) {
-          console.error('❌ Discharge bill error:', billError);
-          throw billError;
+      if (billError) {
+        console.error('❌ Discharge bill error:', billError);
+        throw billError;
+      }
+      
+      console.log('✅ Final discharge bill created:', dischargeBill);
+
+      // 3. Create additional service transactions if any new charges
+      if (totals.additionalCharges > 0) {
+        console.log('🔬 Creating additional service transactions...');
+        
+        const additionalServices = [];
+        if (formData.doctor_fees > 0) {
+          additionalServices.push({
+            patient_id: admission.patient?.id,
+            transaction_type: 'PROCEDURE',
+            amount: formData.doctor_fees,
+            description: 'Doctor Fees - Discharge',
+            payment_mode: 'CASH',
+            status: 'COMPLETED'
+          });
         }
         
-        console.log('✅ Discharge bill created successfully');
-
-        // 3. Create final payment transaction if amount is being paid
-        if (formData.amount_paid > 0) {
-          console.log('💳 Creating payment transaction...');
-          const { error: transactionError } = await supabase
-            .from('patient_transactions')
-            .insert({
-              patient_id: admission.patient?.id,
-              amount: formData.amount_paid,
-              payment_mode: formData.payment_mode,
-              transaction_type: 'DISCHARGE',
-              description: `Discharge payment - Final settlement for ${stayDuration} days stay`,
-              status: 'COMPLETED',
-              processed_by: currentUser.id,
-              hospital_id: admission.hospital_id
-            });
-
-          if (transactionError) {
-            console.error('❌ Payment transaction error:', transactionError);
-            throw transactionError;
-          }
-          
-          console.log('✅ Payment transaction created successfully');
+        if (formData.nursing_charges > 0) {
+          additionalServices.push({
+            patient_id: admission.patient?.id,
+            transaction_type: 'NURSING',
+            amount: formData.nursing_charges,
+            description: 'Additional Nursing Charges',
+            payment_mode: 'CASH',
+            status: 'COMPLETED'
+          });
         }
+        
+        if (formData.medicine_charges > 0) {
+          additionalServices.push({
+            patient_id: admission.patient?.id,
+            transaction_type: 'MEDICINE',
+            amount: formData.medicine_charges,
+            description: 'Medicine Charges - Discharge',
+            payment_mode: 'CASH',
+            status: 'COMPLETED'
+          });
+        }
+        
+        // Add other charges as needed...
+        
+        if (additionalServices.length > 0) {
+          for (const service of additionalServices) {
+            await HospitalService.createTransaction(service);
+          }
+        }
+      }
+
+      // 4. Create final payment transaction if amount is being paid
+      if (formData.amount_paid > 0) {
+        console.log('💳 Creating final payment transaction...');
+        await HospitalService.createTransaction({
+          patient_id: admission.patient?.id,
+          transaction_type: 'IPD_PAYMENT',
+          amount: formData.amount_paid,
+          description: `Final IPD Payment - Discharge Settlement (Bill: ${dischargeBill.id})`,
+          payment_mode: formData.payment_mode,
+          status: 'COMPLETED'
+        });
+        
+        console.log('✅ Final payment transaction created successfully');
       }
 
       // 4. Update admission status only
@@ -693,11 +761,19 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
                 </label>
                 <select
                   value={formData.payment_mode}
-                  onChange={(e) => setFormData({...formData, payment_mode: e.target.value as any})}
+                  onChange={(e) => {
+                    const mode = e.target.value as any;
+                    setFormData({...formData, payment_mode: mode});
+                    if (mode === 'INSURANCE') {
+                      setShowInsuranceForm(true);
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="CASH">Cash</option>
-                  <option value="ONLINE">Online/Card</option>
+                  <option value="CARD">Credit/Debit Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
                   <option value="INSURANCE">Insurance</option>
                 </select>
               </div>
@@ -849,6 +925,25 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Insurance Payment Form Modal */}
+      {showInsuranceForm && (
+        <InsurancePaymentForm
+          amount={totals.totalAfterDeductions}
+          onSave={(insuranceInfo) => {
+            setInsuranceData(insuranceInfo);
+            setShowInsuranceForm(false);
+            // Adjust amount paid based on insurance coverage
+            const patientPortion = insuranceInfo.deductible_amount + insuranceInfo.copay_amount;
+            setFormData({...formData, amount_paid: patientPortion});
+            toast.success('Insurance details saved. Patient portion calculated.');
+          }}
+          onCancel={() => {
+            setShowInsuranceForm(false);
+            setFormData({...formData, payment_mode: 'CASH'});
+          }}
+        />
+      )}
     </div>
   );
 };

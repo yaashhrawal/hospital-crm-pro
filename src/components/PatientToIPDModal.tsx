@@ -22,9 +22,11 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
     bed_number: '',
     room_type: 'GENERAL' as 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY',
     department: '',
-    daily_rate: '',
     expected_discharge: '',
     admission_notes: '',
+    procedure_planned: '',
+    history_present_illness: '',
+    past_medical_history: '',
   });
 
   React.useEffect(() => {
@@ -42,8 +44,8 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
   const handleAdmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.bed_number || !formData.department || !formData.daily_rate) {
-      toast.error('Please fill in all required fields');
+    if (!formData.bed_number || !formData.department || !formData.history_present_illness.trim()) {
+      toast.error('Please fill in all required fields (Bed Number, Department, History of Present Illness)');
       return;
     }
 
@@ -110,8 +112,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
           .from('beds')
           .update({ 
             status: 'OCCUPIED',
-            room_type: formData.room_type,
-            daily_rate: parseFloat(formData.daily_rate)
+            room_type: formData.room_type
           })
           .eq('id', bedRecord.id);
       } else {
@@ -122,7 +123,6 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
           .insert([{
             bed_number: formData.bed_number,
             room_type: formData.room_type,
-            daily_rate: parseFloat(formData.daily_rate),
             status: 'OCCUPIED',
             hospital_id: '550e8400-e29b-41d4-a716-446655440000'
           }])
@@ -145,14 +145,17 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         bed_number: formData.bed_number,
         room_type: formData.room_type,
         department: formData.department,
-        daily_rate: parseFloat(formData.daily_rate),
         admission_date: new Date().toISOString(),
         status: 'ACTIVE',
         services: {},
         total_amount: 0,
         amount_paid: 0,
         balance_amount: 0,
-        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
+        hospital_id: '550e8400-e29b-41d4-a716-446655440000',
+        procedure_planned: formData.procedure_planned.trim() || null,
+        history_present_illness: formData.history_present_illness.trim() || null,
+        past_medical_history: formData.past_medical_history.trim() || null,
+        admission_notes: formData.admission_notes.trim() || null
       };
 
       console.log('📤 Inserting admission data:', admissionData);
@@ -210,9 +213,11 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
       bed_number: '',
       room_type: 'GENERAL',
       department: '',
-      daily_rate: '',
       expected_discharge: '',
       admission_notes: '',
+      procedure_planned: '',
+      history_present_illness: '',
+      past_medical_history: '',
     });
     onClose();
   };
@@ -307,21 +312,6 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Daily Rate (₹) *
-              </label>
-              <input
-                type="number"
-                value={formData.daily_rate}
-                onChange={(e) => setFormData({ ...formData, daily_rate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter daily rate"
-                min="0"
-                step="0.01"
-                required
-              />
-            </div>
 
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -337,14 +327,54 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
 
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Procedure Planned
+              </label>
+              <input
+                type="text"
+                value={formData.procedure_planned}
+                onChange={(e) => setFormData({ ...formData, procedure_planned: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., Laparoscopic Cholecystectomy, Appendectomy, Medical Management..."
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                History of Present Illness (HPI) *
+              </label>
+              <textarea
+                value={formData.history_present_illness}
+                onChange={(e) => setFormData({ ...formData, history_present_illness: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Chief complaint, onset, duration, severity, associated symptoms, timeline..."
+                required
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Past Medical History
+              </label>
+              <textarea
+                value={formData.past_medical_history}
+                onChange={(e) => setFormData({ ...formData, past_medical_history: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Previous surgeries, chronic conditions, medications, allergies..."
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Admission Notes
               </label>
               <textarea
                 value={formData.admission_notes}
                 onChange={(e) => setFormData({ ...formData, admission_notes: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Enter admission notes, medical conditions, special instructions..."
+                rows={2}
+                placeholder="Additional notes, special instructions..."
               />
             </div>
           </div>
