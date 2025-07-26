@@ -176,11 +176,13 @@ export class HospitalService {
     
     try {
       // Generate patient ID
-      const patientCount = await this.getPatientCount();
-      const patientId = `P${String(patientCount + 1).padStart(6, '0')}`;
+      const maxPatientIdNumber = await this.getMaxPatientIdNumber();
+      const nextPatientIdNumber = maxPatientIdNumber + 1;
+      const patientId = `P${String(nextPatientIdNumber).padStart(6, '0')}`;
       
       const patientData = {
         patient_id: patientId,
+        prefix: data.prefix || null,
         first_name: data.first_name,
         last_name: data.last_name || '',
         phone: data.phone || '',
@@ -322,14 +324,49 @@ export class HospitalService {
       return null;
     }
   }
+
+  static async deletePatient(patientId: string): Promise<void> {
+    try {
+      console.log(`🗑️ Deleting patient with ID: ${patientId}`);
+      const { error } = await supabase
+        .from('patients')
+        .delete()
+        .eq('id', patientId);
+
+      if (error) {
+        console.error('❌ Patient deletion error:', error);
+        throw new Error(`Patient deletion failed: ${error.message}`);
+      }
+      console.log(`✅ Patient with ID ${patientId} deleted successfully.`);
+    } catch (error: any) {
+      console.error('🚨 deletePatient error:', error);
+      throw error;
+    }
+  }
   
-  private static async getPatientCount(): Promise<number> {
-    const { count, error } = await supabase
-      .from('patients')
-      .select('*', { count: 'exact', head: true })
-      .eq('hospital_id', HOSPITAL_ID);
-    
-    return count || 0;
+  private static async getMaxPatientIdNumber(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .from('patients')
+        .select('patient_id')
+        .order('patient_id', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching max patient ID:', error);
+        return 0;
+      }
+
+      if (data && data.length > 0) {
+        const maxId = data[0].patient_id;
+        const numberPart = parseInt(maxId.substring(1), 10);
+        return isNaN(numberPart) ? 0 : numberPart;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Exception in getMaxPatientIdNumber:', error);
+      return 0;
+    }
   }
   
   // ==================== TRANSACTION OPERATIONS ====================

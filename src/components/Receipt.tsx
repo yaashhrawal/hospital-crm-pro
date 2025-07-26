@@ -458,8 +458,8 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             <h3 className="font-semibold mb-3 text-gray-800">Patient Information</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p><strong>NAME:</strong> {patient.first_name} {patient.last_name}</p>
-                <p><strong>AGE/SEX:</strong> {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}</p>
+                <p><strong>NAME:</strong> {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}</p>
+                <p><strong>AGE/SEX:</strong> {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}</p>
                 <p><strong>MOBILE:</strong> {patient.phone || 'N/A'}</p>
               </div>
               <div>

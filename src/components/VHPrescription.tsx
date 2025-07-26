@@ -111,7 +111,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center">
               <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
               <span className="text-xl font-medium text-gray-900">
-                {patient.first_name} {patient.last_name}
+                {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
               </span>
             </div>
 
@@ -140,7 +140,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center justify-end">
               <span className="text-lg font-medium text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-xl text-gray-900">
-                {patient.age && patient.age.trim() !== '' ? patient.age : 'N/A'} / {patient.gender}
+                {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
               </span>
             </div>
           </div>

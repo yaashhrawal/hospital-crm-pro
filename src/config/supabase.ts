@@ -40,7 +40,7 @@ export interface Patient {
   first_name: string;
   last_name: string;
   age: number;
-  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  gender: 'M' | 'F' | 'OTHER';
   phone: string;
   email?: string;
   address: string;
@@ -153,7 +153,7 @@ export interface CreatePatientData {
   first_name: string;
   last_name: string;
   age: number;
-  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  gender: 'M' | 'F' | 'OTHER';
   phone: string;
   email?: string;
   address: string;
