@@ -36,7 +36,7 @@ const IPDNavigation: React.FC<IPDNavigationProps> = ({ admission, onClose }) => 
             <h2 className="text-xl font-bold">🏥 IPD Documents</h2>
             <p className="text-indigo-100">
               Patient: {admission.patient?.first_name} {admission.patient?.last_name} • 
-              Bed: {admission.bed_number}
+              Bed: {admission.bed?.bed_number || admission.bed_number || 'N/A'}
             </p>
           </div>
           {onClose && (

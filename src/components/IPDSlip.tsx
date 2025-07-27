@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import HospitalService from '../services/hospitalService';
+import { supabase } from '../config/supabaseNew';
 import toast from 'react-hot-toast';
 
 interface IPDSlipProps {
@@ -8,10 +9,20 @@ interface IPDSlipProps {
 }
 
 const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
-  const [advanceAmount, setAdvanceAmount] = useState(0);
-  const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER'>('CASH');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'INSURANCE'>('CASH');
   const [receiptNumber, setReceiptNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasExistingPayment, setHasExistingPayment] = useState(false);
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
+  const [lastPaymentDetails, setLastPaymentDetails] = useState<any>(null);
+  const [allAdvancePayments, setAllAdvancePayments] = useState<any[]>([]);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [insuranceDetails, setInsuranceDetails] = useState({
+    provider: '',
+    policyNumber: '',
+    policyHolderName: ''
+  });
 
   useEffect(() => {
     loadAdvancePayment();
@@ -21,16 +32,51 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
   const loadAdvancePayment = async () => {
     try {
       const transactions = await HospitalService.getTransactionsByPatient(admission.patient_id);
+      console.log('All transactions for patient:', transactions);
       
-      // Find advance payment made at admission
-      const advancePayment = transactions.find(t => 
-        t.transaction_type === 'IPD_ADVANCE' &&
-        new Date(t.created_at).toDateString() === new Date(admission.admission_date).toDateString()
-      );
+      // Find all advance payments (look for both IPD_ADVANCE and ADMISSION_FEE)
+      const advancePayments = transactions.filter(t => 
+        (t.transaction_type === 'ADMISSION_FEE' || t.transaction_type === 'IPD_ADVANCE') &&
+        new Date(t.created_at) >= new Date(admission.admission_date) &&
+        t.status === 'COMPLETED'
+      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      console.log('Found advance payments:', advancePayments);
+      setAllAdvancePayments(advancePayments);
 
-      if (advancePayment) {
-        setAdvanceAmount(advancePayment.amount);
-        setPaymentMode(advancePayment.payment_mode);
+      if (advancePayments.length > 0) {
+        const latestPayment = advancePayments[0];
+        setAdvanceAmount(latestPayment.amount.toString());
+        setPaymentMode(latestPayment.payment_mode);
+        setHasExistingPayment(true);
+        setLastPaymentDetails(latestPayment);
+        
+        // Parse insurance details from description if available
+        if (latestPayment.payment_mode === 'INSURANCE' && latestPayment.description) {
+          const desc = latestPayment.description;
+          const providerMatch = desc.match(/Insurance: ([^|]+)/);
+          const policyMatch = desc.match(/Policy: ([^|]+)/);
+          
+          if (providerMatch && policyMatch) {
+            setInsuranceDetails({
+              provider: providerMatch[1].trim(),
+              policyNumber: policyMatch[1].trim(),
+              policyHolderName: admission.patient?.first_name + ' ' + admission.patient?.last_name || ''
+            });
+          }
+        }
+      } else {
+        // No existing payment found, reset states
+        setAdvanceAmount('');
+        setPaymentMode('CASH');
+        setHasExistingPayment(false);
+        setLastPaymentDetails(null);
+        setAllAdvancePayments([]);
+        setInsuranceDetails({
+          provider: '',
+          policyNumber: '',
+          policyHolderName: ''
+        });
       }
     } catch (error) {
       console.error('Error loading advance payment:', error);
@@ -43,24 +89,42 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
   };
 
   const handleSaveAdvance = async () => {
-    if (advanceAmount <= 0) {
+    const amount = parseFloat(advanceAmount);
+    if (!amount || amount <= 0) {
       toast.error('Please enter a valid advance amount');
+      return;
+    }
+
+    if (paymentMode === 'INSURANCE' && (!insuranceDetails.provider || !insuranceDetails.policyNumber || !insuranceDetails.policyHolderName)) {
+      toast.error('Please fill all insurance details');
       return;
     }
 
     setLoading(true);
     try {
       // Create advance payment transaction
-      await HospitalService.createTransaction({
-        patient_id: admission.patient_id,
-        transaction_type: 'IPD_ADVANCE',
-        amount: advanceAmount,
+      const transactionData: any = {
+        patient_id: admission.patient?.id || admission.patient_id,
+        transaction_type: 'ADMISSION_FEE',
+        amount: parseFloat(advanceAmount),
         description: `IPD Advance Payment - Admission ${admission.bed_number}`,
         payment_mode: paymentMode,
-        status: 'COMPLETED'
-      });
+        status: 'COMPLETED',
+        doctor_id: null,
+        doctor_name: null,
+        department: admission.department
+      };
 
-      toast.success('Advance payment recorded successfully');
+      if (paymentMode === 'INSURANCE') {
+        transactionData.description += ` | Insurance: ${insuranceDetails.provider} | Policy: ${insuranceDetails.policyNumber}`;
+      }
+
+      await HospitalService.createTransaction(transactionData);
+
+      toast.success(isEditingPayment ? 'Advance payment updated successfully' : 'Advance payment recorded successfully');
+      setHasExistingPayment(true);
+      setIsEditingPayment(false);
+      await loadAdvancePayment();
     } catch (error) {
       console.error('Error saving advance payment:', error);
       toast.error('Failed to save advance payment');
@@ -71,6 +135,121 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handlePrintIndividual = (payment: any) => {
+    // Create a new window with individual payment receipt
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Advance Payment Receipt</title>
+          <style>
+            @media print {
+              @page { margin: 0.5in; size: A4; }
+            }
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .logo { height: 60px; margin-bottom: 10px; }
+            .title { font-size: 20px; font-weight: bold; color: #2563eb; }
+            .details { margin: 20px 0; }
+            .row { display: flex; justify-content: space-between; margin: 5px 0; }
+            .label { font-weight: bold; }
+            .amount { font-size: 24px; font-weight: bold; color: #16a34a; }
+            .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <img src="/logo.png" alt="Hospital Logo" class="logo" />
+            <p>10, Madhav Vihar Shobhagpura, Udaipur (313001)</p>
+            <p>Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
+            <div class="title">ADVANCE PAYMENT RECEIPT</div>
+          </div>
+          
+          <div class="details">
+            <div class="row">
+              <span class="label">Receipt No:</span>
+              <span>ADV-${payment.id.slice(-6).toUpperCase()}</span>
+            </div>
+            <div class="row">
+              <span class="label">Patient Name:</span>
+              <span>${admission.patient?.first_name} ${admission.patient?.last_name}</span>
+            </div>
+            <div class="row">
+              <span class="label">Patient ID:</span>
+              <span>${admission.patient?.patient_id}</span>
+            </div>
+            <div class="row">
+              <span class="label">Payment Date:</span>
+              <span>${new Date(payment.created_at).toLocaleDateString('en-IN')} at ${new Date(payment.created_at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</span>
+            </div>
+            <div class="row">
+              <span class="label">Payment Mode:</span>
+              <span>${payment.payment_mode}</span>
+            </div>
+            <div class="row">
+              <span class="label">Amount Paid:</span>
+              <span class="amount">₹${payment.amount.toLocaleString()}</span>
+            </div>
+            <div class="row">
+              <span class="label">Amount in Words:</span>
+              <span>${convertNumberToWords(payment.amount)} Only</span>
+            </div>
+            <div class="row">
+              <span class="label">Transaction ID:</span>
+              <span>${payment.id.slice(-8).toUpperCase()}</span>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Thank you for choosing our hospital</p>
+            <p>Generated on ${new Date().toLocaleDateString()}</p>
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string, paymentAmount: number) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this advance payment of ₹${paymentAmount.toLocaleString()}?\n\n` +
+      `This action cannot be undone. The payment will be permanently removed from the system.`
+    );
+
+    if (!confirmDelete) return;
+
+    setDeletingPaymentId(paymentId);
+    setLoading(true);
+
+    try {
+      // Delete the transaction from the database
+      const { error } = await supabase
+        .from('patient_transactions')
+        .delete()
+        .eq('id', paymentId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Advance payment deleted successfully');
+      
+      // Reload the advance payments
+      await loadAdvancePayment();
+      
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
+      toast.error(`Failed to delete payment: ${error.message}`);
+    } finally {
+      setLoading(false);
+      setDeletingPaymentId(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -136,10 +315,23 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
           </div>
         </div>
 
-        {/* Advance Amount Input Section - Only show if no advance recorded */}
-        {advanceAmount === 0 && (
+        {/* Advance Amount Input Section - Show if no payment exists or editing */}
+        {(!hasExistingPayment || isEditingPayment) && (
           <div className="p-4 bg-yellow-50 border-b no-print">
-            <h3 className="font-semibold mb-3">Record Advance Payment</h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-semibold">{isEditingPayment ? 'Edit Advance Payment' : 'Record Advance Payment'}</h3>
+              {isEditingPayment && (
+                <button
+                  onClick={() => {
+                    setIsEditingPayment(false);
+                    loadAdvancePayment();
+                  }}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -147,10 +339,11 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
                 </label>
                 <input
                   type="number"
-                  value={advanceAmount || ''}
-                  onChange={(e) => setAdvanceAmount(Number(e.target.value) || 0)}
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="0"
+                  step="0.01"
                   placeholder="Enter amount"
                 />
               </div>
@@ -167,18 +360,61 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
                   <option value="CARD">Card</option>
                   <option value="UPI">UPI</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="INSURANCE">Insurance</option>
                 </select>
               </div>
               <div className="flex items-end">
                 <button
                   onClick={handleSaveAdvance}
-                  disabled={loading || advanceAmount <= 0}
+                  disabled={loading || !advanceAmount || parseFloat(advanceAmount) <= 0}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {loading ? 'Saving...' : 'Save Advance'}
+                  {loading ? 'Saving...' : (isEditingPayment ? 'Update Advance' : 'Save Advance')}
                 </button>
               </div>
             </div>
+
+            {/* Insurance Details Section */}
+            {paymentMode === 'INSURANCE' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Insurance Provider
+                  </label>
+                  <input
+                    type="text"
+                    value={insuranceDetails.provider}
+                    onChange={(e) => setInsuranceDetails({...insuranceDetails, provider: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter provider name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Policy Number
+                  </label>
+                  <input
+                    type="text"
+                    value={insuranceDetails.policyNumber}
+                    onChange={(e) => setInsuranceDetails({...insuranceDetails, policyNumber: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter policy number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Policy Holder Name
+                  </label>
+                  <input
+                    type="text"
+                    value={insuranceDetails.policyHolderName}
+                    onChange={(e) => setInsuranceDetails({...insuranceDetails, policyHolderName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter policy holder name"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -194,13 +430,17 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
                 style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
               />
             </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">VALANT HOSPITAL</h1>
             <div className="text-sm text-gray-600">
               <p>10, Madhav Vihar Shobhagpura, Udaipur (313001)</p>
               <p>Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
             </div>
             <div className="mt-4">
               <h2 className="text-xl font-bold text-blue-600">IPD ADMISSION SLIP</h2>
+              {admission.status === 'DISCHARGED' && (
+                <div className="mt-2 inline-block bg-red-100 text-red-800 px-4 py-2 rounded-lg font-bold">
+                  🏥 PATIENT DISCHARGED
+                </div>
+              )}
             </div>
           </div>
 
@@ -225,10 +465,6 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
                   <span className="font-medium">Room Type:</span>
                   <span>{admission.room_type}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Department:</span>
-                  <span>{admission.department}</span>
-                </div>
               </div>
             </div>
 
@@ -236,92 +472,114 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
               <h3 className="font-semibold text-gray-800 mb-3">Patient Information</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="font-medium">Patient ID:</span>
-                  <span>{admission.patient?.patient_id}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="font-medium">Name:</span>
                   <span className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium">Age/Gender:</span>
-                  <span>{admission.patient?.age || 'N/A'} / {admission.patient?.gender}</span>
+                  <span className="font-medium">Age:</span>
+                  <span>{admission.patient?.age || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Contact:</span>
                   <span>{admission.patient?.phone}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Blood Group:</span>
-                  <span>{admission.patient?.blood_group || 'N/A'}</span>
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Advance Payment Section */}
+          {/* All Advance Payments Section */}
+          {allAdvancePayments.length > 0 && (
           <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6">
-            <h3 className="font-bold text-green-800 text-lg mb-4 text-center">ADVANCE PAYMENT RECEIVED</h3>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-medium">Amount Paid:</span>
-                  <span className="font-bold text-xl text-green-600">₹{advanceAmount.toLocaleString()}</span>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-green-800 text-lg">ADVANCE PAYMENTS RECEIVED</h3>
+              <span className="text-sm text-green-700">Total Payments: {allAdvancePayments.length}</span>
+            </div>
+            
+            {allAdvancePayments.map((payment, index) => (
+              <div key={payment.id} className={`border border-green-300 rounded-lg p-4 mb-4 bg-white ${index === 0 ? 'border-2 border-green-500' : ''}`}>
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-green-800">Payment #{index + 1}</span>
+                    {index === 0 && <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Latest</span>}
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handlePrintIndividual(payment)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 no-print"
+                    >
+                      🖨️ Print Receipt
+                    </button>
+                    {index === 0 && !isEditingPayment && (
+                      <button
+                        onClick={() => setIsEditingPayment(true)}
+                        className="bg-orange-600 text-white px-3 py-1 rounded text-xs hover:bg-orange-700 no-print"
+                      >
+                        Edit Latest
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeletePayment(payment.id, payment.amount)}
+                      disabled={deletingPaymentId === payment.id || loading}
+                      className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 disabled:opacity-50 no-print"
+                    >
+                      {deletingPaymentId === payment.id ? '⏳' : '🗑️'} Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Payment Mode:</span>
-                  <span>{paymentMode}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Received By:</span>
-                  <span>Front Desk</span>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Transaction ID:</span>
+                      <span className="font-mono text-xs">{payment.id.slice(-8).toUpperCase()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Amount:</span>
+                      <span className="font-bold text-lg text-green-600">₹{payment.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Payment Mode:</span>
+                      <span className="font-semibold">{payment.payment_mode}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Date & Time:</span>
+                      <span>{new Date(payment.created_at).toLocaleDateString('en-IN')} at {new Date(payment.created_at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Status:</span>
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">{payment.status}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="border border-dashed border-green-400 p-2 rounded">
+                      <p className="text-xs text-green-700 mb-1">Amount in Words:</p>
+                      <p className="text-sm font-medium text-green-800">
+                        {convertNumberToWords(payment.amount)} Only
+                      </p>
+                    </div>
+                    {payment.description && (
+                      <div className="bg-gray-50 p-2 rounded text-xs mt-2">
+                        <p className="font-medium text-gray-700">Description:</p>
+                        <p className="text-gray-600">{payment.description}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="border-2 border-dashed border-green-400 p-4 rounded">
-                  <p className="text-sm text-green-700 mb-2">Amount in Words:</p>
-                  <p className="font-medium text-green-800">
-                    {convertNumberToWords(advanceAmount)} Only
-                  </p>
-                </div>
+            ))}
+            
+            <div className="mt-4 p-3 bg-green-100 rounded border-green-300 border">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-green-800">Total Advance Paid:</span>
+                <span className="font-bold text-xl text-green-600">
+                  ₹{allAdvancePayments.reduce((sum, payment) => sum + payment.amount, 0).toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
+          )}
 
-          {/* Doctor Information */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-3">Attending Doctor</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium">Doctor Name:</span>
-                  <span>{admission.patient?.assigned_doctor || 'To be assigned'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Specialization:</span>
-                  <span>{admission.department}</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-3">Emergency Contact</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium">Contact Person:</span>
-                  <span>{admission.patient?.emergency_contact_name || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Relation:</span>
-                  <span>{admission.patient?.emergency_contact_relation || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Phone:</span>
-                  <span>{admission.patient?.emergency_contact_phone || admission.patient?.phone}</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Important Instructions */}
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -357,7 +615,7 @@ const IPDSlip: React.FC<IPDSlipProps> = ({ admission, onBack }) => {
           {/* Footer */}
           <div className="text-center mt-8 pt-4 border-t border-gray-200">
             <p className="text-xs text-gray-500">
-              Generated on {new Date().toLocaleDateString()} • VALANT HOSPITAL
+              Generated on {new Date().toLocaleDateString()}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               A unit of Neuorth Medicare Pvt Ltd • www.valanthospital.com

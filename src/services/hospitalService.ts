@@ -724,8 +724,9 @@ export class HospitalService {
   
   static async getDischargeSummaryWithBill(admissionId: string) {
     try {
-      console.log('📄 Loading complete discharge record...');
+      console.log('📄 Loading complete discharge record for admission:', admissionId);
       
+      // First try the full query with bills
       const { data, error } = await supabase
         .from('discharge_summaries')
         .select(`
@@ -738,13 +739,35 @@ export class HospitalService {
         .eq('admission_id', admissionId)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.warn('⚠️ Full query failed, trying simplified query:', error);
+        
+        // Fallback: try without discharge_bills table
+        const { data: simplifiedData, error: simplifiedError } = await supabase
+          .from('discharge_summaries')
+          .select(`
+            *,
+            admission:patient_admissions(*),
+            patient:patients(*)
+          `)
+          .eq('admission_id', admissionId)
+          .single();
+        
+        if (simplifiedError) {
+          console.error('❌ Simplified query also failed:', simplifiedError);
+          throw simplifiedError;
+        }
+        
+        console.log('✅ Simplified discharge record loaded');
+        return simplifiedData;
+      }
       
       console.log('✅ Complete discharge record loaded');
       return data;
       
     } catch (error: any) {
       console.error('❌ Error loading discharge record:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
   }

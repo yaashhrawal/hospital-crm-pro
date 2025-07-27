@@ -24,7 +24,7 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
         __html: `
           @media print {
             @page {
-              margin: 0.5in;
+              margin: 10mm;
               size: A4;
             }
             body * {
@@ -42,6 +42,37 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
             .no-print {
               display: none !important;
             }
+            .sticker {
+              width: 64mm !important;
+              height: 34mm !important;
+              font-size: 9px !important;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              padding: 2mm !important;
+              overflow: hidden !important;
+            }
+            .sticker div {
+              word-wrap: break-word !important;
+              overflow-wrap: break-word !important;
+            }
+            .grid {
+              display: grid !important;
+              grid-template-columns: repeat(3, 64mm) !important;
+              gap: 2mm !important;
+              justify-content: center;
+            }
+          }
+          .sticker {
+            width: 242px;
+            height: 128px;
+            font-size: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+          }
+          .sticker div {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
         `
       }} />
@@ -50,9 +81,9 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
         {/* Header */}
         <div className="bg-purple-600 text-white p-4 rounded-t-lg flex justify-between items-center no-print">
           <div>
-            <h2 className="text-xl font-bold">🏷️ IPD Patient Stickers</h2>
+            <h2 className="text-xl font-bold">🏷️ IPD Sticker</h2>
             <p className="text-purple-100">
-              Ready to print identification labels
+              Ready to print bed head card
             </p>
           </div>
           <div className="flex space-x-2">
@@ -72,173 +103,67 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
         </div>
 
         {/* Stickers Content */}
-        <div className="p-6" id="stickers-content">
-          {/* Main Sticker Sheet */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Large Sticker - Bed Head */}
-            <div className="border-2 border-dashed border-gray-400 p-4 bg-white">
-              <div className="text-center mb-3">
-                <h3 className="font-bold text-sm text-gray-600">BED HEAD CARD</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium">Name:</span>
-                  <span className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</span>
+        <div className="p-4" id="stickers-content">
+          {/* Multiple IPD Stickers Grid - 3x5 Layout (15 stickers per page) */}
+          <div className="grid grid-cols-3 gap-4">
+            {/* Generate 15 identical stickers */}
+            {Array.from({ length: 24 }, (_, index) => (
+              <div key={index} className={`sticker border ${admission.status === 'DISCHARGED' ? 'border-red-400 bg-red-50' : 'border-gray-400 bg-white'} break-inside-avoid flex flex-col`} style={{ padding: '7px' }}>
+                {/* Compact Header with Logo */}
+                <div className="flex items-center justify-between pb-1 border-b border-gray-300" style={{ marginBottom: '5px' }}>
+                  <img 
+                    src="/logo.png" 
+                    alt="Logo" 
+                    className="h-4"
+                    style={{ maxHeight: '16px' }}
+                  />
+                  <span className="font-bold" style={{ fontSize: '12px' }}>
+                    {admission.status === 'DISCHARGED' ? 'DISCHARGED' : 'IPD'}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Age/Sex:</span>
-                  <span>{admission.patient?.age || 'N/A'} / {admission.patient?.gender}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">DOA:</span>
-                  <span>{formatDate(admission.admission_date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Doctor:</span>
-                  <span>{admission.patient?.assigned_doctor || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Department:</span>
-                  <span>{admission.department}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Ward/Bed No:</span>
-                  <span className="font-bold">{admission.room_type} / {admission.bed_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">IP No:</span>
-                  <span className="font-bold">{admission.patient?.patient_id}</span>
-                </div>
-                <div className="mt-3 p-2 bg-green-100 rounded text-center">
-                  <span className="text-green-800 font-medium">✓ ADMITTED</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Medicine Label */}
-            <div className="border-2 border-dashed border-gray-400 p-4 bg-white">
-              <div className="text-center mb-3">
-                <h3 className="font-bold text-sm text-gray-600">MEDICINE LABEL</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="text-center">
-                  <div className="font-bold text-lg">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                  <div className="text-gray-600">Age: {admission.patient?.age || 'N/A'} | {admission.patient?.gender}</div>
-                </div>
-                <div className="border-t pt-2">
-                  <div className="flex justify-between">
-                    <span className="font-medium">Bed:</span>
-                    <span className="font-bold">{admission.bed_number}</span>
+                {/* Main Content Area */}
+                <div className="flex-1 flex">
+                  {/* Left Column - Patient Info */}
+                  <div className="flex-1 pr-2">
+                    <div className="font-bold" style={{ fontSize: '13px', lineHeight: '1.3', marginBottom: '3px' }}>
+                      {admission.patient?.first_name} {admission.patient?.last_name}
+                    </div>
+                    <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
+                      Age: {admission.patient?.age || 'N/A'} {admission.patient?.gender?.charAt(0) || ''}
+                    </div>
+                    <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
+                      DOA: {new Date(admission.admission_date).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit'
+                      })}
+                    </div>
+                    <div style={{ fontSize: '12px', lineHeight: '1.2', marginTop: '3px' }}>
+                      {admission.doctor?.name || admission.doctor_name || admission.assigned_doctor || 'TBA'}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">IP No:</span>
-                    <span>{admission.patient?.patient_id}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">DOA:</span>
-                    <span>{formatDate(admission.admission_date)}</span>
+                  
+                  {/* Right Column - Bed & ID */}
+                  <div className="text-right" style={{ width: '40%' }}>
+                    <div className={`font-bold ${admission.status === 'DISCHARGED' ? 'text-red-700' : 'text-green-700'}`} style={{ fontSize: '20px', lineHeight: '1' }}>
+                      {admission.bed_number}
+                    </div>
+                    <div style={{ fontSize: '10px', lineHeight: '1.2', marginTop: '2px' }}>
+                      IP: {admission.patient?.patient_id}
+                    </div>
+                    <div style={{ fontSize: '10px', lineHeight: '1.2' }}>
+                      {admission.department || 'General'}
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 p-1 bg-blue-100 rounded text-center text-xs">
-                  <span className="text-blue-800">VALANT HOSPITAL</span>
-                </div>
               </div>
-            </div>
+            ))}
           </div>
 
-          {/* Small Stickers Row */}
-          <div className="grid grid-cols-4 gap-3 mt-6">
-            {/* File Sticker */}
-            <div className="border-2 border-dashed border-gray-400 p-3 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-2">FILE LABEL</div>
-                <div className="space-y-1">
-                  <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                  <div>IP: {admission.patient?.patient_id}</div>
-                  <div>Bed: {admission.bed_number}</div>
-                  <div className="text-xs text-gray-600">{formatDate(admission.admission_date)}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sample Collection */}
-            <div className="border-2 border-dashed border-gray-400 p-3 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-2">SAMPLE LABEL</div>
-                <div className="space-y-1">
-                  <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                  <div>Age: {admission.patient?.age || 'N/A'}</div>
-                  <div>IP: {admission.patient?.patient_id}</div>
-                  <div>Bed: {admission.bed_number}</div>
-                  <div className="text-xs text-red-600 font-medium">LAB SAMPLE</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Diet Chart */}
-            <div className="border-2 border-dashed border-gray-400 p-3 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-2">DIET CHART</div>
-                <div className="space-y-1">
-                  <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                  <div>Bed: {admission.bed_number}</div>
-                  <div>Ward: {admission.room_type}</div>
-                  <div className="text-xs text-green-600 font-medium">DIETARY</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Emergency Contact */}
-            <div className="border-2 border-dashed border-gray-400 p-3 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-2">EMERGENCY</div>
-                <div className="space-y-1">
-                  <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                  <div>Contact: {admission.patient?.phone}</div>
-                  <div>Blood: {admission.patient?.blood_group || 'N/A'}</div>
-                  <div className="text-xs text-red-600 font-medium">URGENT</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Wristband Stickers */}
-          <div className="grid grid-cols-3 gap-4 mt-6">
-            <div className="border-2 border-dashed border-gray-400 p-2 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-1">WRISTBAND</div>
-                <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                <div>DOB: {admission.patient?.date_of_birth ? formatDate(admission.patient.date_of_birth) : 'N/A'}</div>
-                <div>ID: {admission.patient?.patient_id}</div>
-                <div>Bed: {admission.bed_number}</div>
-              </div>
-            </div>
-
-            <div className="border-2 border-dashed border-gray-400 p-2 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-1">ALLERGY BAND</div>
-                <div className="font-bold text-red-600">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                <div>Allergies: {admission.patient?.allergies || 'None Known'}</div>
-                <div>Blood: {admission.patient?.blood_group || 'N/A'}</div>
-                <div className="font-bold text-red-600">⚠️ CHECK ALLERGIES</div>
-              </div>
-            </div>
-
-            <div className="border-2 border-dashed border-gray-400 p-2 bg-white">
-              <div className="text-center text-xs">
-                <div className="font-bold text-xs text-gray-600 mb-1">FALL RISK</div>
-                <div className="font-bold">{admission.patient?.first_name} {admission.patient?.last_name}</div>
-                <div>Age: {admission.patient?.age || 'N/A'}</div>
-                <div>Bed: {admission.bed_number}</div>
-                <div className="font-bold text-orange-600">⚠️ FALL RISK</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer Information */}
-          <div className="mt-6 text-center text-xs text-gray-500 border-t pt-4">
-            <p>VALANT HOSPITAL • Generated on {new Date().toLocaleDateString()}</p>
-            <p>Cut along dotted lines • Use appropriate adhesive for patient safety</p>
+          {/* Page Footer */}
+          <div className="mt-6 text-center text-xs text-gray-500">
+            <p>24 IPD Stickers (64mm × 34mm) • Generated on {new Date().toLocaleDateString()}</p>
           </div>
         </div>
       </div>

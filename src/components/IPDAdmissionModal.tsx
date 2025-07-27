@@ -30,6 +30,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
     bed_number: '',
     room_type: 'general' as 'general' | 'private' | 'icu',
     department: '',
+    doctor_name: '',
     daily_rate: '',
     expected_discharge: '',
     admission_notes: '',
@@ -143,7 +144,8 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
         daily_rate: parseFloat(formData.daily_rate),
         admission_date: new Date().toISOString().split('T')[0],
         status: 'active',
-        total_amount: 0
+        total_amount: 0,
+        doctor_name: formData.doctor_name.trim() || null
       };
 
       console.log('📤 Inserting admission data:', admissionData);
@@ -184,6 +186,7 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
       bed_number: '',
       room_type: 'general',
       department: '',
+      doctor_name: '',
       daily_rate: '',
       expected_discharge: '',
       admission_notes: '',
@@ -252,6 +255,21 @@ const IPDAdmissionModal: React.FC<IPDAdmissionModalProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Doctor Name Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attending Doctor *
+            </label>
+            <input
+              type="text"
+              value={formData.doctor_name}
+              onChange={(e) => setFormData({ ...formData, doctor_name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., Dr. John Smith"
+              required
+            />
           </div>
 
           {/* Admission Details */}

@@ -21,6 +21,15 @@ interface EnhancedDischargeFormData {
   
   // Medical Summary
   final_diagnosis: string;
+  primary_consultant: string;
+  chief_complaints: string;
+  hopi: string;
+  past_history: string;
+  investigations: string;
+  course_of_stay: string;
+  treatment_during_hospitalization: string;
+  discharge_medication: string;
+  follow_up_on: string;
   treatment_summary: string;
   discharge_condition: 'STABLE' | 'IMPROVED' | 'SAME' | 'DETERIORATED';
   follow_up_instructions: string;
@@ -67,6 +76,15 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
     discharge_time: new Date().toTimeString().slice(0, 5),
     discharge_type: 'ROUTINE',
     final_diagnosis: '',
+    primary_consultant: '',
+    chief_complaints: '',
+    hopi: '',
+    past_history: '',
+    investigations: '',
+    course_of_stay: '',
+    treatment_during_hospitalization: '',
+    discharge_medication: '',
+    follow_up_on: '',
     treatment_summary: '',
     discharge_condition: 'STABLE',
     follow_up_instructions: '',
@@ -155,8 +173,19 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
 
+    // If patient is already discharged, use their actual discharge date and time
+    const isAlreadyDischarged = admission.status === 'DISCHARGED';
+    const dischargeDate = isAlreadyDischarged && admission.discharge_date 
+      ? new Date(admission.discharge_date).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+    const dischargeTime = isAlreadyDischarged && admission.discharge_date
+      ? new Date(admission.discharge_date).toTimeString().slice(0, 5)
+      : new Date().toTimeString().slice(0, 5);
+
     setFormData(prev => ({
       ...prev,
+      discharge_date: dischargeDate,
+      discharge_time: dischargeTime,
       next_appointment_date: nextWeek.toISOString().split('T')[0],
       attendant_contact: admission.patient?.phone || '',
       doctor_name: admission.patient?.assigned_doctor || ''
@@ -210,20 +239,13 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
           toast.error('Final diagnosis is required');
           return false;
         }
-        if (!formData.treatment_summary.trim()) {
-          toast.error('Treatment summary is required');
+        if (!formData.primary_consultant.trim()) {
+          toast.error('Primary consultant is required');
           return false;
         }
         return true;
       
       case 3:
-        if (formData.manual_bed_charges < 0) {
-          toast.error('Bed charges cannot be negative');
-          return false;
-        }
-        return true;
-      
-      case 4:
         if (!formData.attendant_name.trim()) {
           toast.error('Attendant name is required');
           return false;
@@ -245,7 +267,7 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      if (currentStep < 4) {
+      if (currentStep < 3) {
         setCurrentStep(currentStep + 1);
       }
     }
@@ -261,14 +283,13 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
     if (!admission) return;
 
     // Final validation
-    for (let step = 1; step <= 4; step++) {
+    for (let step = 1; step <= 3; step++) {
       if (!validateStep(step)) {
         setCurrentStep(step);
         return;
       }
     }
 
-    const totals = calculateTotalCharges();
     
     setLoading(true);
     try {
@@ -282,31 +303,62 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
 
       const dischargeDateTime = new Date(`${formData.discharge_date}T${formData.discharge_time}`).toISOString();
 
-      // 1. Create comprehensive discharge summary
+      // 1. Validate required data first
+      console.log('🔍 Validating discharge data...');
+      console.log('Current user:', currentUser);
+      console.log('Admission:', admission);
+      console.log('Form data:', formData);
+
+      if (!admission.id) {
+        throw new Error('Admission ID is missing');
+      }
+      if (!admission.patient?.id) {
+        throw new Error('Patient ID is missing from admission');
+      }
+      if (!currentUser.id) {
+        throw new Error('Current user ID is missing');
+      }
+
+      // 2. Create discharge summary record with all medical data
+      console.log('📝 Creating comprehensive discharge summary...');
+      
       const dischargeSummaryData = {
         admission_id: admission.id,
         patient_id: admission.patient?.id,
-        discharge_date: dischargeDateTime,
-        discharge_type: formData.discharge_type,
-        transfer_hospital: formData.transfer_hospital || null,
-        final_diagnosis: formData.final_diagnosis.trim(),
-        treatment_summary: formData.treatment_summary.trim(),
-        discharge_condition: formData.discharge_condition,
-        follow_up_instructions: formData.follow_up_instructions.trim() || null,
-        medicines_prescribed: formData.medicines_prescribed.trim() || null,
-        dietary_instructions: formData.dietary_instructions.trim() || null,
-        activity_restrictions: formData.activity_restrictions.trim() || null,
-        next_appointment_date: formData.next_appointment_date || null,
-        doctor_name: formData.doctor_name.trim() || null,
-        attendant_name: formData.attendant_name.trim(),
-        attendant_relationship: formData.attendant_relationship,
-        attendant_contact: formData.attendant_contact.trim() || null,
-        documents_handed_over: formData.documents_handed_over,
-        discharge_notes: formData.discharge_notes.trim() || null,
-        stay_duration: stayDuration,
+        final_diagnosis: formData.final_diagnosis?.trim() || 'Not specified',
+        primary_consultant: formData.primary_consultant?.trim() || 'Not specified',
+        chief_complaints: formData.chief_complaints?.trim() || null,
+        hopi: formData.hopi?.trim() || null,
+        past_history: formData.past_history?.trim() || null,
+        investigations: formData.investigations?.trim() || null,
+        course_of_stay: formData.course_of_stay?.trim() || null,
+        treatment_during_hospitalization: formData.treatment_during_hospitalization?.trim() || null,
+        discharge_medication: formData.discharge_medication?.trim() || null,
+        follow_up_on: formData.follow_up_on?.trim() || null,
+        attendant_name: formData.attendant_name?.trim() || 'Not specified',
+        attendant_relationship: formData.attendant_relationship || 'FAMILY_MEMBER',
+        attendant_contact: formData.attendant_contact?.trim() || null,
+        documents_handed_over: formData.documents_handed_over || false,
+        discharge_notes: formData.discharge_notes?.trim() || null,
         created_by: currentUser.id,
         hospital_id: admission.hospital_id || '550e8400-e29b-41d4-a716-446655440000'
       };
+      
+      console.log('📋 Prepared discharge summary data:', dischargeSummaryData);
+      
+      // Test if table exists first
+      console.log('🔍 Testing discharge_summaries table access...');
+      const { data: testQuery, error: testError } = await supabase
+        .from('discharge_summaries')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Table access test failed:', testError);
+        throw new Error(`Cannot access discharge_summaries table: ${testError.message}`);
+      }
+      
+      console.log('✅ Table access test passed');
       
       const { data: dischargeSummary, error: summaryError } = await supabase
         .from('discharge_summaries')
@@ -315,124 +367,58 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
         .single();
 
       if (summaryError) {
-        console.error('❌ Discharge summary error:', summaryError);
-        throw summaryError;
+        console.error('❌ Discharge summary insert error:', summaryError);
+        console.error('Error details:', JSON.stringify(summaryError, null, 2));
+        throw new Error(`Failed to save discharge summary: ${summaryError.message || summaryError.details || summaryError.hint || 'Unknown error'}`);
       }
       
-      console.log('✅ Discharge summary created:', dischargeSummary);
+      console.log('✅ Discharge summary created successfully:', dischargeSummary);
 
-      // 2. Create manual bed charges transaction if specified
-      if (formData.manual_bed_charges > 0) {
-        await HospitalService.createTransaction({
-          patient_id: admission.patient?.id,
-          transaction_type: 'ACCOMMODATION',
-          amount: totals.bedCharges,
-          description: `Manual Bed Charges - ${stayDuration} days @ ₹${formData.manual_bed_charges}/day`,
-          payment_mode: 'CASH',
-          status: 'COMPLETED'
-        });
-      }
+      // 2. Update patient admission with discharge information (only if not already discharged)
+      const isAlreadyDischarged = admission.status === 'DISCHARGED';
+      
+      if (!isAlreadyDischarged) {
+        const { error: admissionUpdateError } = await supabase
+          .from('patient_admissions')
+          .update({
+            status: 'DISCHARGED',
+            discharge_date: dischargeDateTime,
+            discharge_notes: formData.discharge_notes?.trim() || null
+          })
+          .eq('id', admission.id);
 
-      // 3. Create additional charge transactions
-      const additionalCharges = [
-        { type: 'PROCEDURE', amount: formData.doctor_fees, desc: 'Doctor Fees - Discharge' },
-        { type: 'NURSING', amount: formData.nursing_charges, desc: 'Additional Nursing Charges' },
-        { type: 'MEDICINE', amount: formData.medicine_charges, desc: 'Medicine Charges - Discharge' },
-        { type: 'DIAGNOSTIC', amount: formData.diagnostic_charges, desc: 'Diagnostic Charges' },
-        { type: 'PROCEDURE', amount: formData.operation_charges, desc: 'Operation/Procedure Charges' },
-        { type: 'OTHER', amount: formData.other_charges, desc: 'Other Charges' }
-      ];
+        if (admissionUpdateError) {
+          console.error('❌ Admission update error:', admissionUpdateError);
+          throw admissionUpdateError;
+        }
+        
+        console.log('✅ Patient admission updated with discharge info');
 
-      for (const charge of additionalCharges) {
-        if (charge.amount > 0) {
-          await HospitalService.createTransaction({
-            patient_id: admission.patient?.id,
-            transaction_type: charge.type,
-            amount: charge.amount,
-            description: charge.desc,
-            payment_mode: 'CASH',
-            status: 'COMPLETED'
-          });
+        // Update bed status to available (only for newly discharged patients)
+        if (admission.bed_number) {
+          await supabase
+            .from('beds')
+            .update({ status: 'AVAILABLE' })
+            .eq('bed_number', admission.bed_number);
+        }
+      } else {
+        console.log('ℹ️ Patient already discharged, only creating discharge summary');
+        
+        // For already discharged patients, update the discharge notes if needed
+        if (formData.discharge_notes?.trim()) {
+          await supabase
+            .from('patient_admissions')
+            .update({ discharge_notes: formData.discharge_notes.trim() })
+            .eq('id', admission.id);
         }
       }
 
-      // 4. Create comprehensive discharge bill
-      const { data: dischargeBill, error: billError } = await supabase
-        .from('discharge_bills')
-        .insert({
-          admission_id: admission.id,
-          patient_id: admission.patient?.id,
-          discharge_summary_id: dischargeSummary.id,
-          existing_services: totals.existingServices,
-          manual_bed_charges: totals.bedCharges,
-          doctor_fees: formData.doctor_fees,
-          nursing_charges: formData.nursing_charges,
-          medicine_charges: formData.medicine_charges,
-          diagnostic_charges: formData.diagnostic_charges,
-          operation_charges: formData.operation_charges,
-          other_charges: formData.other_charges,
-          total_charges: totals.totalServices,
-          discount_amount: formData.discount_amount,
-          discount_reason: formData.discount_reason || null,
-          net_amount: totals.totalAfterDiscount,
-          previous_payments: totalPaid,
-          final_payment: formData.amount_paid,
-          total_paid: totals.totalPayments,
-          balance_amount: totals.finalBalance,
-          payment_mode: formData.payment_mode,
-          stay_duration: stayDuration,
-          created_by: currentUser.id,
-          hospital_id: admission.hospital_id
-        })
-        .select()
-        .single();
-
-      if (billError) {
-        console.error('❌ Discharge bill error:', billError);
-        throw billError;
-      }
-      
-      console.log('✅ Final discharge bill created:', dischargeBill);
-
-      // 5. Create final payment transaction if amount is being paid
-      if (formData.amount_paid > 0) {
-        await HospitalService.createTransaction({
-          patient_id: admission.patient?.id,
-          transaction_type: 'IPD_PAYMENT',
-          amount: formData.amount_paid,
-          description: `Final IPD Payment - Discharge Settlement (Bill: ${dischargeBill.id})`,
-          payment_mode: formData.payment_mode,
-          status: 'COMPLETED'
-        });
-      }
-
-      // 6. Update admission status and discharge details
-      const { error: admissionError } = await supabase
-        .from('patient_admissions')
-        .update({
-          status: 'DISCHARGED',
-          actual_discharge_date: dischargeDateTime,
-          total_amount: totals.totalServices,
-          amount_paid: totals.totalPayments,
-          balance_amount: totals.finalBalance
-        })
-        .eq('id', admission.id);
-
-      if (admissionError) {
-        console.error('❌ Admission update error:', admissionError);
-        throw admissionError;
-      }
-
-      // 7. Update bed status to available
-      if (admission.bed_number) {
-        await supabase
-          .from('beds')
-          .update({ status: 'AVAILABLE' })
-          .eq('bed_number', admission.bed_number);
-      }
-
-      console.log('✅ Patient discharged successfully');
-      toast.success(`${admission.patient?.first_name} ${admission.patient?.last_name} discharged successfully`);
+      const successMessage = isAlreadyDischarged 
+        ? `Discharge summary created for ${admission.patient?.first_name} ${admission.patient?.last_name}`
+        : `${admission.patient?.first_name} ${admission.patient?.last_name} discharged successfully`;
+        
+      console.log('✅ Process completed successfully');
+      toast.success(successMessage);
       
       onDischargeSuccess();
       onClose();
@@ -446,8 +432,6 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
   };
 
   if (!isOpen || !admission) return null;
-
-  const totals = calculateTotalCharges();
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -537,388 +521,222 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
 
       case 2:
         return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">🏥 Medical Summary</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Final Diagnosis *
-                </label>
-                <textarea
-                  value={formData.final_diagnosis}
-                  onChange={(e) => setFormData({...formData, final_diagnosis: e.target.value})}
-                  placeholder="Primary and secondary diagnoses"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
-                  required
-                />
+          <div className="space-y-8">
+            {/* Medical Summary Section */}
+            <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
+              <h3 className="text-lg font-semibold text-blue-800 mb-4">🏥 Medical Discharge Summary</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Final Diagnosis *
+                  </label>
+                  <textarea
+                    value={formData.final_diagnosis}
+                    onChange={(e) => setFormData({...formData, final_diagnosis: e.target.value})}
+                    placeholder="Enter final diagnosis"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Primary Consultant *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.primary_consultant}
+                    onChange={(e) => setFormData({...formData, primary_consultant: e.target.value})}
+                    placeholder="Enter primary consultant name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Chief Complaints
+                  </label>
+                  <textarea
+                    value={formData.chief_complaints}
+                    onChange={(e) => setFormData({...formData, chief_complaints: e.target.value})}
+                    placeholder="Enter chief complaints"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    HOPI (History of Present Illness)
+                  </label>
+                  <textarea
+                    value={formData.hopi}
+                    onChange={(e) => setFormData({...formData, hopi: e.target.value})}
+                    placeholder="Enter history of present illness"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Past History
+                  </label>
+                  <textarea
+                    value={formData.past_history}
+                    onChange={(e) => setFormData({...formData, past_history: e.target.value})}
+                    placeholder="Enter past medical history"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Investigations
+                  </label>
+                  <textarea
+                    value={formData.investigations}
+                    onChange={(e) => setFormData({...formData, investigations: e.target.value})}
+                    placeholder="Enter investigations performed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Course of Stay
+                  </label>
+                  <textarea
+                    value={formData.course_of_stay}
+                    onChange={(e) => setFormData({...formData, course_of_stay: e.target.value})}
+                    placeholder="Enter course of hospitalization"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                  />
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Treatment Summary *
-                </label>
-                <textarea
-                  value={formData.treatment_summary}
-                  onChange={(e) => setFormData({...formData, treatment_summary: e.target.value})}
-                  placeholder="Summary of treatment provided during stay"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discharge Condition
-                </label>
-                <select
-                  value={formData.discharge_condition}
-                  onChange={(e) => setFormData({...formData, discharge_condition: e.target.value as any})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="STABLE">Stable</option>
-                  <option value="IMPROVED">Improved</option>
-                  <option value="SAME">Same as admission</option>
-                  <option value="DETERIORATED">Deteriorated</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attending Doctor
-                </label>
-                <input
-                  type="text"
-                  value={formData.doctor_name}
-                  onChange={(e) => setFormData({...formData, doctor_name: e.target.value})}
-                  placeholder="Doctor name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Medicines Prescribed at Discharge
-                </label>
-                <textarea
-                  value={formData.medicines_prescribed}
-                  onChange={(e) => setFormData({...formData, medicines_prescribed: e.target.value})}
-                  placeholder="List of medications with dosage and duration"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Follow-up Instructions
-                </label>
-                <textarea
-                  value={formData.follow_up_instructions}
-                  onChange={(e) => setFormData({...formData, follow_up_instructions: e.target.value})}
-                  placeholder="Follow-up care instructions and appointments"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dietary Instructions
-                </label>
-                <textarea
-                  value={formData.dietary_instructions}
-                  onChange={(e) => setFormData({...formData, dietary_instructions: e.target.value})}
-                  placeholder="Special dietary requirements or restrictions"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Activity Restrictions
-                </label>
-                <textarea
-                  value={formData.activity_restrictions}
-                  onChange={(e) => setFormData({...formData, activity_restrictions: e.target.value})}
-                  placeholder="Physical activity limitations or restrictions"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Next Appointment Date
-                </label>
-                <input
-                  type="date"
-                  value={formData.next_appointment_date}
-                  onChange={(e) => setFormData({...formData, next_appointment_date: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Additional Discharge Notes
-                </label>
-                <textarea
-                  value={formData.discharge_notes}
-                  onChange={(e) => setFormData({...formData, discharge_notes: e.target.value})}
-                  placeholder="Any additional notes or special instructions"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
+            {/* Medicine Details Section */}
+            <div className="bg-green-50 p-6 rounded-lg border-2 border-green-200">
+              <h3 className="text-lg font-semibold text-green-800 mb-4">💊 Medicine Details</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Treatment During Hospitalization
+                  </label>
+                  <textarea
+                    value={formData.treatment_during_hospitalization}
+                    onChange={(e) => setFormData({...formData, treatment_during_hospitalization: e.target.value})}
+                    placeholder="Enter treatment details during hospitalization"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-24"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Discharge Medication
+                  </label>
+                  <div className="space-y-3">
+                    <textarea
+                      value={formData.discharge_medication}
+                      onChange={(e) => setFormData({...formData, discharge_medication: e.target.value})}
+                      placeholder="Enter medication details or use the table below&#10;Example: Paracetamol 500mg | 1 | 0 | 1 | 5 days"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-20"
+                    />
+                    <p className="text-sm text-gray-600">Or use the table format below:</p>
+                  </div>
+                  <div className="overflow-x-auto mt-2">
+                    <table className="w-full border border-gray-300 rounded-lg">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-medium text-gray-700">
+                            S.No.
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-medium text-gray-700">
+                            Drug Name & Dose
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700">
+                            Morning
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700">
+                            Afternoon
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700">
+                            Night
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700">
+                            Days
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from({ length: 8 }, (_, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-600">
+                              {index + 1}
+                            </td>
+                            <td className="border border-gray-300 p-1">
+                              <input
+                                type="text"
+                                placeholder="e.g., Paracetamol 500mg"
+                                className="w-full px-2 py-1 text-sm border-0 focus:outline-none focus:ring-1 focus:ring-green-400 rounded"
+                              />
+                            </td>
+                            <td className="border border-gray-300 p-1">
+                              <input
+                                type="text"
+                                placeholder="1"
+                                className="w-full px-2 py-1 text-sm border-0 focus:outline-none focus:ring-1 focus:ring-green-400 rounded text-center"
+                              />
+                            </td>
+                            <td className="border border-gray-300 p-1">
+                              <input
+                                type="text"
+                                placeholder="0"
+                                className="w-full px-2 py-1 text-sm border-0 focus:outline-none focus:ring-1 focus:ring-green-400 rounded text-center"
+                              />
+                            </td>
+                            <td className="border border-gray-300 p-1">
+                              <input
+                                type="text"
+                                placeholder="1"
+                                className="w-full px-2 py-1 text-sm border-0 focus:outline-none focus:ring-1 focus:ring-green-400 rounded text-center"
+                              />
+                            </td>
+                            <td className="border border-gray-300 p-1">
+                              <input
+                                type="text"
+                                placeholder="7"
+                                className="w-full px-2 py-1 text-sm border-0 focus:outline-none focus:ring-1 focus:ring-green-400 rounded text-center"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-xs text-gray-500 mt-2">
+                      * Fill in the medication details. Morning/Afternoon/Night: Enter number of tablets/doses. Days: Total duration of treatment.
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Follow Up On
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.follow_up_on}
+                    onChange={(e) => setFormData({...formData, follow_up_on: e.target.value})}
+                    placeholder="Enter follow-up date or instructions"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
         );
 
       case 3:
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">💰 Final Bill Summary</h3>
-            
-            {/* Manual Bed Charges Section */}
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-medium text-yellow-800 mb-3">Manual Bed Charges Entry</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Per Day Bed Rate (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.manual_bed_charges}
-                    onChange={(e) => {
-                      setFormData({...formData, manual_bed_charges: Number(e.target.value) || 0});
-                      setTimeout(() => calculateStayDuration(), 100);
-                    }}
-                    placeholder="Enter per day bed charges"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Stay Duration
-                  </label>
-                  <input
-                    type="text"
-                    value={`${stayDuration} days`}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Total Bed Charges
-                  </label>
-                  <input
-                    type="text"
-                    value={`₹${totals.bedCharges.toLocaleString()}`}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Charges */}
-            <div>
-              <h4 className="font-medium text-gray-800 mb-3">Additional Charges</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Doctor Fees (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.doctor_fees}
-                    onChange={(e) => setFormData({...formData, doctor_fees: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Nursing Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.nursing_charges}
-                    onChange={(e) => setFormData({...formData, nursing_charges: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Medicine Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.medicine_charges}
-                    onChange={(e) => setFormData({...formData, medicine_charges: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Diagnostic Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.diagnostic_charges}
-                    onChange={(e) => setFormData({...formData, diagnostic_charges: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Operation/Procedure Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.operation_charges}
-                    onChange={(e) => setFormData({...formData, operation_charges: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Other Charges (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.other_charges}
-                    onChange={(e) => setFormData({...formData, other_charges: Number(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Discount Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  value={formData.discount_amount}
-                  onChange={(e) => setFormData({...formData, discount_amount: Number(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount Reason
-                </label>
-                <input
-                  type="text"
-                  value={formData.discount_reason}
-                  onChange={(e) => setFormData({...formData, discount_reason: e.target.value})}
-                  placeholder="Reason for discount"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Bill Summary */}
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-800 mb-3">Bill Summary</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-600">Existing Services:</span>
-                  <div className="font-bold">₹{totals.existingServices.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Bed Charges:</span>
-                  <div className="font-bold">₹{totals.bedCharges.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Additional Charges:</span>
-                  <div className="font-bold">₹{totals.additionalCharges.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">After Discount:</span>
-                  <div className="font-bold">₹{totals.totalAfterDiscount.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Previous Payments:</span>
-                  <div className="font-bold text-green-600">₹{totalPaid.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Final Payment:</span>
-                  <div className="font-bold text-green-600">₹{formData.amount_paid.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Total Payments:</span>
-                  <div className="font-bold text-green-600">₹{totals.totalPayments.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-blue-600">Final Balance:</span>
-                  <div className={`font-bold ${totals.finalBalance >= 0 ? 'text-orange-600' : 'text-red-600'}`}>
-                    ₹{totals.finalBalance.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Mode
-                </label>
-                <select
-                  value={formData.payment_mode}
-                  onChange={(e) => {
-                    const mode = e.target.value as any;
-                    setFormData({...formData, payment_mode: mode});
-                    if (mode === 'INSURANCE') {
-                      setShowInsuranceForm(true);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Credit/Debit Card</option>
-                  <option value="UPI">UPI</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="INSURANCE">Insurance</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Final Payment Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  value={formData.amount_paid}
-                  onChange={(e) => setFormData({...formData, amount_paid: Number(e.target.value) || 0})}
-                  placeholder="Amount being paid now"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 4:
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-800">👥 Attendant Details & Consent</h3>
@@ -1003,35 +821,6 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
               </div>
             </div>
 
-            {/* Final Balance Warning */}
-            {totals.finalBalance > 0 && (
-              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                <div className="flex items-center">
-                  <div className="text-orange-600 mr-3">⚠️</div>
-                  <div>
-                    <h4 className="font-medium text-orange-800">Outstanding Balance</h4>
-                    <p className="text-sm text-orange-700">
-                      There is an outstanding balance of ₹{totals.finalBalance.toLocaleString()}. 
-                      The patient can settle this amount later or make a partial payment now.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {totals.finalBalance < 0 && (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <div className="flex items-center">
-                  <div className="text-green-600 mr-3">💰</div>
-                  <div>
-                    <h4 className="font-medium text-green-800">Refund Due</h4>
-                    <p className="text-sm text-green-700">
-                      There is a refund amount of ₹{Math.abs(totals.finalBalance).toLocaleString()} due to the patient.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         );
 
@@ -1047,7 +836,7 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
         <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">
-              📤 Enhanced Patient Discharge
+              {admission?.status === 'DISCHARGED' ? '📝 Create Discharge Summary' : '📤 Enhanced Patient Discharge'}
             </h2>
             <p className="text-gray-600">
               {admission.patient?.first_name} {admission.patient?.last_name} - 
@@ -1066,7 +855,7 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
         {/* Step Progress Indicator */}
         <div className="px-6 py-4 bg-gray-50 border-b">
           <div className="flex items-center justify-between">
-            {[1, 2, 3, 4].map((step) => (
+            {[1, 2, 3].map((step) => (
               <div key={step} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                   currentStep >= step 
@@ -1080,10 +869,9 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
                 }`}>
                   {step === 1 && 'Discharge Details'}
                   {step === 2 && 'Medical Summary'}
-                  {step === 3 && 'Final Bill'}
-                  {step === 4 && 'Consent & Handover'}
+                  {step === 3 && 'Consent & Handover'}
                 </div>
-                {step < 4 && (
+                {step < 3 && (
                   <div className={`w-12 h-1 mx-4 ${
                     currentStep > step ? 'bg-blue-600' : 'bg-gray-300'
                   }`} />
@@ -1117,7 +905,7 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
               Cancel
             </button>
 
-            {currentStep < 4 ? (
+            {currentStep < 3 ? (
               <button
                 onClick={handleNext}
                 disabled={loading}
@@ -1137,7 +925,7 @@ const EnhancedDischargeModal: React.FC<EnhancedDischargeModalProps> = ({
                     Processing...
                   </>
                 ) : (
-                  '📤 Complete Discharge'
+                  admission?.status === 'DISCHARGED' ? '📝 Save Discharge Summary' : '📤 Complete Discharge'
                 )}
               </button>
             )}

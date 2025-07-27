@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
+import dataService from '../services/dataService';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import type { Doctor, Department } from '../services/dataService';
 
 interface PatientToIPDModalProps {
   patient: PatientWithRelations;
@@ -18,15 +20,17 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
   onAdmissionSuccess
 }) => {
   const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
   const [formData, setFormData] = useState({
     bed_number: '',
     room_type: 'GENERAL' as 'GENERAL' | 'PRIVATE' | 'ICU' | 'EMERGENCY',
-    department: '',
+    selected_department: '',
+    selected_doctor: '',
     expected_discharge: '',
     admission_notes: '',
-    procedure_planned: '',
-    history_present_illness: '',
-    past_medical_history: '',
   });
 
   React.useEffect(() => {
@@ -38,14 +42,41 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         ...prev,
         expected_discharge: defaultDate.toISOString().split('T')[0]
       }));
+      
     }
   }, [isOpen]);
+
+  const fetchDoctorsAndDepartments = async () => {
+    setLoadingData(true);
+    try {
+      const [doctorsData, departmentsData] = await Promise.all([
+        dataService.getDoctors(),
+        dataService.getDepartments()
+      ]);
+      console.log('IPD Modal - Fetched departments:', departmentsData);
+      console.log('IPD Modal - Fetched doctors:', doctorsData);
+      console.log('IPD Modal - departments length:', departmentsData?.length);
+      console.log('IPD Modal - doctors length:', doctorsData?.length);
+      setDoctors(doctorsData || []);
+      setDepartments(departmentsData || []);
+      // Initially show all doctors
+      setFilteredDoctors(doctorsData || []);
+    } catch (error) {
+      console.error('Error fetching doctors and departments:', error);
+      setDoctors([]);
+      setDepartments([]);
+      setFilteredDoctors([]);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
 
   const handleAdmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.bed_number || !formData.department || !formData.history_present_illness.trim()) {
-      toast.error('Please fill in all required fields (Bed Number, Department, History of Present Illness)');
+    if (!formData.bed_number || !formData.selected_department || !formData.selected_doctor) {
+      toast.error('Please fill in all required fields (Bed Number, Department, Doctor)');
       return;
     }
 
@@ -144,7 +175,8 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         patient_id: patient.id,
         bed_number: formData.bed_number,
         room_type: formData.room_type,
-        department: formData.department,
+        department: formData.selected_department,
+        doctor_name: formData.selected_doctor,
         admission_date: new Date().toISOString(),
         status: 'ACTIVE',
         services: {},
@@ -152,9 +184,6 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
         amount_paid: 0,
         balance_amount: 0,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000',
-        procedure_planned: formData.procedure_planned.trim() || null,
-        history_present_illness: formData.history_present_illness.trim() || null,
-        past_medical_history: formData.past_medical_history.trim() || null,
         admission_notes: formData.admission_notes.trim() || null
       };
 
@@ -180,6 +209,7 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
       }
 
       console.log('✅ IPD Admission successful:', insertedData);
+      
       console.log('🔍 Verifying admission was saved...');
       
       // Verify the admission was actually saved
@@ -212,13 +242,12 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
     setFormData({
       bed_number: '',
       room_type: 'GENERAL',
-      department: '',
+      selected_department: '',
+      selected_doctor: '',
       expected_discharge: '',
       admission_notes: '',
-      procedure_planned: '',
-      history_present_illness: '',
-      past_medical_history: '',
     });
+    setFilteredDoctors(doctors);
     onClose();
   };
 
@@ -297,17 +326,33 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
                 <option value="EMERGENCY">🚨 Emergency</option>
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Department *
               </label>
               <input
                 type="text"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                value={formData.selected_department}
+                onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Cardiology, Surgery, General Medicine"
+                placeholder="Enter department name"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Attending Doctor *
+              </label>
+              <input
+                type="text"
+                value={formData.selected_doctor}
+                onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter doctor name"
                 required
               />
             </div>
@@ -325,45 +370,6 @@ const PatientToIPDModal: React.FC<PatientToIPDModalProps> = ({
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Procedure Planned
-              </label>
-              <input
-                type="text"
-                value={formData.procedure_planned}
-                onChange={(e) => setFormData({ ...formData, procedure_planned: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Laparoscopic Cholecystectomy, Appendectomy, Medical Management..."
-              />
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                History of Present Illness (HPI) *
-              </label>
-              <textarea
-                value={formData.history_present_illness}
-                onChange={(e) => setFormData({ ...formData, history_present_illness: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Chief complaint, onset, duration, severity, associated symptoms, timeline..."
-                required
-              />
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Past Medical History
-              </label>
-              <textarea
-                value={formData.past_medical_history}
-                onChange={(e) => setFormData({ ...formData, past_medical_history: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Previous surgeries, chronic conditions, medications, allergies..."
-              />
-            </div>
 
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

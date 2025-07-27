@@ -5,7 +5,6 @@ import HospitalService from '../services/hospitalService';
 import IPDAdmissionModal from './IPDAdmissionModal';
 import IPDServicesModal from './IPDServicesModal';
 import DischargeCard from './DischargeCard';
-import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
 interface IPDPatient {
   id: string;
@@ -36,6 +35,8 @@ interface IPDPatient {
   history_present_illness?: string;
   past_medical_history?: string;
   procedure_planned?: string;
+  doctor_id?: string;
+  doctor_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -81,10 +82,12 @@ const IPDManagement: React.FC = () => {
           .select(`
             *,
             patient:patients(first_name, last_name, phone, patient_id),
-            bed:beds(id, bed_number, room_type, daily_rate, department),
+            bed:beds(id, bed_number, room_type, daily_rate),
             history_present_illness,
             past_medical_history,
-            procedure_planned
+            procedure_planned,
+            doctor_id,
+            doctor_name
           `)
           .eq('status', statusFilter)
           .order('admission_date', { ascending: false });
@@ -113,7 +116,7 @@ const IPDManagement: React.FC = () => {
 
         const [patientsResult, bedsResult] = await Promise.all([
           supabase.from('patients').select('id, patient_id, first_name, last_name, phone').in('id', patientIds),
-          supabase.from('beds').select('id, bed_number, room_type, daily_rate, department').in('id', bedIds)
+          supabase.from('beds').select('id, bed_number, room_type, daily_rate').in('id', bedIds)
         ]);
 
         // Manual join
@@ -236,7 +239,7 @@ const IPDManagement: React.FC = () => {
         treatment: patient.procedure_planned || 'N/A', // Using procedure_planned as treatment
         condition: 'Stable', // Placeholder, ideally from discharge notes
         followUp: 'Follow up with referring doctor in 7 days.', // Placeholder
-        doctor: 'Dr. Attending Physician', // Placeholder, ideally from patient.doctor
+        doctor: patient.doctor_name || 'Dr. Attending Physician', // Use the actual doctor name
         admissionDate: new Date(patient.admission_date).toLocaleDateString(),
         dischargeDate: patient.discharge_date ? new Date(patient.discharge_date).toLocaleDateString() : new Date().toLocaleDateString(),
         stayDuration: calculateStayDuration(patient.admission_date, patient.discharge_date),
@@ -400,6 +403,7 @@ const IPDManagement: React.FC = () => {
                   <th className="text-left p-4 font-semibold text-gray-700">Patient</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Bed No.</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Room Type</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Doctor</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Department</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Daily Rate</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Days</th>
@@ -424,6 +428,11 @@ const IPDManagement: React.FC = () => {
                     </td>
                     <td className="p-4">
                       <strong>{patient.bed?.room_type || patient.room_type || 'N/A'}</strong>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-medium text-blue-600">
+                        {patient.doctor_name || 'Not Assigned'}
+                      </div>
                     </td>
                     <td className="p-4">
                       {patient.bed?.department || patient.department || 'N/A'}
@@ -469,12 +478,6 @@ const IPDManagement: React.FC = () => {
                               className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                             >
                               📤 Discharge
-                            </button>
-                            <button
-                              onClick={() => printAdmissionReceipt(patient.id, 'IP_STICKER')}
-                              className="bg-yellow-600 text-white px-3 py-1 rounded text-sm hover:bg-yellow-700"
-                            >
-                              🏷️ IP Sticker
                             </button>
                           </>
                         )}

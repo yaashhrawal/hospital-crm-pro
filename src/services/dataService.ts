@@ -191,6 +191,13 @@ class DataService {
         .order('name');
       if (error) {
         console.error('❌ Supabase doctors fetch error:', error);
+        console.error('Error details:', { message: error.message, code: error.code, details: error.details });
+        
+        // If table doesn't exist, return empty array instead of throwing
+        if (error.code === '42P01') {
+          console.warn('⚠️ Doctors table does not exist. Please run CREATE_DOCTORS_TABLE.sql');
+          return [];
+        }
         throw error;
       }
       console.log('✅ Doctors fetched successfully from Supabase:', data?.length || 0, 'records');

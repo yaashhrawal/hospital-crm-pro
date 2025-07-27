@@ -146,7 +146,7 @@ export const useReceiptPrinting = () => {
         .select(`
           *,
           patient:patients(*),
-          bed:beds(id, bed_number, room_type, daily_rate, department),
+          bed:beds(id, bed_number, room_type, daily_rate),
           history_present_illness,
           past_medical_history,
           procedure_planned
@@ -261,9 +261,15 @@ export const useReceiptPrinting = () => {
   // Discharge Receipt
   const printDischargeReceipt = async (admissionId: string) => {
     try {
-      const dischargeSummary = await HospitalService.getDischargeSummaryWithBill(admissionId);
+      console.log('🖨️ Starting discharge receipt print for admission:', admissionId);
       
-      if (!dischargeSummary) throw new Error('Discharge summary not found');
+      const dischargeSummary = await HospitalService.getDischargeSummaryWithBill(admissionId);
+      console.log('📋 Discharge summary data received:', dischargeSummary);
+      
+      if (!dischargeSummary) {
+        console.error('❌ No discharge summary found for admission:', admissionId);
+        throw new Error('Discharge summary not found for this admission');
+      }
 
       const receiptData: ReceiptData = {
         type: 'DISCHARGE',
@@ -280,6 +286,7 @@ export const useReceiptPrinting = () => {
           bloodGroup: dischargeSummary.patient?.blood_group
         },
         medical: {
+          // Legacy fields for backward compatibility
           diagnosis: dischargeSummary.final_diagnosis,
           treatment: dischargeSummary.treatment_summary,
           condition: dischargeSummary.discharge_condition,
@@ -287,7 +294,19 @@ export const useReceiptPrinting = () => {
           doctor: dischargeSummary.doctor_name,
           admissionDate: dischargeSummary.admission?.admission_date,
           dischargeDate: dischargeSummary.admission?.actual_discharge_date,
-          stayDuration: dischargeSummary.bill?.stay_duration
+          stayDuration: dischargeSummary.bill?.stay_duration,
+          
+          // New comprehensive fields
+          final_diagnosis: dischargeSummary.final_diagnosis,
+          primary_consultant: dischargeSummary.primary_consultant,
+          chief_complaints: dischargeSummary.chief_complaints,
+          hopi: dischargeSummary.hopi,
+          past_history: dischargeSummary.past_history,
+          investigations: dischargeSummary.investigations,
+          course_of_stay: dischargeSummary.course_of_stay,
+          treatment_during_hospitalization: dischargeSummary.treatment_during_hospitalization,
+          discharge_medication: dischargeSummary.discharge_medication,
+          follow_up_on: dischargeSummary.follow_up_on
         },
         charges: [
           { description: 'Bed Charges', amount: dischargeSummary.bill?.nursing_charges || 0 },
@@ -316,10 +335,19 @@ export const useReceiptPrinting = () => {
         isOriginal: true
       };
 
+      console.log('🎯 Prepared receipt data:', receiptData);
+      console.log('🖨️ Calling printReceipt...');
+      
       printReceipt(receiptData);
+      console.log('✅ Print receipt call completed');
+      
     } catch (error) {
-      console.error('Error printing discharge receipt:', error);
-      alert('Failed to print discharge receipt. Please try again.');
+      console.error('❌ Error printing discharge receipt:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      // More specific error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to print discharge receipt: ${errorMessage}\n\nCheck the console for details.`);
     }
   };
 

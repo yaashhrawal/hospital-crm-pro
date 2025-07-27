@@ -86,11 +86,16 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
           dataService.getDoctors(),
           dataService.getDepartments(),
         ]);
-        setDoctors(doctorsData);
-        setDepartments(departmentsData);
+        console.log('Patient Entry Form - Fetched departments:', departmentsData);
+        console.log('Patient Entry Form - Fetched doctors:', doctorsData);
+        setDoctors(doctorsData || []);
+        setDepartments(departmentsData || []);
       } catch (error) {
         console.error('Error loading data:', error);
-        toast.error('Failed to load doctors and departments');
+        // Don't show error, just continue with empty data
+        setDoctors([]);
+        setDepartments([]);
+        console.warn('Continuing without doctors/departments data');
       }
     };
     loadData();

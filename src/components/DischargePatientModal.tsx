@@ -15,14 +15,15 @@ interface DischargeModalProps {
 interface DischargeFormData {
   // Medical Summary
   final_diagnosis: string;
-  treatment_summary: string;
-  discharge_condition: string;
-  follow_up_instructions: string;
-  medicines_prescribed: string;
-  dietary_instructions: string;
-  activity_restrictions: string;
-  next_appointment_date: string;
-  doctor_name: string;
+  primary_consultant: string;
+  chief_complaints: string;
+  hopi: string;
+  past_history: string;
+  investigations: string;
+  course_of_stay: string;
+  treatment_during_hospitalization: string;
+  discharge_medication: string;
+  follow_up_on: string;
   
   // Billing Information
   doctor_fees: number;
@@ -56,14 +57,15 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<DischargeFormData>({
     final_diagnosis: '',
-    treatment_summary: '',
-    discharge_condition: 'STABLE',
-    follow_up_instructions: '',
-    medicines_prescribed: '',
-    dietary_instructions: '',
-    activity_restrictions: '',
-    next_appointment_date: '',
-    doctor_name: '',
+    primary_consultant: '',
+    chief_complaints: '',
+    hopi: '',
+    past_history: '',
+    investigations: '',
+    course_of_stay: '',
+    treatment_during_hospitalization: '',
+    discharge_medication: '',
+    follow_up_on: '',
     doctor_fees: 0,
     nursing_charges: 0,
     medicine_charges: 0,
@@ -191,8 +193,8 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       return;
     }
 
-    if (!formData.treatment_summary.trim()) {
-      toast.error('Treatment summary is required');
+    if (!formData.primary_consultant.trim()) {
+      toast.error('Primary consultant is required');
       return;
     }
 
@@ -258,31 +260,53 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
 
       // 1. Create discharge summary record
       console.log('📝 Creating discharge summary...');
+      console.log('🔍 Validation check:');
+      console.log('- Admission ID:', admission.id);
+      console.log('- Patient ID:', admission.patient?.id);
+      console.log('- Current User ID:', currentUser.id);
+      console.log('- Final Diagnosis:', formData.final_diagnosis);
+      console.log('- Primary Consultant:', formData.primary_consultant);
+      
+      // Test table access first
+      console.log('🧪 Testing discharge_summaries table access...');
+      const { data: testData, error: testError } = await supabase
+        .from('discharge_summaries')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Cannot access discharge_summaries table:', testError);
+        throw new Error(`Table access failed: ${testError.message}`);
+      }
+      
+      console.log('✅ Table access successful');
       
       // Prepare discharge summary data with validation
       const dischargeSummaryData = {
         admission_id: admission.id,
         patient_id: admission.patient?.id,
         final_diagnosis: formData.final_diagnosis?.trim() || 'Not specified',
-        treatment_summary: formData.treatment_summary?.trim() || 'Not specified', 
-        discharge_condition: formData.discharge_condition || 'STABLE',
-        follow_up_instructions: formData.follow_up_instructions?.trim() || null,
-        medicines_prescribed: formData.medicines_prescribed?.trim() || null,
-        dietary_instructions: formData.dietary_instructions?.trim() || null,
-        activity_restrictions: formData.activity_restrictions?.trim() || null,
-        next_appointment_date: formData.next_appointment_date || null,
-        doctor_name: formData.doctor_name?.trim() || null,
+        primary_consultant: formData.primary_consultant?.trim() || 'Not specified',
+        chief_complaints: formData.chief_complaints?.trim() || null,
+        hopi: formData.hopi?.trim() || null,
+        past_history: formData.past_history?.trim() || null,
+        investigations: formData.investigations?.trim() || null,
+        course_of_stay: formData.course_of_stay?.trim() || null,
+        treatment_during_hospitalization: formData.treatment_during_hospitalization?.trim() || null,
+        discharge_medication: formData.discharge_medication?.trim() || null,
+        follow_up_on: formData.follow_up_on?.trim() || null,
         attendant_name: formData.attendant_name?.trim() || 'Not specified',
         attendant_relationship: formData.attendant_relationship || 'FAMILY_MEMBER',
         attendant_contact: formData.attendant_contact?.trim() || null,
         documents_handed_over: formData.documents_handed_over || false,
         discharge_notes: formData.discharge_notes?.trim() || null,
         created_by: currentUser.id,
-        hospital_id: admission.hospital_id || '550e8400-e29b-41d4-a716-446655440000'
+        hospital_id: admission.hospital_id
       };
       
-      console.log('📋 Discharge summary data:', dischargeSummaryData);
+      console.log('📋 Prepared discharge summary data:', dischargeSummaryData);
       
+      console.log('💾 Attempting to insert discharge summary...');
       const { data: dischargeSummary, error: summaryError } = await supabase
         .from('discharge_summaries')
         .insert(dischargeSummaryData)
@@ -290,8 +314,9 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         .single();
 
       if (summaryError) {
-        console.error('❌ Discharge summary error:', summaryError);
-        throw summaryError;
+        console.error('❌ Discharge summary insert failed:', summaryError);
+        console.error('❌ Error details:', JSON.stringify(summaryError, null, 2));
+        throw new Error(`Failed to save discharge summary: ${summaryError.message || summaryError.details || summaryError.hint || 'Unknown database error'}`);
       }
       
       console.log('✅ Discharge summary created:', dischargeSummary);
@@ -440,9 +465,10 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       onClose();
 
     } catch (error: any) {
-      console.error('Error during discharge process:', error);
+      console.error('❌ CRITICAL ERROR during discharge process:', error);
+      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
       
-      // Better error handling - check what type of error we have
+      // Show the exact error to user - don't hide it
       let errorMessage = 'Unknown error occurred';
       
       if (error?.message) {
@@ -454,12 +480,15 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       } else if (error?.hint) {
         errorMessage = error.hint;
       } else {
-        // Log the full error object to help debug
-        console.error('Full error object:', JSON.stringify(error, null, 2));
-        errorMessage = 'Database operation failed. Please check console for details.';
+        errorMessage = 'Database operation failed. Check console for details.';
       }
       
-      toast.error(`Failed to discharge patient: ${errorMessage}`);
+      // STOP THE PROCESS - don't continue if there's an error
+      toast.error(`❌ DISCHARGE FAILED: ${errorMessage}`);
+      
+      // Don't call onDischargeSuccess() or onClose() if there's an error
+      // Keep the modal open so user can see what went wrong
+      
     } finally {
       setLoading(false);
     }
@@ -497,7 +526,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
           <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
             <h3 className="text-lg font-semibold text-blue-800 mb-4">🏥 Medical Discharge Summary</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Final Diagnosis *
@@ -505,109 +534,128 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
                 <textarea
                   value={formData.final_diagnosis}
                   onChange={(e) => setFormData({...formData, final_diagnosis: e.target.value})}
-                  placeholder="Primary and secondary diagnoses"
+                  placeholder="Enter final diagnosis"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Treatment Summary *
-                </label>
-                <textarea
-                  value={formData.treatment_summary}
-                  onChange={(e) => setFormData({...formData, treatment_summary: e.target.value})}
-                  placeholder="Treatment provided during stay"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discharge Condition
-                </label>
-                <select
-                  value={formData.discharge_condition}
-                  onChange={(e) => setFormData({...formData, discharge_condition: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="STABLE">Stable</option>
-                  <option value="IMPROVED">Improved</option>
-                  <option value="CRITICAL">Critical</option>
-                  <option value="REFERRED">Referred</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attending Doctor
+                  Primary Consultant *
                 </label>
                 <input
                   type="text"
-                  value={formData.doctor_name}
-                  onChange={(e) => setFormData({...formData, doctor_name: e.target.value})}
-                  placeholder="Dr. Name"
+                  value={formData.primary_consultant}
+                  onChange={(e) => setFormData({...formData, primary_consultant: e.target.value})}
+                  placeholder="Enter primary consultant name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
-              <div className="md:col-span-2">
+              
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Follow-up Instructions
+                  Chief Complaints
                 </label>
                 <textarea
-                  value={formData.follow_up_instructions}
-                  onChange={(e) => setFormData({...formData, follow_up_instructions: e.target.value})}
-                  placeholder="Follow-up care instructions"
+                  value={formData.chief_complaints}
+                  onChange={(e) => setFormData({...formData, chief_complaints: e.target.value})}
+                  placeholder="Enter chief complaints"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Medicines Prescribed
+                  HOPI (History of Present Illness)
                 </label>
                 <textarea
-                  value={formData.medicines_prescribed}
-                  onChange={(e) => setFormData({...formData, medicines_prescribed: e.target.value})}
-                  placeholder="List of prescribed medications"
+                  value={formData.hopi}
+                  onChange={(e) => setFormData({...formData, hopi: e.target.value})}
+                  placeholder="Enter history of present illness"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Activity Restrictions
+                  Past History
                 </label>
                 <textarea
-                  value={formData.activity_restrictions}
-                  onChange={(e) => setFormData({...formData, activity_restrictions: e.target.value})}
-                  placeholder="Any activity limitations"
+                  value={formData.past_history}
+                  onChange={(e) => setFormData({...formData, past_history: e.target.value})}
+                  placeholder="Enter past medical history"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dietary Instructions
+                  Investigations
                 </label>
                 <textarea
-                  value={formData.dietary_instructions}
-                  onChange={(e) => setFormData({...formData, dietary_instructions: e.target.value})}
-                  placeholder="Dietary guidelines"
+                  value={formData.investigations}
+                  onChange={(e) => setFormData({...formData, investigations: e.target.value})}
+                  placeholder="Enter investigations performed"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Next Appointment Date
+                  Course of Stay
+                </label>
+                <textarea
+                  value={formData.course_of_stay}
+                  onChange={(e) => setFormData({...formData, course_of_stay: e.target.value})}
+                  placeholder="Enter course of hospitalization"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Medicine Details Section */}
+          <div className="bg-green-50 p-6 rounded-lg border-2 border-green-200">
+            <h3 className="text-lg font-semibold text-green-800 mb-4">💊 Medicine Details</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Treatment During Hospitalization
+                </label>
+                <textarea
+                  value={formData.treatment_during_hospitalization}
+                  onChange={(e) => setFormData({...formData, treatment_during_hospitalization: e.target.value})}
+                  placeholder="Enter treatment details during hospitalization"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-24"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Discharge Medication
+                </label>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Enter medication details in the format: Drug Name & Dose | Morning | Afternoon | Night | Days</p>
+                  <textarea
+                    value={formData.discharge_medication}
+                    onChange={(e) => setFormData({...formData, discharge_medication: e.target.value})}
+                    placeholder="Example: Paracetamol 500mg | 1 | 0 | 1 | 5 days\nAmoxicillin 250mg | 1 | 1 | 1 | 7 days"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-32"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Follow Up On
                 </label>
                 <input
-                  type="date"
-                  value={formData.next_appointment_date}
-                  onChange={(e) => setFormData({...formData, next_appointment_date: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="text"
+                  value={formData.follow_up_on}
+                  onChange={(e) => setFormData({...formData, follow_up_on: e.target.value})}
+                  placeholder="Enter follow-up date or instructions"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
             </div>
