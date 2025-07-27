@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import dataService from '../services/dataService';
 import { PatientService } from '../services/patientService';
-import { appointmentService } from '../services/appointmentService';
-import type { Patient } from '../types/index';
 
 interface Appointment {
   id: string;
   patient_id: string;
   patient_name: string;
-  doctor_id: string;
   doctor_name: string;
   department: string;
   appointment_date: string;
@@ -25,284 +21,125 @@ interface Appointment {
 
 const AppointmentManagement: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
   const [showNewAppointment, setShowNewAppointment] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
-  const [patientSelectionType, setPatientSelectionType] = useState<'existing' | 'new'>('existing');
-  const [patientSearchQuery, setPatientSearchQuery] = useState('');
-  const [showPatientSearch, setShowPatientSearch] = useState(false);
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
-  const [selectedPatientFromSearch, setSelectedPatientFromSearch] = useState<Patient | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm();
 
   useEffect(() => {
-    loadData();
+    loadAppointments();
   }, []);
 
-  // Filter patients based on search query
-  useEffect(() => {
-    if (patientSearchQuery.trim() === '') {
-      setFilteredPatients(patients.slice(0, 10)); // Show first 10 patients
-    } else {
-      const filtered = patients.filter(patient => 
-        `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-        patient.phone?.includes(patientSearchQuery) ||
-        patient.patient_id?.toLowerCase().includes(patientSearchQuery.toLowerCase())
-      );
-      setFilteredPatients(filtered.slice(0, 10)); // Limit to 10 results
-    }
-  }, [patientSearchQuery, patients]);
-
-  // Close search dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.patient-search-container')) {
-        setShowPatientSearch(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [patientsData, doctorsData, departmentsData] = await Promise.all([
-        dataService.getPatients(),
-        dataService.getDoctors(),
-        dataService.getDepartments(),
-      ]);
-      
-      setPatients(patientsData);
-      setDoctors(doctorsData);
-      setDepartments(departmentsData);
-      
-      // Load mock appointments (in real implementation, this would come from dataService)
-      loadAppointments();
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadAppointments = () => {
-    // Mock appointments data - in real implementation, this would be stored in Supabase
-    const mockAppointments: Appointment[] = [
-      {
-        id: '1',
-        patient_id: 'patient1',
-        patient_name: 'John Doe',
-        doctor_id: 'doctor1',
-        doctor_name: 'Dr. Smith',
-        department: 'Cardiology',
-        appointment_date: '2025-01-22',
-        appointment_time: '10:00',
-        appointment_type: 'consultation',
-        status: 'scheduled',
-        estimated_duration: 30,
-        estimated_cost: 500,
-        notes: 'Follow-up for chest pain',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        patient_id: 'patient2',
-        patient_name: 'Jane Smith',
-        doctor_id: 'doctor2',
-        doctor_name: 'Dr. Johnson',
-        department: 'Orthopedics',
-        appointment_date: '2025-01-23',
-        appointment_time: '14:00',
-        appointment_type: 'procedure',
-        status: 'confirmed',
-        estimated_duration: 60,
-        estimated_cost: 1500,
-        notes: 'Knee examination and X-ray',
-        created_at: new Date().toISOString(),
-      },
-    ];
-    
-    setAppointments(mockAppointments);
-  };
-
-  const watchedPatientId = watch('patient_id');
-  const watchedDoctorId = watch('doctor_id');
   const watchedAppointmentType = watch('appointment_type');
 
   useEffect(() => {
-    // Auto-fill estimated cost based on appointment type and doctor
-    if (watchedAppointmentType && watchedDoctorId) {
-      const doctor = doctors.find(d => d.id === watchedDoctorId);
+    // Auto-fill estimated cost based on appointment type
+    if (watchedAppointmentType) {
       let estimatedCost = 500; // default
 
       switch (watchedAppointmentType) {
         case 'consultation':
-          estimatedCost = doctor?.fee || 500;
+          estimatedCost = 500;
           break;
         case 'follow-up':
-          estimatedCost = (doctor?.fee || 500) * 0.7; // 30% discount for follow-up
+          estimatedCost = 350;
           break;
         case 'procedure':
-          estimatedCost = (doctor?.fee || 500) * 2;
+          estimatedCost = 1000;
           break;
         case 'emergency':
-          estimatedCost = (doctor?.fee || 500) * 1.5;
+          estimatedCost = 750;
           break;
       }
 
       setValue('estimated_cost', Math.round(estimatedCost));
     }
-  }, [watchedAppointmentType, watchedDoctorId, doctors, setValue]);
+  }, [watchedAppointmentType, setValue]);
 
-  // Handle patient search input
-  const handlePatientSearch = (query: string) => {
-    setPatientSearchQuery(query);
-    setShowPatientSearch(true);
-    setSelectedPatientFromSearch(null);
-  };
-
-  // Handle patient selection from search results
-  const handlePatientSelect = (patient: Patient) => {
-    setSelectedPatientFromSearch(patient);
-    setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
-    setShowPatientSearch(false);
-    setValue('patient_id', patient.id);
-  };
-
-  // Handle creating new patient from search query
-  const handleCreatePatientFromSearch = async () => {
-    if (!patientSearchQuery.trim()) return;
-
+  const loadAppointments = () => {
     try {
-      const nameParts = patientSearchQuery.trim().split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ');
-
-      const newPatientData = {
-        first_name: firstName,
-        last_name: lastName || '',
-        phone: '',
-        email: '',
-        gender: 'MALE' as const,
-        address: '',
-      };
-
-      const newPatient = await PatientService.createPatient(newPatientData);
-      
-      // Update local patients list
-      setPatients(prev => [...prev, newPatient]);
-      
-      // Select the newly created patient
-      setSelectedPatientFromSearch(newPatient);
-      setValue('patient_id', newPatient.id);
-      setShowPatientSearch(false);
-      
-      toast.success(`New patient "${newPatient.first_name} ${newPatient.last_name}" created successfully`);
-    } catch (error: any) {
-      console.error('Error creating patient from search:', error);
-      toast.error(error.message || 'Failed to create patient');
+      const existingAppointments = localStorage.getItem('hospital_appointments');
+      if (existingAppointments) {
+        setAppointments(JSON.parse(existingAppointments));
+      } else {
+        setAppointments([]);
+      }
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      setAppointments([]);
     }
   };
 
   const onSubmit = async (data: any) => {
     try {
-      let patientId = data.patient_id;
-      let patientName = '';
-
-      // Handle new patient creation
-      if (patientSelectionType === 'new') {
-        const newPatientData = {
-          first_name: data.new_patient_first_name,
-          last_name: data.new_patient_last_name || '',
-          phone: data.new_patient_phone || '',
-          email: data.new_patient_email || '',
-          gender: data.new_patient_gender as 'MALE' | 'FEMALE' | 'OTHER' || 'MALE',
-          address: data.new_patient_address || '',
-        };
-
-        const newPatient = await PatientService.createPatient(newPatientData);
-        patientId = newPatient.id;
-        patientName = `${newPatient.first_name} ${newPatient.last_name || ''}`.trim();
-        
-        // Update local patients list
-        setPatients(prev => [...prev, newPatient]);
-        toast.success(`New patient "${patientName}" created successfully`);
-      } else {
-        // Handle existing patient selection (either from dropdown or search)
-        let selectedPatient = patients.find(p => p.id === data.patient_id);
-        
-        // If no patient found but we have a search selection, use that
-        if (!selectedPatient && selectedPatientFromSearch) {
-          selectedPatient = selectedPatientFromSearch;
-          patientId = selectedPatient.id;
-        }
-        
-        if (selectedPatient) {
-          patientName = `${selectedPatient.first_name} ${selectedPatient.last_name || ''}`.trim();
-        } else {
-          throw new Error('Please select a patient or create a new one');
-        }
-      }
-
-      const selectedDoctor = doctors.find(d => d.id === data.doctor_id);
-
+      setLoading(true);
+      
       const newAppointment: Appointment = {
         id: Date.now().toString(),
-        patient_id: patientId,
-        patient_name: patientName,
-        doctor_id: data.doctor_id,
-        doctor_name: selectedDoctor?.name || 'Unknown Doctor',
-        department: data.department,
+        patient_id: 'manual-' + Date.now(),
+        patient_name: data.patient_name,
+        doctor_name: data.doctor_name || 'Unknown Doctor',
+        department: data.department || 'General',
         appointment_date: data.appointment_date,
         appointment_time: data.appointment_time,
         appointment_type: data.appointment_type,
         status: 'scheduled',
-        estimated_duration: Number(data.estimated_duration),
-        estimated_cost: Number(data.estimated_cost),
+        estimated_duration: Number(data.estimated_duration) || 30,
+        estimated_cost: Number(data.estimated_cost) || 500,
         notes: data.notes || '',
         created_at: new Date().toISOString(),
       };
 
-      // Save to Supabase in production - for now using mock data
-      // TODO: Replace with appointmentService.createAppointment(appointmentData) for production
-      setAppointments(prev => [...prev, newAppointment]);
+      // Save to localStorage
+      const existingAppointments = localStorage.getItem('hospital_appointments');
+      const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
+      appointments.push(newAppointment);
+      localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+
+      setAppointments(appointments);
       
-      toast.success(`Appointment scheduled for ${patientName} on ${new Date(data.appointment_date).toLocaleDateString()}`);
+      toast.success(`Appointment scheduled for ${data.patient_name} on ${new Date(data.appointment_date).toLocaleDateString()}`);
       setShowNewAppointment(false);
-      setPatientSelectionType('existing');
-      
-      // Reset all search states
-      setPatientSearchQuery('');
-      setShowPatientSearch(false);
-      setSelectedPatientFromSearch(null);
-      
       reset();
     } catch (error: any) {
       console.error('Error scheduling appointment:', error);
       toast.error(error.message || 'Failed to schedule appointment');
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateAppointmentStatus = (appointmentId: string, newStatus: Appointment['status']) => {
-    setAppointments(prev =>
-      prev.map(apt =>
-        apt.id === appointmentId ? { ...apt, status: newStatus } : apt
-      )
+    const updated = appointments.map(apt =>
+      apt.id === appointmentId ? { ...apt, status: newStatus } : apt
     );
+    
+    localStorage.setItem('hospital_appointments', JSON.stringify(updated));
+    setAppointments(updated);
     toast.success(`Appointment status updated to ${newStatus}`);
   };
 
   const cancelAppointment = (appointmentId: string) => {
     updateAppointmentStatus(appointmentId, 'cancelled');
+  };
+
+  const deleteAppointment = (appointmentId: string, patientName: string) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete the appointment for ${patientName}?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      const updated = appointments.filter(apt => apt.id !== appointmentId);
+      localStorage.setItem('hospital_appointments', JSON.stringify(updated));
+      setAppointments(updated);
+      toast.success('Appointment deleted successfully');
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      toast.error('Failed to delete appointment');
+    }
   };
 
   const getStatusColor = (status: Appointment['status']) => {
@@ -334,14 +171,6 @@ const AppointmentManagement: React.FC = () => {
   const upcomingAppointments = appointments.filter(apt =>
     new Date(apt.appointment_date) >= new Date() && apt.status !== 'cancelled'
   );
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading appointments...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -406,245 +235,49 @@ const AppointmentManagement: React.FC = () => {
           <div className="px-6 py-4 bg-gray-50 border-b">
             <h3 className="text-lg font-semibold mb-4">Schedule New Appointment</h3>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Patient Selection Type Toggle */}
+              {/* Patient Name - Manual Entry */}
               <div className="bg-blue-50 p-4 rounded-lg">
                 <label className="block text-sm font-medium text-gray-700 mb-3">Patient Information</label>
-                <div className="flex gap-4 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPatientSelectionType('existing');
-                      // Clear new patient fields when switching
-                      setValue('new_patient_first_name', '');
-                      setValue('new_patient_last_name', '');
-                      setValue('new_patient_phone', '');
-                      setValue('new_patient_email', '');
-                      setValue('new_patient_address', '');
-                      // Clear search states
-                      setPatientSearchQuery('');
-                      setShowPatientSearch(false);
-                      setSelectedPatientFromSearch(null);
-                    }}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      patientSelectionType === 'existing'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    👤 Select Existing Patient
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPatientSelectionType('new');
-                      // Clear existing patient selection when switching
-                      setValue('patient_id', '');
-                      // Clear search states
-                      setPatientSearchQuery('');
-                      setShowPatientSearch(false);
-                      setSelectedPatientFromSearch(null);
-                    }}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      patientSelectionType === 'new'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    ➕ Create New Patient
-                  </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name *</label>
+                  <input
+                    type="text"
+                    {...register('patient_name', { required: 'Patient name is required' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter patient name"
+                  />
+                  {errors.patient_name && <p className="text-red-500 text-sm">{errors.patient_name.message as string}</p>}
                 </div>
+              </div>
 
-                {/* Existing Patient Selection with Search */}
-                {patientSelectionType === 'existing' && (
-                  <div className="relative patient-search-container">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Search or Select Patient
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={patientSearchQuery}
-                        onChange={(e) => handlePatientSearch(e.target.value)}
-                        onFocus={() => setShowPatientSearch(true)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md pr-10"
-                        placeholder="Type patient name, phone, or ID..."
-                      />
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                        <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Search Results Dropdown */}
-                    {showPatientSearch && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {filteredPatients.length > 0 ? (
-                          <>
-                            {filteredPatients.map(patient => (
-                              <div
-                                key={patient.id}
-                                onClick={() => handlePatientSelect(patient)}
-                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100"
-                              >
-                                <div className="font-medium text-gray-900">
-                                  {patient.first_name} {patient.last_name}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {patient.phone && `📱 ${patient.phone}`} {patient.patient_id && `• ID: ${patient.patient_id}`}
-                                </div>
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          <div className="px-3 py-4">
-                            <div className="text-gray-500 text-center mb-3">
-                              No patients found matching "{patientSearchQuery}"
-                            </div>
-                            {patientSearchQuery.trim() && (
-                              <button
-                                type="button"
-                                onClick={handleCreatePatientFromSearch}
-                                className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors"
-                              >
-                                ➕ Create new patient "{patientSearchQuery}"
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Close button */}
-                        <div className="border-t border-gray-200 p-2">
-                          <button
-                            type="button"
-                            onClick={() => setShowPatientSearch(false)}
-                            className="w-full text-gray-500 text-sm hover:text-gray-700"
-                          >
-                            Close
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Selected Patient Display */}
-                    {selectedPatientFromSearch && (
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
-                        <span className="text-green-700">✓ Selected: </span>
-                        <span className="font-medium">{selectedPatientFromSearch.first_name} {selectedPatientFromSearch.last_name}</span>
-                        {selectedPatientFromSearch.phone && <span className="text-gray-600 ml-2">• {selectedPatientFromSearch.phone}</span>}
-                      </div>
-                    )}
-
-                    {/* Hidden input for form validation */}
+              {/* Doctor Information */}
+              <div className="bg-green-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Doctor Information</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor Name *</label>
                     <input
-                      type="hidden"
-                      {...register('patient_id', { 
-                        required: patientSelectionType === 'existing' ? false : false // Made optional since we handle it in submit
-                      })}
+                      type="text"
+                      {...register('doctor_name', { required: 'Doctor name is required' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter doctor name"
                     />
+                    {errors.doctor_name && <p className="text-red-500 text-sm">{errors.doctor_name.message as string}</p>}
                   </div>
-                )}
-
-                {/* New Patient Form */}
-                {patientSelectionType === 'new' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                      <input
-                        type="text"
-                        {...register('new_patient_first_name', { 
-                          required: patientSelectionType === 'new' ? 'First name is required' : false 
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Enter first name"
-                      />
-                      {errors.new_patient_first_name && <p className="text-red-500 text-sm">{errors.new_patient_first_name.message as string}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                      <input
-                        type="text"
-                        {...register('new_patient_last_name')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Enter last name (optional)"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                      <input
-                        type="tel"
-                        {...register('new_patient_phone')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Enter phone number"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        {...register('new_patient_email')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Enter email address"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                      <select
-                        {...register('new_patient_gender')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="MALE">Male</option>
-                        <option value="FEMALE">Female</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <input
-                        type="text"
-                        {...register('new_patient_address')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Enter address"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+                    <input
+                      type="text"
+                      {...register('department', { required: 'Department is required' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter department"
+                    />
+                    {errors.department && <p className="text-red-500 text-sm">{errors.department.message as string}</p>}
                   </div>
-                )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor *</label>
-                  <select
-                    {...register('doctor_id', { required: 'Doctor is required' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="">Select Doctor</option>
-                    {doctors.map(doctor => (
-                      <option key={doctor.id} value={doctor.id}>
-                        {doctor.name} - {doctor.department}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.doctor_id && <p className="text-red-500 text-sm">{errors.doctor_id.message as string}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
-                  <select
-                    {...register('department', { required: 'Department is required' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.name}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.department && <p className="text-red-500 text-sm">{errors.department.message as string}</p>}
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
                   <input
@@ -717,9 +350,10 @@ const AppointmentManagement: React.FC = () => {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+                  disabled={loading}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Schedule Appointment
+                  {loading ? 'Scheduling...' : 'Schedule Appointment'}
                 </button>
                 <button
                   type="button"
@@ -735,97 +369,114 @@ const AppointmentManagement: React.FC = () => {
 
         {/* Appointments List */}
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doctor & Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAppointments.map((appointment) => (
-                <tr key={appointment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{appointment.patient_name}</div>
-                    <div className="text-sm text-gray-500">ID: {appointment.patient_id.slice(0, 8)}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{appointment.doctor_name}</div>
-                    <div className="text-sm text-gray-500">{appointment.department}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-gray-900">
-                      {new Date(appointment.appointment_date).toLocaleDateString()}
-                    </div>
-                    <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="flex items-center gap-1">
-                      {getTypeIcon(appointment.appointment_type)}
-                      {appointment.appointment_type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(appointment.status)}`}>
-                      {appointment.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-semibold">₹{appointment.estimated_cost.toLocaleString()}</div>
-                    <div className="text-sm text-gray-500">{appointment.estimated_duration}min</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex gap-2">
-                      {appointment.status === 'scheduled' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
-                          className="text-green-600 hover:text-green-800"
-                        >
-                          Confirm
-                        </button>
-                      )}
-                      {appointment.status === 'confirmed' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appointment.id, 'in_progress')}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          Start
-                        </button>
-                      )}
-                      {appointment.status === 'in_progress' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
-                          className="text-purple-600 hover:text-purple-800"
-                        >
-                          Complete
-                        </button>
-                      )}
-                      {!['completed', 'cancelled'].includes(appointment.status) && (
-                        <button
-                          onClick={() => cancelAppointment(appointment.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          {filteredAppointments.length > 0 ? (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doctor & Department</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredAppointments.map((appointment) => (
+                  <tr key={appointment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{appointment.patient_name}</div>
+                      <div className="text-sm text-gray-500">ID: {appointment.patient_id.slice(0, 8)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{appointment.doctor_name}</div>
+                      <div className="text-sm text-gray-500">{appointment.department}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-gray-900">
+                        {new Date(appointment.appointment_date).toLocaleDateString()}
+                      </div>
+                      <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="flex items-center gap-1">
+                        {getTypeIcon(appointment.appointment_type)}
+                        {appointment.appointment_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(appointment.status)}`}>
+                        {appointment.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-semibold">₹{appointment.estimated_cost.toLocaleString()}</div>
+                      <div className="text-sm text-gray-500">{appointment.estimated_duration}min</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex gap-2 flex-wrap">
+                        {appointment.status === 'scheduled' && (
+                          <button
+                            onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
+                            className="text-green-600 hover:text-green-800 font-medium"
+                          >
+                            Confirm
+                          </button>
+                        )}
+                        {appointment.status === 'confirmed' && (
+                          <button
+                            onClick={() => updateAppointmentStatus(appointment.id, 'in_progress')}
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Start
+                          </button>
+                        )}
+                        {appointment.status === 'in_progress' && (
+                          <button
+                            onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
+                            className="text-purple-600 hover:text-purple-800 font-medium"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {!['completed', 'cancelled'].includes(appointment.status) && (
+                          <button
+                            onClick={() => cancelAppointment(appointment.id)}
+                            className="text-orange-600 hover:text-orange-800 font-medium"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteAppointment(appointment.id, appointment.patient_name)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                          title="Delete appointment permanently"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📅</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No appointments found</h3>
+              <p className="text-gray-500 mb-4">
+                Get started by scheduling your first appointment
+              </p>
+              <button
+                onClick={() => setShowNewAppointment(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                ➕ Schedule Appointment
+              </button>
+            </div>
+          )}
         </div>
-
-        {filteredAppointments.length === 0 && (
-          <div className="text-center py-8">
-            <div className="text-gray-500">No appointments found.</div>
-          </div>
-        )}
       </div>
     </div>
   );

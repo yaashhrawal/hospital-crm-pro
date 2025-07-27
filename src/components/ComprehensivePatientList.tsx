@@ -318,6 +318,30 @@ const ComprehensivePatientList: React.FC = () => {
     return sortOrder === 'asc' ? '↑' : '↓';
   };
 
+  const deletePatient = async (patientId: string, patientName: string) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete ${patientName}?\n\nThis action cannot be undone and will remove all patient data including medical history, transactions, and appointments.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+      
+      // Delete the patient using HospitalService
+      await HospitalService.deletePatient(patientId);
+      
+      toast.success('Patient deleted successfully');
+      await loadPatients(); // Reload the patients list
+      
+    } catch (error: any) {
+      console.error('Error deleting patient:', error);
+      toast.error(`Failed to delete patient: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const exportPatientsToExcel = () => {
     try {
       console.log('🔍 Exporting patients, checking registration dates...');
@@ -652,6 +676,17 @@ const ComprehensivePatientList: React.FC = () => {
                           title="Admit to IPD"
                         >
                           🛏️ IPD
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
+                          }}
+                          className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          title="Delete patient permanently"
+                          disabled={loading}
+                        >
+                          🗑️ Delete
                         </button>
                       </div>
                     </td>

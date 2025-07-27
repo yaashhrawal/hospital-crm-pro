@@ -47,6 +47,37 @@ const RefundTab: React.FC = () => {
     }
   };
 
+  const deleteRefund = async (refundId: string, patientName: string, amount: number) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete the refund of ₹${amount.toLocaleString()} for ${patientName}?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setLoadingRefunds(true);
+      
+      // Delete the refund transaction
+      const { error } = await supabase
+        .from('patient_transactions')
+        .delete()
+        .eq('id', refundId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Refund deleted successfully');
+      await loadRecentRefunds(); // Reload the refunds list
+      
+    } catch (error: any) {
+      console.error('Error deleting refund:', error);
+      toast.error(`Failed to delete refund: ${error.message}`);
+    } finally {
+      setLoadingRefunds(false);
+    }
+  };
+
   const loadRecentRefunds = async () => {
     setLoadingRefunds(true);
     try {
@@ -359,6 +390,7 @@ const RefundTab: React.FC = () => {
                     <th className="text-left p-3 font-semibold text-gray-700">Amount</th>
                     <th className="text-left p-3 font-semibold text-gray-700">Payment Mode</th>
                     <th className="text-left p-3 font-semibold text-gray-700">Status</th>
+                    <th className="text-left p-3 font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -395,6 +427,20 @@ const RefundTab: React.FC = () => {
                         }`}>
                           {refund.status}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => deleteRefund(
+                            refund.id, 
+                            `${refund.patient?.first_name} ${refund.patient?.last_name}` || 'Unknown Patient',
+                            Math.abs(refund.amount)
+                          )}
+                          className="text-red-600 hover:text-red-800 font-medium text-sm"
+                          title="Delete refund permanently"
+                          disabled={loadingRefunds}
+                        >
+                          🗑️ Delete
+                        </button>
                       </td>
                     </tr>
                   ))}

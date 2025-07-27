@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
+import { removeTestPatients } from './utils/removeTestPatients';
 
 // Import production components only
 import ComprehensivePatientList from './components/ComprehensivePatientList';
-import FutureAppointmentsSystem from './components/FutureAppointmentsSystem';
+import AppointmentManagement from './components/AppointmentManagement';
 import RealTimeDashboard from './components/RealTimeDashboard';
 import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
@@ -137,6 +138,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
 
+  // Make removeTestPatients available globally for console access
+  useEffect(() => {
+    (window as any).removeTestPatients = removeTestPatients;
+    console.log('🛠️ removeTestPatients function available. Run removeTestPatients() in console to clean test data.');
+  }, []);
+
   useEffect(() => {
     // Check authentication status on app start
     checkAuthStatus();
@@ -235,7 +242,7 @@ const App: React.FC = () => {
     { 
       id: 'appointments', 
       name: '📅 Appointments', 
-      component: FutureAppointmentsSystem,
+      component: AppointmentManagement,
       description: 'Schedule and manage patient appointments' 
     },
     { 
