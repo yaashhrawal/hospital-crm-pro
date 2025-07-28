@@ -249,7 +249,8 @@ export class HospitalService {
         .from('patients')
         .select(`
           *,
-          transactions:patient_transactions(*)
+          transactions:patient_transactions(*),
+          admissions:patient_admissions(*)
         `)
         .eq('hospital_id', HOSPITAL_ID)
         .order('created_at', { ascending: false })
@@ -274,17 +275,23 @@ export class HospitalService {
       // Enhance patients with calculated fields
       const enhancedPatients = patients?.map(patient => {
         const transactions = patient.transactions || [];
+        const admissions = patient.admissions || [];
         const totalSpent = transactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
         const visitCount = transactions.length;
         const lastVisit = transactions.length > 0 
           ? transactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
+        // Check if patient has any admission history (IPD)
+        const hasAnyAdmission = admissions.length > 0;
+        const departmentStatus = hasAnyAdmission ? 'IPD' : 'OPD';
+        
         return {
           ...patient,
           totalSpent,
           visitCount,
-          lastVisit
+          lastVisit,
+          departmentStatus
         };
       }) || [];
       

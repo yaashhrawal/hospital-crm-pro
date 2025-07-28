@@ -25,8 +25,9 @@ const DEPARTMENTS = [...new Set(DOCTORS_DATA.map(doc => doc.department))].sort()
 const NewFlexiblePatientEntry: React.FC = () => {
   const [formData, setFormData] = useState({
     prefix: 'Mr',
-    first_name: '',
-    last_name: '',
+    full_name: '', // UI field
+    first_name: '', // Backend field (hidden)
+    last_name: '', // Backend field (hidden)
     phone: '',
     email: '',
     date_of_birth: '',
@@ -161,8 +162,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
     e.preventDefault();
     
     // Validate minimum required fields
-    if (!formData.first_name.trim()) {
-      toast.error('First name is required');
+    if (!formData.full_name.trim()) {
+      toast.error('Full name is required');
       return;
     }
 
@@ -302,6 +303,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
       
       // Reset form
       setFormData({
+        prefix: 'Mr',
+        full_name: '',
         first_name: '',
         last_name: '',
         phone: '',
@@ -319,9 +322,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
         patient_tag: '',
         has_reference: 'NO',
         reference_details: '',
+        // Doctor and Department (single selection for backward compatibility)
         selected_department: '',
         selected_doctor: '',
-        consultation_mode: 'single',
+        // Multiple doctors selection
+        consultation_mode: 'single', // 'single' or 'multiple'
+        // Transaction data
         consultation_fee: 0,
         discount_percentage: 0,
         discount_reason: '',
@@ -379,28 +385,30 @@ const NewFlexiblePatientEntry: React.FC = () => {
               </select>
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                First Name <span className="text-red-500">*</span>
+                Full Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                value={formData.full_name}
+                onChange={(e) => {
+                  const fullName = e.target.value;
+                  // Split name for backend compatibility
+                  const nameParts = fullName.trim().split(' ');
+                  const firstName = nameParts[0] || '';
+                  const lastName = nameParts.slice(1).join(' ') || '';
+                  
+                  setFormData({ 
+                    ...formData, 
+                    full_name: fullName,
+                    first_name: firstName,
+                    last_name: lastName
+                  });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter first name"
+                placeholder="Enter full name (e.g., John Doe)"
                 required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-              <input
-                type="text"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter last name"
               />
             </div>
 
