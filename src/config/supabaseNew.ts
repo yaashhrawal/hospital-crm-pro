@@ -194,6 +194,7 @@ export interface PatientWithRelations extends Patient {
   totalSpent?: number;
   visitCount?: number;
   lastVisit?: string;
+  departmentStatus?: 'OPD' | 'IPD';
 }
 
 export interface PatientAdmissionWithRelations extends PatientAdmission {
@@ -271,6 +272,34 @@ export interface CreatePatientData {
   assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
   notes?: string;
   hospital_id: string;
+}
+
+// CREATE TRANSACTION DATA TYPE
+export interface CreateTransactionData {
+  patient_id: string;
+  transaction_type: 'ENTRY_FEE' | 'CONSULTATION' | 'LAB_TEST' | 'XRAY' | 'MEDICINE' | 'PROCEDURE' | 'ADMISSION_FEE' | 'DAILY_CHARGE' | 'SERVICE' | 'REFUND';
+  amount: number;
+  payment_mode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'INSURANCE';
+  description: string;
+  doctor_id?: string;
+  doctor_name?: string;
+  department?: string;
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  transaction_reference?: string;
+}
+
+// CREATE APPOINTMENT DATA TYPE
+export interface CreateAppointmentData {
+  patient_id: string;
+  doctor_id: string;
+  appointment_date: string;
+  appointment_time: string;
+  duration_minutes?: number;
+  appointment_type?: 'CONSULTATION' | 'FOLLOW_UP' | 'EMERGENCY' | 'PROCEDURE' | 'CHECKUP';
+  reason?: string;
+  status?: 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+  estimated_cost?: number;
+  notes?: string;
 }
 
 // CREATE ADMISSION DATA TYPE

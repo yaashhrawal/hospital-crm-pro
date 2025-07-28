@@ -370,6 +370,7 @@ const ComprehensivePatientList: React.FC = () => {
           allergies: patient.allergies || '',
           emergency_contact: patient.emergency_contact_name || '',
           visit_count: patient.visitCount || 0,
+          department_status: patient.departmentStatus || 'OPD',
           total_spent: patient.totalSpent || 0, // Clean numeric value
           last_visit: formatDate(patient.lastVisit || ''),
           registration_date: patient.created_at || '', // Store raw date
@@ -393,6 +394,7 @@ const ComprehensivePatientList: React.FC = () => {
           'Allergies',
           'Emergency Contact',
           'Visit Count',
+          'Department Status',
           'Total Spent',
           'Last Visit',
           'Registration Date'
@@ -529,6 +531,7 @@ const ComprehensivePatientList: React.FC = () => {
                   >
                     Visits {getSortIcon('visits')}
                   </th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Department</th>
                   <th 
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('spent')}
@@ -591,6 +594,15 @@ const ComprehensivePatientList: React.FC = () => {
                     <td className="p-4">
                       <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
                         {patient.visitCount || 0}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${
+                        patient.departmentStatus === 'IPD' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {patient.departmentStatus || 'OPD'}
                       </span>
                     </td>
                     <td className="p-4">
