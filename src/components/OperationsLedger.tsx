@@ -457,6 +457,7 @@ const OperationsLedger: React.FC = () => {
                 <tr>
                   <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '60px' }}>S.No</th>
                   <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Date</th>
+                  <th className="text-left p-4 font-semibold text-gray-700" style={{ width: '150px' }}>Patient Name</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Description</th>
                   <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Amount (₹)</th>
                   <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Discount (₹)</th>
@@ -477,6 +478,12 @@ const OperationsLedger: React.FC = () => {
                       </td>
                       <td className="p-4 text-center" style={{ width: '100px' }}>
                         {entry.date}
+                      </td>
+                      <td className="p-4" style={{ width: '150px' }}>
+                        <div className="text-sm font-medium">{entry.patient_name || 'N/A'}</div>
+                        {entry.patient_id && (
+                          <div className="text-xs text-gray-500">ID: {entry.patient_id}</div>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="text-sm">{entry.description}</div>
