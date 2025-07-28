@@ -306,7 +306,8 @@ export const useReceiptPrinting = () => {
           course_of_stay: dischargeSummary.course_of_stay,
           treatment_during_hospitalization: dischargeSummary.treatment_during_hospitalization,
           discharge_medication: dischargeSummary.discharge_medication,
-          follow_up_on: dischargeSummary.follow_up_on
+          follow_up_on: dischargeSummary.follow_up_on,
+          medications: dischargeSummary.discharge_medication
         },
         charges: [
           { description: 'Bed Charges', amount: dischargeSummary.bill?.nursing_charges || 0 },

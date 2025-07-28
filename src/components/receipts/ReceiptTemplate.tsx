@@ -40,6 +40,7 @@ export interface ReceiptData {
     admissionDate?: string;
     dischargeDate?: string;
     stayDuration?: number;
+    medications?: string;
   };
   
   // Financial Information
@@ -224,6 +225,46 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             {data.medical.followUp && (
               <p><strong>Follow-up Instructions:</strong> {data.medical.followUp}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Discharge Medications Table */}
+      {data.medical?.medications && data.type === 'DISCHARGE' && (
+        <div className="mb-6">
+          <h3 className="font-semibold mb-3 text-gray-800">💊 Discharge Medications</h3>
+          <div className="border border-gray-300 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border-b border-gray-300 px-3 py-2 text-left font-semibold">Drug Name & Dose</th>
+                  <th className="border-b border-gray-300 px-3 py-2 text-center font-semibold">Morning</th>
+                  <th className="border-b border-gray-300 px-3 py-2 text-center font-semibold">Afternoon</th>
+                  <th className="border-b border-gray-300 px-3 py-2 text-center font-semibold">Night</th>
+                  <th className="border-b border-gray-300 px-3 py-2 text-center font-semibold">Days</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.medical.medications.split('\n').filter(line => line.trim()).map((medication, index) => {
+                  const parts = medication.trim().split(/\s+/);
+                  const drugName = parts.slice(0, -4).join(' ') || parts[0] || '';
+                  const morning = parts[parts.length - 4] || '0';
+                  const afternoon = parts[parts.length - 3] || '0';
+                  const night = parts[parts.length - 2] || '0';
+                  const days = parts[parts.length - 1] || '0';
+                  
+                  return (
+                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="border-b border-gray-200 px-3 py-2">{drugName}</td>
+                      <td className="border-b border-gray-200 px-3 py-2 text-center">{morning}</td>
+                      <td className="border-b border-gray-200 px-3 py-2 text-center">{afternoon}</td>
+                      <td className="border-b border-gray-200 px-3 py-2 text-center">{night}</td>
+                      <td className="border-b border-gray-200 px-3 py-2 text-center">{days}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
