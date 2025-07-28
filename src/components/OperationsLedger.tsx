@@ -11,6 +11,9 @@ interface LedgerEntry {
   category: string;
   description: string;
   amount: number;
+  original_amount?: number;
+  discount_amount?: number;
+  net_amount?: number;
   payment_mode: 'CASH' | 'ONLINE';
   patient_name?: string;
   patient_id?: string;
@@ -58,17 +61,49 @@ const OperationsLedger: React.FC = () => {
         console.error('Error loading transactions:', transError);
       } else if (transactions) {
         transactions.forEach((trans: any) => {
-          // Create clean description with patient age
-          let description = trans.description || `${trans.transaction_type} Payment`;
+          let cleanDescription = trans.description || `${trans.transaction_type} Payment`;
+          let originalAmount = trans.amount;
+          let discountAmount = 0;
+          let netAmount = trans.amount;
           
-          // If it's a consultation, format it properly with doctor name
-          if (trans.transaction_type === 'consultation' && trans.doctor_name) {
-            description = `${trans.doctor_name} Consultation`;
+          // Parse existing description for discount information
+          if (cleanDescription.includes('Original:') && cleanDescription.includes('Discount:') && cleanDescription.includes('Net:')) {
+            // Extract original amount
+            const originalMatch = cleanDescription.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/); 
+            if (originalMatch) {
+              originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+            }
+            
+            // Extract discount amount
+            const discountMatch = cleanDescription.match(/Discount:\s*\d+%\s*\(₹([\d,]+(?:\.\d{2})?)\)/);
+            if (discountMatch) {
+              discountAmount = parseFloat(discountMatch[1].replace(/,/g, ''));
+            }
+            
+            // Extract net amount
+            const netMatch = cleanDescription.match(/Net:\s*₹([\d,]+(?:\.\d{2})?)/); 
+            if (netMatch) {
+              netAmount = parseFloat(netMatch[1].replace(/,/g, ''));
+            }
+            
+            // Clean the description - remove discount calculations
+            cleanDescription = cleanDescription.replace(/\s*\|\s*Original:.*?Net:\s*₹[\d,]+(?:\.\d{2})?/, '');
+          }
+          
+          // If it's a consultation, ensure proper doctor name format
+          if (trans.transaction_type === 'consultation') {
+            // Extract doctor name from description if present
+            const doctorMatch = cleanDescription.match(/Consultation Fee - (.+?)(?:\s*-\s*Patient Age|$)/);
+            if (doctorMatch) {
+              cleanDescription = `Consultation Fee - ${doctorMatch[1]}`;
+            } else if (trans.doctor_name) {
+              cleanDescription = `Consultation Fee - ${trans.doctor_name.toUpperCase()}`;
+            }
           }
           
           // Add patient age to description
           if (trans.patient?.age) {
-            description += ` - Patient Age: ${trans.patient.age} years`;
+            cleanDescription += ` - Patient Age: ${trans.patient.age} years`;
           }
           
           allEntries.push({
@@ -77,8 +112,11 @@ const OperationsLedger: React.FC = () => {
             time: new Date(trans.created_at).toLocaleTimeString(),
             type: 'REVENUE',
             category: trans.transaction_type,
-            description: description,
+            description: cleanDescription,
             amount: trans.amount,
+            original_amount: originalAmount,
+            discount_amount: discountAmount,
+            net_amount: netAmount,
             payment_mode: trans.payment_mode || 'CASH',
             patient_name: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'Unknown',
             patient_id: trans.patient?.patient_id,
@@ -419,6 +457,7 @@ const OperationsLedger: React.FC = () => {
                 <tr>
                   <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '60px' }}>S.No</th>
                   <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Date</th>
+                  <th className="text-left p-4 font-semibold text-gray-700" style={{ width: '150px' }}>Patient Name</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Description</th>
                   <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Amount (₹)</th>
                   <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Discount (₹)</th>
@@ -427,10 +466,10 @@ const OperationsLedger: React.FC = () => {
               </thead>
               <tbody>
                 {filteredEntries.map((entry, index) => {
-                  // Calculate discount and net amount - using sample data structure for now
-                  const originalAmount = entry.amount;
-                  const discountAmount = 0; // Will be populated when discount structure is implemented
-                  const netAmount = originalAmount - discountAmount;
+                  // Use the parsed values from the entry
+                  const originalAmount = entry.original_amount || entry.amount;
+                  const discountAmount = entry.discount_amount || 0;
+                  const netAmount = entry.net_amount || entry.amount;
                   
                   return (
                     <tr key={entry.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
@@ -439,6 +478,12 @@ const OperationsLedger: React.FC = () => {
                       </td>
                       <td className="p-4 text-center" style={{ width: '100px' }}>
                         {entry.date}
+                      </td>
+                      <td className="p-4" style={{ width: '150px' }}>
+                        <div className="text-sm font-medium">{entry.patient_name || 'N/A'}</div>
+                        {entry.patient_id && (
+                          <div className="text-xs text-gray-500">ID: {entry.patient_id}</div>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="text-sm">{entry.description}</div>
