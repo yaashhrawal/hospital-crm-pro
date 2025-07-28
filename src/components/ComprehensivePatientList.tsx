@@ -70,6 +70,13 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
             <div><span className="font-medium">Gender:</span> {patient.gender}</div>
             <div><span className="font-medium">Blood Group:</span> {patient.blood_group || 'Not specified'}</div>
             <div><span className="font-medium">Date of Birth:</span> {patient.date_of_birth || 'Not provided'}</div>
+            {patient.patient_tag && (
+              <div><span className="font-medium">Patient Tag:</span> 
+                <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                  {patient.patient_tag}
+                </span>
+              </div>
+            )}
             {patient.address && (
               <div className="md:col-span-2"><span className="font-medium">Address:</span> {patient.address}</div>
             )}
@@ -165,6 +172,8 @@ const ComprehensivePatientList: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'visits' | 'spent'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterGender, setFilterGender] = useState<string>('all');
+  const [filterTag, setFilterTag] = useState<string>('all');
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -186,7 +195,7 @@ const ComprehensivePatientList: React.FC = () => {
 
   useEffect(() => {
     filterAndSortPatients();
-  }, [patients, searchTerm, sortBy, sortOrder, filterGender]);
+  }, [patients, searchTerm, sortBy, sortOrder, filterGender, filterTag]);
 
   const loadPatients = async () => {
     try {
@@ -197,6 +206,14 @@ const ComprehensivePatientList: React.FC = () => {
       console.log(`✅ Loaded ${patientsData.length} patients`);
       
       setPatients(patientsData);
+      
+      // Extract unique tags from patients for filter dropdown
+      const uniqueTags = [...new Set(
+        patientsData
+          .map(p => p.patient_tag)
+          .filter(tag => tag && tag.trim() !== '')
+      )].sort();
+      setAvailableTags(uniqueTags);
     } catch (error: any) {
       console.error('❌ Failed to load patients:', error);
       toast.error(`Failed to load patients: ${error.message}`);
@@ -223,6 +240,11 @@ const ComprehensivePatientList: React.FC = () => {
     // Apply gender filter
     if (filterGender !== 'all') {
       filtered = filtered.filter(patient => patient.gender === filterGender);
+    }
+
+    // Apply tag filter
+    if (filterTag !== 'all') {
+      filtered = filtered.filter(patient => patient.patient_tag === filterTag);
     }
 
     // Apply sorting
@@ -368,6 +390,7 @@ const ComprehensivePatientList: React.FC = () => {
           date_of_birth: patient.date_of_birth || '',
           medical_history: patient.medical_history || '',
           allergies: patient.allergies || '',
+          patient_tag: patient.patient_tag || '',
           emergency_contact: patient.emergency_contact_name || '',
           visit_count: patient.visitCount || 0,
           department_status: patient.departmentStatus || 'OPD',
@@ -392,6 +415,7 @@ const ComprehensivePatientList: React.FC = () => {
           'Date of Birth',
           'Medical History',
           'Allergies',
+          'Patient Tag',
           'Emergency Contact',
           'Visit Count',
           'Department Status',
@@ -491,6 +515,22 @@ const ComprehensivePatientList: React.FC = () => {
             </select>
           </div>
 
+          {/* TAG Filter */}
+          <div className="min-w-[180px]">
+            <select
+              value={filterTag}
+              onChange={(e) => setFilterTag(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Tags</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Action Buttons */}
           <div className="flex space-x-2">
             <button
@@ -564,6 +604,11 @@ const ComprehensivePatientList: React.FC = () => {
                         <div className="text-sm text-gray-500">ID: {patient.patient_id}</div>
                         <div className="text-sm text-gray-500">
                           {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
+                          {patient.patient_tag && (
+                            <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                              {patient.patient_tag}
+                            </span>
+                          )}
                         </div>
                         <div className="text-sm text-purple-600 mt-1">
                           {patient.assigned_doctors && patient.assigned_doctors.length > 0 ? (
@@ -713,7 +758,7 @@ const ComprehensivePatientList: React.FC = () => {
           <div className="text-6xl mb-4">👥</div>
           <h3 className="text-xl font-semibold text-gray-800 mb-2">No patients found</h3>
           <p className="text-gray-600 mb-4">
-            {searchTerm || filterGender !== 'all' 
+            {searchTerm || filterGender !== 'all' || filterTag !== 'all'
               ? 'Try adjusting your search or filters'
               : 'No patients have been registered yet'
             }

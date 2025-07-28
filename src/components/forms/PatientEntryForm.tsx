@@ -25,6 +25,7 @@ const patientEntrySchema = z.object({
   allergies: z.string().optional(),
   current_medications: z.string().optional(),
   blood_group: z.string().optional(),
+  patient_tag: z.string().optional(),
   notes: z.string().optional(),
   // New hospital workflow fields
   selected_doctor: z.string().min(1, 'Please select a doctor'),
@@ -138,6 +139,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         allergies: data.allergies,
         current_medications: data.current_medications,
         blood_group: data.blood_group,
+        patient_tag: data.patient_tag,
         notes: data.notes,
         is_active: true,
       };
@@ -414,6 +416,31 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                 {...register('current_medications')}
                 placeholder="Current medicines"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <input
+                type="text"
+                {...register('patient_tag')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp, etc.)"
+                list="form-patient-tags-suggestions"
+              />
+              <datalist id="form-patient-tags-suggestions">
+                <option value="Jain Community" />
+                <option value="Bohara Community" />
+                <option value="Corporate Camp" />
+                <option value="Medical Camp" />
+                <option value="School Camp" />
+                <option value="Senior Citizen" />
+                <option value="Insurance" />
+                <option value="Government Scheme" />
+                <option value="VIP" />
+                <option value="Regular" />
+              </datalist>
+              <div className="text-xs text-gray-500 mt-1">
+                💡 Start typing for suggestions or enter your own custom tag
+              </div>
             </div>
           </div>
         </div>

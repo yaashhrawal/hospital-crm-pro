@@ -48,6 +48,7 @@ const SimplePatientEntry: React.FC = () => {
     age: 0,
     gender: 'MALE',
     address: '',
+    patient_tag: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     blood_group: '',
@@ -118,6 +119,7 @@ const SimplePatientEntry: React.FC = () => {
         date_of_birth: formData.date_of_birth || undefined,
         gender: formData.gender || 'MALE',
         address: formData.address.trim() || undefined,
+        patient_tag: formData.patient_tag.trim() || undefined,
         emergency_contact_name: formData.emergency_contact_name.trim() || undefined,
         emergency_contact_phone: formData.emergency_contact_phone.trim() || undefined,
         blood_group: formData.blood_group || undefined,
@@ -219,6 +221,7 @@ const SimplePatientEntry: React.FC = () => {
         age: '',
         gender: 'MALE',
         address: '',
+        patient_tag: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
         blood_group: '',
@@ -339,6 +342,33 @@ const SimplePatientEntry: React.FC = () => {
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <input
+                type="text"
+                value={formData.patient_tag}
+                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp, etc.)"
+                list="simple-patient-tags-suggestions"
+              />
+              <datalist id="simple-patient-tags-suggestions">
+                <option value="Jain Community" />
+                <option value="Bohara Community" />
+                <option value="Corporate Camp" />
+                <option value="Medical Camp" />
+                <option value="School Camp" />
+                <option value="Senior Citizen" />
+                <option value="Insurance" />
+                <option value="Government Scheme" />
+                <option value="VIP" />
+                <option value="Regular" />
+              </datalist>
+              <div className="text-xs text-gray-500 mt-1">
+                💡 Start typing for suggestions or enter your own custom tag
+              </div>
             </div>
           </div>
           

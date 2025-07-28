@@ -40,6 +40,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     medical_history: '',
     allergies: '',
     current_medications: '',
+    patient_tag: '',
     has_reference: 'NO',
     reference_details: '',
     // Doctor and Department (single selection for backward compatibility)
@@ -193,6 +194,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         medical_history: formData.medical_history.trim() || undefined,
         allergies: formData.allergies.trim() || undefined,
         current_medications: formData.current_medications.trim() || undefined,
+        patient_tag: formData.patient_tag.trim() || undefined,
         // Reference information
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
@@ -317,6 +319,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         medical_history: '',
         allergies: '',
         current_medications: '',
+        patient_tag: '',
         has_reference: 'NO',
         reference_details: '',
         // Doctor and Department (single selection for backward compatibility)
@@ -563,6 +566,33 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 placeholder="Current medicines"
                 rows={2}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <input
+                type="text"
+                value={formData.patient_tag}
+                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp, etc.)"
+                list="new-flexible-patient-tags-suggestions"
+              />
+              <datalist id="new-flexible-patient-tags-suggestions">
+                <option value="Jain Community" />
+                <option value="Bohara Community" />
+                <option value="Corporate Camp" />
+                <option value="Medical Camp" />
+                <option value="School Camp" />
+                <option value="Senior Citizen" />
+                <option value="Insurance" />
+                <option value="Government Scheme" />
+                <option value="VIP" />
+                <option value="Regular" />
+              </datalist>
+              <div className="text-xs text-gray-500 mt-1">
+                💡 Start typing for suggestions or enter your own custom tag
+              </div>
             </div>
           </div>
         </div>
