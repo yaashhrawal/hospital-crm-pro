@@ -39,6 +39,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     medical_history: '',
     allergies: '',
     current_medications: '',
+    patient_tag: '',
     has_reference: 'NO',
     reference_details: '',
     // Doctor and Department (single selection for backward compatibility)
@@ -192,6 +193,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         medical_history: formData.medical_history.trim() || undefined,
         allergies: formData.allergies.trim() || undefined,
         current_medications: formData.current_medications.trim() || undefined,
+        patient_tag: formData.patient_tag.trim() || undefined,
         // Reference information
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
@@ -314,6 +316,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         medical_history: '',
         allergies: '',
         current_medications: '',
+        patient_tag: '',
         has_reference: 'NO',
         reference_details: '',
         selected_department: '',
@@ -555,6 +558,27 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 placeholder="Current medicines"
                 rows={2}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <select
+                value={formData.patient_tag}
+                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Tag (Optional)</option>
+                <option value="Jain Community">Jain Community</option>
+                <option value="Bohara Community">Bohara Community</option>
+                <option value="Corporate Camp">Corporate Camp</option>
+                <option value="Medical Camp">Medical Camp</option>
+                <option value="School Camp">School Camp</option>
+                <option value="Senior Citizen">Senior Citizen</option>
+                <option value="Insurance">Insurance</option>
+                <option value="Government Scheme">Government Scheme</option>
+                <option value="VIP">VIP</option>
+                <option value="Regular">Regular</option>
+              </select>
             </div>
           </div>
         </div>

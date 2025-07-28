@@ -25,6 +25,7 @@ const patientEntrySchema = z.object({
   allergies: z.string().optional(),
   current_medications: z.string().optional(),
   blood_group: z.string().optional(),
+  patient_tag: z.string().optional(),
   notes: z.string().optional(),
   // New hospital workflow fields
   selected_doctor: z.string().min(1, 'Please select a doctor'),
@@ -138,6 +139,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         allergies: data.allergies,
         current_medications: data.current_medications,
         blood_group: data.blood_group,
+        patient_tag: data.patient_tag,
         notes: data.notes,
         is_active: true,
       };
@@ -414,6 +416,25 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                 {...register('current_medications')}
                 placeholder="Current medicines"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <select
+                {...register('patient_tag')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Tag (Optional)</option>
+                <option value="Jain Community">Jain Community</option>
+                <option value="Bohara Community">Bohara Community</option>
+                <option value="Corporate Camp">Corporate Camp</option>
+                <option value="Medical Camp">Medical Camp</option>
+                <option value="School Camp">School Camp</option>
+                <option value="Senior Citizen">Senior Citizen</option>
+                <option value="Insurance">Insurance</option>
+                <option value="Government Scheme">Government Scheme</option>
+                <option value="VIP">VIP</option>
+                <option value="Regular">Regular</option>
+              </select>
             </div>
           </div>
         </div>

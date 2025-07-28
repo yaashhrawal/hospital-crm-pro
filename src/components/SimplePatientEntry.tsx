@@ -48,6 +48,7 @@ const SimplePatientEntry: React.FC = () => {
     age: 0,
     gender: 'MALE',
     address: '',
+    patient_tag: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     blood_group: '',
@@ -118,6 +119,7 @@ const SimplePatientEntry: React.FC = () => {
         date_of_birth: formData.date_of_birth || undefined,
         gender: formData.gender || 'MALE',
         address: formData.address.trim() || undefined,
+        patient_tag: formData.patient_tag.trim() || undefined,
         emergency_contact_name: formData.emergency_contact_name.trim() || undefined,
         emergency_contact_phone: formData.emergency_contact_phone.trim() || undefined,
         blood_group: formData.blood_group || undefined,
@@ -219,6 +221,7 @@ const SimplePatientEntry: React.FC = () => {
         age: '',
         gender: 'MALE',
         address: '',
+        patient_tag: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
         blood_group: '',
@@ -338,6 +341,27 @@ const SimplePatientEntry: React.FC = () => {
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
+              <select
+                value={formData.patient_tag}
+                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Tag (Optional)</option>
+                <option value="Jain Community">Jain Community</option>
+                <option value="Bohara Community">Bohara Community</option>
+                <option value="Corporate Camp">Corporate Camp</option>
+                <option value="Medical Camp">Medical Camp</option>
+                <option value="School Camp">School Camp</option>
+                <option value="Senior Citizen">Senior Citizen</option>
+                <option value="Insurance">Insurance</option>
+                <option value="Government Scheme">Government Scheme</option>
+                <option value="VIP">VIP</option>
+                <option value="Regular">Regular</option>
               </select>
             </div>
           </div>

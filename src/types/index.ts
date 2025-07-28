@@ -16,6 +16,7 @@ export interface Patient {
   age: number;
   gender: Gender;
   bloodGroup?: string;
+  patient_tag?: string;
   emergencyContact?: {
     name: string;
     phone: string;
