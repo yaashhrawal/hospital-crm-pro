@@ -44,9 +44,10 @@ const OperationsLedger: React.FC = () => {
           payment_mode,
           transaction_type,
           description,
+          doctor_name,
           status,
           created_at,
-          patient:patients(id, patient_id, first_name, last_name)
+          patient:patients(id, patient_id, first_name, last_name, age)
         `)
         .gte('created_at', `${dateFrom}T00:00:00`)
         .lte('created_at', `${dateTo}T23:59:59`)
@@ -57,13 +58,26 @@ const OperationsLedger: React.FC = () => {
         console.error('Error loading transactions:', transError);
       } else if (transactions) {
         transactions.forEach((trans: any) => {
+          // Create clean description with patient age
+          let description = trans.description || `${trans.transaction_type} Payment`;
+          
+          // If it's a consultation, format it properly with doctor name
+          if (trans.transaction_type === 'consultation' && trans.doctor_name) {
+            description = `${trans.doctor_name} Consultation`;
+          }
+          
+          // Add patient age to description
+          if (trans.patient?.age) {
+            description += ` - Patient Age: ${trans.patient.age} years`;
+          }
+          
           allEntries.push({
             id: trans.id,
             date: new Date(trans.created_at).toLocaleDateString(),
             time: new Date(trans.created_at).toLocaleTimeString(),
             type: 'REVENUE',
             category: trans.transaction_type,
-            description: trans.description || `${trans.transaction_type} Payment`,
+            description: description,
             amount: trans.amount,
             payment_mode: trans.payment_mode || 'CASH',
             patient_name: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'Unknown',
@@ -400,59 +414,47 @@ const OperationsLedger: React.FC = () => {
           </div>
         ) : filteredEntries.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left p-4 font-semibold text-gray-700">Date & Time</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Type</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Category</th>
+                  <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '60px' }}>S.No</th>
+                  <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Date</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Description</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Patient</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Payment</th>
-                  <th className="text-right p-4 font-semibold text-gray-700">Amount</th>
+                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Amount (₹)</th>
+                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Discount (₹)</th>
+                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '120px' }}>Net Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.map((entry, index) => (
-                  <tr key={entry.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
-                    <td className="p-4">
-                      <div className="font-medium">{entry.date}</div>
-                      <div className="text-sm text-gray-500">{entry.time}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeBgColor(entry.type)} ${getTypeColor(entry.type)}`}>
-                        {entry.type}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm">{entry.category}</td>
-                    <td className="p-4">
-                      <div className="text-sm">{entry.description}</div>
-                    </td>
-                    <td className="p-4">
-                      {entry.patient_name && (
-                        <div>
-                          <div className="text-sm font-medium">{entry.patient_name}</div>
-                          {entry.patient_id && (
-                            <div className="text-xs text-gray-500">ID: {entry.patient_id}</div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        entry.payment_mode === 'CASH' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {entry.payment_mode}
-                      </span>
-                    </td>
-                    <td className={`p-4 text-right font-semibold ${getTypeColor(entry.type)}`}>
-                      {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : '+'} 
-                      ₹{entry.amount.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {filteredEntries.map((entry, index) => {
+                  // Calculate discount and net amount - using sample data structure for now
+                  const originalAmount = entry.amount;
+                  const discountAmount = 0; // Will be populated when discount structure is implemented
+                  const netAmount = originalAmount - discountAmount;
+                  
+                  return (
+                    <tr key={entry.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                      <td className="p-4 text-center" style={{ width: '60px' }}>
+                        {index + 1}
+                      </td>
+                      <td className="p-4 text-center" style={{ width: '100px' }}>
+                        {entry.date}
+                      </td>
+                      <td className="p-4">
+                        <div className="text-sm">{entry.description}</div>
+                      </td>
+                      <td className="p-4 text-right" style={{ width: '100px' }}>
+                        ₹{originalAmount.toFixed(2)}
+                      </td>
+                      <td className="p-4 text-right" style={{ width: '100px' }}>
+                        {discountAmount > 0 ? `₹${discountAmount.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="p-4 text-right font-medium" style={{ width: '120px' }}>
+                        ₹{netAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
