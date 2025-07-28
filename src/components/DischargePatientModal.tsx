@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { PatientAdmissionWithRelations } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
-import InsurancePaymentForm from './InsurancePaymentForm';
 
 interface DischargeModalProps {
   admission: PatientAdmissionWithRelations | null;
@@ -22,22 +21,9 @@ interface DischargeFormData {
   investigations: string;
   course_of_stay: string;
   treatment_during_hospitalization: string;
+  treatment_summary: string;
   discharge_medication: string;
   follow_up_on: string;
-  
-  // Billing Information
-  doctor_fees: number;
-  nursing_charges: number;
-  medicine_charges: number;
-  diagnostic_charges: number;
-  operation_charges: number;
-  other_charges: number;
-  discount_amount: number;
-  insurance_covered: number;
-  
-  // Payment Details
-  payment_mode: 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'INSURANCE';
-  amount_paid: number;
   
   // Legal/Administrative
   attendant_name: string;
@@ -64,18 +50,9 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     investigations: '',
     course_of_stay: '',
     treatment_during_hospitalization: '',
+    treatment_summary: '',
     discharge_medication: '',
     follow_up_on: '',
-    doctor_fees: 0,
-    nursing_charges: 0,
-    medicine_charges: 0,
-    diagnostic_charges: 0,
-    operation_charges: 0,
-    other_charges: 0,
-    discount_amount: 0,
-    insurance_covered: 0,
-    payment_mode: 'CASH',
-    amount_paid: 0,
     attendant_name: '',
     attendant_relationship: 'FAMILY_MEMBER',
     attendant_contact: '',
@@ -84,53 +61,23 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     discharge_notes: ''
   });
 
-  const [existingCharges, setExistingCharges] = useState(0);
-  const [totalPaid, setTotalPaid] = useState(0);
-  const [balanceDue, setBalanceDue] = useState(0);
-  const [patientTransactions, setPatientTransactions] = useState<any[]>([]);
   const [stayDuration, setStayDuration] = useState(0);
-  const [showInsuranceForm, setShowInsuranceForm] = useState(false);
-  const [insuranceData, setInsuranceData] = useState<any>(null);
+  
+  // Medication table state
+  const [medications, setMedications] = useState<Array<{
+    drug: string;
+    morning: string;
+    afternoon: string;
+    night: string;
+    days: string;
+  }>>(() => Array(8).fill({ drug: '', morning: '', afternoon: '', night: '', days: '' }));
 
   useEffect(() => {
     if (admission && isOpen) {
-      loadPatientCharges();
       calculateStayDuration();
       setDefaultValues();
     }
   }, [admission, isOpen]);
-
-  const loadPatientCharges = async () => {
-    if (!admission?.patient?.id) return;
-
-    try {
-      const transactions = await HospitalService.getTransactionsByPatient(admission.patient.id);
-      
-      // Filter transactions after admission date
-      const admissionTransactions = transactions.filter(t => 
-        new Date(t.created_at) >= new Date(admission.admission_date) &&
-        t.status === 'COMPLETED'
-      );
-
-      setPatientTransactions(admissionTransactions);
-      
-      // Calculate totals for service-based charges
-      const serviceCharges = admissionTransactions
-        .filter(t => t.transaction_type !== 'IPD_PAYMENT' && t.amount > 0)
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      const paymentsReceived = admissionTransactions
-        .filter(t => t.transaction_type === 'IPD_PAYMENT')
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      setExistingCharges(serviceCharges);
-      setTotalPaid(paymentsReceived);
-      setBalanceDue(serviceCharges - paymentsReceived);
-      
-    } catch (error: any) {
-      console.error('Error loading patient charges:', error);
-    }
-  };
 
   const calculateStayDuration = () => {
     if (!admission) return;
@@ -152,37 +99,10 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     setFormData(prev => ({
       ...prev,
       next_appointment_date: nextWeek.toISOString().split('T')[0],
-      attendant_contact: admission.patient?.phone || '',
-      // Set amount paid to current balance due if any outstanding
-      amount_paid: balanceDue > 0 ? balanceDue : 0
+      attendant_contact: admission.patient?.phone || ''
     }));
   };
 
-  const calculateTotalCharges = () => {
-    // New discharge charges (if any additional charges)
-    const additionalCharges = formData.doctor_fees + 
-                             formData.nursing_charges + 
-                             formData.medicine_charges + 
-                             formData.diagnostic_charges + 
-                             formData.operation_charges + 
-                             formData.other_charges;
-    
-    const totalServices = existingCharges + additionalCharges;
-    const totalAfterDeductions = totalServices - formData.discount_amount - formData.insurance_covered;
-    const grandTotal = totalAfterDeductions;
-    const totalPayments = totalPaid + formData.amount_paid;
-    const finalBalance = grandTotal - totalPayments;
-    
-    return {
-      existingCharges,
-      additionalCharges,
-      totalServices,
-      totalAfterDeductions: grandTotal,
-      totalPayments,
-      finalBalance,
-      currentBalance: balanceDue
-    };
-  };
 
   const handleDischarge = async () => {
     if (!admission) return;
@@ -195,6 +115,11 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
 
     if (!formData.primary_consultant.trim()) {
       toast.error('Primary consultant is required');
+      return;
+    }
+
+    if (!formData.treatment_summary.trim()) {
+      toast.error('Treatment summary is required');
       return;
     }
 
@@ -213,18 +138,11 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       return;
     }
 
-    const totals = calculateTotalCharges();
-    
-    // Check if there's a balance and final payment is required
-    if (totals.finalBalance > 0 && formData.amount_paid < totals.finalBalance) {
-      const confirmDischarge = window.confirm(
-        `There is a pending balance of ₹${totals.finalBalance.toLocaleString()}. ` +
-        `Do you want to proceed with discharge? The patient can settle this later.`
-      );
-      if (!confirmDischarge) {
-        return;
-      }
-    }
+    // Convert medication table to string format
+    const medicationString = medications
+      .filter(med => med.drug.trim()) // Only include rows with drug names
+      .map(med => `${med.drug}\t${med.morning || '0'}\t${med.afternoon || '0'}\t${med.night || '0'}\t${med.days || '0'}`)
+      .join('\n');
 
     setLoading(true);
     try {
@@ -250,6 +168,43 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       if (!currentUser.id) {
         throw new Error('Current user ID is missing');
+      }
+
+      // Check if current user exists in users table (for foreign key constraint)
+      console.log('🔍 Verifying user exists in users table...');
+      const { data: userExists, error: userCheckError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (userCheckError && userCheckError.code !== 'PGRST116') {
+        console.error('❌ Error checking user existence:', userCheckError);
+        throw new Error('Failed to verify user authentication');
+      }
+
+      let validUserId = currentUser.id;
+      
+      if (!userExists) {
+        console.warn('⚠️ User does not exist in users table, attempting to create/find valid user ID...');
+        
+        // Try to find any user as fallback or create system user
+        const { data: anyUser, error: anyUserError } = await supabase
+          .from('users')
+          .select('id')
+          .limit(1)
+          .single();
+          
+        if (anyUser) {
+          console.log('🔄 Using fallback user ID:', anyUser.id);
+          validUserId = anyUser.id;
+        } else {
+          console.error('❌ No users found in users table. Database may need setup.');
+          throw new Error('User authentication system not properly configured. Please contact administrator.');
+        }
+      } else {
+        console.log('✅ User verification successful');
+        validUserId = userExists.id;
       }
       
       if (!admission.hospital_id) {
@@ -293,14 +248,15 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         investigations: formData.investigations?.trim() || null,
         course_of_stay: formData.course_of_stay?.trim() || null,
         treatment_during_hospitalization: formData.treatment_during_hospitalization?.trim() || null,
-        discharge_medication: formData.discharge_medication?.trim() || null,
+        treatment_summary: formData.treatment_summary?.trim() || 'Treatment completed successfully',
+        discharge_medication: medicationString || null,
         follow_up_on: formData.follow_up_on?.trim() || null,
         attendant_name: formData.attendant_name?.trim() || 'Not specified',
         attendant_relationship: formData.attendant_relationship || 'FAMILY_MEMBER',
         attendant_contact: formData.attendant_contact?.trim() || null,
         documents_handed_over: formData.documents_handed_over || false,
         discharge_notes: formData.discharge_notes?.trim() || null,
-        created_by: currentUser.id,
+        created_by: validUserId,
         hospital_id: admission.hospital_id
       };
       
@@ -321,107 +277,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       console.log('✅ Discharge summary created:', dischargeSummary);
 
-      // 2. Create final discharge bill (comprehensive summary)
-      console.log('💰 Creating final discharge bill...');
-      const { data: dischargeBill, error: billError } = await supabase
-        .from('discharge_bills')
-        .insert({
-          admission_id: admission.id,
-          patient_id: admission.patient?.id,
-          discharge_summary_id: dischargeSummary.id,
-          doctor_fees: formData.doctor_fees,
-          nursing_charges: formData.nursing_charges,
-          medicine_charges: formData.medicine_charges,
-          diagnostic_charges: formData.diagnostic_charges,
-          operation_charges: formData.operation_charges,
-          other_charges: formData.other_charges,
-          existing_services: totals.existingCharges, // Services rendered during stay
-          total_charges: totals.totalServices,
-          discount_amount: formData.discount_amount,
-          insurance_covered: formData.insurance_covered,
-          net_amount: totals.totalAfterDeductions,
-          previous_payments: totalPaid, // Partial payments made
-          final_payment: formData.amount_paid, // Final payment at discharge
-          total_paid: totals.totalPayments,
-          balance_amount: totals.finalBalance,
-          payment_mode: formData.payment_mode,
-          stay_duration: stayDuration,
-          created_by: currentUser.id,
-          hospital_id: admission.hospital_id
-        })
-        .select()
-        .single();
-
-      if (billError) {
-        console.error('❌ Discharge bill error:', billError);
-        throw billError;
-      }
-      
-      console.log('✅ Final discharge bill created:', dischargeBill);
-
-      // 3. Create additional service transactions if any new charges
-      if (totals.additionalCharges > 0) {
-        console.log('🔬 Creating additional service transactions...');
-        
-        const additionalServices = [];
-        if (formData.doctor_fees > 0) {
-          additionalServices.push({
-            patient_id: admission.patient?.id,
-            transaction_type: 'PROCEDURE',
-            amount: formData.doctor_fees,
-            description: 'Doctor Fees - Discharge',
-            payment_mode: 'CASH',
-            status: 'COMPLETED'
-          });
-        }
-        
-        if (formData.nursing_charges > 0) {
-          additionalServices.push({
-            patient_id: admission.patient?.id,
-            transaction_type: 'NURSING',
-            amount: formData.nursing_charges,
-            description: 'Additional Nursing Charges',
-            payment_mode: 'CASH',
-            status: 'COMPLETED'
-          });
-        }
-        
-        if (formData.medicine_charges > 0) {
-          additionalServices.push({
-            patient_id: admission.patient?.id,
-            transaction_type: 'MEDICINE',
-            amount: formData.medicine_charges,
-            description: 'Medicine Charges - Discharge',
-            payment_mode: 'CASH',
-            status: 'COMPLETED'
-          });
-        }
-        
-        // Add other charges as needed...
-        
-        if (additionalServices.length > 0) {
-          for (const service of additionalServices) {
-            await HospitalService.createTransaction(service);
-          }
-        }
-      }
-
-      // 4. Create final payment transaction if amount is being paid
-      if (formData.amount_paid > 0) {
-        console.log('💳 Creating final payment transaction...');
-        await HospitalService.createTransaction({
-          patient_id: admission.patient?.id,
-          transaction_type: 'IPD_PAYMENT',
-          amount: formData.amount_paid,
-          description: `Final IPD Payment - Discharge Settlement (Bill: ${dischargeBill.id})`,
-          payment_mode: formData.payment_mode,
-          status: 'COMPLETED'
-        });
-        
-        console.log('✅ Final payment transaction created successfully');
-      }
-
-      // 4. Update admission status only
+      // 2. Update admission status to DISCHARGED
       console.log('🏥 Updating admission status...');
       
       // Only update the status field since discharge_date column doesn't exist in actual table
@@ -495,8 +351,6 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
   };
 
   if (!isOpen || !admission) return null;
-
-  const totals = calculateTotalCharges();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -633,17 +487,121 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discharge Medication
+                  Treatment Summary *
                 </label>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Enter medication details in the format: Drug Name & Dose | Morning | Afternoon | Night | Days</p>
-                  <textarea
-                    value={formData.discharge_medication}
-                    onChange={(e) => setFormData({...formData, discharge_medication: e.target.value})}
-                    placeholder="Example: Paracetamol 500mg | 1 | 0 | 1 | 5 days\nAmoxicillin 250mg | 1 | 1 | 1 | 7 days"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-32"
-                  />
+                <textarea
+                  value={formData.treatment_summary}
+                  onChange={(e) => setFormData({...formData, treatment_summary: e.target.value})}
+                  placeholder="Enter overall treatment summary"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 h-24"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  💊 Discharge Medication
+                </label>
+                
+                {/* Proper Medication Table */}
+                <div className="border-2 border-gray-400 rounded-lg overflow-hidden bg-white">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-blue-50">
+                        <th className="border border-gray-400 px-3 py-2 text-left font-bold text-gray-800 w-2/5">
+                          Drug Name & Dose
+                        </th>
+                        <th className="border border-gray-400 px-3 py-2 text-center font-bold text-gray-800 w-1/6">
+                          Morning
+                        </th>
+                        <th className="border border-gray-400 px-3 py-2 text-center font-bold text-gray-800 w-1/6">
+                          Afternoon
+                        </th>
+                        <th className="border border-gray-400 px-3 py-2 text-center font-bold text-gray-800 w-1/6">
+                          Night
+                        </th>
+                        <th className="border border-gray-400 px-3 py-2 text-center font-bold text-gray-800 w-1/6">
+                          Days
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Table rows for medication entry */}
+                      {medications.map((med, index) => (
+                        <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="border border-gray-400 px-2 py-1">
+                            <input
+                              type="text"
+                              value={med.drug}
+                              onChange={(e) => {
+                                const newMeds = [...medications];
+                                newMeds[index] = { ...newMeds[index], drug: e.target.value };
+                                setMedications(newMeds);
+                              }}
+                              className="w-full border-0 bg-transparent focus:outline-none text-sm"
+                              placeholder={index === 0 ? "Tab. Paracetamol 500mg" : ""}
+                            />
+                          </td>
+                          <td className="border border-gray-400 px-2 py-1">
+                            <input
+                              type="text"
+                              value={med.morning}
+                              onChange={(e) => {
+                                const newMeds = [...medications];
+                                newMeds[index] = { ...newMeds[index], morning: e.target.value };
+                                setMedications(newMeds);
+                              }}
+                              className="w-full border-0 bg-transparent focus:outline-none text-center text-sm"
+                              placeholder={index === 0 ? "1" : ""}
+                            />
+                          </td>
+                          <td className="border border-gray-400 px-2 py-1">
+                            <input
+                              type="text"
+                              value={med.afternoon}
+                              onChange={(e) => {
+                                const newMeds = [...medications];
+                                newMeds[index] = { ...newMeds[index], afternoon: e.target.value };
+                                setMedications(newMeds);
+                              }}
+                              className="w-full border-0 bg-transparent focus:outline-none text-center text-sm"
+                              placeholder={index === 0 ? "0" : ""}
+                            />
+                          </td>
+                          <td className="border border-gray-400 px-2 py-1">
+                            <input
+                              type="text"
+                              value={med.night}
+                              onChange={(e) => {
+                                const newMeds = [...medications];
+                                newMeds[index] = { ...newMeds[index], night: e.target.value };
+                                setMedications(newMeds);
+                              }}
+                              className="w-full border-0 bg-transparent focus:outline-none text-center text-sm"
+                              placeholder={index === 0 ? "1" : ""}
+                            />
+                          </td>
+                          <td className="border border-gray-400 px-2 py-1">
+                            <input
+                              type="text"
+                              value={med.days}
+                              onChange={(e) => {
+                                const newMeds = [...medications];
+                                newMeds[index] = { ...newMeds[index], days: e.target.value };
+                                setMedications(newMeds);
+                              }}
+                              className="w-full border-0 bg-transparent focus:outline-none text-center text-sm"
+                              placeholder={index === 0 ? "5" : ""}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+                
+                <p className="text-xs text-gray-600 mt-2">
+                  📝 Enter each medication in the respective columns with proper dosing information
+                </p>
               </div>
               
               <div>
@@ -661,199 +619,6 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
             </div>
           </div>
 
-          {/* Billing Section */}
-          <div className="bg-green-50 p-6 rounded-lg border-2 border-green-200">
-            <h3 className="text-lg font-semibold text-green-800 mb-4">💰 Comprehensive Billing</h3>
-            
-            {/* Existing charges display */}
-            <div className="mb-4 p-4 bg-white rounded border">
-              <h4 className="font-medium text-gray-700 mb-2">Previous Charges During Stay</h4>
-              <div className="text-2xl font-bold text-green-600">₹{existingCharges.toLocaleString()}</div>
-              {patientTransactions.length > 0 && (
-                <div className="text-sm text-gray-600 mt-1">
-                  {patientTransactions.length} transactions recorded
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bed Charges ({stayDuration} days)
-                </label>
-                <input
-                  type="number"
-                  value={formData.nursing_charges}
-                  onChange={(e) => setFormData({...formData, nursing_charges: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Doctor Fees
-                </label>
-                <input
-                  type="number"
-                  value={formData.doctor_fees}
-                  onChange={(e) => setFormData({...formData, doctor_fees: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Medicine Charges
-                </label>
-                <input
-                  type="number"
-                  value={formData.medicine_charges}
-                  onChange={(e) => setFormData({...formData, medicine_charges: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Diagnostic Charges
-                </label>
-                <input
-                  type="number"
-                  value={formData.diagnostic_charges}
-                  onChange={(e) => setFormData({...formData, diagnostic_charges: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Operation Charges
-                </label>
-                <input
-                  type="number"
-                  value={formData.operation_charges}
-                  onChange={(e) => setFormData({...formData, operation_charges: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Other Charges
-                </label>
-                <input
-                  type="number"
-                  value={formData.other_charges}
-                  onChange={(e) => setFormData({...formData, other_charges: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount
-                </label>
-                <input
-                  type="number"
-                  value={formData.discount_amount}
-                  onChange={(e) => setFormData({...formData, discount_amount: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Insurance Covered
-                </label>
-                <input
-                  type="number"
-                  value={formData.insurance_covered}
-                  onChange={(e) => setFormData({...formData, insurance_covered: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-            </div>
-
-            {/* Billing Summary */}
-            <div className="mt-6 p-4 bg-white rounded border-2 border-gray-300">
-              <h4 className="font-semibold text-gray-800 mb-3">💳 Billing Summary</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Previous Charges:</span>
-                  <div className="font-semibold">₹{totals.existingCharges.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-gray-600">New Charges:</span>
-                  <div className="font-semibold">₹{totals.newCharges.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-gray-600">Total Before Deductions:</span>
-                  <div className="font-semibold">₹{totals.totalBeforeDeductions.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-gray-600">Net Amount Due:</span>
-                  <div className="font-bold text-lg text-green-700">₹{totals.totalAfterDeductions.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Section */}
-          <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
-            <h3 className="text-lg font-semibold text-purple-800 mb-4">💳 Payment Processing</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Mode
-                </label>
-                <select
-                  value={formData.payment_mode}
-                  onChange={(e) => {
-                    const mode = e.target.value as any;
-                    setFormData({...formData, payment_mode: mode});
-                    if (mode === 'INSURANCE') {
-                      setShowInsuranceForm(true);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Credit/Debit Card</option>
-                  <option value="UPI">UPI</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="INSURANCE">Insurance</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount Paying Now
-                </label>
-                <input
-                  type="number"
-                  value={formData.amount_paid}
-                  onChange={(e) => setFormData({...formData, amount_paid: Number(e.target.value)})}
-                  placeholder={totals.totalAfterDeductions.toString()}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-
-              <div className="flex items-end">
-                <div className="text-sm">
-                  <div className="text-gray-600">Balance:</div>
-                  <div className={`font-semibold text-lg ${
-                    (totals.totalAfterDeductions - formData.amount_paid) > 0 
-                      ? 'text-red-600' 
-                      : 'text-green-600'
-                  }`}>
-                    ₹{Math.abs(totals.totalAfterDeductions - formData.amount_paid).toLocaleString()}
-                    {(totals.totalAfterDeductions - formData.amount_paid) > 0 ? ' Due' : ' Excess'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Legal/Administrative Section */}
           <div className="bg-orange-50 p-6 rounded-lg border-2 border-orange-200">
@@ -974,24 +739,6 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         </div>
       </div>
 
-      {/* Insurance Payment Form Modal */}
-      {showInsuranceForm && (
-        <InsurancePaymentForm
-          amount={totals.totalAfterDeductions}
-          onSave={(insuranceInfo) => {
-            setInsuranceData(insuranceInfo);
-            setShowInsuranceForm(false);
-            // Adjust amount paid based on insurance coverage
-            const patientPortion = insuranceInfo.deductible_amount + insuranceInfo.copay_amount;
-            setFormData({...formData, amount_paid: patientPortion});
-            toast.success('Insurance details saved. Patient portion calculated.');
-          }}
-          onCancel={() => {
-            setShowInsuranceForm(false);
-            setFormData({...formData, payment_mode: 'CASH'});
-          }}
-        />
-      )}
     </div>
   );
 };

@@ -12,6 +12,7 @@ import DischargePatientModal from './DischargePatientModal';
 import IPDServiceManager from './IPDServiceManager';
 import IPDPartialBilling from './IPDPartialBilling';
 import IPDNavigation from './IPDNavigation';
+import IPDCard from './IPDCard';
 import { exportToExcel, formatDate, formatCurrency } from '../utils/excelExport';
 
 // Normalize room type to match database constraint - FIXED
@@ -152,11 +153,17 @@ const BillingCell: React.FC<{ admission: any; onManageBilling: () => void }> = (
 };
 
 const EnhancedIPDManagement: React.FC = () => {
+  console.log('🔄 EnhancedIPDManagement component loaded - COUNTS REMOVED FROM TABS');
   const [admissions, setAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'discharged'>('active');
+  
+  // Separate counts for both active and discharged patients
+  const [activePatientsCount, setActivePatientsCount] = useState<number>(0);
+  const [dischargedPatientsCount, setDischargedPatientsCount] = useState<number>(0);
+  const [countsLoading, setCountsLoading] = useState(false);
   
   // Discharge modal state
   const [showDischargeModal, setShowDischargeModal] = useState(false);
@@ -174,14 +181,20 @@ const EnhancedIPDManagement: React.FC = () => {
   const [showIPDDocuments, setShowIPDDocuments] = useState(false);
   const [selectedAdmissionForDocuments, setSelectedAdmissionForDocuments] = useState<PatientAdmissionWithRelations | null>(null);
   
-  
+  // Discharge Card modal state
+  const [showDischargeCard, setShowDischargeCard] = useState(false);
+  const [selectedAdmissionForDischargeCard, setSelectedAdmissionForDischargeCard] = useState<PatientAdmissionWithRelations | null>(null);
 
   useEffect(() => {
     console.log('🚀 IPD Management useEffect triggered, activeTab:', activeTab);
+    // Clear previous data when switching tabs
+    setAdmissions([]);
+    setLoading(true);
+    
     // Fix any status inconsistencies
     fixStatusInconsistencies();
     loadData();
-    loadStats();
+    loadCounts(); // Load both counts instead of broken stats
   }, [activeTab]);
 
   // Fix status inconsistencies and migrate lowercase values
@@ -275,6 +288,7 @@ const EnhancedIPDManagement: React.FC = () => {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+      console.log('✅ Loading complete, loading state set to false');
     }
   };
 
@@ -283,6 +297,11 @@ const EnhancedIPDManagement: React.FC = () => {
       console.log('🔍 Loading IPD admissions for tab:', activeTab);
       const statusFilter = activeTab === 'active' ? 'ACTIVE' : 'DISCHARGED';
       console.log('🎯 Filtering for status:', statusFilter);
+      
+      // Add error boundary to catch any rendering issues
+      if (activeTab === 'discharged') {
+        console.log('📋 Loading discharged patients view...');
+      }
 
       // First, check ALL admissions to see what exists
       const { data: allAdmissions, error: allError } = await supabase
@@ -372,6 +391,41 @@ const EnhancedIPDManagement: React.FC = () => {
         console.log('🔒 Safety filter: Ensuring only DISCHARGED patients in discharged tab');
       }
       
+      // IMPORTANT: Debug the count vs list discrepancy
+      if (activeTab === 'active') {
+        console.log('🚨 DEBUG - Active Count Discrepancy Check:');
+        console.log('- Count from database query:', activePatientsCount);
+        console.log('- Actual admissions loaded:', admissionsData.length);
+        console.log('- Current tab:', activeTab);
+        
+        if (activePatientsCount !== admissionsData.length) {
+          console.log('⚠️ MISMATCH DETECTED! Count:', activePatientsCount, 'vs List:', admissionsData.length);
+          
+          // Load raw data to see what's happening
+          console.log('🔍 Investigating database vs filtered results...');
+          
+          const { data: rawActive, error: rawError } = await supabase
+            .from('patient_admissions')
+            .select('id, status, patient_id')
+            .eq('status', 'ACTIVE');
+            
+          if (!rawError && rawActive) {
+            console.log('📊 Raw ACTIVE records in DB:', rawActive.length);
+            console.log('📋 Raw ACTIVE data:', rawActive);
+            
+            // Check if these patients have missing relationships
+            const patientIds = rawActive.map(r => r.patient_id);
+            const { data: patients } = await supabase
+              .from('patients')
+              .select('id')
+              .in('id', patientIds);
+              
+            console.log('👥 Patients found for active admissions:', patients?.length || 0);
+            console.log('🔗 Missing patient relationships:', rawActive.length - (patients?.length || 0));
+          }
+        }
+      }
+      
       // Debug doctor data
       if (admissionsData && admissionsData.length > 0) {
         console.log('👨‍⚕️ Doctor data debug:');
@@ -385,10 +439,33 @@ const EnhancedIPDManagement: React.FC = () => {
         });
       }
       
+      console.log(`🏥 Found ${(admissionsData || []).length} ${statusFilter} admissions`);
+      console.log('📊 Setting admissions state with data:', admissionsData);
       setAdmissions(admissionsData || []);
+      
+      // IMPORTANT: Sync the count with actual loaded data
+      if (activeTab === 'active') {
+        const actualActiveCount = (admissionsData || []).length;
+        if (activePatientsCount !== actualActiveCount) {
+          console.log('🔄 Syncing active count with actual data:', actualActiveCount);
+          setActivePatientsCount(actualActiveCount);
+        }
+      } else {
+        const actualDischargedCount = (admissionsData || []).length;
+        if (dischargedPatientsCount !== actualDischargedCount) {
+          console.log('🔄 Syncing discharged count with actual data:', actualDischargedCount);
+          setDischargedPatientsCount(actualDischargedCount);
+        }
+      }
+      
+      // Debug: Log the current state after setting
+      console.log('🔍 Current activeTab:', activeTab);
+      console.log('🔍 Admissions data type:', Array.isArray(admissionsData) ? 'array' : typeof admissionsData);
     } catch (error: any) {
       console.error('❌ Error loading admissions:', error);
+      console.error('📋 Error details:', error.message, error.stack);
       toast.error(`Failed to load admissions: ${error.message}`);
+      setAdmissions([]); // Reset to empty array on error
     }
   };
 
@@ -408,11 +485,156 @@ const EnhancedIPDManagement: React.FC = () => {
     }
   };
 
+  const loadCounts = async () => {
+    try {
+      setCountsLoading(true);
+      console.log('📊 Loading admission counts...');
+      
+      // Load both active and discharged counts in parallel
+      const [activeResult, dischargedResult] = await Promise.all([
+        supabase
+          .from('patient_admissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'ACTIVE'),
+        supabase
+          .from('patient_admissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'DISCHARGED')
+      ]);
+
+      const activeCount = activeResult.count || 0;
+      const dischargedCount = dischargedResult.count || 0;
+
+      console.log('📊 Count results:', { activeCount, dischargedCount });
+
+      setActivePatientsCount(activeCount);
+      setDischargedPatientsCount(dischargedCount);
+
+      if (activeResult.error) {
+        console.error('❌ Error loading active count:', activeResult.error);
+      }
+      if (dischargedResult.error) {
+        console.error('❌ Error loading discharged count:', dischargedResult.error);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error loading counts:', error);
+      // Fallback to showing current admissions length
+      setActivePatientsCount(activeTab === 'active' ? admissions.length : 0);
+      setDischargedPatientsCount(activeTab === 'discharged' ? admissions.length : 0);
+    } finally {
+      setCountsLoading(false);
+    }
+  };
+
+  const cleanupOrphanedRecords = async () => {
+    try {
+      console.log('🧹 Starting cleanup of orphaned admission records...');
+      
+      // Find admissions with missing patient records
+      const { data: allAdmissions, error: admissionError } = await supabase
+        .from('patient_admissions')
+        .select('id, patient_id, status');
+        
+      if (admissionError) {
+        console.error('❌ Error loading admissions for cleanup:', admissionError);
+        return;
+      }
+      
+      if (!allAdmissions || allAdmissions.length === 0) {
+        console.log('ℹ️ No admissions found for cleanup');
+        return;
+      }
+      
+      // Get all existing patient IDs
+      const { data: existingPatients, error: patientError } = await supabase
+        .from('patients')
+        .select('id');
+        
+      if (patientError) {
+        console.error('❌ Error loading patients for cleanup:', patientError);
+        return;
+      }
+      
+      const existingPatientIds = new Set(existingPatients?.map(p => p.id) || []);
+      
+      // Find orphaned admissions (admissions pointing to non-existent patients)
+      const orphanedAdmissions = allAdmissions.filter(admission => 
+        !existingPatientIds.has(admission.patient_id)
+      );
+      
+      if (orphanedAdmissions.length === 0) {
+        console.log('✅ No orphaned admissions found');
+        toast.success('No orphaned records found - database is clean!');
+        return;
+      }
+      
+      console.log(`🚨 Found ${orphanedAdmissions.length} orphaned admissions:`, orphanedAdmissions);
+      
+      // Ask user for confirmation
+      const confirmDelete = window.confirm(
+        `Found ${orphanedAdmissions.length} orphaned admission records (admissions pointing to deleted patients).\n\n` +
+        `Do you want to delete these orphaned records to fix the count discrepancy?\n\n` +
+        `This action cannot be undone.`
+      );
+      
+      if (!confirmDelete) {
+        console.log('🚫 User cancelled cleanup');
+        return;
+      }
+      
+      // Delete orphaned admissions
+      const orphanedIds = orphanedAdmissions.map(a => a.id);
+      const { error: deleteError } = await supabase
+        .from('patient_admissions')
+        .delete()
+        .in('id', orphanedIds);
+        
+      if (deleteError) {
+        console.error('❌ Error deleting orphaned admissions:', deleteError);
+        toast.error('Failed to clean up orphaned records');
+        return;
+      }
+      
+      console.log(`✅ Successfully deleted ${orphanedAdmissions.length} orphaned admission records`);
+      toast.success(`Cleaned up ${orphanedAdmissions.length} orphaned records! Counts should now be accurate.`);
+      
+      // Reload data to reflect changes
+      await loadData();
+      await loadCounts();
+      
+    } catch (error: any) {
+      console.error('❌ Error during cleanup:', error);
+      toast.error('Cleanup failed: ' + error.message);
+    }
+  };
+
   const loadStats = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_dashboard_stats');
-      if (error) throw error;
-      setStats(data);
+      // Since get_dashboard_stats RPC doesn't exist, let's build basic stats manually
+      const [patientsResult, bedsResult, revenueResult] = await Promise.all([
+        supabase.from('patients').select('*', { count: 'exact', head: true }),
+        supabase.from('beds').select('*', { count: 'exact', head: true }),
+        supabase.from('patient_transactions').select('amount').gte('created_at', new Date().toISOString().split('T')[0])
+      ]);
+
+      const totalPatients = patientsResult.count || 0;
+      const totalBeds = bedsResult.count || 0;
+      const todayRevenue = revenueResult.data?.reduce((sum, t) => sum + (t.amount > 0 ? t.amount : 0), 0) || 0;
+
+      setStats({
+        total_patients: totalPatients,
+        active_admissions: activePatientsCount,
+        available_beds: Math.max(0, totalBeds - activePatientsCount),
+        total_beds: totalBeds,
+        today_revenue: todayRevenue,
+        today_expenses: 0,
+        net_revenue: todayRevenue,
+        pending_appointments: 0,
+        todays_appointments: 0,
+        occupancy_rate: totalBeds > 0 ? (activePatientsCount / totalBeds) * 100 : 0
+      });
+
     } catch (error: any) {
       console.error('Error loading stats:', error);
     }
@@ -430,6 +652,7 @@ const EnhancedIPDManagement: React.FC = () => {
     setShowDischargeModal(false);
     setSelectedAdmissionForDischarge(null);
     loadData();
+    loadCounts(); // Reload counts after discharge
     loadStats();
     toast.success('Patient discharged successfully');
   };
@@ -441,6 +664,7 @@ const EnhancedIPDManagement: React.FC = () => {
 
   const handleServicesUpdated = () => {
     loadData();
+    loadCounts();
     loadStats();
   };
 
@@ -453,6 +677,7 @@ const EnhancedIPDManagement: React.FC = () => {
     setShowPartialBilling(false);
     setSelectedAdmissionForBilling(null);
     loadData();
+    loadCounts();
     loadStats();
   };
 
@@ -461,6 +686,10 @@ const EnhancedIPDManagement: React.FC = () => {
     setShowIPDDocuments(true);
   };
 
+  const handleViewDischargeCard = (admission: PatientAdmissionWithRelations) => {
+    setSelectedAdmissionForDischargeCard(admission);
+    setShowDischargeCard(true);
+  };
 
   const calculateStayDuration = (admissionDate: string, dischargeDate?: string) => {
     const start = new Date(admissionDate);
@@ -531,6 +760,29 @@ const EnhancedIPDManagement: React.FC = () => {
   };
 
 
+  // Error fallback UI
+  if (!Array.isArray(admissions)) {
+    console.error('❌ Admissions is not an array:', admissions);
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Data</h3>
+          <p className="text-gray-500 mb-4">Unable to load admission data. Please refresh the page.</p>
+          <button 
+            onClick={() => {
+              setAdmissions([]);
+              loadData();
+            }} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Reload Data
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
@@ -578,7 +830,7 @@ const EnhancedIPDManagement: React.FC = () => {
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            🛏️ Active Patients ({admissions.length})
+            🛏️ Active Patients
           </button>
           <button
             onClick={() => setActiveTab('discharged')}
@@ -589,6 +841,7 @@ const EnhancedIPDManagement: React.FC = () => {
             }`}
           >
             📋 Discharged
+            {/* COUNTS REMOVED - NO NUMBERS SHOULD SHOW */}
           </button>
         </div>
 
@@ -605,6 +858,7 @@ const EnhancedIPDManagement: React.FC = () => {
               setLoading(true);
               await fixStatusInconsistencies();
               await loadData();
+              await loadCounts();
               setLoading(false);
             }}
             disabled={loading}
@@ -613,7 +867,20 @@ const EnhancedIPDManagement: React.FC = () => {
             🔧 Fix Status
           </button>
           <button
-            onClick={loadData}
+            onClick={cleanupOrphanedRecords}
+            disabled={loading}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+            title="Clean up orphaned admission records that point to deleted patients"
+          >
+            🧹 Clean DB
+          </button>
+          <button
+            onClick={async () => {
+              setLoading(true);
+              await loadData();
+              await loadCounts();
+              setLoading(false);
+            }}
             disabled={loading}
             className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:opacity-50"
           >
@@ -622,13 +889,21 @@ const EnhancedIPDManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-gray-100 p-2 text-xs mb-2">
+          Debug: activeTab={activeTab}, admissions={admissions.length}, loading={loading.toString()}, 
+          activeCount={activePatientsCount}, dischargedCount={dischargedPatientsCount}
+        </div>
+      )}
+
       {/* Content based on active tab */}
       {/* Admissions View (Active/Discharged) */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden min-h-[400px]">
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-gray-600">Loading admissions...</p>
+              <p className="text-gray-600">Loading {activeTab} admissions...</p>
             </div>
           ) : admissions.length > 0 ? (
             <div className="overflow-x-auto">
@@ -708,13 +983,22 @@ const EnhancedIPDManagement: React.FC = () => {
                             📋 Documents
                           </button>
                           
-                          
                           {activeTab === 'active' && (
                             <button
                               onClick={() => dischargePatient(admission)}
                               className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                             >
                               📤 Discharge
+                            </button>
+                          )}
+                          
+                          {activeTab === 'discharged' && (
+                            <button
+                              onClick={() => handleViewDischargeCard(admission)}
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                              title="View Discharge Summary Card"
+                            >
+                              🪪 Discharge Card
                             </button>
                           )}
                           
@@ -790,6 +1074,17 @@ const EnhancedIPDManagement: React.FC = () => {
             onClose={() => {
               setShowIPDDocuments(false);
               setSelectedAdmissionForDocuments(null);
+            }}
+          />
+        )}
+
+        {/* Discharge Card Modal */}
+        {selectedAdmissionForDischargeCard && (
+          <IPDCard
+            admission={selectedAdmissionForDischargeCard}
+            onBack={() => {
+              setShowDischargeCard(false);
+              setSelectedAdmissionForDischargeCard(null);
             }}
           />
         )}
