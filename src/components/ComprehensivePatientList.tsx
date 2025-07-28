@@ -173,6 +173,7 @@ const ComprehensivePatientList: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterTag, setFilterTag] = useState<string>('all');
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -205,6 +206,14 @@ const ComprehensivePatientList: React.FC = () => {
       console.log(`✅ Loaded ${patientsData.length} patients`);
       
       setPatients(patientsData);
+      
+      // Extract unique tags from patients for filter dropdown
+      const uniqueTags = [...new Set(
+        patientsData
+          .map(p => p.patient_tag)
+          .filter(tag => tag && tag.trim() !== '')
+      )].sort();
+      setAvailableTags(uniqueTags);
     } catch (error: any) {
       console.error('❌ Failed to load patients:', error);
       toast.error(`Failed to load patients: ${error.message}`);
@@ -514,16 +523,11 @@ const ComprehensivePatientList: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Tags</option>
-              <option value="Jain Community">Jain Community</option>
-              <option value="Bohara Community">Bohara Community</option>
-              <option value="Corporate Camp">Corporate Camp</option>
-              <option value="Medical Camp">Medical Camp</option>
-              <option value="School Camp">School Camp</option>
-              <option value="Senior Citizen">Senior Citizen</option>
-              <option value="Insurance">Insurance</option>
-              <option value="Government Scheme">Government Scheme</option>
-              <option value="VIP">VIP</option>
-              <option value="Regular">Regular</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
             </select>
           </div>
 
