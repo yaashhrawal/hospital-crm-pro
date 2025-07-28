@@ -527,87 +527,6 @@ const EnhancedIPDManagement: React.FC = () => {
     }
   };
 
-  const cleanupOrphanedRecords = async () => {
-    try {
-      console.log('🧹 Starting cleanup of orphaned admission records...');
-      
-      // Find admissions with missing patient records
-      const { data: allAdmissions, error: admissionError } = await supabase
-        .from('patient_admissions')
-        .select('id, patient_id, status');
-        
-      if (admissionError) {
-        console.error('❌ Error loading admissions for cleanup:', admissionError);
-        return;
-      }
-      
-      if (!allAdmissions || allAdmissions.length === 0) {
-        console.log('ℹ️ No admissions found for cleanup');
-        return;
-      }
-      
-      // Get all existing patient IDs
-      const { data: existingPatients, error: patientError } = await supabase
-        .from('patients')
-        .select('id');
-        
-      if (patientError) {
-        console.error('❌ Error loading patients for cleanup:', patientError);
-        return;
-      }
-      
-      const existingPatientIds = new Set(existingPatients?.map(p => p.id) || []);
-      
-      // Find orphaned admissions (admissions pointing to non-existent patients)
-      const orphanedAdmissions = allAdmissions.filter(admission => 
-        !existingPatientIds.has(admission.patient_id)
-      );
-      
-      if (orphanedAdmissions.length === 0) {
-        console.log('✅ No orphaned admissions found');
-        toast.success('No orphaned records found - database is clean!');
-        return;
-      }
-      
-      console.log(`🚨 Found ${orphanedAdmissions.length} orphaned admissions:`, orphanedAdmissions);
-      
-      // Ask user for confirmation
-      const confirmDelete = window.confirm(
-        `Found ${orphanedAdmissions.length} orphaned admission records (admissions pointing to deleted patients).\n\n` +
-        `Do you want to delete these orphaned records to fix the count discrepancy?\n\n` +
-        `This action cannot be undone.`
-      );
-      
-      if (!confirmDelete) {
-        console.log('🚫 User cancelled cleanup');
-        return;
-      }
-      
-      // Delete orphaned admissions
-      const orphanedIds = orphanedAdmissions.map(a => a.id);
-      const { error: deleteError } = await supabase
-        .from('patient_admissions')
-        .delete()
-        .in('id', orphanedIds);
-        
-      if (deleteError) {
-        console.error('❌ Error deleting orphaned admissions:', deleteError);
-        toast.error('Failed to clean up orphaned records');
-        return;
-      }
-      
-      console.log(`✅ Successfully deleted ${orphanedAdmissions.length} orphaned admission records`);
-      toast.success(`Cleaned up ${orphanedAdmissions.length} orphaned records! Counts should now be accurate.`);
-      
-      // Reload data to reflect changes
-      await loadData();
-      await loadCounts();
-      
-    } catch (error: any) {
-      console.error('❌ Error during cleanup:', error);
-      toast.error('Cleanup failed: ' + error.message);
-    }
-  };
 
   const loadStats = async () => {
     try {
@@ -865,14 +784,6 @@ const EnhancedIPDManagement: React.FC = () => {
             className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 disabled:opacity-50"
           >
             🔧 Fix Status
-          </button>
-          <button
-            onClick={cleanupOrphanedRecords}
-            disabled={loading}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
-            title="Clean up orphaned admission records that point to deleted patients"
-          >
-            🧹 Clean DB
           </button>
           <button
             onClick={async () => {
