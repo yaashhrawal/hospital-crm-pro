@@ -24,7 +24,7 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
         __html: `
           @media print {
             @page {
-              margin: 10mm;
+              margin: 4mm;
               size: A4;
             }
             body * {
@@ -43,13 +43,14 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
               display: none !important;
             }
             .sticker {
-              width: 64mm !important;
+              width: 68mm !important;
               height: 34mm !important;
-              font-size: 9px !important;
+              font-size: 11px !important;
               page-break-inside: avoid;
               break-inside: avoid;
-              padding: 2mm !important;
+              padding: 3mm !important;
               overflow: hidden !important;
+              margin-bottom: 0 !important;
             }
             .sticker div {
               word-wrap: break-word !important;
@@ -57,15 +58,19 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
             }
             .grid {
               display: grid !important;
-              grid-template-columns: repeat(3, 64mm) !important;
-              gap: 2mm !important;
+              grid-template-columns: repeat(3, 68mm) !important;
+              gap: 3mm !important;
               justify-content: center;
+              row-gap: 5mm !important;
+              padding: 6mm 0 0 0 !important;
+              width: 100% !important;
+              height: 100% !important;
             }
           }
           .sticker {
-            width: 242px;
-            height: 128px;
-            font-size: 10px;
+            width: 240px;
+            height: 125px;
+            font-size: 11px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -104,13 +109,13 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
 
         {/* Stickers Content */}
         <div className="p-4" id="stickers-content">
-          {/* Multiple IPD Stickers Grid - 3x5 Layout (15 stickers per page) */}
-          <div className="grid grid-cols-3 gap-4">
-            {/* Generate 15 identical stickers */}
+          {/* Multiple IPD Stickers Grid - 3 Columns × 8 Rows Layout for A4 */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Generate 24 identical stickers for A4 (3 columns × 8 rows) */}
             {Array.from({ length: 24 }, (_, index) => (
-              <div key={index} className={`sticker border ${admission.status === 'DISCHARGED' ? 'border-red-400 bg-red-50' : 'border-gray-400 bg-white'} break-inside-avoid flex flex-col`} style={{ padding: '7px' }}>
+              <div key={index} className={`sticker border ${admission.status === 'DISCHARGED' ? 'border-red-400 bg-red-50' : 'border-gray-400 bg-white'} break-inside-avoid flex flex-col`} style={{ padding: '10px' }}>
                 {/* Compact Header with Logo */}
-                <div className="flex items-center justify-between pb-1 border-b border-gray-300" style={{ marginBottom: '5px' }}>
+                <div className="flex items-center justify-between pb-2 border-b border-gray-300" style={{ marginBottom: '8px' }}>
                   <img 
                     src="/logo.png" 
                     alt="Logo" 
@@ -126,30 +131,30 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
                 <div className="flex-1 flex">
                   {/* Left Column - Patient Info */}
                   <div className="flex-1 pr-2">
-                    <div className="font-bold" style={{ fontSize: '13px', lineHeight: '1.3', marginBottom: '3px' }}>
+                    <div className="font-bold" style={{ fontSize: '13px', lineHeight: '1.3', marginBottom: '5px' }}>
                       {admission.patient?.first_name} {admission.patient?.last_name}
                     </div>
-                    <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
+                    <div style={{ fontSize: '11px', lineHeight: '1.3', marginBottom: '4px' }}>
                       Age: {admission.patient?.age || 'N/A'} {admission.patient?.gender?.charAt(0) || ''}
                     </div>
-                    <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
+                    <div style={{ fontSize: '11px', lineHeight: '1.3', marginBottom: '4px' }}>
                       DOA: {new Date(admission.admission_date).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: '2-digit',
                         year: '2-digit'
                       })}
                     </div>
-                    <div style={{ fontSize: '12px', lineHeight: '1.2', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', lineHeight: '1.2', marginTop: '5px' }}>
                       {admission.doctor?.name || admission.doctor_name || admission.assigned_doctor || 'TBA'}
                     </div>
                   </div>
                   
                   {/* Right Column - Bed & ID */}
-                  <div className="text-right" style={{ width: '40%' }}>
-                    <div className={`font-bold ${admission.status === 'DISCHARGED' ? 'text-red-700' : 'text-green-700'}`} style={{ fontSize: '20px', lineHeight: '1' }}>
+                  <div className="text-right" style={{ width: '38%' }}>
+                    <div className={`font-bold ${admission.status === 'DISCHARGED' ? 'text-red-700' : 'text-green-700'}`} style={{ fontSize: '20px', lineHeight: '1.1', marginBottom: '4px' }}>
                       {admission.bed_number}
                     </div>
-                    <div style={{ fontSize: '10px', lineHeight: '1.2', marginTop: '2px' }}>
+                    <div style={{ fontSize: '10px', lineHeight: '1.2', marginTop: '4px', marginBottom: '3px' }}>
                       IP: {admission.patient?.patient_id}
                     </div>
                     <div style={{ fontSize: '10px', lineHeight: '1.2' }}>
@@ -161,10 +166,6 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
             ))}
           </div>
 
-          {/* Page Footer */}
-          <div className="mt-6 text-center text-xs text-gray-500">
-            <p>24 IPD Stickers (64mm × 34mm) • Generated on {new Date().toLocaleDateString()}</p>
-          </div>
         </div>
       </div>
     </div>
