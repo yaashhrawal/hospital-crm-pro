@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { getDoctorWithDegree } from '../data/doctorDegrees';
 
@@ -8,6 +8,42 @@ interface VHPrescriptionProps {
 }
 
 const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => {
+  const [templateLoaded, setTemplateLoaded] = useState(false);
+  const [templateError, setTemplateError] = useState(false);
+
+  // Template path with fallback options
+  const templatePaths = [
+    '/vh-prescription-template.jpg',
+    './vh-prescription-template.jpg',
+    '../public/vh-prescription-template.jpg'
+  ];
+  const [currentTemplateIndex, setCurrentTemplateIndex] = useState(0);
+
+  useEffect(() => {
+    const tryLoadTemplate = (index: number) => {
+      if (index >= templatePaths.length) {
+        console.error('All VH prescription template paths failed');
+        setTemplateError(true);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        console.log(`✅ VH prescription template loaded from: ${templatePaths[index]}`);
+        setTemplateLoaded(true);
+        setTemplateError(false);
+      };
+      img.onerror = () => {
+        console.warn(`❌ Failed to load VH prescription template from: ${templatePaths[index]}`);
+        setCurrentTemplateIndex(index + 1);
+        tryLoadTemplate(index + 1);
+      };
+      img.src = templatePaths[index];
+    };
+
+    tryLoadTemplate(currentTemplateIndex);
+  }, [currentTemplateIndex]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -80,18 +116,46 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </button>
         </div>
 
+        {/* Loading/Error State */}
+        {!templateLoaded && !templateError && (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-500">Loading VH prescription template...</div>
+          </div>
+        )}
+
+        {templateError && (
+          <div className="flex flex-col items-center justify-center h-64 bg-red-50 border border-red-200 rounded p-6">
+            <div className="text-red-600 text-center mb-4">
+              ⚠️ Failed to load VH prescription template from all sources.
+              <br />
+              Please ensure 'vh-prescription-template.jpg' exists in the public folder.
+            </div>
+            <button
+              onClick={() => {
+                setTemplateError(false);
+                setTemplateLoaded(false);
+                setCurrentTemplateIndex(0);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              🔄 Retry Loading Template
+            </button>
+          </div>
+        )}
+
         {/* Prescription Content */}
-        <div 
-          id="prescription-content" 
-          className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[297mm] print:h-[420mm]"
-          style={{ 
-            backgroundImage: 'url(/vh-prescription-template.jpg)',
-            backgroundSize: '100% 100%',
-            backgroundPosition: 'center'
-          }}
-        >
+        {(templateLoaded || !templateError) && (
+          <div 
+            id="prescription-content" 
+            className="relative w-full h-[842px] bg-cover bg-center bg-no-repeat print:w-[297mm] print:h-[420mm]"
+            style={{ 
+              backgroundImage: `url(${templatePaths[currentTemplateIndex]})`,
+              backgroundSize: '100% 100%',
+              backgroundPosition: 'center'
+            }}
+          >
           {/* Doctor Name - Bottom Right above signature */}
-          <div className="absolute bottom-80 right-12 text-right">
+          <div className="absolute bottom-96 right-12 text-right">
             <div className="font-bold text-4xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
             </div>
@@ -144,7 +208,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               </span>
             </div>
           </div>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

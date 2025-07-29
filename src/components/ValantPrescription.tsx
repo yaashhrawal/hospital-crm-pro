@@ -107,40 +107,40 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           </div>
 
           {/* Patient Details - Left Side */}
-          <div className="absolute top-72 left-12 space-y-2">
+          <div className="absolute top-72 left-12 space-y-3">
             {/* Name */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Name:</span>
-              <span className="text-base font-medium text-gray-900">
+              <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
+              <span className="text-xl font-semibold text-gray-900">
                 {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
               </span>
             </div>
 
             {/* Patient No */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Patient No:</span>
-              <span className="text-base text-gray-900">{patient.patient_id}</span>
+              <span className="w-32 text-lg font-medium text-gray-700">Patient No:</span>
+              <span className="text-xl text-gray-900">{patient.patient_id}</span>
             </div>
 
             {/* Department */}
             <div className="flex items-center">
-              <span className="w-24 text-sm font-medium text-gray-700">Department:</span>
-              <span className="text-base text-gray-900">{getDepartmentName()}</span>
+              <span className="w-32 text-lg font-medium text-gray-700">Department:</span>
+              <span className="text-xl text-gray-900">{getDepartmentName()}</span>
             </div>
           </div>
 
           {/* Date and Age/Sex - Right Side */}
-          <div className="absolute top-72 right-0 mr-12 space-y-2 text-right">
+          <div className="absolute top-72 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
-              <span className="text-sm font-medium text-gray-700 mr-2">Date:</span>
-              <span className="text-base text-gray-900">{getCurrentDate()}</span>
+              <span className="text-lg font-medium text-gray-700 mr-2">Date:</span>
+              <span className="text-xl text-gray-900">{getCurrentDate()}</span>
             </div>
 
             {/* Age/Sex */}
             <div className="flex items-center justify-end">
-              <span className="text-sm font-medium text-gray-700 mr-2">Age/Sex:</span>
-              <span className="text-base text-gray-900">
+              <span className="text-lg font-medium text-gray-700 mr-2">Age/Sex:</span>
+              <span className="text-xl text-gray-900">
                 {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
               </span>
             </div>
