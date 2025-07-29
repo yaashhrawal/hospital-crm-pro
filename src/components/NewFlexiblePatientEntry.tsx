@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
 import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
 
@@ -23,6 +25,46 @@ const DOCTORS_DATA = [
 const DEPARTMENTS = [...new Set(DOCTORS_DATA.map(doc => doc.department))].sort();
 
 const NewFlexiblePatientEntry: React.FC = () => {
+  // Helper functions for date format conversion
+  const formatDateToDD_MM_YYYY = (dateString: string): string => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
+  const formatDateToYYYY_MM_DD = (dateString: string): string => {
+    if (!dateString) return '';
+    const [day, month, year] = dateString.split('-');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTodayInDD_MM_YYYY = (): string => {
+    const today = new Date();
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const isValidDateFormat = (dateString: string): boolean => {
+    // Check if format is DD-MM-YYYY
+    const regex = /^(\d{2})-(\d{2})-(\d{4})$/;
+    if (!regex.test(dateString)) return false;
+    
+    const [day, month, year] = dateString.split('-').map(Number);
+    
+    // Check if date values are valid
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+    if (year < 1900 || year > new Date().getFullYear()) return false;
+    
+    // Check days in month
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (day > daysInMonth) return false;
+    
+    return true;
+  };
+
   const [formData, setFormData] = useState({
     prefix: 'Mr',
     full_name: '', // UI field
@@ -31,6 +73,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     phone: '',
     email: '',
     date_of_birth: '',
+    date_of_entry: new Date(), // Default to today
     age: '',
     gender: 'MALE',
     address: '',
@@ -172,6 +215,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
       return;
     }
 
+    // Date validation is now handled by DatePicker component
+
     setLoading(true);
 
     try {
@@ -185,6 +230,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
         date_of_birth: formData.date_of_birth || undefined,
+        date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : undefined,
         age: formData.age.trim() || undefined,
         gender: formData.gender || 'MALE',
         address: formData.address.trim() || undefined,
@@ -310,6 +356,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         phone: '',
         email: '',
         date_of_birth: '',
+        date_of_entry: new Date(), // Reset to today
         age: '',
         gender: 'MALE',
         address: '',
@@ -420,6 +467,27 @@ const NewFlexiblePatientEntry: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Enter age (e.g., 25, 30 years, 6 months)"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Entry</label>
+              <DatePicker
+                selected={formData.date_of_entry}
+                onChange={(date: Date | null) => {
+                  if (date) {
+                    setFormData({ ...formData, date_of_entry: date });
+                  }
+                }}
+                dateFormat="dd-MM-yyyy"
+                maxDate={new Date()}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholderText="DD-MM-YYYY"
+                showMonthDropdown
+                showYearDropdown
+                dropdownMode="select"
+                calendarClassName="react-datepicker-custom"
+                wrapperClassName="w-full"
               />
             </div>
 

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { supabase } from '../config/supabaseNew';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
@@ -43,6 +45,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     first_name: patient.first_name || '',
     last_name: patient.last_name || '',
     age: patient.age || '',
+    date_of_entry: patient.date_of_entry ? new Date(patient.date_of_entry) : new Date(),
     gender: patient.gender || 'MALE',
     phone: patient.phone || '',
     email: patient.email || '',
@@ -97,6 +100,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         first_name: (formData.first_name || '').trim(),
         last_name: (formData.last_name || '').trim(),
         age: formData.age && formData.age.trim() !== '' ? formData.age.trim() : null,
+        date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : null,
         gender: formData.gender || 'MALE',
         phone: (formData.phone || '').trim(),
         email: (formData.email || '').trim() || null,
@@ -310,6 +314,29 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter age (e.g., 25, 30 years, 6 months)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date of Entry
+                </label>
+                <DatePicker
+                  selected={formData.date_of_entry}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      setFormData({ ...formData, date_of_entry: date });
+                    }
+                  }}
+                  dateFormat="dd-MM-yyyy"
+                  maxDate={new Date()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholderText="DD-MM-YYYY"
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode="select"
+                  calendarClassName="react-datepicker-custom"
+                  wrapperClassName="w-full"
                 />
               </div>
 
