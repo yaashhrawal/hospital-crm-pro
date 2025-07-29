@@ -41,6 +41,12 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [activeTab, setActiveTab] = useState<'details' | 'payment'>('details');
   const [transactionLoading, setTransactionLoading] = useState(false);
   
+  // Custom department and doctor state
+  const [showCustomDepartment, setShowCustomDepartment] = useState(false);
+  const [showCustomDoctor, setShowCustomDoctor] = useState(false);
+  const [customDepartment, setCustomDepartment] = useState('');
+  const [customDoctor, setCustomDoctor] = useState('');
+  
   const [formData, setFormData] = useState({
     first_name: patient.first_name || '',
     last_name: patient.last_name || '',
@@ -574,7 +580,16 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
                     value={transactionData.selected_department}
-                    onChange={(e) => setTransactionData({ ...transactionData, selected_department: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'ADD_CUSTOM') {
+                        setShowCustomDepartment(true);
+                        setTransactionData({ ...transactionData, selected_department: '' });
+                      } else {
+                        setShowCustomDepartment(false);
+                        setTransactionData({ ...transactionData, selected_department: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Select Department</option>
@@ -583,13 +598,64 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                         {dept}
                       </option>
                     ))}
+                    <option value="ADD_CUSTOM">➕ Add Custom Department</option>
                   </select>
+                  
+                  {showCustomDepartment && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={customDepartment}
+                        onChange={(e) => {
+                          setCustomDepartment(e.target.value);
+                          setTransactionData({ ...transactionData, selected_department: e.target.value });
+                        }}
+                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="Enter custom department name"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customDepartment.trim()) {
+                              setShowCustomDepartment(false);
+                              toast.success(`Department "${customDepartment}" added successfully!`);
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                        >
+                          ✓ Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomDepartment(false);
+                            setCustomDepartment('');
+                            setTransactionData({ ...transactionData, selected_department: '' });
+                          }}
+                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                        >
+                          ✗ Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Doctor *</label>
                   <select
                     value={transactionData.selected_doctor}
-                    onChange={(e) => setTransactionData({ ...transactionData, selected_doctor: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'ADD_CUSTOM') {
+                        setShowCustomDoctor(true);
+                        setTransactionData({ ...transactionData, selected_doctor: '' });
+                      } else {
+                        setShowCustomDoctor(false);
+                        setTransactionData({ ...transactionData, selected_doctor: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   >
@@ -599,7 +665,49 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                         {doctor.name}
                       </option>
                     ))}
+                    <option value="ADD_CUSTOM">➕ Add Custom Doctor</option>
                   </select>
+                  
+                  {showCustomDoctor && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={customDoctor}
+                        onChange={(e) => {
+                          setCustomDoctor(e.target.value);
+                          setTransactionData({ ...transactionData, selected_doctor: e.target.value });
+                        }}
+                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="Enter custom doctor name (e.g., DR. JOHN SMITH)"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customDoctor.trim()) {
+                              setShowCustomDoctor(false);
+                              toast.success(`Doctor "${customDoctor}" added successfully!`);
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                        >
+                          ✓ Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomDoctor(false);
+                            setCustomDoctor('');
+                            setTransactionData({ ...transactionData, selected_doctor: '' });
+                          }}
+                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                        >
+                          ✗ Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

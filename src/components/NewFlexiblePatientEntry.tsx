@@ -108,6 +108,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const [tempDepartment, setTempDepartment] = useState('');
   const [tempDoctor, setTempDoctor] = useState('');
   const [tempFee, setTempFee] = useState<number>(0);
+  
+  // Custom department and doctor state
+  const [showCustomDepartment, setShowCustomDepartment] = useState(false);
+  const [showCustomDoctor, setShowCustomDoctor] = useState(false);
+  const [customDepartment, setCustomDepartment] = useState('');
+  const [customDoctor, setCustomDoctor] = useState('');
 
   useEffect(() => {
     testConnection();
@@ -386,6 +392,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
       setSelectedDoctors([]);
       setTempDepartment('');
       setTempDoctor('');
+      
+      // Reset custom fields
+      setShowCustomDepartment(false);
+      setShowCustomDoctor(false);
+      setCustomDepartment('');
+      setCustomDoctor('');
 
     } catch (error: any) {
       console.error('🚨 Patient creation failed:', error);
@@ -706,7 +718,16 @@ const NewFlexiblePatientEntry: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
                     value={formData.selected_department}
-                    onChange={(e) => setFormData({ ...formData, selected_department: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'ADD_CUSTOM') {
+                        setShowCustomDepartment(true);
+                        setFormData({ ...formData, selected_department: '' });
+                      } else {
+                        setShowCustomDepartment(false);
+                        setFormData({ ...formData, selected_department: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Select Department</option>
@@ -715,15 +736,66 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         {dept}
                       </option>
                     ))}
+                    <option value="ADD_CUSTOM">➕ Add Custom Department</option>
                   </select>
+                  
+                  {showCustomDepartment && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={customDepartment}
+                        onChange={(e) => {
+                          setCustomDepartment(e.target.value);
+                          setFormData({ ...formData, selected_department: e.target.value });
+                        }}
+                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="Enter custom department name"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customDepartment.trim()) {
+                              setShowCustomDepartment(false);
+                              toast.success(`Department "${customDepartment}" added successfully!`);
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                        >
+                          ✓ Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomDepartment(false);
+                            setCustomDepartment('');
+                            setFormData({ ...formData, selected_department: '' });
+                          }}
+                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                        >
+                          ✗ Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
                   <select
                     value={formData.selected_doctor}
-                    onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'ADD_CUSTOM') {
+                        setShowCustomDoctor(true);
+                        setFormData({ ...formData, selected_doctor: '' });
+                      } else {
+                        setShowCustomDoctor(false);
+                        setFormData({ ...formData, selected_doctor: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={!formData.selected_department}
+                    disabled={!formData.selected_department && !showCustomDepartment}
                   >
                     <option value="">Select Doctor</option>
                     {filteredDoctors.map((doctor) => (
@@ -731,7 +803,49 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         {doctor.name}
                       </option>
                     ))}
+                    <option value="ADD_CUSTOM">➕ Add Custom Doctor</option>
                   </select>
+                  
+                  {showCustomDoctor && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={customDoctor}
+                        onChange={(e) => {
+                          setCustomDoctor(e.target.value);
+                          setFormData({ ...formData, selected_doctor: e.target.value });
+                        }}
+                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="Enter custom doctor name (e.g., DR. JOHN SMITH)"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customDoctor.trim()) {
+                              setShowCustomDoctor(false);
+                              toast.success(`Doctor "${customDoctor}" added successfully!`);
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                        >
+                          ✓ Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomDoctor(false);
+                            setCustomDoctor('');
+                            setFormData({ ...formData, selected_doctor: '' });
+                          }}
+                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                        >
+                          ✗ Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               {formData.selected_department && (

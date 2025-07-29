@@ -54,7 +54,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="text-2xl font-bold text-purple-700">
-              {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}
+              {patient.date_of_entry ? new Date(patient.date_of_entry).toLocaleDateString('en-IN') : 'Never'}
             </div>
             <div className="text-purple-600">Last Visit</div>
           </div>
@@ -395,7 +395,7 @@ const ComprehensivePatientList: React.FC = () => {
           visit_count: patient.visitCount || 0,
           department_status: patient.departmentStatus || 'OPD',
           total_spent: patient.totalSpent || 0, // Clean numeric value
-          last_visit: formatDate(patient.lastVisit || ''),
+          last_visit: formatDate(patient.date_of_entry || ''),
           registration_date: patient.created_at || '', // Store raw date
         };
       });
@@ -656,8 +656,12 @@ const ComprehensivePatientList: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-sm text-gray-600">
-                      {patient.lastVisit 
-                        ? new Date(patient.lastVisit).toLocaleDateString()
+                      {patient.date_of_entry 
+                        ? new Date(patient.date_of_entry).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: '2-digit', 
+                            year: 'numeric'
+                          })
                         : 'Never'
                       }
                     </td>

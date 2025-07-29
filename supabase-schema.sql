@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS patients (
     current_medications TEXT,
     blood_group TEXT,
     notes TEXT,
+    date_of_entry DATE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
