@@ -1,0 +1,1 @@
+feat: Implement IPD enhancements including IP sticker, discharge card, and bed management improvements.

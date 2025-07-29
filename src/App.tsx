@@ -13,6 +13,7 @@ import RefundTab from './components/RefundTab';
 import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import OperationsLedger from './components/OperationsLedger';
+import BillingSection from './components/BillingSection';
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
 // Login Component
@@ -256,6 +257,12 @@ const App: React.FC = () => {
       name: '💰 Refunds', 
       component: RefundTab,
       description: 'Process patient refunds and maintain financial records' 
+    },
+    { 
+      id: 'billing', 
+      name: '💳 Billing', 
+      component: BillingSection,
+      description: 'Generate IPD, OPD, and Combined bills for patients' 
     },
     { 
       id: 'operations', 

@@ -1,0 +1,201 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      String   @default("STAFF")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patients  Patient[]
+  bills     Bill[]
+  dischargeSummaries DischargeSummary[]
+  dischargeBills DischargeBill[]
+  departments Department[]
+  appointments Appointment[]
+}
+
+model Patient {
+  id                    String   @id @default(cuid())
+  patientId             String   @unique
+  firstName             String
+  lastName              String
+  dateOfBirth           DateTime
+  gender                String
+  phone                 String   @unique
+  email                 String?
+  address               String
+  emergencyContactName  String
+  emergencyContactPhone String
+  medicalHistory        String?
+  allergies             String?
+  currentMedications    String?
+  bloodGroup            String?
+  notes                 String?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdById           String
+  createdBy             User     @relation(fields: [createdById], references: [id])
+  appointments          Appointment[]
+  bills                 Bill[]
+  dischargeSummaries    DischargeSummary[]
+  dischargeBills        DischargeBill[]
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  headDoctor  User?    @relation(fields: [headDoctorId], references: [id])
+  headDoctorId String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  appointments Appointment[]
+}
+
+model Appointment {
+  id              String      @id @default(cuid())
+  appointmentId   String      @unique
+  patientId       String
+  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          User        @relation(fields: [doctorId], references: [id])
+  departmentId    String
+  department      Department  @relation(fields: [departmentId], references: [id])
+  scheduledAt     DateTime
+  duration        Int         @default(30)
+  status          String      @default("SCHEDULED")
+  reason          String
+  appointmentType String      @default("CONSULTATION")
+  actualStartTime DateTime?
+  actualEndTime   DateTime?
+  diagnosis       String?
+  prescription    String?
+  followUpDate    DateTime?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  bill            Bill? 
+}
+
+model Bill {
+  id              String      @id @default(cuid())
+  billNumber      String      @unique
+  patientId       String
+  patient         Patient     @relation(fields: [patientId], references: [id])
+  appointmentId   String      @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id])
+  items           Json
+  consultationFee Float
+  subtotal        Float
+  discount        Float       @default(0)
+  cgst            Float
+  sgst            Float
+  igst            Float       @default(0)
+  totalTax        Float
+  totalAmount     Float
+  paidAmount      Float?
+  status          String      @default("PENDING")
+  paymentMethod   String?
+  paymentDate     DateTime?
+  paymentReference String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  createdById     String
+  createdBy       User        @relation(fields: [createdById], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+}
+
+model DischargeSummary {
+  id                      String   @id @default(cuid())
+  admission_id            String
+  patient_id              String
+  patient                 Patient  @relation(fields: [patient_id], references: [id])
+  final_diagnosis         String
+  primary_consultant      String
+  chief_complaints        String?
+  hopi                    String?
+  past_history            String?
+  investigations          String?
+  course_of_stay         String?
+  treatment_during_hospitalization String?
+  discharge_medication    String?
+  follow_up_on            String?
+  attendant_name          String
+  attendant_relationship  String
+  attendant_contact       String?
+  documents_handed_over   Boolean
+  discharge_notes         String?
+  created_by              String
+  createdBy               User     @relation(fields: [created_by], references: [id])
+  hospital_id             String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  dischargeBill           DischargeBill? 
+}
+
+model DischargeBill {
+  id                   String   @id @default(cuid())
+  admission_id         String
+  patient_id           String
+  patient              Patient  @relation(fields: [patient_id], references: [id])
+  discharge_summary_id String   @unique
+  dischargeSummary     DischargeSummary @relation(fields: [discharge_summary_id], references: [id])
+  doctor_fees          Float
+  nursing_charges      Float
+  medicine_charges     Float
+  diagnostic_charges   Float
+  operation_charges    Float
+  other_charges        Float
+  existing_services    Float
+  total_charges        Float
+  discount_amount      Float
+  insurance_covered    Float
+  net_amount           Float
+  previous_payments    Float
+  final_payment        Float
+  total_paid           Float
+  balance_amount       Float
+  payment_mode         String
+  stay_duration        Int
+  created_by           String
+  createdBy            User     @relation(fields: [created_by], references: [id])
+  hospital_id          String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model PatientAdmission {
+    id             String @id @default(cuid())
+    patient_id     String
+    admission_date DateTime
+    discharge_date DateTime?
+    bed_id         String?
+    status         String
+    hospital_id    String
+}

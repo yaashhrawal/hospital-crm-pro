@@ -43,8 +43,8 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
               display: none !important;
             }
             .sticker {
-              width: 68mm !important;
-              height: 34mm !important;
+              width: 69mm !important;
+              height: 35mm !important;
               font-size: 11px !important;
               page-break-inside: avoid;
               break-inside: avoid;
@@ -58,11 +58,11 @@ const IPDStickers: React.FC<IPDStickersProps> = ({ admission, onBack }) => {
             }
             .grid {
               display: grid !important;
-              grid-template-columns: repeat(3, 68mm) !important;
-              gap: 3mm !important;
+              grid-template-columns: repeat(3, 69mm) !important;
+              gap: 2.5mm !important;
               justify-content: center;
-              row-gap: 5mm !important;
-              padding: 6mm 0 0 0 !important;
+              row-gap: 4mm !important;
+              padding: 5mm 0 0 0 !important;
               width: 100% !important;
               height: 100% !important;
             }

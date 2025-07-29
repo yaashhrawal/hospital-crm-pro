@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Discharge Tables</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Discharge Tables</h1>
+    <button onclick="testTables()">Test Table Access</button>
+    <div id="result"></div>
+
+    <script>
+        // Replace with your actual Supabase URL and key
+        const supabaseUrl = 'YOUR_SUPABASE_URL';
+        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function testTables() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+
+            try {
+                // Test discharge_summaries table
+                console.log('Testing discharge_summaries table...');
+                const { data: summaries, error: summariesError } = await supabase
+                    .from('discharge_summaries')
+                    .select('id')
+                    .limit(1);
+
+                if (summariesError) {
+                    throw new Error(`discharge_summaries error: ${summariesError.message}`);
+                }
+
+                // Test discharge_bills table
+                console.log('Testing discharge_bills table...');
+                const { data: bills, error: billsError } = await supabase
+                    .from('discharge_bills')
+                    .select('id')
+                    .limit(1);
+
+                if (billsError) {
+                    throw new Error(`discharge_bills error: ${billsError.message}`);
+                }
+
+                resultDiv.innerHTML = `
+                    <h2>✅ Success!</h2>
+                    <p>discharge_summaries table: ✅ Accessible</p>
+                    <p>discharge_bills table: ✅ Accessible</p>
+                `;
+
+            } catch (error) {
+                console.error('Table test failed:', error);
+                resultDiv.innerHTML = `
+                    <h2>❌ Error!</h2>
+                    <p style="color: red;">${error.message}</p>
+                    <p>Check if you've run the SQL queries to create the tables.</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
