@@ -34,6 +34,7 @@ interface VisitAnalytics {
 const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onClose }) => {
   const [activeTab, setActiveTab] = useState<'visits' | 'financial' | 'medical' | 'analytics'>('visits');
   const [visitHistory, setVisitHistory] = useState<VisitRecord[]>([]);
+  const [patientVisits, setPatientVisits] = useState<any[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [visitAnalytics, setVisitAnalytics] = useState<VisitAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +51,14 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
       
       // Get all transactions for this patient
       const transactions = await dataService.getTransactionsByPatient(patient.id);
+      
+      // Get patient visits from the visits table
+      try {
+        const visits = await dataService.getPatientVisits(patient.id);
+        setPatientVisits(visits);
+      } catch (error) {
+        console.log('Patient visits table might not exist yet');
+      }
       
       // Process visit history
       const visitMap = new Map<string, PatientTransaction[]>();
@@ -280,9 +289,56 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
           {/* Visit History Tab */}
           {activeTab === 'visits' && (
             <div className="space-y-4">
+              {/* Show patient visits if available */}
+              {patientVisits.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">📋 Visit Records</h3>
+                  <div className="space-y-3">
+                    {patientVisits.map((visit, index) => (
+                      <div key={visit.id || index} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-blue-800">
+                              {new Date(visit.visit_date).toLocaleDateString('en', {
+                                weekday: 'short',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </p>
+                            <p className="text-sm text-gray-600">{visit.visit_type || 'Consultation'}</p>
+                          </div>
+                          {visit.department && (
+                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm">
+                              {visit.department}
+                            </span>
+                          )}
+                        </div>
+                        {visit.chief_complaint && (
+                          <p className="text-sm text-gray-700 mb-1">
+                            <strong>Complaint:</strong> {visit.chief_complaint}
+                          </p>
+                        )}
+                        {visit.diagnosis && (
+                          <p className="text-sm text-gray-700 mb-1">
+                            <strong>Diagnosis:</strong> {visit.diagnosis}
+                          </p>
+                        )}
+                        {visit.notes && (
+                          <p className="text-sm text-gray-600 italic">
+                            {visit.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">💰 Transaction History</h3>
               {visitHistory.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  No visit history found for this patient.
+                  No transaction history found for this patient.
                 </div>
               ) : (
                 visitHistory.map((visit, index) => (

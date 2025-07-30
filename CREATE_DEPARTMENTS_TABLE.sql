@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS departments (
 -- Insert departments if table is empty
 INSERT INTO departments (name, description, is_active) 
 SELECT * FROM (VALUES
-    ('ORTHOPEDIC', 'Orthopedic Surgery and Bone Care', true),
+    ('ORTHOPAEDIC', 'Orthopaedic Surgery and Bone Care', true),
     ('DIETICIAN', 'Nutrition and Diet Planning', true),
     ('GASTRO', 'Gastroenterology and Digestive System', true),
     ('GYN.', 'Gynecology and Women Health', true),

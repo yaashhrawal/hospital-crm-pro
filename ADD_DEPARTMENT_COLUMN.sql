@@ -18,7 +18,7 @@ ADD COLUMN IF NOT EXISTS reference_details TEXT;
 
 -- Add comments to describe the columns
 COMMENT ON COLUMN patients.assigned_doctor IS 'Doctor assigned to the patient (e.g., DR. BATUL PEEPAWALA)';
-COMMENT ON COLUMN patients.assigned_department IS 'Department assigned to the patient (e.g., ORTHOPEDIC, GASTRO, GENERAL PHYSICIAN)';
+COMMENT ON COLUMN patients.assigned_department IS 'Department assigned to the patient (e.g., ORTHOPAEDIC, GASTRO, GENERAL PHYSICIAN)';
 COMMENT ON COLUMN patients.has_reference IS 'Whether the patient has a reference';
 COMMENT ON COLUMN patients.reference_details IS 'Reference details if patient has reference';
 

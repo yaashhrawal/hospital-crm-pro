@@ -656,14 +656,44 @@ const ComprehensivePatientList: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-sm text-gray-600">
-                      {patient.date_of_entry 
-                        ? new Date(patient.date_of_entry).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: '2-digit', 
-                            year: 'numeric'
-                          })
-                        : 'Never'
-                      }
+                      {(() => {
+                        // Debug logging
+                        console.log(`Patient ${patient.patient_id} date debug:`, {
+                          date_of_entry: patient.date_of_entry,
+                          created_at: patient.created_at,
+                          transactions_count: patient.transactions?.length || 0
+                        });
+                        
+                        // Prioritize date_of_entry (actual visit date) over transaction dates
+                        let lastVisitDate = null;
+                        
+                        // First priority: use date_of_entry (the actual visit date entered by user)
+                        if (patient.date_of_entry) {
+                          lastVisitDate = patient.date_of_entry;
+                          console.log(`Using date_of_entry: ${lastVisitDate}`);
+                        }
+                        // Second priority: get last transaction date
+                        else if (patient.transactions && patient.transactions.length > 0) {
+                          const sortedTransactions = patient.transactions.sort((a: any, b: any) => 
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                          );
+                          lastVisitDate = sortedTransactions[0].created_at;
+                          console.log(`Using transaction date: ${lastVisitDate}`);
+                        }
+                        // Third priority: use patient creation date
+                        else if (patient.created_at) {
+                          lastVisitDate = patient.created_at;
+                          console.log(`Using created_at: ${lastVisitDate}`);
+                        }
+                        
+                        return lastVisitDate 
+                          ? new Date(lastVisitDate).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: '2-digit', 
+                              year: 'numeric'
+                            })
+                          : 'Never';
+                      })()}
                     </td>
                     <td className="p-4">
                       <div className="flex space-x-2">

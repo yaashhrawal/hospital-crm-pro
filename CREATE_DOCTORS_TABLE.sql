@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS doctors (
 -- Insert sample doctors data if table is empty
 INSERT INTO doctors (name, department, specialization, fee, is_active) 
 SELECT * FROM (VALUES
-    ('DR. HEMANT KHAJJA', 'ORTHOPEDIC', 'Orthopedic Surgeon', 800.00, true),
+    ('DR. HEMANT KHAJJA', 'ORTHOPAEDIC', 'Orthopaedic Surgeon', 800.00, true),
     ('DR. LALITA SUWALKA', 'DIETICIAN', 'Clinical Dietician', 500.00, true),
     ('DR. MILIND KIRIT AKHANI', 'GASTRO', 'Gastroenterologist', 1000.00, true),
     ('DR MEETU BABLE', 'GYN.', 'Gynecologist', 900.00, true),

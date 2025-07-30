@@ -45,7 +45,7 @@ const SimplePatientEntry: React.FC = () => {
     last_name: '',
     phone: '',
     email: '',
-    age: 0,
+    age: '',
     gender: 'MALE',
     address: '',
     patient_tag: '',
@@ -54,11 +54,13 @@ const SimplePatientEntry: React.FC = () => {
     blood_group: '',
     medical_history: '',
     allergies: '',
+    date_of_birth: '',
+    visit_date: new Date().toISOString().split('T')[0], // Default to today
     // Financial info
     consultation_fee: 0,
     discount_amount: 0,
     discount_reason: '',
-    payment_mode: 'CASH', // Default payment mode
+    payment_mode: 'CASH' as any, // Default payment mode
     // Admission info
     isAdmitted: false,
     bedNumber: '',
@@ -75,10 +77,25 @@ const SimplePatientEntry: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
   const [ageError, setAgeError] = useState<string>('');
+  const [existingPatient, setExistingPatient] = useState<any>(null);
+  const [showExistingPatientPrompt, setShowExistingPatientPrompt] = useState(false);
+  const [lastVisitInfo, setLastVisitInfo] = useState<any>(null);
 
   useEffect(() => {
     testConnection();
   }, []);
+
+  // Check for duplicates when phone or name changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if ((formData.phone && formData.phone.length >= 10) || 
+          (formData.first_name && formData.first_name.length >= 3)) {
+        checkForDuplicateInBackground();
+      }
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timer);
+  }, [formData.phone, formData.first_name, formData.last_name]);
 
   const testConnection = async () => {
     try {
@@ -86,6 +103,121 @@ const SimplePatientEntry: React.FC = () => {
       setConnectionStatus(result.success ? '🟢 Connected to Supabase' : `🔴 ${result.message}`);
     } catch (error) {
       setConnectionStatus('🔴 Connection failed');
+    }
+  };
+
+  const checkForExistingPatient = async () => {
+    if (!formData.first_name.trim()) return;
+    
+    try {
+      const existing = await HospitalService.findExistingPatient(
+        formData.phone,
+        formData.first_name,
+        formData.last_name
+      );
+      
+      if (existing) {
+        setExistingPatient(existing);
+        setShowExistingPatientPrompt(true);
+      }
+    } catch (error) {
+      console.error('Error checking for existing patient:', error);
+    }
+  };
+
+  const checkForDuplicateInBackground = async () => {
+    try {
+      const existing = await HospitalService.findExistingPatient(
+        formData.phone,
+        formData.first_name,
+        formData.last_name
+      );
+      
+      // Only set if we found a match (don't clear if no match)
+      if (existing) {
+        setExistingPatient(existing);
+      }
+    } catch (error) {
+      console.error('Background duplicate check error:', error);
+    }
+  };
+
+  const handleContinueWithExisting = async () => {
+    setShowExistingPatientPrompt(false);
+    await createVisitForExistingPatient();
+  };
+
+  const handleCreateNewPatient = () => {
+    setShowExistingPatientPrompt(false);
+    setExistingPatient(null);
+    handleNewPatientSubmit();
+  };
+
+  const createVisitForExistingPatient = async () => {
+    if (!existingPatient) return;
+    
+    setLoading(true);
+    try {
+      console.log('🏥 Creating new visit for existing patient:', existingPatient.patient_id);
+      
+      // Create visit record
+      const visitData = {
+        patient_id: existingPatient.id,
+        visit_type: 'Consultation',
+        chief_complaint: formData.medical_history || 'General Consultation',
+        department: formData.department || 'General',
+        visit_date: formData.visit_date || new Date().toISOString().split('T')[0],
+        notes: `Visit on ${formData.visit_date || new Date().toLocaleDateString()}`
+      };
+      
+      await HospitalService.createPatientVisit(visitData);
+      
+      // Create financial transactions
+      const totalAmount = formData.consultation_fee - formData.discount_amount;
+      
+      if (formData.consultation_fee > 0) {
+        await HospitalService.createTransaction({
+          patient_id: existingPatient.id,
+          transaction_type: 'CONSULTATION',
+          description: `Consultation Fee - Return Visit`,
+          amount: formData.consultation_fee,
+          payment_mode: formData.payment_mode,
+          status: 'COMPLETED'
+        });
+      }
+
+      if (formData.discount_amount > 0) {
+        await HospitalService.createTransaction({
+          patient_id: existingPatient.id,
+          transaction_type: 'PROCEDURE',
+          description: `Discount Applied: ${formData.discount_reason || 'Return visit discount'}`,
+          amount: -formData.discount_amount,
+          payment_mode: formData.payment_mode,
+          status: 'COMPLETED'
+        });
+      }
+      
+      toast.success(`New visit created for ${existingPatient.first_name} ${existingPatient.last_name} - Total: ₹${totalAmount.toLocaleString()}`);
+      
+      // Auto-print receipt if enabled
+      if (formData.autoPrintReceipt && totalAmount > 0) {
+        try {
+          await printConsultationReceipt(existingPatient.id);
+          toast.success('Receipt printed successfully!');
+        } catch (printError) {
+          console.error('Failed to print receipt:', printError);
+          toast.error('Failed to print receipt, but visit was saved successfully');
+        }
+      }
+      
+      // Reset form
+      resetForm();
+      
+    } catch (error: any) {
+      console.error('🚨 Visit creation failed:', error);
+      toast.error(`Failed to create visit: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -106,6 +238,47 @@ const SimplePatientEntry: React.FC = () => {
     }
 
     setLoading(true);
+    
+    try {
+      // Check for existing patient
+      const existing = await HospitalService.findExistingPatient(
+        formData.phone,
+        formData.first_name,
+        formData.last_name
+      );
+      
+      if (existing) {
+        setExistingPatient(existing);
+        
+        // Get last visit info
+        try {
+          const transactions = await HospitalService.getTransactionsByPatient(existing.id);
+          if (transactions.length > 0) {
+            const lastTransaction = transactions[0];
+            setLastVisitInfo({
+              date: new Date(lastTransaction.created_at).toLocaleDateString(),
+              type: lastTransaction.transaction_type,
+              amount: lastTransaction.amount
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching last visit info:', error);
+        }
+        
+        setShowExistingPatientPrompt(true);
+        setLoading(false);
+      } else {
+        // No existing patient found, create new one
+        await handleNewPatientSubmit();
+      }
+    } catch (error) {
+      console.error('Error checking for existing patient:', error);
+      setLoading(false);
+    }
+  };
+
+  const handleNewPatientSubmit = async () => {
+    setLoading(true);
 
     try {
       console.log('🚀 Starting patient creation process (WITHOUT transactions)...');
@@ -125,13 +298,17 @@ const SimplePatientEntry: React.FC = () => {
         blood_group: formData.blood_group || undefined,
         medical_history: formData.medical_history.trim() || undefined,
         allergies: formData.allergies.trim() || undefined,
+        date_of_entry: formData.visit_date || undefined, // Store the visit date
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
       console.log('📤 Creating patient with data:', patientData);
+      console.log('📅 Form visit_date:', formData.visit_date);
+      console.log('📅 Mapped date_of_entry:', patientData.date_of_entry);
       const newPatient = await HospitalService.createPatient(patientData);
       
       console.log('✅ Patient created successfully:', newPatient);
+      console.log('✅ Patient date_of_entry in response:', newPatient.date_of_entry);
 
       // Create financial transactions and update patient notes
       const totalAmount = formData.consultation_fee - formData.discount_amount;
@@ -212,36 +389,7 @@ const SimplePatientEntry: React.FC = () => {
       }
       
       // Reset form
-      setFormData({
-        first_name: '',
-        last_name: '',
-        phone: '',
-        email: '',
-        date_of_birth: '',
-        age: '',
-        gender: 'MALE',
-        address: '',
-        patient_tag: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        blood_group: '',
-        medical_history: '',
-        allergies: '',
-        consultation_fee: 0,
-        discount_amount: 0,
-        discount_reason: '',
-        payment_mode: 'CASH',
-        // Reset admission fields
-        isAdmitted: false,
-        bedNumber: '',
-        roomType: 'GENERAL',
-        department: 'General',
-        dailyRate: 0,
-        admissionDate: '',
-        expectedDischarge: '',
-        admissionNotes: '',
-        autoPrintReceipt: true,
-      });
+      resetForm();
 
     } catch (error: any) {
       console.error('🚨 Patient creation failed:', error);
@@ -251,10 +399,95 @@ const SimplePatientEntry: React.FC = () => {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      first_name: '',
+      last_name: '',
+      phone: '',
+      email: '',
+      date_of_birth: '',
+      age: '',
+      gender: 'MALE',
+      address: '',
+      patient_tag: '',
+      visit_date: new Date().toISOString().split('T')[0],
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+      blood_group: '',
+      medical_history: '',
+      allergies: '',
+      consultation_fee: 0,
+      discount_amount: 0,
+      discount_reason: '',
+      payment_mode: 'CASH' as any,
+      isAdmitted: false,
+      bedNumber: '',
+      roomType: 'GENERAL',
+      department: 'General',
+      dailyRate: 0,
+      admissionDate: '',
+      expectedDischarge: '',
+      admissionNotes: '',
+      autoPrintReceipt: true,
+    });
+    setExistingPatient(null);
+    setLastVisitInfo(null);
+  };
+
   const totalAmount = formData.consultation_fee - formData.discount_amount;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
+    <>
+      {/* Existing Patient Modal */}
+      {showExistingPatientPrompt && existingPatient && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              🔍 Existing Patient Found
+            </h2>
+            
+            <div className="bg-blue-50 p-4 rounded-lg mb-4">
+              <p className="text-gray-700 mb-2">
+                A patient with similar details already exists:
+              </p>
+              <div className="space-y-1 text-sm">
+                <p><strong>Name:</strong> {existingPatient.first_name} {existingPatient.last_name}</p>
+                <p><strong>Phone:</strong> {existingPatient.phone || 'N/A'}</p>
+                <p><strong>Patient ID:</strong> {existingPatient.patient_id}</p>
+                <p><strong>Age:</strong> {existingPatient.age || 'N/A'}</p>
+                <p><strong>Address:</strong> {existingPatient.address || 'N/A'}</p>
+                <p><strong>Registered on:</strong> {new Date(existingPatient.created_at).toLocaleDateString()}</p>
+                {lastVisitInfo && (
+                  <p className="mt-2 text-blue-700 font-medium">
+                    <strong>Last Visit:</strong> {lastVisitInfo.date} - {lastVisitInfo.type} (₹{lastVisitInfo.amount})
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Would you like to create a new visit for this existing patient, or register as a new patient?
+            </p>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCreateNewPatient}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Register as New Patient
+              </button>
+              <button
+                onClick={handleContinueWithExisting}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Create New Visit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800">👤 Simple Patient Entry</h2>
         <p className="text-gray-600 mt-1">Simple patient registration with integrated financial tracking</p>
@@ -271,6 +504,16 @@ const SimplePatientEntry: React.FC = () => {
             recorded as transactions and appear in the Finance Dashboard.
           </div>
         </div>
+
+        {/* Duplicate Detection Notice */}
+        {existingPatient && !showExistingPatientPrompt && (
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="text-sm text-yellow-800">
+              ⚠️ <strong>Possible Duplicate:</strong> A patient named <strong>{existingPatient.first_name} {existingPatient.last_name}</strong> 
+              {existingPatient.phone && ` with phone ${existingPatient.phone}`} already exists (ID: {existingPatient.patient_id})
+            </div>
+          </div>
+        )}
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -370,6 +613,19 @@ const SimplePatientEntry: React.FC = () => {
                 💡 Start typing for suggestions or enter your own custom tag
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Visit Date</label>
+              <input
+                type="date"
+                value={formData.visit_date}
+                onChange={(e) => setFormData({ ...formData, visit_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                📅 Date when this visit occurred (for back-dating entries)
+              </div>
+            </div>
           </div>
           
           {/* Age/DOB Validation Error */}
@@ -434,7 +690,7 @@ const SimplePatientEntry: React.FC = () => {
                 >
                   <option value="General">General</option>
                   <option value="Cardiology">Cardiology</option>
-                  <option value="Orthopedics">Orthopedics</option>
+                  <option value="Orthopaedics">Orthopaedics</option>
                   <option value="Pediatrics">Pediatrics</option>
                   <option value="Surgery">Surgery</option>
                   <option value="Emergency">Emergency</option>
@@ -624,6 +880,7 @@ const SimplePatientEntry: React.FC = () => {
         </div>
       </form>
     </div>
+    </>
   );
 };
 

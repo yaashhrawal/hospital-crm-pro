@@ -81,7 +81,10 @@ export interface Patient {
   assigned_department?: string; // Primary assigned department (backward compatibility)
   assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
   consultation_fees?: any; // JSONB field storing individual doctor consultation fees
+  doctor_specialty?: string; // Doctor's specialty from doctors table
+  doctor_hospital_experience?: string; // Doctor's hospital experience from doctors table
   notes?: string;
+  date_of_entry?: string; // Visit/entry date
   hospital_id: string;
   is_active: boolean;
   created_at: string;
@@ -271,6 +274,7 @@ export interface CreatePatientData {
   assigned_department?: string; // Primary assigned department (backward compatibility)
   assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
   notes?: string;
+  date_of_entry?: string; // Visit/entry date
   hospital_id: string;
 }
 

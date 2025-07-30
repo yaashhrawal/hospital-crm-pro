@@ -291,6 +291,26 @@ class DataService {
     }
   }
 
+  async getPatientVisits(patientId: string): Promise<any[]> {
+    console.log('📡 Fetching patient visits from Supabase:', patientId);
+    try {
+      const { data, error } = await supabase
+        .from('patient_visits')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('visit_date', { ascending: false });
+      if (error) {
+        console.error('❌ Supabase patient visits fetch error:', error);
+        throw error;
+      }
+      console.log('✅ Patient visits fetched successfully from Supabase:', data?.length || 0, 'records');
+      return data || [];
+    } catch (error) {
+      console.error('🚨 Patient visits fetch failed:', error);
+      throw error;
+    }
+  }
+
   async getTransactionsByDate(date: string): Promise<PatientTransaction[]> {
     console.log('📡 Fetching transactions by date directly from Supabase:', date);
     try {

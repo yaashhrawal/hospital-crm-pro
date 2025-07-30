@@ -108,10 +108,26 @@ const OPDBill: React.FC<OPDBillProps> = ({ patient, onClose }) => {
       }} />
 
       <div id="opd-bill-content" className="p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">OPD Bill</h1>
-          <p className="text-gray-600 mt-2">Out-Patient Department</p>
+        {/* Header with Logo */}
+        <div className="text-center border-b-2 border-gray-300 pb-4 mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="VALANT Hospital Logo" 
+              className="h-16 w-auto"
+              style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">VALANT HOSPITAL</h1>
+          <div className="text-sm text-gray-700">
+            <p>10, Madhav Vihar Shobhagpura, Udaipur (313001)</p>
+            <p>Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
+            <p>Website: www.valanthospital.com</p>
+          </div>
+          <div className="mt-4">
+            <h2 className="text-xl font-semibold text-gray-800">OPD BILL</h2>
+            <p className="text-gray-600">Out-Patient Department</p>
+          </div>
         </div>
 
         {/* Date Range Filter */}
@@ -146,37 +162,34 @@ const OPDBill: React.FC<OPDBillProps> = ({ patient, onClose }) => {
           </div>
         </div>
 
-        {/* Hospital and Patient Info */}
-        <div className="border-b pb-6 mb-6">
-          <div className="grid grid-cols-2 gap-8">
+        {/* Bill Info */}
+        <div className="mb-6">
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <h3 className="font-semibold text-gray-700 mb-2">Hospital Details</h3>
-              <p className="text-sm">City General Hospital</p>
-              <p className="text-sm text-gray-600">123 Healthcare Street, Medical City</p>
-              <p className="text-sm text-gray-600">Phone: +1-555-HOSPITAL</p>
+              <p><strong>BILL NO:</strong> OPD-{patient.patient_id}-{new Date().getTime()}</p>
+              <p><strong>DATE:</strong> {new Date().toLocaleDateString('en-IN')}</p>
+              <p><strong>PERIOD:</strong> {formatDate(dateRange.startDate)} to {formatDate(dateRange.endDate)}</p>
             </div>
             <div className="text-right">
-              <h3 className="font-semibold text-gray-700 mb-2">Bill Details</h3>
-              <p className="text-sm">Bill No: OPD-{patient.patient_id}-{new Date().getTime()}</p>
-              <p className="text-sm">Date: {new Date().toLocaleDateString()}</p>
-              <p className="text-sm">Period: {formatDate(dateRange.startDate)} to {formatDate(dateRange.endDate)}</p>
+              <p><strong>Patient ID:</strong> {patient.patient_id}</p>
+              <p><strong>Department:</strong> OPD</p>
             </div>
           </div>
         </div>
 
         {/* Patient Details */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Patient Information</h3>
+          <h3 className="font-semibold mb-3 text-gray-800">Patient Information</h3>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p><span className="font-medium">Name:</span> {patient.first_name} {patient.last_name}</p>
-              <p><span className="font-medium">Patient ID:</span> {patient.patient_id}</p>
-              <p><span className="font-medium">Age/Gender:</span> {patient.age || 'N/A'} / {patient.gender}</p>
+              <p><strong>NAME:</strong> {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}</p>
+              <p><strong>AGE/SEX:</strong> {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}</p>
+              <p><strong>MOBILE:</strong> {patient.phone || 'N/A'}</p>
             </div>
             <div>
-              <p><span className="font-medium">Phone:</span> {patient.phone || 'N/A'}</p>
-              <p><span className="font-medium">Email:</span> {patient.email || 'N/A'}</p>
-              <p><span className="font-medium">Blood Group:</span> {patient.blood_group || 'N/A'}</p>
+              <p><strong>ADDRESS:</strong> {patient.address || 'N/A'}</p>
+              <p><strong>EMAIL:</strong> {patient.email || 'N/A'}</p>
+              <p><strong>BLOOD GROUP:</strong> {patient.blood_group || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -267,10 +280,27 @@ const OPDBill: React.FC<OPDBillProps> = ({ patient, onClose }) => {
           </div>
         </div>
 
+        {/* Signature Section */}
+        <div className="mt-12 pt-8">
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <div className="border-t border-gray-400 pt-2">
+                <p className="text-sm text-gray-600 text-center">Authorized Signature</p>
+              </div>
+            </div>
+            <div>
+              <div className="border-t border-gray-400 pt-2">
+                <p className="text-sm text-gray-600 text-center">Patient/Attendant Signature</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Footer */}
-        <div className="text-center text-sm text-gray-600 mt-8">
-          <p>Thank you for choosing our hospital</p>
-          <p>For any queries, please contact our billing department</p>
+        <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+          <p>Thank you for choosing VALANT HOSPITAL</p>
+          <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
+          <p className="font-bold mt-2">** OPD BILL **</p>
         </div>
 
         {/* Action Buttons */}

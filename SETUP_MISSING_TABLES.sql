@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS doctors (
 -- 3. Insert departments
 INSERT INTO departments (name, description, is_active) 
 SELECT * FROM (VALUES
-    ('ORTHOPEDIC', 'Orthopedic Surgery and Bone Care', true),
+    ('ORTHOPAEDIC', 'Orthopaedic Surgery and Bone Care', true),
     ('DIETICIAN', 'Nutrition and Diet Planning', true),
     ('GASTRO', 'Gastroenterology and Digestive System', true),
     ('GYN.', 'Gynecology and Women Health', true),
@@ -44,7 +44,7 @@ ON CONFLICT (name) DO NOTHING;
 -- 4. Insert doctors
 INSERT INTO doctors (name, department, specialization, fee, is_active) 
 SELECT * FROM (VALUES
-    ('DR. HEMANT KHAJJA', 'ORTHOPEDIC', 'Orthopedic Surgeon', 800.00, true),
+    ('DR. HEMANT KHAJJA', 'ORTHOPAEDIC', 'Orthopaedic Surgeon', 800.00, true),
     ('DR. LALITA SUWALKA', 'DIETICIAN', 'Clinical Dietician', 500.00, true),
     ('DR. MILIND KIRIT AKHANI', 'GASTRO', 'Gastroenterologist', 1000.00, true),
     ('DR MEETU BABLE', 'GYN.', 'Gynecologist', 900.00, true),

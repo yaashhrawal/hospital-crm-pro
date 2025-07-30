@@ -171,6 +171,163 @@ export class HospitalService {
   
   // ==================== PATIENT OPERATIONS ====================
   
+  static async findExistingPatient(phone?: string, firstName?: string, lastName?: string): Promise<Patient | null> {
+    try {
+      console.log('🔍 Searching for existing patient with:', { phone, firstName, lastName });
+      
+      if (!phone && !firstName) {
+        return null;
+      }
+      
+      // Normalize phone number (remove spaces, dashes, etc.)
+      const normalizePhone = (ph: string) => ph.replace(/[\s\-\(\)\.]/g, '').trim();
+      
+      // Search by phone first (most unique identifier)
+      if (phone && phone.trim()) {
+        const normalizedPhone = normalizePhone(phone);
+        console.log('📱 Searching by normalized phone:', normalizedPhone);
+        
+        // Get all patients and check phone numbers after normalization
+        const { data: allPatients, error } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('hospital_id', HOSPITAL_ID);
+        
+        if (!error && allPatients) {
+          const phoneMatch = allPatients.find(p => 
+            p.phone && normalizePhone(p.phone) === normalizedPhone
+          );
+          
+          if (phoneMatch) {
+            console.log('✅ Found patient by phone number match');
+            return phoneMatch as Patient;
+          }
+        }
+      }
+      
+      // If no phone match, try name match (case-insensitive)
+      if (firstName && firstName.trim()) {
+        const normalizedFirstName = firstName.trim().toLowerCase();
+        const normalizedLastName = lastName ? lastName.trim().toLowerCase() : '';
+        
+        console.log('👤 Searching by name:', { normalizedFirstName, normalizedLastName });
+        
+        let nameQuery = supabase
+          .from('patients')
+          .select('*')
+          .eq('hospital_id', HOSPITAL_ID)
+          .ilike('first_name', `%${firstName.trim()}%`);
+        
+        const { data: nameMatches, error } = await nameQuery;
+        
+        if (!error && nameMatches && nameMatches.length > 0) {
+          // Check for exact match (case-insensitive)
+          const exactMatch = nameMatches.find(p => {
+            const patientFirstName = (p.first_name || '').toLowerCase();
+            const patientLastName = (p.last_name || '').toLowerCase();
+            
+            // If last name provided, check both first and last name
+            if (lastName && lastName.trim()) {
+              return patientFirstName === normalizedFirstName && 
+                     patientLastName === normalizedLastName;
+            }
+            // Otherwise, just check first name
+            return patientFirstName === normalizedFirstName;
+          });
+          
+          if (exactMatch) {
+            console.log('✅ Found exact patient name match');
+            return exactMatch as Patient;
+          }
+          
+          // Check for similar matches (both names start with the same letters)
+          const similarMatch = nameMatches.find(p => {
+            const patientFirstName = (p.first_name || '').toLowerCase();
+            const patientLastName = (p.last_name || '').toLowerCase();
+            
+            if (lastName && lastName.trim()) {
+              return patientFirstName.startsWith(normalizedFirstName.substring(0, 3)) && 
+                     patientLastName.startsWith(normalizedLastName.substring(0, 3));
+            }
+            return patientFirstName.startsWith(normalizedFirstName.substring(0, 3));
+          });
+          
+          if (similarMatch) {
+            console.log('✅ Found similar patient name match');
+            return similarMatch as Patient;
+          }
+        }
+      }
+      
+      console.log('ℹ️ No existing patient found');
+      return null;
+      
+    } catch (error: any) {
+      console.error('🚨 findExistingPatient error:', error);
+      return null;
+    }
+  }
+  
+  static async createPatientVisit(visitData: {
+    patient_id: string;
+    visit_type?: string;
+    chief_complaint?: string;
+    diagnosis?: string;
+    treatment_plan?: string;
+    doctor_id?: string;
+    department?: string;
+    vital_signs?: any;
+    prescriptions?: any;
+    follow_up_date?: string;
+    notes?: string;
+  }): Promise<any> {
+    try {
+      console.log('🏥 Creating patient visit:', visitData);
+      
+      const { data: visit, error } = await supabase
+        .from('patient_visits')
+        .insert([{
+          ...visitData,
+          visit_date: visitData.visit_date ? new Date(visitData.visit_date).toISOString() : new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Visit creation error:', error);
+        throw new Error(`Visit creation failed: ${error.message}`);
+      }
+      
+      console.log('✅ Visit created successfully:', visit);
+      return visit;
+      
+    } catch (error: any) {
+      console.error('🚨 createPatientVisit error:', error);
+      throw error;
+    }
+  }
+  
+  static async getPatientVisits(patientId: string): Promise<any[]> {
+    try {
+      const { data: visits, error } = await supabase
+        .from('patient_visits')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('visit_date', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Get visits error:', error);
+        throw error;
+      }
+      
+      return visits || [];
+      
+    } catch (error: any) {
+      console.error('🚨 getPatientVisits error:', error);
+      throw error;
+    }
+  }
+  
   static async createPatient(data: CreatePatientData): Promise<Patient> {
     console.log('👤 Creating patient with exact schema:', data);
     
@@ -212,12 +369,14 @@ export class HospitalService {
               isPrimary: doctor.isPrimary || false
             }))
           : null,
+        date_of_entry: data.date_of_entry ? data.date_of_entry : null,
         hospital_id: HOSPITAL_ID
       };
       
       console.log('🎂 Age from input data:', data.age, 'Type:', typeof data.age);
       console.log('🎂 Age being stored:', patientData.age, 'Type:', typeof patientData.age);
       console.log('📤 Inserting patient:', patientData);
+      console.log('📅 date_of_entry being stored:', patientData.date_of_entry);
       
       const { data: patient, error } = await supabase
         .from('patients')
@@ -268,7 +427,9 @@ export class HospitalService {
         console.log('🔍 First patient data:', {
           patient_id: patients[0].patient_id,
           created_at: patients[0].created_at,
-          created_at_type: typeof patients[0].created_at
+          created_at_type: typeof patients[0].created_at,
+          date_of_entry: patients[0].date_of_entry,
+          date_of_entry_type: typeof patients[0].date_of_entry
         });
       }
       
@@ -277,7 +438,15 @@ export class HospitalService {
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
         const totalSpent = transactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-        const visitCount = transactions.length;
+        // Count patient entries/registrations and consultations (including 0 fee consultations)
+        const registrationVisits = transactions.filter((t: any) => 
+          t.transaction_type === 'ENTRY_FEE' || 
+          t.transaction_type === 'entry_fee' ||
+          t.transaction_type === 'CONSULTATION' ||
+          t.transaction_type === 'consultation'
+        ).length;
+        // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
+        const visitCount = registrationVisits > 0 ? registrationVisits : 1;
         const lastVisit = transactions.length > 0 
           ? transactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;

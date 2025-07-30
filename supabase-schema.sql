@@ -109,7 +109,7 @@ INSERT INTO departments (name, description) VALUES
     ('Cardiology', 'Heart and Blood Vessels'),
     ('Pediatrics', 'Child Care'),
     ('Emergency', 'Emergency Medicine'),
-    ('Orthopedics', 'Bone and Joint Care')
+    ('Orthopaedics', 'Bone and Joint Care')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO doctors (name, department, specialization, fee) VALUES
@@ -117,7 +117,7 @@ INSERT INTO doctors (name, department, specialization, fee) VALUES
     ('Dr. Priya Sharma', 'Cardiology', 'Cardiology', 1200.00),
     ('Dr. Amit Singh', 'Pediatrics', 'Child Care', 800.00),
     ('Dr. Neha Gupta', 'Emergency', 'Emergency Medicine', 1000.00),
-    ('Dr. Suresh Patel', 'Orthopedics', 'Bone & Joint', 900.00)
+    ('Dr. Suresh Patel', 'Orthopaedics', 'Bone & Joint', 900.00)
 ON CONFLICT DO NOTHING;
 
 -- Enable Row Level Security (RLS) on all tables

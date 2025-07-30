@@ -7,7 +7,7 @@ import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '.
 
 // Doctors and Departments data
 const DOCTORS_DATA = [
-  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPEDIC' },
+  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPAEDIC' },
   { name: 'DR. LALITA SUWALKA', department: 'DIETICIAN' },
   { name: 'DR. MILIND KIRIT AKHANI', department: 'GASTRO' },
   { name: 'DR MEETU BABLE', department: 'GYN.' },

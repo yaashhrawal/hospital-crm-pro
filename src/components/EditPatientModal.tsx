@@ -8,7 +8,7 @@ import HospitalService from '../services/hospitalService';
 
 // Doctors and Departments data
 const DOCTORS_DATA = [
-  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPEDIC' },
+  { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPAEDIC' },
   { name: 'DR. LALITA SUWALKA', department: 'DIETICIAN' },
   { name: 'DR. MILIND KIRIT AKHANI', department: 'GASTRO' },
   { name: 'DR MEETU BABLE', department: 'GYN.' },
@@ -40,6 +40,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'payment'>('details');
   const [transactionLoading, setTransactionLoading] = useState(false);
+  const [existingPayments, setExistingPayments] = useState<any[]>([]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   
   // Custom department and doctor state
   const [showCustomDepartment, setShowCustomDepartment] = useState(false);
@@ -48,8 +50,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [customDoctor, setCustomDoctor] = useState('');
   
   const [formData, setFormData] = useState({
-    first_name: patient.first_name || '',
-    last_name: patient.last_name || '',
+    full_name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
     age: patient.age || '',
     date_of_entry: patient.date_of_entry ? new Date(patient.date_of_entry) : new Date(),
     gender: patient.gender || 'MALE',
@@ -94,6 +95,37 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     }
   }, [transactionData.selected_department]);
 
+  // Load existing initial payments when modal opens
+  React.useEffect(() => {
+    if (isOpen && patient.transactions) {
+      // Filter for entry fee and consultation transactions (initial payments)
+      const initialPayments = patient.transactions.filter((t: any) => 
+        t.transaction_type === 'ENTRY_FEE' || 
+        t.transaction_type === 'entry_fee' ||
+        t.transaction_type === 'CONSULTATION' ||
+        t.transaction_type === 'consultation'
+      );
+      setExistingPayments(initialPayments);
+      
+      // If there are existing payments, pre-fill the first one
+      if (initialPayments.length > 0) {
+        const firstPayment = initialPayments[0];
+        setSelectedPaymentId(firstPayment.id);
+        setTransactionData({
+          selected_department: firstPayment.department || patient.assigned_department || '',
+          selected_doctor: firstPayment.doctor_name || patient.assigned_doctor || '',
+          consultation_fee: firstPayment.amount || 0,
+          discount_percentage: 0,
+          discount_reason: '',
+          payment_mode: firstPayment.payment_mode || 'CASH',
+          online_payment_method: 'UPI',
+          transaction_type: firstPayment.transaction_type || 'CONSULTATION',
+          description: firstPayment.description || ''
+        });
+      }
+    }
+  }, [isOpen, patient]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -102,9 +134,14 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     setLoading(true);
 
     try {
+      // Split full name into first and last name
+      const nameParts = formData.full_name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       const updateData = {
-        first_name: (formData.first_name || '').trim(),
-        last_name: (formData.last_name || '').trim(),
+        first_name: firstName,
+        last_name: lastName,
         age: formData.age && formData.age.trim() !== '' ? formData.age.trim() : null,
         date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : null,
         gender: formData.gender || 'MALE',
@@ -151,16 +188,16 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     }
   };
 
-  const handleAddTransaction = async (e: React.FormEvent) => {
+  const handleUpdateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!transactionData.consultation_fee || transactionData.consultation_fee <= 0) {
-      toast.error('Please enter a valid consultation fee');
+    if (!transactionData.consultation_fee || transactionData.consultation_fee < 0) {
+      toast.error('Please enter a valid amount');
       return;
     }
 
-    if (!transactionData.selected_doctor) {
-      toast.error('Please select a doctor');
+    if (!transactionData.selected_doctor && !transactionData.selected_department) {
+      toast.error('Please select a doctor or department');
       return;
     }
 
@@ -172,7 +209,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       const discountAmount = originalConsultationFee * (transactionData.discount_percentage / 100);
       const finalAmount = originalConsultationFee - discountAmount;
 
-      console.log('💰 Adding transaction for patient:', patient.id);
+      console.log('💰 Updating transaction for patient:', patient.id);
       console.log('🧮 Billing calculation:');
       console.log('- Original consultation fee:', originalConsultationFee);
       console.log('- Discount percentage:', transactionData.discount_percentage + '%');
@@ -207,27 +244,36 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         created_by: 'system'
       };
 
-      await HospitalService.createTransaction(mainTransaction as any);
-      console.log('✅ Transaction created with final amount:', finalAmount);
-
-      toast.success(`Transaction added successfully! ₹${finalAmount.toFixed(2)} - ${transactionData.selected_doctor}`);
+      if (selectedPaymentId) {
+        // Update existing transaction
+        const { error } = await supabase
+          .from('patient_transactions')
+          .update({
+            transaction_type: transactionData.transaction_type,
+            description: transactionDescription,
+            amount: finalAmount,
+            payment_mode: transactionData.payment_mode === 'ONLINE' ? transactionData.online_payment_method : transactionData.payment_mode,
+            doctor_name: transactionData.selected_doctor,
+            department: transactionData.selected_department,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedPaymentId);
+        
+        if (error) {
+          throw error;
+        }
+        console.log('✅ Transaction updated with final amount:', finalAmount);
+        toast.success(`Payment updated successfully! ₹${finalAmount.toFixed(2)}`);
+      } else {
+        // Create new transaction if none exists
+        await HospitalService.createTransaction(mainTransaction as any);
+        console.log('✅ Transaction created with final amount:', finalAmount);
+        toast.success(`Payment added successfully! ₹${finalAmount.toFixed(2)}`);
+      }
       
-      // Reset transaction form
-      setTransactionData({
-        selected_department: patient.assigned_department || '',
-        selected_doctor: patient.assigned_doctor || '',
-        consultation_fee: 0,
-        discount_percentage: 0,
-        discount_reason: '',
-        payment_mode: 'CASH',
-        online_payment_method: 'UPI',
-        transaction_type: 'CONSULTATION',
-        description: ''
-      });
-
-      // Switch back to details tab and refresh parent
-      setActiveTab('details');
+      // Refresh parent and close
       onPatientUpdated();
+      toast.success('Payment information has been updated');
 
     } catch (error: any) {
       console.error('🚨 Transaction creation failed:', error);
@@ -243,7 +289,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">✏️ Edit Patient - {patient.first_name} {patient.last_name}</h2>
+          <h2 className="text-2xl font-bold text-gray-800">✏️ Edit Patient - {formData.full_name || `${patient.first_name} ${patient.last_name}`}</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -274,7 +320,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            💰 Add Payment
+            💰 Edit Payment
           </button>
         </div>
 
@@ -285,27 +331,16 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             <div className="border-b pb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name
+                  Full Name
                 </label>
                 <input
                   type="text"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter first and last name"
                 />
               </div>
 
@@ -536,10 +571,53 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         </form>
         ) : (
           /* Payment Tab */
-          <form onSubmit={handleAddTransaction} className="space-y-6">
+          <form onSubmit={handleUpdateTransaction} className="space-y-6">
+            {/* Existing Payments Selector */}
+            {existingPayments.length > 0 ? (
+              <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+                <h3 className="text-lg font-semibold text-blue-800 mb-4">📋 Select Payment to Edit</h3>
+                <select
+                  value={selectedPaymentId || ''}
+                  onChange={(e) => {
+                    const paymentId = e.target.value;
+                    setSelectedPaymentId(paymentId);
+                    const selectedPayment = existingPayments.find(p => p.id === paymentId);
+                    if (selectedPayment) {
+                      setTransactionData({
+                        selected_department: selectedPayment.department || patient.assigned_department || '',
+                        selected_doctor: selectedPayment.doctor_name || patient.assigned_doctor || '',
+                        consultation_fee: selectedPayment.amount || 0,
+                        discount_percentage: 0,
+                        discount_reason: '',
+                        payment_mode: selectedPayment.payment_mode || 'CASH',
+                        online_payment_method: 'UPI',
+                        transaction_type: selectedPayment.transaction_type || 'CONSULTATION',
+                        description: selectedPayment.description || ''
+                      });
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a payment to edit</option>
+                  {existingPayments.map((payment: any) => (
+                    <option key={payment.id} value={payment.id}>
+                      {payment.transaction_type === 'entry_fee' || payment.transaction_type === 'ENTRY_FEE' ? 'Entry Fee' : 'Consultation'} - 
+                      ₹{payment.amount} - 
+                      {payment.doctor_name || 'No Doctor'} - 
+                      {new Date(payment.created_at).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-200">
+                <p className="text-yellow-800">⚠️ No initial payments found. The patient may have been registered with 0 rupee entry fee.</p>
+              </div>
+            )}
+            
             {/* Transaction Type */}
             <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-              <h3 className="text-lg font-semibold text-green-800 mb-4">💳 Add Payment/Transaction</h3>
+              <h3 className="text-lg font-semibold text-green-800 mb-4">💳 Edit Payment Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
@@ -828,16 +906,16 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={transactionLoading || !transactionData.consultation_fee || !transactionData.selected_doctor}
+                disabled={transactionLoading || !selectedPaymentId}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {transactionLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Adding Transaction...
+                    Updating Payment...
                   </div>
                 ) : (
-                  '💳 Add Transaction'
+                  '💳 Update Payment'
                 )}
               </button>
             </div>

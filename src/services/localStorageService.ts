@@ -139,7 +139,7 @@ class LocalStorageService {
         { id: uuidv4(), name: 'Cardiology', description: 'Heart and Blood Vessels', is_active: true },
         { id: uuidv4(), name: 'Pediatrics', description: 'Child Care', is_active: true },
         { id: uuidv4(), name: 'Emergency', description: 'Emergency Medicine', is_active: true },
-        { id: uuidv4(), name: 'Orthopedics', description: 'Bone and Joint Care', is_active: true },
+        { id: uuidv4(), name: 'Orthopaedics', description: 'Bone and Joint Care', is_active: true },
       ];
       this.setItem('departments', defaultDepartments);
     }
@@ -152,7 +152,7 @@ class LocalStorageService {
         { id: uuidv4(), name: 'Dr. Priya Sharma', department: 'Cardiology', specialization: 'Cardiology', fee: 1200, is_active: true },
         { id: uuidv4(), name: 'Dr. Amit Singh', department: 'Pediatrics', specialization: 'Child Care', fee: 800, is_active: true },
         { id: uuidv4(), name: 'Dr. Neha Gupta', department: 'Emergency', specialization: 'Emergency Medicine', fee: 1000, is_active: true },
-        { id: uuidv4(), name: 'Dr. Suresh Patel', department: 'Orthopedics', specialization: 'Bone & Joint', fee: 900, is_active: true },
+        { id: uuidv4(), name: 'Dr. Suresh Patel', department: 'Orthopaedics', specialization: 'Bone & Joint', fee: 900, is_active: true },
       ];
       this.setItem('doctors', defaultDoctors);
     }
