@@ -172,10 +172,31 @@ const IPDBedManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Initialize beds data
+  // Load beds from localStorage on component mount, or initialize if none saved
   useEffect(() => {
-    initializeBeds();
+    const savedBeds = localStorage.getItem('hospital-ipd-beds');
+    if (savedBeds) {
+      try {
+        const parsedBeds = JSON.parse(savedBeds);
+        console.log('📋 Loading saved bed data from localStorage:', parsedBeds.length, 'beds');
+        setBeds(parsedBeds);
+      } catch (error) {
+        console.error('❌ Failed to parse saved bed data:', error);
+        initializeBeds();
+      }
+    } else {
+      console.log('🏥 No saved bed data found, initializing fresh beds');
+      initializeBeds();
+    }
   }, []);
+
+  // Save beds to localStorage whenever beds state changes
+  useEffect(() => {
+    if (beds.length > 0) {
+      console.log('💾 Saving bed data to localStorage');
+      localStorage.setItem('hospital-ipd-beds', JSON.stringify(beds));
+    }
+  }, [beds]);
 
   // Filter beds when search term or filter status changes
   useEffect(() => {
@@ -338,6 +359,13 @@ const IPDBedManagement: React.FC = () => {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Clear all bed data (for testing/reset purposes)
+  const clearAllBedData = () => {
+    localStorage.removeItem('hospital-ipd-beds');
+    initializeBeds();
+    toast.success('All bed data cleared and reset');
+  };
+
   const handleDischarge = async (bedId: string) => {
     const bed = beds.find(b => b.id === bedId);
     if (!bed || !bed.patient) return;
@@ -388,6 +416,14 @@ const IPDBedManagement: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">🏥 IPD Bed Management</h1>
           <p className="text-gray-600">Real-time hospital bed occupancy tracking</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={clearAllBedData}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+          >
+            🗑️ Reset All Beds
+          </button>
         </div>
       </div>
 
