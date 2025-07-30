@@ -12,7 +12,192 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
   const [doctorDetails, setDoctorDetails] = useState<{specialty?: string, hospital_experience?: string}>({});
   
   const handlePrint = () => {
-    window.print();
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Valant Prescription - Print</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              background: white;
+              width: 297mm;
+              height: 420mm;
+              margin: 0;
+              padding: 0;
+            }
+            
+            .prescription-container {
+              position: relative;
+              width: 297mm;
+              height: 420mm;
+              background-image: url('/valant-prescription-template.png?t=${Date.now()}');
+              background-size: 100% 100%;
+              background-position: center;
+              background-repeat: no-repeat;
+            }
+
+            .doctor-details {
+              position: absolute;
+              top: 40px;
+              right: 48px;
+              text-align: left;
+              max-width: 288px;
+            }
+
+            .doctor-name {
+              font-family: 'Canva Sans', sans-serif;
+              font-weight: bold;
+              font-size: 30px;
+              text-transform: uppercase;
+              line-height: 1.2;
+              color: #4E1BB2;
+            }
+
+            .doctor-degree {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: 500;
+              color: #374151;
+              margin-top: 8px;
+            }
+
+            .doctor-specialty {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              color: #4B5563;
+              margin-top: 4px;
+            }
+
+            .doctor-experience {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              color: #4B5563;
+              margin-top: 4px;
+            }
+
+            .patient-details {
+              position: absolute;
+              top: 288px;
+              left: 48px;
+            }
+
+            .patient-details > div {
+              margin-bottom: 12px;
+            }
+
+            .patient-details .label {
+              display: inline-block;
+              width: 128px;
+              font-size: 18px;
+              font-weight: bold;
+              color: #374151;
+            }
+
+            .patient-details .value {
+              font-size: 20px;
+              font-weight: normal;
+              color: #111827;
+            }
+
+            .right-details {
+              position: absolute;
+              top: 288px;
+              right: 48px;
+              text-align: right;
+            }
+
+            .right-details > div {
+              margin-bottom: 12px;
+            }
+
+            .right-details .label {
+              font-size: 18px;
+              font-weight: bold;
+              color: #374151;
+              margin-right: 8px;
+            }
+
+            .right-details .value {
+              font-size: 20px;
+              font-weight: normal;
+              color: #111827;
+            }
+
+            @page {
+              margin: 0;
+              size: A3;
+            }
+
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="prescription-container">
+            <div class="doctor-details">
+              <div class="doctor-name">${getDoctorInfo().name}</div>
+              ${getDoctorInfo().degree ? `<div class="doctor-degree">${getDoctorInfo().degree}</div>` : ''}
+              ${getDoctorInfo().specialty ? `<div class="doctor-specialty">${getDoctorInfo().specialty}</div>` : ''}
+              ${getDoctorInfo().hospital_experience ? `<div class="doctor-experience">${getDoctorInfo().hospital_experience}</div>` : ''}
+            </div>
+
+            <div class="patient-details">
+              <div>
+                <span class="label">Name:</span>
+                <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
+              </div>
+              <div>
+                <span class="label">Patient No:</span>
+                <span class="value">${patient.patient_id}</span>
+              </div>
+              <div>
+                <span class="label">Department:</span>
+                <span class="value">${getDepartmentName()}</span>
+              </div>
+            </div>
+
+            <div class="right-details">
+              <div>
+                <span class="label">Date:</span>
+                <span class="value">${getCurrentDate()}</span>
+              </div>
+              <div>
+                <span class="label">Age/Sex:</span>
+                <span class="value">${patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / ${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}</span>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    }
   };
 
 
@@ -194,7 +379,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           }}
         >
           {/* Doctor Details - Top Right */}
-          <div className="absolute top-16 right-12 text-left max-w-xs">
+          <div className="absolute top-10 right-12 text-left max-w-xs">
             {/* Doctor Name */}
             <div className="font-bold text-3xl uppercase leading-tight" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
@@ -227,22 +412,22 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           <div className="absolute top-72 left-12 space-y-3">
             {/* Name */}
             <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
-              <span className="text-xl font-semibold text-gray-900">
+              <span className="w-32 text-lg font-bold text-gray-700">Name:</span>
+              <span className="text-xl font-normal text-gray-900">
                 {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
               </span>
             </div>
 
             {/* Patient No */}
             <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Patient No:</span>
-              <span className="text-xl text-gray-900">{patient.patient_id}</span>
+              <span className="w-32 text-lg font-bold text-gray-700">Patient No:</span>
+              <span className="text-xl font-normal text-gray-900">{patient.patient_id}</span>
             </div>
 
             {/* Department */}
             <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Department:</span>
-              <span className="text-xl text-gray-900">{getDepartmentName()}</span>
+              <span className="w-32 text-lg font-bold text-gray-700">Department:</span>
+              <span className="text-xl font-normal text-gray-900">{getDepartmentName()}</span>
             </div>
           </div>
 
@@ -250,14 +435,14 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           <div className="absolute top-72 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
-              <span className="text-lg font-medium text-gray-700 mr-2">Date:</span>
-              <span className="text-xl text-gray-900">{getCurrentDate()}</span>
+              <span className="text-lg font-bold text-gray-700 mr-2">Date:</span>
+              <span className="text-xl font-normal text-gray-900">{getCurrentDate()}</span>
             </div>
 
             {/* Age/Sex */}
             <div className="flex items-center justify-end">
-              <span className="text-lg font-medium text-gray-700 mr-2">Age/Sex:</span>
-              <span className="text-xl text-gray-900">
+              <span className="text-lg font-bold text-gray-700 mr-2">Age/Sex:</span>
+              <span className="text-xl font-normal text-gray-900">
                 {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
               </span>
             </div>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import { createRoot } from 'react-dom/client';
+import ConsentFormPrint from './ConsentFormPrint';
 
 interface ProcedureConsentFormProps {
   patient?: PatientWithRelations;
@@ -108,7 +110,543 @@ const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+    
+    if (!printWindow) {
+      toast.error('Please allow popups to print the consent form');
+      return;
+    }
+
+    // Generate the print content
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title></title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 12px;
+              line-height: 1.3;
+              color: #000;
+              background: white;
+              padding: 8px;
+            }
+            
+            .print-container {
+              max-width: 8.5in;
+              margin: 0 auto;
+              background: white;
+            }
+            
+            .header {
+              text-align: center;
+              margin-bottom: 10px;
+              page-break-inside: avoid;
+              border-bottom: 2px solid #000;
+              padding-bottom: 7px;
+            }
+            
+            .header h1 {
+              font-size: 21px;
+              font-weight: bold;
+              margin-bottom: 4px;
+              color: #000;
+            }
+            
+            .header h2 {
+              font-size: 17px;
+              font-weight: bold;
+              color: #000;
+              margin-bottom: 3px;
+            }
+            
+            .header p {
+              font-size: 11px;
+              margin-bottom: 1px;
+              color: #000;
+            }
+            
+            .section {
+              margin-bottom: 6px;
+              page-break-inside: avoid;
+            }
+            
+            .section-title {
+              font-size: 13px;
+              font-weight: bold;
+              margin-bottom: 5px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 3px;
+              color: #000;
+            }
+            
+            .patient-info {
+              border: 1px solid #000;
+              padding: 7px;
+              margin-bottom: 6px;
+              page-break-inside: avoid;
+              background: white;
+            }
+            
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 5px;
+              margin-bottom: 5px;
+            }
+            
+            .info-item {
+              margin-bottom: 4px;
+            }
+            
+            .info-label {
+              font-weight: bold;
+              font-size: 10px;
+              margin-bottom: 2px;
+              color: #000;
+            }
+            
+            .info-value {
+              border-bottom: 1px solid #000;
+              padding: 3px 4px;
+              min-height: 15px;
+              font-size: 11px;
+              background: white;
+            }
+            
+            .consent-text {
+              margin-bottom: 5px;
+              text-align: justify;
+              font-size: 11px;
+              line-height: 1.3;
+              color: #000;
+            }
+            
+            .consent-paragraph {
+              border: 1px solid #000;
+              padding: 6px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              font-size: 11px;
+              line-height: 1.3;
+              background: white;
+            }
+            
+            .inline-input {
+              border-bottom: 1px solid #000;
+              padding: 2px 3px;
+              margin: 0 2px;
+              min-width: 110px;
+              display: inline-block;
+              font-size: 11px;
+              background: white;
+            }
+            
+            .signatures {
+              page-break-before: avoid;
+              margin-top: 8px;
+              border-top: 1px solid #000;
+              padding-top: 6px;
+            }
+            
+            .signature-block {
+              border: 1px solid #000;
+              padding: 5px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              background: white;
+            }
+            
+            .signature-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 4px;
+              margin-top: 4px;
+            }
+            
+            .signature-item {
+              margin-bottom: 4px;
+            }
+            
+            .signature-line {
+              border-bottom: 1px solid #000;
+              padding: 3px;
+              margin-top: 2px;
+              min-height: 15px;
+              font-size: 11px;
+              background: white;
+            }
+            
+            .date-time-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 4px;
+            }
+            
+            .risk-section {
+              background: white;
+              border: 1px solid #000;
+              padding: 6px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              font-size: 11px;
+              line-height: 1.3;
+            }
+            
+            .bold {
+              font-weight: bold;
+            }
+            
+            /* Special sections styling */
+            .hiv-section {
+              background: white;
+              border: 1px solid #000;
+              padding: 6px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              font-size: 11px;
+              line-height: 1.3;
+            }
+            
+            .medication-section {
+              background: white;
+              border: 1px solid #000;
+              padding: 6px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              font-size: 11px;
+              line-height: 1.3;
+            }
+            
+            .declaration-section {
+              background: white;
+              border: 1px solid #000;
+              padding: 6px;
+              margin-bottom: 5px;
+              page-break-inside: avoid;
+              font-size: 11px;
+              line-height: 1.3;
+              font-weight: 500;
+            }
+            
+            @page {
+              size: A4;
+              margin: 0.3in;
+              
+              /* Remove all headers and footers */
+              @top-left { content: ""; }
+              @top-center { content: ""; }
+              @top-right { content: ""; }
+              @bottom-left { content: ""; }
+              @bottom-center { content: ""; }
+              @bottom-right { content: ""; }
+              
+              /* Remove page numbers, date, URL, title */
+              @top-left-corner { content: ""; }
+              @top-right-corner { content: ""; }
+              @bottom-left-corner { content: ""; }
+              @bottom-right-corner { content: ""; }
+            }
+            
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              
+              /* Hide all possible browser elements */
+              @page {
+                margin: 0.3in !important;
+                padding: 0 !important;
+                
+                /* Completely suppress headers/footers */
+                @top-left { content: "" !important; }
+                @top-center { content: "" !important; }
+                @top-right { content: "" !important; }
+                @bottom-left { content: "" !important; }
+                @bottom-center { content: "" !important; }
+                @bottom-right { content: "" !important; }
+              }
+              
+              /* Force clean print layout */
+              html, body {
+                background: white !important;
+                font-size: 10px !important;
+              }
+              
+              /* Hide any potential browser UI elements */
+              header, nav, aside, .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            <!-- Header -->
+            <div class="header">
+              <h1>PROCEDURE CONSENT</h1>
+              <h2>VALANT HOSPITAL</h2>
+              <p>10, Madhav Vihar, Shobhagpura, Udaipur</p>
+              <p>+91-911911 8000</p>
+            </div>
+
+            <!-- Patient Information -->
+            <div class="section">
+              <div class="section-title">Patient Information</div>
+              <div class="patient-info">
+                <div class="info-grid">
+                  <div class="info-item">
+                    <div class="info-label">Patient's Name:</div>
+                    <div class="info-value">${formData.patientName}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">Department:</div>
+                    <div class="info-value">${formData.department}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">UHID No.:</div>
+                    <div class="info-value">${formData.uhidNo}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">IP No.:</div>
+                    <div class="info-value">${formData.ipNo}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">Age/Sex:</div>
+                    <div class="info-value">${formData.ageSex}</div>
+                  </div>
+                  <div class="info-item">
+                    <div class="info-label">Name of Doctor:</div>
+                    <div class="info-value">${formData.doctorName}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Consent Details -->
+            <div class="section">
+              <div class="section-title">Consent Details</div>
+              
+              <div class="consent-text">
+                I hereby authorize Dr. <span class="inline-input">${formData.authorizedDoctor}</span> and / or alternative necessary to treat my condition:
+              </div>
+              
+              <div class="consent-text">
+                I understand the Name/Reason for the procedure is <span class="inline-input">${formData.procedureReason}</span>
+              </div>
+              
+              <div class="consent-text">
+                Alternatives to not performing this procedure include: <span class="inline-input">${formData.alternatives}</span>
+              </div>
+              
+              <div class="consent-text">
+                Significant and substantial risk of this particular procedure include: <span class="inline-input">${formData.specificRisks}</span>
+              </div>
+            </div>
+
+            <!-- Detailed Consent Paragraphs -->
+            <div class="section">
+              <div class="consent-paragraph">
+                I understand the reason for the procedure. Treatment is being carried in good faith and in my patient's best interest. 
+                All feasible alternative treatments, or procedures, including the option of taking no action, with description of 
+                material risk and potential complications associated with the alternatives have been explained to me. The relative 
+                probability of success for the treatment of procedure in understandable terms, have been explained to me.
+              </div>
+              
+              <div class="consent-paragraph">
+                It has been explained to me that condition may arise during this procedure whereby a different procedure or an 
+                additional procedure may need to be performed and I authorize my physician and his assistants to do what they 
+                feel is needed and necessary.
+              </div>
+              
+              <div class="consent-paragraph">
+                I understand that no guarantee or assurance has been made as to the results of the procedure and that may not 
+                cure the condition.
+              </div>
+            </div>
+
+            <!-- Risk Statement -->
+            <div class="section">
+              <div class="risk-section">
+                <p><span class="bold">Risks:</span> This authorization is given with understanding that any procedure involves 
+                some risks and hazards. Like infection, bleeding, nerve injury, blood clots, Heart attack, allergic reactions 
+                and pneumonia. They can be serious and possibly fatal. My physician has explained specific risk of this 
+                procedure to me.</p>
+              </div>
+            </div>
+
+            <!-- HIV/Hepatitis Consent -->
+            <div class="section">
+              <div class="hiv-section">
+                <p><span class="bold">HIV Test/Hepatitis B and C:</span> I hereby consent to HIV/Hepatitis B and C testing 
+                of my blood if deemed necessary for the procedure subject to maintenance of confidentiality.</p>
+              </div>
+            </div>
+
+            <!-- Medication Consent -->
+            <div class="section">
+              <div class="medication-section">
+                <p><span class="bold">Medication Consent:</span> I give my consent to purchase & use medication required during treatment.</p>
+              </div>
+            </div>
+
+            <!-- Declaration -->
+            <div class="section">
+              <div class="declaration-section">
+                <p>
+                  I certify that I have read and fully understood the above consent after adequate explanations were given to me 
+                  in a language that I understand and after all blanks were filled in or crossed out before I signed.
+                </p>
+              </div>
+            </div>
+
+            <!-- Signatures Section -->
+            <div class="signatures">
+              
+              <!-- Patient/Relative Signature -->
+              <div class="signature-block">
+                <div class="bold">Patient/Relative Details</div>
+                <div class="signature-grid">
+                  <div class="signature-item">
+                    <div class="info-label">Name of Patient/Relatives:</div>
+                    <div class="signature-line">${formData.signatureName}</div>
+                  </div>
+                  <div class="signature-item">
+                    <div class="info-label">Relationship with patient:</div>
+                    <div class="signature-line">${formData.relationship}</div>
+                  </div>
+                </div>
+                <div class="signature-grid">
+                  <div class="signature-item">
+                    <div class="info-label">Signature:</div>
+                    <div class="signature-line">${formData.patientSignature}</div>
+                  </div>
+                  <div class="date-time-grid">
+                    <div class="signature-item">
+                      <div class="info-label">Date:</div>
+                      <div class="signature-line">${formData.patientDate}</div>
+                    </div>
+                    <div class="signature-item">
+                      <div class="info-label">Time:</div>
+                      <div class="signature-line">${formData.patientTime}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Witness Signature -->
+              <div class="signature-block">
+                <div class="bold">Witness Details</div>
+                <div class="signature-grid">
+                  <div class="signature-item">
+                    <div class="info-label">Name of Witness:</div>
+                    <div class="signature-line">${formData.witnessName}</div>
+                  </div>
+                  <div class="signature-item">
+                    <div class="info-label">Signature:</div>
+                    <div class="signature-line">${formData.witnessSignature}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Doctor's Signature -->
+              <div class="signature-block">
+                <div class="bold">Doctor's Details</div>
+                <div class="signature-grid">
+                  <div class="signature-item">
+                    <div class="info-label">Name of Doctor:</div>
+                    <div class="signature-line">${formData.doctorSignatureName}</div>
+                  </div>
+                  <div class="signature-item">
+                    <div class="info-label">Signature:</div>
+                    <div class="signature-line">${formData.doctorSignature}</div>
+                  </div>
+                </div>
+                <div class="signature-grid">
+                  <div class="signature-item">
+                    <div class="info-label">Date:</div>
+                    <div class="signature-line">${formData.doctorDate}</div>
+                  </div>
+                  <div class="signature-item">
+                    <div class="info-label">Time:</div>
+                    <div class="signature-line">${formData.doctorTime}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <script>
+            window.onload = function() {
+              // Clean up document for printing
+              document.title = '';
+              
+              // Simple print trigger
+              setTimeout(function() {
+                try {
+                  window.print();
+                } catch (e) {
+                  console.log('Print failed:', e);
+                  // Fallback: try to trigger print another way
+                  if (window.print) {
+                    window.print();
+                  }
+                }
+              }, 500);
+              
+              // Close window after printing
+              window.onafterprint = function() {
+                setTimeout(function() {
+                  window.close();
+                }, 1000);
+              };
+              
+              // Handle print dialog cancellation
+              var printCancelled = true;
+              window.onbeforeprint = function() {
+                printCancelled = false;
+              };
+              
+              // Close window if user cancels or closes
+              setTimeout(function() {
+                if (printCancelled && !window.closed) {
+                  window.close();
+                }
+              }, 15000);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    // Write the content to the new window
+    try {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      
+      // Focus the new window to ensure print dialog appears
+      printWindow.focus();
+    } catch (error) {
+      console.error('Print window error:', error);
+      toast.error('Print failed. Please try again.');
+      printWindow.close();
+    }
   };
 
   if (!isOpen) return null;
@@ -116,7 +654,7 @@ const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-8">
+          <div className="p-8">
           {/* Header Section */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">PROCEDURE CONSENT</h1>

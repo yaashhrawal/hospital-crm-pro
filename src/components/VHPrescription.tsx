@@ -135,7 +135,191 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
   }, [patient.assigned_department]);
 
   const handlePrint = () => {
-    window.print();
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>VH Prescription - Print</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              background: white;
+              width: 297mm;
+              height: 420mm;
+              margin: 0;
+              padding: 0;
+            }
+            
+            .prescription-container {
+              position: relative;
+              width: 297mm;
+              height: 420mm;
+              background-image: url('${templatePaths[currentTemplateIndex]}');
+              background-size: 100% 100%;
+              background-position: center;
+              background-repeat: no-repeat;
+            }
+
+            .patient-details {
+              position: absolute;
+              top: 264px;
+              left: 48px;
+            }
+
+            .patient-details > div {
+              margin-bottom: 12px;
+            }
+
+            .patient-details .label {
+              display: inline-block;
+              width: 128px;
+              font-size: 18px;
+              font-weight: 500;
+              color: #374151;
+            }
+
+            .patient-details .value {
+              font-size: 20px;
+              font-weight: 500;
+              color: #111827;
+            }
+
+            .right-details {
+              position: absolute;
+              top: 264px;
+              right: 48px;
+              text-align: right;
+            }
+
+            .right-details > div {
+              margin-bottom: 12px;
+            }
+
+            .right-details .label {
+              font-size: 18px;
+              font-weight: 500;
+              color: #374151;
+              margin-right: 8px;
+            }
+
+            .right-details .value {
+              font-size: 20px;
+              color: #111827;
+            }
+
+            .doctor-details {
+              position: absolute;
+              bottom: 384px;
+              right: 48px;
+              text-align: left;
+              max-width: 288px;
+            }
+
+            .doctor-name {
+              font-family: 'Canva Sans', sans-serif;
+              font-weight: bold;
+              font-size: 24px;
+              text-transform: uppercase;
+              line-height: 1.2;
+              color: #4E1BB2;
+            }
+
+            .doctor-degree {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: 500;
+              color: #374151;
+              margin-top: 4px;
+            }
+
+            .doctor-specialty {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              color: #4B5563;
+              margin-top: 4px;
+            }
+
+            .doctor-experience {
+              font-family: 'Canva Sans', sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              color: #4B5563;
+              margin-top: 4px;
+            }
+
+            @page {
+              margin: 0;
+              size: A3;
+            }
+
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="prescription-container">
+            <div class="patient-details">
+              <div>
+                <span class="label">Name:</span>
+                <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
+              </div>
+              <div>
+                <span class="label">Patient No:</span>
+                <span class="value">${patient.patient_id}</span>
+              </div>
+              <div>
+                <span class="label">Department:</span>
+                <span class="value">${getDepartmentName()}</span>
+              </div>
+            </div>
+
+            <div class="right-details">
+              <div>
+                <span class="label">Date:</span>
+                <span class="value">${getCurrentDate()}</span>
+              </div>
+              <div>
+                <span class="label">Age/Sex:</span>
+                <span class="value">${patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / ${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}</span>
+              </div>
+            </div>
+
+            <div class="doctor-details">
+              <div class="doctor-name">${getDoctorInfo().name}</div>
+              ${getDoctorInfo().degree ? `<div class="doctor-degree">${getDoctorInfo().degree}</div>` : ''}
+              ${getDoctorInfo().specialty ? `<div class="doctor-specialty">${getDoctorInfo().specialty}</div>` : ''}
+              ${getDoctorInfo().hospital_experience ? `<div class="doctor-experience">${getDoctorInfo().hospital_experience}</div>` : ''}
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    }
   };
 
 
