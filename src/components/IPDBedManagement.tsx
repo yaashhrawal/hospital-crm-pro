@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bed, User, Users, Activity, Shuffle, AlertCircle, Plus } from 'lucide-react';
+import { Search, Bed, User, Users, Activity, Shuffle, AlertCircle, Plus, Clock, Play, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
@@ -11,6 +11,9 @@ interface BedData {
   status: 'occupied' | 'vacant';
   patient?: PatientWithRelations;
   admissionDate?: string;
+  tatStartTime?: number; // TAT start timestamp
+  tatStatus?: 'idle' | 'running' | 'completed' | 'expired';
+  tatRemainingSeconds?: number; // Remaining seconds for TAT
 }
 
 interface PatientSelectionModalProps {
@@ -34,9 +37,9 @@ const PatientSelectionModal: React.FC<PatientSelectionModalProps> = ({ isOpen, o
     try {
       setLoading(true);
       const patientData = await HospitalService.getPatients(200);
-      // Filter to show only OPD patients (those not currently admitted to IPD)
-      // Note: ipd_status might not exist in database yet, so we assume all patients are OPD for now
-      const opdPatients = patientData.filter(p => !p.ipd_status || p.ipd_status === 'OPD' || p.ipd_status === undefined);
+      // Filter to show all patients (since IPD status tracking may not be implemented yet)
+      // TODO: Once IPD status columns are added, filter out already admitted patients
+      const opdPatients = patientData; // Show all patients for now
       setPatients(opdPatients);
     } catch (error) {
       toast.error('Failed to load patients');
@@ -133,6 +136,42 @@ const IPDBedManagement: React.FC = () => {
   const [showProcedureConsent, setShowProcedureConsent] = useState(false);
   const [selectedPatientForConsent, setSelectedPatientForConsent] = useState<PatientWithRelations | null>(null);
 
+  // TAT timer management
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBeds(prevBeds => 
+        prevBeds.map(bed => {
+          if (bed.status === 'occupied' && bed.tatStatus === 'running' && bed.tatStartTime) {
+            const now = Date.now();
+            const elapsed = Math.floor((now - bed.tatStartTime) / 1000);
+            const remaining = Math.max(0, (30 * 60) - elapsed); // 30 minutes in seconds
+            
+            if (remaining === 0 && bed.tatStatus === 'running') {
+              // TAT expired
+              toast.error(`TAT expired for patient in Bed ${bed.number}!`, {
+                duration: 5000,
+                style: { background: '#FEE2E2', color: '#DC2626' }
+              });
+              return {
+                ...bed,
+                tatStatus: 'expired' as const,
+                tatRemainingSeconds: 0
+              };
+            }
+            
+            return {
+              ...bed,
+              tatRemainingSeconds: remaining
+            };
+          }
+          return bed;
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Initialize beds data
   useEffect(() => {
     initializeBeds();
@@ -149,7 +188,9 @@ const IPDBedManagement: React.FC = () => {
       initialBeds.push({
         id: `bed-${i}`,
         number: i,
-        status: 'vacant'
+        status: 'vacant',
+        tatStatus: 'idle',
+        tatRemainingSeconds: 30 * 60 // 30 minutes
       });
     }
     setBeds(initialBeds);
@@ -209,18 +250,25 @@ const IPDBedManagement: React.FC = () => {
               ...bed,
               status: 'occupied' as const,
               patient: selectedPatientForConsent,
-              admissionDate: new Date().toISOString()
+              admissionDate: new Date().toISOString(),
+              tatStatus: 'idle' as const,
+              tatRemainingSeconds: 30 * 60 // Reset to 30 minutes
             };
           }
           return bed;
         })
       );
 
-      // Update patient's IPD status
-      await HospitalService.updatePatient(selectedPatientForConsent.id, {
-        ipd_status: 'ADMITTED',
-        ipd_bed_number: beds.find(b => b.id === selectedBedForAdmission)?.number.toString()
-      });
+      // Update patient's IPD status (if columns exist)
+      try {
+        await HospitalService.updatePatient(selectedPatientForConsent.id, {
+          ipd_status: 'ADMITTED',
+          ipd_bed_number: beds.find(b => b.id === selectedBedForAdmission)?.number.toString()
+        });
+      } catch (updateError) {
+        console.warn('⚠️ Patient IPD status update failed (columns may not exist):', updateError);
+        // Continue with admission even if IPD status update fails
+      }
 
       toast.success(`Patient ${selectedPatientForConsent.first_name} ${selectedPatientForConsent.last_name} admitted to bed ${beds.find(b => b.id === selectedBedForAdmission)?.number}`);
       
@@ -233,16 +281,78 @@ const IPDBedManagement: React.FC = () => {
     }
   };
 
+  // TAT Management Functions
+  const startTAT = (bedId: string) => {
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === bedId && bed.status === 'occupied') {
+          toast.success(`TAT started for Bed ${bed.number} - 30 minutes timer activated`);
+          return {
+            ...bed,
+            tatStatus: 'running' as const,
+            tatStartTime: Date.now(),
+            tatRemainingSeconds: 30 * 60
+          };
+        }
+        return bed;
+      })
+    );
+  };
+
+  const stopTAT = (bedId: string) => {
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === bedId) {
+          toast.success(`TAT completed for Bed ${bed.number}`);
+          return {
+            ...bed,
+            tatStatus: 'completed' as const,
+            tatStartTime: undefined
+          };
+        }
+        return bed;
+      })
+    );
+  };
+
+  const resetTAT = (bedId: string) => {
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === bedId) {
+          return {
+            ...bed,
+            tatStatus: 'idle' as const,
+            tatStartTime: undefined,
+            tatRemainingSeconds: 30 * 60
+          };
+        }
+        return bed;
+      })
+    );
+  };
+
+  // Format remaining time for display
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handleDischarge = async (bedId: string) => {
     const bed = beds.find(b => b.id === bedId);
     if (!bed || !bed.patient) return;
 
     try {
-      // Update patient's IPD status
-      await HospitalService.updatePatient(bed.patient.id, {
-        ipd_status: 'OPD',
-        ipd_bed_number: null
-      });
+      // Update patient's IPD status (if columns exist)
+      try {
+        await HospitalService.updatePatient(bed.patient.id, {
+          ipd_status: 'OPD',
+          ipd_bed_number: null
+        });
+      } catch (updateError) {
+        console.warn('⚠️ Patient IPD status update failed (columns may not exist):', updateError);
+        // Continue with discharge even if IPD status update fails
+      }
 
       // Update bed status
       setBeds(prevBeds => 
@@ -252,7 +362,10 @@ const IPDBedManagement: React.FC = () => {
               ...b,
               status: 'vacant' as const,
               patient: undefined,
-              admissionDate: undefined
+              admissionDate: undefined,
+              tatStatus: 'idle' as const,
+              tatStartTime: undefined,
+              tatRemainingSeconds: 30 * 60
             };
           }
           return b;
@@ -425,6 +538,75 @@ const IPDBedManagement: React.FC = () => {
                       Admitted: {new Date(bed.admissionDate).toLocaleDateString()}
                     </div>
                   )}
+                  
+                  {/* TAT Section */}
+                  <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-center mb-2">
+                      <Clock className="w-3 h-3 text-gray-500 mr-1" />
+                      <span className="text-xs font-medium text-gray-600">TAT</span>
+                    </div>
+                    
+                    {/* TAT Timer Display */}
+                    <div className={`text-lg font-mono font-bold mb-2 ${
+                      bed.tatStatus === 'running' 
+                        ? bed.tatRemainingSeconds && bed.tatRemainingSeconds < 300 
+                          ? 'text-red-600' 
+                          : 'text-blue-600'
+                        : bed.tatStatus === 'expired' 
+                          ? 'text-red-600' 
+                          : bed.tatStatus === 'completed'
+                            ? 'text-green-600'
+                            : 'text-gray-500'
+                    }`}>
+                      {bed.tatRemainingSeconds !== undefined ? formatTime(bed.tatRemainingSeconds) : '30:00'}
+                    </div>
+                    
+                    {/* TAT Status Indicator */}
+                    <div className={`text-xs mb-2 font-medium ${
+                      bed.tatStatus === 'running' ? 'text-blue-600' :
+                      bed.tatStatus === 'expired' ? 'text-red-600' :
+                      bed.tatStatus === 'completed' ? 'text-green-600' :
+                      'text-gray-500'
+                    }`}>
+                      {bed.tatStatus === 'running' && '⏱️ Running'}
+                      {bed.tatStatus === 'expired' && '⚠️ Expired'}
+                      {bed.tatStatus === 'completed' && '✅ Completed'}
+                      {bed.tatStatus === 'idle' && '⏸️ Ready'}
+                    </div>
+                    
+                    {/* TAT Controls */}
+                    <div className="flex gap-1">
+                      {bed.tatStatus === 'idle' && (
+                        <button
+                          onClick={() => startTAT(bed.id)}
+                          className="flex-1 bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 flex items-center justify-center"
+                        >
+                          <Play className="w-3 h-3 mr-1" />
+                          Start
+                        </button>
+                      )}
+                      
+                      {bed.tatStatus === 'running' && (
+                        <button
+                          onClick={() => stopTAT(bed.id)}
+                          className="flex-1 bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600 flex items-center justify-center"
+                        >
+                          <Square className="w-3 h-3 mr-1" />
+                          Complete
+                        </button>
+                      )}
+                      
+                      {(bed.tatStatus === 'completed' || bed.tatStatus === 'expired') && (
+                        <button
+                          onClick={() => resetTAT(bed.id)}
+                          className="flex-1 bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600 flex items-center justify-center"
+                        >
+                          <Clock className="w-3 h-3 mr-1" />
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
