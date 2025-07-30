@@ -194,7 +194,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
           }}
         >
           {/* Doctor Details - Top Right */}
-          <div className="absolute top-6 right-12 text-left max-w-xs">
+          <div className="absolute top-16 right-12 text-left max-w-xs">
             {/* Doctor Name */}
             <div className="font-bold text-3xl uppercase leading-tight" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
@@ -207,10 +207,6 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               </div>
             )}
             
-            {/* Department - Below degree */}
-            <div className="text-lg mt-1 font-medium text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
-              {getDepartmentName()}
-            </div>
             
             {/* Specialty - Below department */}
             {getDoctorInfo().specialty && (
