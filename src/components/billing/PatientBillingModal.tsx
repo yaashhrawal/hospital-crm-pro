@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import IPDBill from './IPDBill';
 import OPDBill from './OPDBill';
 import CombinedBill from './CombinedBill';
 import type { PatientWithRelations } from '../../config/supabaseNew';
@@ -11,7 +10,7 @@ interface PatientBillingModalProps {
 }
 
 const PatientBillingModal: React.FC<PatientBillingModalProps> = ({ patient, isOpen, onClose }) => {
-  const [selectedBillType, setSelectedBillType] = useState<'IPD' | 'OPD' | 'COMBINED' | null>(null);
+  const [selectedBillType, setSelectedBillType] = useState<'OPD' | 'COMBINED' | null>(null);
 
   if (!isOpen) return null;
 
@@ -44,17 +43,6 @@ const PatientBillingModal: React.FC<PatientBillingModalProps> = ({ patient, isOp
           </div>
 
           <div className="space-y-3">
-            <button
-              onClick={() => setSelectedBillType('IPD')}
-              className="w-full bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-between"
-            >
-              <div className="text-left">
-                <div className="font-semibold">🏥 IPD Bill</div>
-                <div className="text-sm text-purple-100">In-Patient Department billing</div>
-              </div>
-              <span className="text-2xl">→</span>
-            </button>
-
             <button
               onClick={() => setSelectedBillType('OPD')}
               className="w-full bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-between"
@@ -89,9 +77,6 @@ const PatientBillingModal: React.FC<PatientBillingModalProps> = ({ patient, isOp
         </div>
       ) : (
         <>
-          {selectedBillType === 'IPD' && (
-            <IPDBill patient={patient} onClose={handleClose} />
-          )}
           {selectedBillType === 'OPD' && (
             <OPDBill patient={patient} onClose={handleClose} />
           )}

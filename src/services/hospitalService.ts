@@ -451,9 +451,8 @@ export class HospitalService {
           ? transactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
-        // Check if patient has any admission history (IPD)
-        const hasAnyAdmission = admissions.length > 0;
-        const departmentStatus = hasAnyAdmission ? 'IPD' : 'OPD';
+        // All patients are OPD now
+        const departmentStatus = 'OPD';
         
         return {
           ...patient,
@@ -516,6 +515,60 @@ export class HospitalService {
       console.log(`✅ Patient with ID ${patientId} deleted successfully.`);
     } catch (error: any) {
       console.error('🚨 deletePatient error:', error);
+      throw error;
+    }
+  }
+
+  static async updatePatient(patientId: string, updateData: Partial<Patient>): Promise<Patient | null> {
+    try {
+      console.log(`📝 Updating patient with ID: ${patientId}`, updateData);
+      
+      const { data: patient, error } = await supabase
+        .from('patients')
+        .update(updateData)
+        .eq('id', patientId)
+        .select()
+        .single();
+
+      if (error) {
+        // If the error is about columns not existing, just log it and continue
+        if (error.message.includes('column') && error.message.includes('does not exist')) {
+          console.warn('⚠️ Some columns do not exist in database yet:', error.message);
+          console.log('📝 Proceeding without updating non-existent columns...');
+          
+          // Filter out the fields that don't exist and try again
+          const filteredData = { ...updateData };
+          delete filteredData.ipd_status;
+          delete filteredData.ipd_bed_number;
+          
+          if (Object.keys(filteredData).length === 0) {
+            console.log('📝 No valid fields to update, returning existing patient data');
+            return await this.getPatientById(patientId) as Patient;
+          }
+          
+          const { data: patient2, error: error2 } = await supabase
+            .from('patients')
+            .update(filteredData)
+            .eq('id', patientId)
+            .select()
+            .single();
+            
+          if (error2) {
+            console.error('❌ Update patient error (retry):', error2);
+            throw new Error(`Failed to update patient: ${error2.message}`);
+          }
+          
+          return patient2 as Patient;
+        } else {
+          console.error('❌ Update patient error:', error);
+          throw new Error(`Failed to update patient: ${error.message}`);
+        }
+      }
+
+      console.log(`✅ Patient updated successfully:`, patient);
+      return patient as Patient;
+    } catch (error: any) {
+      console.error('🚨 updatePatient error:', error);
       throw error;
     }
   }

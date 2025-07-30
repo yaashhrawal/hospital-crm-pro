@@ -39,9 +39,8 @@ const OPDBill: React.FC<OPDBillProps> = ({ patient, onClose }) => {
       // Get all transactions for the patient
       const allTransactions = patient.transactions || [];
       
-      // Filter OPD transactions (exclude IPD-related transactions)
+      // Filter OPD transactions
       const opdTransactions = allTransactions.filter(t => 
-        !t.admission_id && 
         t.status === 'COMPLETED' &&
         new Date(t.created_at) >= new Date(dateRange.startDate) &&
         new Date(t.created_at) <= new Date(dateRange.endDate + 'T23:59:59')

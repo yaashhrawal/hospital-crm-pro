@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import EditPatientModal from './EditPatientModal';
-import PatientToIPDModal from './PatientToIPDModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
@@ -164,7 +163,11 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
   );
 };
 
-const ComprehensivePatientList: React.FC = () => {
+interface ComprehensivePatientListProps {
+  onNavigate?: (tab: string) => void;
+}
+
+const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onNavigate }) => {
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<PatientWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +180,6 @@ const ComprehensivePatientList: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showIPDModal, setShowIPDModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const [showValantPrescription, setShowValantPrescription] = useState(false);
@@ -282,10 +284,6 @@ const ComprehensivePatientList: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleAdmitToIPD = (patient: PatientWithRelations) => {
-    setSelectedPatient(patient);
-    setShowIPDModal(true);
-  };
 
   const handleViewReceipt = (patient: PatientWithRelations) => {
     setSelectedPatientForReceipt(patient);
@@ -301,10 +299,22 @@ const ComprehensivePatientList: React.FC = () => {
     loadPatients(); // Reload patients after update
   };
 
-  const handleIPDAdmissionSuccess = () => {
-    toast.success('Patient admitted to IPD successfully');
-    loadPatients(); // Reload patients after IPD admission
+  const handleShiftToIPD = (patient: PatientWithRelations) => {
+    // Check if patient is already in IPD
+    if (patient.ipd_status === 'ADMITTED') {
+      toast.error('Patient is already admitted to IPD');
+      return;
+    }
+
+    // Navigate to IPD Beds tab
+    if (onNavigate) {
+      onNavigate('ipd-beds');
+      toast.success(`Navigating to IPD Beds to admit ${patient.first_name} ${patient.last_name}`);
+    } else {
+      toast.success(`Patient ${patient.first_name} ${patient.last_name} selected for IPD admission`);
+    }
   };
+
 
   const handlePrescription = (patient: PatientWithRelations, template: string) => {
     setSelectedPatientForPrescription(patient);
@@ -643,9 +653,7 @@ const ComprehensivePatientList: React.FC = () => {
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-sm font-medium ${
-                        patient.departmentStatus === 'IPD' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-green-100 text-green-800'
+                        'bg-green-100 text-green-800'
                       }`}>
                         {patient.departmentStatus || 'OPD'}
                       </span>
@@ -761,12 +769,13 @@ const ComprehensivePatientList: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAdmitToIPD(patient);
+                            handleShiftToIPD(patient);
                           }}
-                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          title="Admit to IPD"
+                          className="bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          title="Shift Patient to IPD"
+                          disabled={patient.ipd_status === 'ADMITTED'}
                         >
-                          🛏️ IPD
+                          🏥 Shift to IPD
                         </button>
                         <button
                           onClick={(e) => {
@@ -831,18 +840,6 @@ const ComprehensivePatientList: React.FC = () => {
         />
       )}
 
-      {/* Patient to IPD Modal */}
-      {selectedPatient && (
-        <PatientToIPDModal
-          patient={selectedPatient}
-          isOpen={showIPDModal}
-          onClose={() => {
-            setShowIPDModal(false);
-            setSelectedPatient(null);
-          }}
-          onAdmissionSuccess={handleIPDAdmissionSuccess}
-        />
-      )}
 
       {/* Receipt Modal */}
       {showReceiptModal && selectedPatientForReceipt && (
@@ -902,6 +899,7 @@ const ComprehensivePatientList: React.FC = () => {
           }}
         />
       )}
+
     </div>
   );
 };

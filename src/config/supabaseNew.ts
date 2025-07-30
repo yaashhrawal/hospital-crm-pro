@@ -85,6 +85,8 @@ export interface Patient {
   doctor_hospital_experience?: string; // Doctor's hospital experience from doctors table
   notes?: string;
   date_of_entry?: string; // Visit/entry date
+  ipd_status?: 'OPD' | 'ADMITTED' | 'DISCHARGED'; // IPD admission status
+  ipd_bed_number?: string; // Current IPD bed number
   hospital_id: string;
   is_active: boolean;
   created_at: string;
