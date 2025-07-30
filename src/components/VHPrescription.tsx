@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { getDoctorWithDegree } from '../data/doctorDegrees';
+import { supabase } from '../config/supabaseNew';
 
 interface VHPrescriptionProps {
   patient: PatientWithRelations;
@@ -10,6 +11,7 @@ interface VHPrescriptionProps {
 const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => {
   const [templateLoaded, setTemplateLoaded] = useState(false);
   const [templateError, setTemplateError] = useState(false);
+  const [doctorDetails, setDoctorDetails] = useState<{specialty?: string, hospital_experience?: string}>({});
 
   // Template path with fallback options
   const templatePaths = [
@@ -44,6 +46,94 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     tryLoadTemplate(currentTemplateIndex);
   }, [currentTemplateIndex]);
 
+  // Fetch department details from database
+  useEffect(() => {
+    const fetchDepartmentDetails = async () => {
+      if (patient.assigned_department) {
+        try {
+          console.log('🔍 VH Searching for department:', patient.assigned_department);
+          
+          // Simple exact match query first
+          const { data: departments, error } = await supabase
+            .from('departments')
+            .select('name, specialty, hospital_experience')
+            .eq('name', patient.assigned_department);
+          
+          console.log('📋 VH Department query result:', departments);
+          console.log('📋 VH Query error:', error);
+          
+          if (departments && departments.length > 0) {
+            const department = departments[0];
+            console.log('✅ VH Found department data:', department);
+            
+            const newDetails = {
+              specialty: department.specialty || '',
+              hospital_experience: department.hospital_experience || ''
+            };
+            
+            console.log('📋 VH Setting new state:', newDetails);
+            setDoctorDetails(newDetails);
+            
+            // Force re-render
+            setTimeout(() => {
+              console.log('📋 VH State after update:', newDetails);
+            }, 100);
+          } else {
+            console.log('❌ VH No exact match, trying partial match');
+            
+            // Try alternative spelling for ORTHOPEDIC/ORTHOPAEDIC
+            let searchTerm = patient.assigned_department;
+            if (patient.assigned_department === 'ORTHOPEDIC') {
+              searchTerm = 'ORTHOPAEDIC';
+            } else if (patient.assigned_department === 'ORTHOPAEDIC') {
+              searchTerm = 'ORTHOPEDIC';
+            }
+            
+            console.log('🔍 VH Trying alternative spelling:', searchTerm);
+            
+            const { data: altDepts, error: altError } = await supabase
+              .from('departments')
+              .select('name, specialty, hospital_experience')
+              .eq('name', searchTerm);
+            
+            console.log('📋 VH Alternative spelling result:', altDepts);
+            
+            if (altDepts && altDepts.length > 0) {
+              const department = altDepts[0];
+              setDoctorDetails({
+                specialty: department.specialty || '',
+                hospital_experience: department.hospital_experience || ''
+              });
+              console.log('✅ VH Found with alternative spelling:', department);
+            } else {
+              // Finally try partial match
+              const { data: partialDepts, error: partialError } = await supabase
+                .from('departments')
+                .select('name, specialty, hospital_experience')
+                .ilike('name', `%${patient.assigned_department}%`);
+              
+              console.log('📋 VH Partial match result:', partialDepts);
+              
+              if (partialDepts && partialDepts.length > 0) {
+                const department = partialDepts[0];
+                setDoctorDetails({
+                  specialty: department.specialty || '',
+                  hospital_experience: department.hospital_experience || ''
+                });
+                console.log('✅ VH Found partial match:', department);
+              }
+            }
+          }
+          
+        } catch (error) {
+          console.error('❌ VH Database error:', error);
+        }
+      }
+    };
+    
+    fetchDepartmentDetails();
+  }, [patient.assigned_department]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -55,17 +145,30 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
   // Get the correct doctor name and degree from patient data
   const getDoctorInfo = () => {
-    console.log('🩺 VH Patient data for prescription:', patient);
-    console.log('👨‍⚕️ VH Patient assigned_doctor field:', patient.assigned_doctor);
-    console.log('🏥 VH Patient assigned_department field:', patient.assigned_department);
-    console.log('🎂 VH Patient age field:', patient.age, 'Type:', typeof patient.age);
+    console.log('🩺 VH Patient data:', patient);
+    console.log('👨‍⚕️ VH assigned_doctor:', patient.assigned_doctor);
+    console.log('🏥 VH assigned_department:', patient.assigned_department);
+    console.log('📋 VH Current doctorDetails state:', doctorDetails);
     
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
-    return getDoctorWithDegree(doctorName);
+    const result = {
+      ...getDoctorWithDegree(doctorName),
+      specialty: doctorDetails.specialty || '',
+      hospital_experience: doctorDetails.hospital_experience || ''
+    };
+    console.log('👨‍⚕️ VH FINAL getDoctorInfo result:', result);
+    return result;
   };
 
   const getDepartmentName = () => {
-    return patient.assigned_department || 'GENERAL PHYSICIAN';
+    let dept = patient.assigned_department || 'GENERAL PHYSICIAN';
+    
+    // Fix any ORTHOPEDIC spelling issues
+    if (dept.toUpperCase().includes('ORTHOPEDIC')) {
+      dept = dept.replace(/ORTHOPEDIC/gi, 'ORTHOPAEDIC');
+    }
+    
+    return dept;
   };
 
   return (
@@ -154,23 +257,9 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               backgroundPosition: 'center'
             }}
           >
-          {/* Doctor Name - Bottom Right above signature */}
-          <div className="absolute bottom-96 right-12 text-right">
-            <div className="font-bold text-4xl uppercase" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
-              {getDoctorInfo().name}
-            </div>
-            {getDoctorInfo().degree && (
-              <div className="text-xl mt-1 font-medium" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
-                {getDoctorInfo().degree}
-              </div>
-            )}
-            <div className="text-xl mt-1" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
-              {getDepartmentName()}
-            </div>
-          </div>
 
           {/* Patient Details - Just after black line */}
-          <div className="absolute top-56 left-12 space-y-3">
+          <div className="absolute top-64 left-12 space-y-3">
             {/* Name */}
             <div className="flex items-center">
               <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
@@ -193,7 +282,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Date and Age/Sex - Right Side aligned with patient details */}
-          <div className="absolute top-56 right-0 mr-12 space-y-3 text-right">
+          <div className="absolute top-64 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
               <span className="text-lg font-medium text-gray-700 mr-2">Date:</span>
@@ -208,6 +297,41 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               </span>
             </div>
           </div>
+
+          {/* Doctor Details - Bottom Right Above Signature */}
+          <div className="absolute bottom-[28rem] right-12 text-left max-w-xs">
+            {/* Doctor Name */}
+            <div className="font-bold text-2xl uppercase leading-tight" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
+              {getDoctorInfo().name}
+            </div>
+            
+            {/* Doctor Degree */}
+            {getDoctorInfo().degree && (
+              <div className="text-lg mt-1 font-medium text-gray-700" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+                {getDoctorInfo().degree}
+              </div>
+            )}
+            
+            {/* Department */}
+            <div className="text-lg mt-1 font-medium text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+              {getDepartmentName()}
+            </div>
+            
+            {/* Specialty */}
+            {getDoctorInfo().specialty && (
+              <div className="text-lg mt-1 font-bold text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+                {getDoctorInfo().specialty}
+              </div>
+            )}
+            
+            {/* Hospital Experience */}
+            {getDoctorInfo().hospital_experience && (
+              <div className="text-lg mt-1 font-bold text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+                {getDoctorInfo().hospital_experience}
+              </div>
+            )}
+          </div>
+
           </div>
         )}
       </div>
