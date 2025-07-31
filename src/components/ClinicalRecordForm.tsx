@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import toast from 'react-hot-toast';
+import { getEffectiveIPDNumber } from '../utils/ipdUtils';
 
 interface ClinicalRecordFormProps {
   isOpen: boolean;
   onClose: () => void;
   patient: PatientWithRelations;
   bedNumber: number;
+  ipdNumber?: string;
   onSubmit: (clinicalData: any) => void;
 }
 
@@ -57,6 +59,7 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
   onClose,
   patient,
   bedNumber,
+  ipdNumber,
   onSubmit
 }) => {
   const [formData, setFormData] = useState<ClinicalRecordData>({
@@ -100,7 +103,7 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
         ...prev,
         patientName: `${patient.first_name} ${patient.last_name}`,
         patientId: patient.patient_id,
-        ipNumber: `IPD-${bedNumber}-${Date.now().toString().slice(-6)}`,
+        ipNumber: getEffectiveIPDNumber(ipdNumber),
         ageSex: `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`,
         department: patient.assigned_department || 'General',
         doctorName: patient.assigned_doctor || '',
@@ -112,7 +115,7 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
         consultantDateTime: currentDateTime
       }));
     }
-  }, [isOpen, patient, bedNumber]);
+  }, [isOpen, patient, bedNumber, ipdNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -142,17 +145,33 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
     
     if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Clinical Record - ${formData.patientName}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <style>
+      const fullPrintContent = generateFullPrintContent();
+      printWindow.document.write(fullPrintContent);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      setTimeout(() => {
+        try {
+          printWindow.print();
+          // Don't auto-close, let user close manually
+          // printWindow.close();
+        } catch (error) {
+          console.error('Print error:', error);
+        }
+      }, 500);
+    }
+  };
+
+  const generateFullPrintContent = () => {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <title>Clinical Record - ${formData.patientName}</title>
+  <meta charset="utf-8">
+  <style>
             @page {
               margin: 0.5in;
               size: A4 portrait;
@@ -365,16 +384,7 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
             ${generatePrintContent()}
           </div>
         </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    }
+      </html>`;
   };
 
   const generatePrintContent = () => {

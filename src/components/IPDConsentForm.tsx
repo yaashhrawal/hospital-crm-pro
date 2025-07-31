@@ -7,6 +7,7 @@ interface IPDConsentFormProps {
   onClose: () => void;
   patient: PatientWithRelations;
   bedNumber: number;
+  ipdNumber?: string;
   onSubmit: (consentData: any) => void;
 }
 
@@ -49,8 +50,11 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
   onClose,
   patient,
   bedNumber,
+  ipdNumber,
   onSubmit
 }) => {
+  // Debug logging for IPD number
+  console.log(`📄 IPDConsentForm - IPD Number received: ${ipdNumber}`);
   const [formData, setFormData] = useState<ConsentFormData>({
     patientName: '',
     patientId: '',
@@ -87,7 +91,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         ...prev,
         patientName: `${patient.first_name} ${patient.last_name}`,
         patientId: patient.patient_id,
-        ipdNo: `IPD-${bedNumber}-${Date.now().toString().slice(-6)}`,
+        ipdNo: ipdNumber || 'IPD Number Not Generated',
         consentName1: `${patient.first_name} ${patient.last_name}`,
         patientAddress: patient.address || '',
         admissionDate: today,

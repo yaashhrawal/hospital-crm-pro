@@ -152,11 +152,15 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         emergency_contact_phone: (formData.emergency_contact_phone || '').trim(),
         blood_group: formData.blood_group || null,
         medical_history: formData.medical_history || null,
-        allergies: formData.allergies || null
+        allergies: formData.allergies || null,
+        assigned_doctor: transactionData.selected_doctor || patient.assigned_doctor || null,
+        assigned_department: transactionData.selected_department || patient.assigned_department || null
       };
 
       console.log('🎂 Age from form data:', formData.age, 'Type:', typeof formData.age);
       console.log('🎂 Age in updateData:', updateData.age, 'Type:', typeof updateData.age);
+      console.log('👨‍⚕️ Doctor being updated to:', updateData.assigned_doctor);
+      console.log('🏥 Department being updated to:', updateData.assigned_department);
       console.log('Updating patient with data:', updateData);
       console.log('Patient ID:', patient.id);
 
@@ -269,6 +273,28 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         await HospitalService.createTransaction(mainTransaction as any);
         console.log('✅ Transaction created with final amount:', finalAmount);
         toast.success(`Payment added successfully! ₹${finalAmount.toFixed(2)}`);
+      }
+      
+      // Update patient's assigned doctor and department if changed
+      if (transactionData.selected_doctor || transactionData.selected_department) {
+        const patientUpdateData: any = {};
+        if (transactionData.selected_doctor) {
+          patientUpdateData.assigned_doctor = transactionData.selected_doctor;
+        }
+        if (transactionData.selected_department) {
+          patientUpdateData.assigned_department = transactionData.selected_department;
+        }
+        
+        const { error: patientUpdateError } = await supabase
+          .from('patients')
+          .update(patientUpdateData)
+          .eq('id', patient.id);
+          
+        if (patientUpdateError) {
+          console.error('Failed to update patient doctor/department:', patientUpdateError);
+        } else {
+          console.log('✅ Patient doctor/department updated successfully');
+        }
       }
       
       // Refresh parent and close

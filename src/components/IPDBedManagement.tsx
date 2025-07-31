@@ -7,6 +7,13 @@ import ProcedureConsentForm from './ProcedureConsentForm';
 import IPDConsentForm from './IPDConsentForm';
 import ClinicalRecordForm from './ClinicalRecordForm';
 import DoctorProgressSheet from './DoctorProgressSheet';
+import VitalChartsForm from './VitalChartsForm';
+import IntakeOutputForm from './IntakeOutputForm';
+import MedicationChartForm from './MedicationChartForm';
+import CarePlanForm from './CarePlanForm';
+import DiabeticChartForm from './DiabeticChartForm';
+import NursesNotesForm from './NursesNotesForm';
+import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
   id: string;
@@ -14,16 +21,11 @@ interface BedData {
   status: 'occupied' | 'vacant';
   patient?: PatientWithRelations;
   admissionDate?: string;
+  ipdNumber?: string; // Store the IPD number generated at admission
   tatStartTime?: number; // TAT start timestamp
   tatStatus?: 'idle' | 'running' | 'completed' | 'expired';
   tatRemainingSeconds?: number; // Remaining seconds for TAT
   consultantNotes?: Array<{
-    id: string;
-    note: string;
-    addedBy: string;
-    timestamp: string;
-  }>;
-  nursingNotes?: Array<{
     id: string;
     note: string;
     addedBy: string;
@@ -35,6 +37,8 @@ interface BedData {
   clinicalRecordSubmitted?: boolean; // Track if clinical record was submitted
   progressSheetData?: any; // Store doctor's progress sheet data
   progressSheetSubmitted?: boolean; // Track if progress sheet was submitted
+  nursesOrdersData?: any; // Store nurses orders data
+  nursesOrdersSubmitted?: boolean; // Track if nurses orders was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -56,9 +60,9 @@ const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, bedData, noteT
 
   if (!isOpen || !bedData) return null;
 
-  const notes = noteType === 'consultant' ? bedData.consultantNotes || [] : bedData.nursingNotes || [];
-  const title = noteType === 'consultant' ? 'Consultant Notes' : 'Nursing Notes';
-  const icon = noteType === 'consultant' ? '👨‍⚕️' : '👩‍⚕️';
+  const notes = bedData.consultantNotes || [];
+  const title = 'Consultant Notes';
+  const icon = '👨‍⚕️';
 
   const handleAddNote = () => {
     if (newNote.trim()) {
@@ -244,6 +248,47 @@ const PatientSelectionModal: React.FC<PatientSelectionModalProps> = ({ isOpen, o
   );
 };
 
+// Utility functions for automatic IPD number generation
+const getNextIPDNumber = (): string => {
+  // Get current date in YYYYMMDD format
+  const today = new Date();
+  const dateString = today.getFullYear().toString() + 
+                    (today.getMonth() + 1).toString().padStart(2, '0') + 
+                    today.getDate().toString().padStart(2, '0');
+  
+  // Get or initialize the IPD counter for today
+  const counterKey = `ipd-counter-${dateString}`;
+  const currentCounter = parseInt(localStorage.getItem(counterKey) || '0');
+  const nextCounter = currentCounter + 1;
+  
+  console.log(`🔢 IPD Counter Debug - Date: ${dateString}, Counter Key: ${counterKey}`);
+  console.log(`🔢 Current Counter: ${currentCounter}, Next Counter: ${nextCounter}`);
+  
+  // Save the updated counter
+  localStorage.setItem(counterKey, nextCounter.toString());
+  console.log(`💾 Saved counter to localStorage: ${nextCounter}`);
+  
+  // Generate IPD number: IPD-YYYYMMDD-XXX (where XXX is sequential number)
+  const ipdNumber = `IPD-${dateString}-${nextCounter.toString().padStart(3, '0')}`;
+  
+  console.log(`🏥 Auto-generated IPD Number: ${ipdNumber} (Counter: ${nextCounter})`);
+  return ipdNumber;
+};
+
+// Function to get current IPD stats for today
+const getIPDStats = (): { date: string; count: number; lastIPD: string } => {
+  const today = new Date();
+  const dateString = today.getFullYear().toString() + 
+                    (today.getMonth() + 1).toString().padStart(2, '0') + 
+                    today.getDate().toString().padStart(2, '0');
+  
+  const counterKey = `ipd-counter-${dateString}`;
+  const count = parseInt(localStorage.getItem(counterKey) || '0');
+  const lastIPD = count > 0 ? `IPD-${dateString}-${count.toString().padStart(3, '0')}` : 'None';
+  
+  return { date: dateString, count, lastIPD };
+};
+
 const IPDBedManagement: React.FC = () => {
   const [beds, setBeds] = useState<BedData[]>([]);
   const [filteredBeds, setFilteredBeds] = useState<BedData[]>([]);
@@ -262,10 +307,24 @@ const IPDBedManagement: React.FC = () => {
   const [showClinicalRecordForm, setShowClinicalRecordForm] = useState(false);
   const [selectedPatientForClinicalRecord, setSelectedPatientForClinicalRecord] = useState<PatientWithRelations | null>(null);
   const [selectedBedForClinicalRecord, setSelectedBedForClinicalRecord] = useState<BedData | null>(null);
-  const [expandedProcedureBed, setExpandedProcedureBed] = useState<string | null>(null);
+  const [expandedConsultationOrdersBed, setExpandedConsultationOrdersBed] = useState<string | null>(null);
+  const [expandedNursesOrdersBed, setExpandedNursesOrdersBed] = useState<string | null>(null);
   const [showProgressSheet, setShowProgressSheet] = useState(false);
   const [selectedPatientForProgressSheet, setSelectedPatientForProgressSheet] = useState<PatientWithRelations | null>(null);
   const [selectedBedForProgressSheet, setSelectedBedForProgressSheet] = useState<BedData | null>(null);
+  // Individual Nursing Forms State
+  const [showVitalCharts, setShowVitalCharts] = useState(false);
+  const [showIntakeOutput, setShowIntakeOutput] = useState(false);
+  const [showMedicationChart, setShowMedicationChart] = useState(false);
+  const [showCarePlan, setShowCarePlan] = useState(false);
+  const [showDiabeticChart, setShowDiabeticChart] = useState(false);
+  const [showNursesNotes, setShowNursesNotes] = useState(false);
+  
+  // IPD Statistics state
+  const [ipdStats, setIPDStats] = useState(() => getIPDStats());
+  const [selectedPatientForNursing, setSelectedPatientForNursing] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForNursing, setSelectedBedForNursing] = useState<BedData | null>(null);
+  const [expandedAdmissionHistoryBed, setExpandedAdmissionHistoryBed] = useState<string | null>(null);
 
   // TAT timer management
   useEffect(() => {
@@ -344,7 +403,6 @@ const IPDBedManagement: React.FC = () => {
         tatStatus: 'idle',
         tatRemainingSeconds: 30 * 60, // 30 minutes
         consultantNotes: [],
-        nursingNotes: [],
         consentFormSubmitted: false,
         clinicalRecordSubmitted: false,
         progressSheetSubmitted: false
@@ -397,23 +455,41 @@ const IPDBedManagement: React.FC = () => {
       const selectedBed = beds.find(b => b.id === selectedBedForAdmission);
       if (!selectedBed) return;
 
+      // Generate automatic unique IPD number
+      const ipdNumber = getNextIPDNumber();
+      console.log(`🏥 Assigned IPD Number: ${ipdNumber} to patient ${patient.patient_id} in bed ${selectedBed.number}`);
+      
+      // Update IPD statistics
+      setIPDStats(getIPDStats());
+      
       // Update bed with patient data directly
-      setBeds(prevBeds => 
-        prevBeds.map(bed => {
+      setBeds(prevBeds => {
+        const updatedBeds = prevBeds.map(bed => {
           if (bed.id === selectedBedForAdmission) {
-            return {
+            const updatedBed = {
               ...bed,
               status: 'occupied' as const,
               patient: patient,
               admissionDate: new Date().toISOString(),
+              ipdNumber: ipdNumber, // Store the generated IPD number
               tatStatus: 'idle' as const,
               tatRemainingSeconds: 30 * 60, // Reset to 30 minutes
               consentFormSubmitted: false
             };
+            console.log(`💾 Updated bed data:`, updatedBed);
+            console.log(`💾 IPD Number in updated bed: ${updatedBed.ipdNumber}`);
+            
+            // Also store in localStorage for persistence using utility
+            storeIPDNumberForBed(bed.id, ipdNumber);
+            
+            return updatedBed;
           }
           return bed;
-        })
-      );
+        });
+        
+        console.log(`💾 All beds after update:`, updatedBeds);
+        return updatedBeds;
+      });
 
       // Update patient's IPD status (if columns exist)
       try {
@@ -481,8 +557,16 @@ const IPDBedManagement: React.FC = () => {
     }
   };
 
-  const handleToggleProcedure = (bedId: string) => {
-    setExpandedProcedureBed(expandedProcedureBed === bedId ? null : bedId);
+  const handleToggleConsultationOrders = (bedId: string) => {
+    setExpandedConsultationOrdersBed(expandedConsultationOrdersBed === bedId ? null : bedId);
+  };
+
+  const handleToggleNursesOrders = (bedId: string) => {
+    setExpandedNursesOrdersBed(expandedNursesOrdersBed === bedId ? null : bedId);
+  };
+
+  const handleToggleAdmissionHistory = (bedId: string) => {
+    setExpandedAdmissionHistoryBed(expandedAdmissionHistoryBed === bedId ? null : bedId);
   };
 
   const handleShowProgressSheet = (bed: BedData) => {
@@ -490,6 +574,59 @@ const IPDBedManagement: React.FC = () => {
       setSelectedPatientForProgressSheet(bed.patient);
       setSelectedBedForProgressSheet(bed);
       setShowProgressSheet(true);
+    }
+  };
+
+  // Individual Nursing Form Handlers
+  const handleShowVitalCharts = (bed: BedData) => {
+    if (bed.patient) {
+      console.log(`📊 Opening VitalCharts for bed ${bed.number}`);
+      console.log(`📊 Bed data:`, bed);
+      console.log(`📊 IPD Number in bed: ${bed.ipdNumber}`);
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowVitalCharts(true);
+    }
+  };
+
+  const handleShowIntakeOutput = (bed: BedData) => {
+    if (bed.patient) {
+      console.log(`💧 Opening IntakeOutput for bed ${bed.number}, IPD Number: ${bed.ipdNumber}`);
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowIntakeOutput(true);
+    }
+  };
+
+  const handleShowMedicationChart = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowMedicationChart(true);
+    }
+  };
+
+  const handleShowCarePlan = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowCarePlan(true);
+    }
+  };
+
+  const handleShowDiabeticChart = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowDiabeticChart(true);
+    }
+  };
+
+  const handleShowNursesNotes = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForNursing(bed.patient);
+      setSelectedBedForNursing(bed);
+      setShowNursesNotes(true);
     }
   };
 
@@ -541,6 +678,133 @@ const IPDBedManagement: React.FC = () => {
     setSelectedBedForProgressSheet(null);
     
     toast.success('Doctor\'s Progress Sheet submitted and saved successfully');
+  };
+
+  // Individual Nursing Form Submit Handlers
+  const handleVitalChartsSubmit = (vitalChartsData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, vitalCharts: vitalChartsData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowVitalCharts(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
+  };
+
+  const handleIntakeOutputSubmit = (intakeOutputData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, intakeOutput: intakeOutputData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowIntakeOutput(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
+  };
+
+  const handleMedicationChartSubmit = (medicationData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, medicationChart: medicationData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowMedicationChart(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
+  };
+
+  const handleCarePlanSubmit = (carePlanData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, carePlan: carePlanData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowCarePlan(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
+  };
+
+  const handleDiabeticChartSubmit = (diabeticData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, diabeticChart: diabeticData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowDiabeticChart(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
+  };
+
+  const handleNursesNotesSubmit = (nursesNotesData: any) => {
+    if (!selectedBedForNursing) return;
+    
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForNursing.id) {
+          return {
+            ...bed,
+            nursesOrdersData: { ...bed.nursesOrdersData, nursesNotes: nursesNotesData },
+            nursesOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    setShowNursesNotes(false);
+    setSelectedPatientForNursing(null);
+    setSelectedBedForNursing(null);
   };
 
   const handleConsentSubmit = async (consentData: any) => {
@@ -611,12 +875,19 @@ const IPDBedManagement: React.FC = () => {
   const clearAllBedData = () => {
     localStorage.removeItem('hospital-ipd-beds');
     initializeBeds();
+    setIPDStats(getIPDStats()); // Refresh stats after clearing
     toast.success('All bed data cleared and reset');
   };
 
-  const handleShowNotes = (bed: BedData, type: 'consultant' | 'nursing') => {
+  // Refresh IPD statistics
+  const refreshIPDStats = () => {
+    setIPDStats(getIPDStats());
+    toast.info('IPD statistics refreshed');
+  };
+
+  const handleShowNotes = (bed: BedData) => {
     setSelectedBedForNotes(bed);
-    setNoteType(type);
+    setNoteType('consultant');
     setShowNotesModal(true);
   };
 
@@ -633,17 +904,10 @@ const IPDBedManagement: React.FC = () => {
     setBeds(prevBeds =>
       prevBeds.map(bed => {
         if (bed.id === selectedBedForNotes.id) {
-          if (noteType === 'consultant') {
-            return {
-              ...bed,
-              consultantNotes: [...(bed.consultantNotes || []), newNote]
-            };
-          } else {
-            return {
-              ...bed,
-              nursingNotes: [...(bed.nursingNotes || []), newNote]
-            };
-          }
+          return {
+            ...bed,
+            consultantNotes: [...(bed.consultantNotes || []), newNote]
+          };
         }
         return bed;
       })
@@ -652,20 +916,13 @@ const IPDBedManagement: React.FC = () => {
     // Update the selected bed for notes modal
     setSelectedBedForNotes(prev => {
       if (!prev) return null;
-      if (noteType === 'consultant') {
-        return {
-          ...prev,
-          consultantNotes: [...(prev.consultantNotes || []), newNote]
-        };
-      } else {
-        return {
-          ...prev,
-          nursingNotes: [...(prev.nursingNotes || []), newNote]
-        };
-      }
+      return {
+        ...prev,
+        consultantNotes: [...(prev.consultantNotes || []), newNote]
+      };
     });
 
-    toast.success(`${noteType === 'consultant' ? 'Consultant' : 'Nursing'} note added successfully`);
+    toast.success('Consultant note added successfully');
   };
 
   const handleDischarge = async (bedId: string) => {
@@ -697,7 +954,6 @@ const IPDBedManagement: React.FC = () => {
               tatStartTime: undefined,
               tatRemainingSeconds: 30 * 60,
               consultantNotes: [],
-              nursingNotes: [],
               consentFormSubmitted: false,
               clinicalRecordSubmitted: false,
               progressSheetSubmitted: false,
@@ -727,13 +983,34 @@ const IPDBedManagement: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-800 mb-2">🏥 IPD Bed Management</h1>
           <p className="text-gray-600">Real-time hospital bed occupancy tracking</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={clearAllBedData}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
-          >
-            🗑️ Reset All Beds
-          </button>
+        <div className="flex gap-4">
+          {/* IPD Statistics */}
+          <div className="bg-blue-50 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-semibold text-blue-800">📊 Today's IPD Statistics</h3>
+              <button
+                onClick={refreshIPDStats}
+                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                title="Refresh Statistics"
+              >
+                🔄
+              </button>
+            </div>
+            <div className="text-sm space-y-1">
+              <div><span className="font-medium">Date:</span> {ipdStats.date}</div>
+              <div><span className="font-medium">Total Admissions:</span> {ipdStats.count}</div>
+              <div><span className="font-medium">Last IPD No:</span> {ipdStats.lastIPD}</div>
+              <div><span className="font-medium">Next IPD No:</span> IPD-{ipdStats.date}-{(ipdStats.count + 1).toString().padStart(3, '0')}</div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={clearAllBedData}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+            >
+              🗑️ Reset All Beds
+            </button>
+          </div>
         </div>
       </div>
 
@@ -964,7 +1241,7 @@ const IPDBedManagement: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleShowNotes(bed, 'consultant')}
+                      onClick={() => handleShowNotes(bed)}
                       className="flex-1 bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 flex items-center justify-center gap-1"
                     >
                       <span>👨‍⚕️</span>
@@ -976,71 +1253,53 @@ const IPDBedManagement: React.FC = () => {
                       )}
                     </button>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleShowNotes(bed, 'nursing')}
-                      className="flex-1 bg-teal-500 text-white px-2 py-1 rounded text-xs hover:bg-teal-600 flex items-center justify-center gap-1"
-                    >
-                      <span>👩‍⚕️</span>
-                      <span>Nursing Notes</span>
-                      {bed.nursingNotes && bed.nursingNotes.length > 0 && (
-                        <span className="bg-white text-teal-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                          {bed.nursingNotes.length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
                 </div>
 
-                {/* Consent Form Section */}
+                {/* Admission History Section */}
                 <div className="border-t border-gray-200 pt-2">
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleShowConsentForm(bed)}
+                      onClick={() => handleToggleAdmissionHistory(bed.id)}
                       className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                        bed.consentFormSubmitted 
-                          ? 'bg-green-500 hover:bg-green-600' 
-                          : 'bg-orange-500 hover:bg-orange-600'
+                        bed.consentFormSubmitted && bed.clinicalRecordSubmitted
+                          ? 'bg-blue-500 hover:bg-blue-600' 
+                          : 'bg-cyan-500 hover:bg-cyan-600'
                       }`}
                     >
-                      <span>{bed.consentFormSubmitted ? '✅' : '📋'}</span>
-                      <span>Consent Form</span>
-                      {bed.consentFormSubmitted && (
-                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                          ✓
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Procedure Section */}
-                <div className="border-t border-gray-200 pt-2">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleToggleProcedure(bed.id)}
-                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                        bed.clinicalRecordSubmitted && bed.progressSheetSubmitted
-                          ? 'bg-green-500 hover:bg-green-600' 
-                          : 'bg-purple-500 hover:bg-purple-600'
-                      }`}
-                    >
-                      <span>{bed.clinicalRecordSubmitted && bed.progressSheetSubmitted ? '🏥✅' : '🏥'}</span>
-                      <span>Procedure</span>
-                      <span className={`ml-1 transition-transform ${expandedProcedureBed === bed.id ? 'rotate-90' : ''}`}>
+                      <span>{bed.consentFormSubmitted && bed.clinicalRecordSubmitted ? '📚✅' : '📚'}</span>
+                      <span>Admission History</span>
+                      <span className={`ml-1 transition-transform ${expandedAdmissionHistoryBed === bed.id ? 'rotate-90' : ''}`}>
                         ▶
                       </span>
-                      {bed.clinicalRecordSubmitted && bed.progressSheetSubmitted && (
-                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
+                      {bed.consentFormSubmitted && bed.clinicalRecordSubmitted && (
+                        <span className="bg-white text-blue-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
                           ✓
                         </span>
                       )}
                     </button>
                   </div>
                   
-                  {/* Expanded Procedure Options */}
-                  {expandedProcedureBed === bed.id && (
+                  {/* Expanded Admission History Options */}
+                  {expandedAdmissionHistoryBed === bed.id && (
                     <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowConsentForm(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.consentFormSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-orange-500 hover:bg-orange-600'
+                          }`}
+                        >
+                          <span>{bed.consentFormSubmitted ? '✅' : '📋'}</span>
+                          <span>Consent Form</span>
+                          {bed.consentFormSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleShowClinicalRecord(bed)}
@@ -1059,6 +1318,107 @@ const IPDBedManagement: React.FC = () => {
                           )}
                         </button>
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nurses Orders Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleNursesOrders(bed.id)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-teal-500 hover:bg-teal-600`}
+                    >
+                      <span>👩‍⚕️</span>
+                      <span>Nurses Orders</span>
+                      <span className={`ml-1 transition-transform ${expandedNursesOrdersBed === bed.id ? 'rotate-90' : ''}`}>
+                        ▶
+                      </span>
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Nurses Orders Options */}
+                  {expandedNursesOrdersBed === bed.id && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowVitalCharts(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-blue-500 hover:bg-blue-600"
+                        >
+                          <span>🩺</span>
+                          <span>Vital Charts</span>
+                        </button>
+                        <button
+                          onClick={() => handleShowIntakeOutput(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-cyan-500 hover:bg-cyan-600"
+                        >
+                          <span>💧</span>
+                          <span>Intake & Output</span>
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowMedicationChart(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-pink-500 hover:bg-pink-600"
+                        >
+                          <span>💊</span>
+                          <span>Medication Chart</span>
+                        </button>
+                        <button
+                          onClick={() => handleShowCarePlan(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-green-500 hover:bg-green-600"
+                        >
+                          <span>📋</span>
+                          <span>Care Plan</span>
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowDiabeticChart(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-red-500 hover:bg-red-600"
+                        >
+                          <span>🩸</span>
+                          <span>Diabetic Chart</span>
+                        </button>
+                        <button
+                          onClick={() => handleShowNursesNotes(bed)}
+                          className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-gray-500 hover:bg-gray-600"
+                        >
+                          <span>📝</span>
+                          <span>Nurses Notes</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Consultation Orders Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleConsultationOrders(bed.id)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                        bed.progressSheetSubmitted
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-purple-500 hover:bg-purple-600'
+                      }`}
+                    >
+                      <span>{bed.progressSheetSubmitted ? '👨‍⚕️✅' : '👨‍⚕️'}</span>
+                      <span>Consultation Orders</span>
+                      <span className={`ml-1 transition-transform ${expandedConsultationOrdersBed === bed.id ? 'rotate-90' : ''}`}>
+                        ▶
+                      </span>
+                      {bed.progressSheetSubmitted && (
+                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Consultation Orders Options */}
+                  {expandedConsultationOrdersBed === bed.id && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleShowProgressSheet(bed)}
@@ -1165,7 +1525,8 @@ const IPDBedManagement: React.FC = () => {
             setSelectedPatientForIPDConsent(null);
           }}
           patient={selectedPatientForIPDConsent}
-          bedNumber={selectedBedForAdmission?.number || 0}
+          bedNumber={selectedBedForIPDConsent?.number || 0}
+          ipdNumber={selectedBedForIPDConsent?.ipdNumber}
           onSubmit={handleIPDConsentSubmit}
         />
       )}
@@ -1181,6 +1542,7 @@ const IPDBedManagement: React.FC = () => {
           }}
           patient={selectedPatientForClinicalRecord}
           bedNumber={selectedBedForClinicalRecord.number}
+          ipdNumber={selectedBedForClinicalRecord?.ipdNumber}
           onSubmit={handleClinicalRecordSubmit}
         />
       )}
@@ -1197,6 +1559,103 @@ const IPDBedManagement: React.FC = () => {
           patient={selectedPatientForProgressSheet}
           bedNumber={selectedBedForProgressSheet.number}
           onSubmit={handleProgressSheetSubmit}
+        />
+      )}
+
+      {/* Individual Nursing Form Modals */}
+      {/* Vital Charts Modal */}
+      {showVitalCharts && selectedPatientForNursing && selectedBedForNursing && (
+        <VitalChartsForm
+          isOpen={showVitalCharts}
+          onClose={() => {
+            setShowVitalCharts(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleVitalChartsSubmit}
+        />
+      )}
+
+      {/* Intake Output Modal */}
+      {showIntakeOutput && selectedPatientForNursing && selectedBedForNursing && (
+        <IntakeOutputForm
+          isOpen={showIntakeOutput}
+          onClose={() => {
+            setShowIntakeOutput(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleIntakeOutputSubmit}
+        />
+      )}
+
+      {/* Medication Chart Modal */}
+      {showMedicationChart && selectedPatientForNursing && selectedBedForNursing && (
+        <MedicationChartForm
+          isOpen={showMedicationChart}
+          onClose={() => {
+            setShowMedicationChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleMedicationChartSubmit}
+        />
+      )}
+
+      {/* Care Plan Modal */}
+      {showCarePlan && selectedPatientForNursing && selectedBedForNursing && (
+        <CarePlanForm
+          isOpen={showCarePlan}
+          onClose={() => {
+            setShowCarePlan(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleCarePlanSubmit}
+        />
+      )}
+
+      {/* Diabetic Chart Modal */}
+      {showDiabeticChart && selectedPatientForNursing && selectedBedForNursing && (
+        <DiabeticChartForm
+          isOpen={showDiabeticChart}
+          onClose={() => {
+            setShowDiabeticChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleDiabeticChartSubmit}
+        />
+      )}
+
+      {/* Nurses Notes Modal */}
+      {showNursesNotes && selectedPatientForNursing && selectedBedForNursing && (
+        <NursesNotesForm
+          isOpen={showNursesNotes}
+          onClose={() => {
+            setShowNursesNotes(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={handleNursesNotesSubmit}
         />
       )}
     </div>
