@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../../services/hospitalService';
-import type { PatientWithRelations, PatientTransaction, PatientAdmissionWithRelations } from '../../config/supabaseNew';
+import type { PatientWithRelations, PatientTransaction } from '../../config/supabaseNew';
 import { formatDate } from '../../utils/excelExport';
 
 interface CombinedBillProps {
@@ -10,7 +10,6 @@ interface CombinedBillProps {
 }
 
 const CombinedBill: React.FC<CombinedBillProps> = ({ patient, onClose }) => {
-  const [admissions, setAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
   const [transactions, setTransactions] = useState<PatientTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,10 +20,6 @@ const CombinedBill: React.FC<CombinedBillProps> = ({ patient, onClose }) => {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      
-      // Load IPD admissions
-      const admissionData = await HospitalService.getPatientAdmissions(patient.id);
-      setAdmissions(admissionData);
       
       // Get all transactions
       const allTransactions = patient.transactions || [];
@@ -41,40 +36,16 @@ const CombinedBill: React.FC<CombinedBillProps> = ({ patient, onClose }) => {
     window.print();
   };
 
-  const calculateDays = (admission: PatientAdmissionWithRelations) => {
-    const admitDate = new Date(admission.admission_date);
-    const dischargeDate = admission.actual_discharge_date 
-      ? new Date(admission.actual_discharge_date) 
-      : new Date();
-    const diffTime = Math.abs(dischargeDate.getTime() - admitDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-  };
-
-  const calculateIPDTotal = () => {
-    return admissions.reduce((total, admission) => {
-      const days = calculateDays(admission);
-      const bedCharges = days * (admission.bed?.daily_rate || 0);
-      const services = admission.services || {};
-      const serviceTotal = Object.values(services).reduce((sum: number, service: any) => {
-        return sum + (service.amount || 0);
-      }, 0);
-      return total + bedCharges + serviceTotal;
-    }, 0);
-  };
-
   const calculateOPDTotal = () => {
-    // Only count non-admission transactions
-    return transactions
-      .filter(t => !t.admission_id)
-      .reduce((sum, t) => sum + t.amount, 0);
+    return transactions.reduce((sum, t) => sum + t.amount, 0);
   };
 
   const calculateGrandTotal = () => {
-    return calculateIPDTotal() + calculateOPDTotal();
+    return calculateOPDTotal();
   };
 
   const groupOPDTransactionsByType = () => {
-    const opdTransactions = transactions.filter(t => !t.admission_id);
+    const opdTransactions = transactions;
     const grouped: { [key: string]: { count: number; total: number } } = {};
     
     opdTransactions.forEach(t => {
@@ -185,16 +156,11 @@ const CombinedBill: React.FC<CombinedBillProps> = ({ patient, onClose }) => {
         {/* Summary Section */}
         <div className="bg-blue-50 p-6 rounded-lg mb-6">
           <h3 className="font-bold text-lg text-blue-900 mb-4">Billing Summary</h3>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="bg-white p-4 rounded-lg">
-              <p className="text-sm font-medium text-gray-600">IPD Charges</p>
-              <p className="text-2xl font-bold text-purple-600">₹{calculateIPDTotal().toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">{admissions.length} admission(s)</p>
-            </div>
+          <div className="grid grid-cols-2 gap-6">
             <div className="bg-white p-4 rounded-lg">
               <p className="text-sm font-medium text-gray-600">OPD Charges</p>
               <p className="text-2xl font-bold text-green-600">₹{calculateOPDTotal().toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">{transactions.filter(t => !t.admission_id).length} service(s)</p>
+              <p className="text-xs text-gray-500 mt-1">{transactions.length} service(s)</p>
             </div>
             <div className="bg-white p-4 rounded-lg border-2 border-blue-500">
               <p className="text-sm font-medium text-gray-600">Grand Total</p>
@@ -204,63 +170,6 @@ const CombinedBill: React.FC<CombinedBillProps> = ({ patient, onClose }) => {
           </div>
         </div>
 
-        {/* IPD Details Section */}
-        {admissions.length > 0 && (
-          <div className="mb-8">
-            <h3 className="font-semibold text-gray-700 mb-3 text-lg">IPD Services</h3>
-            {admissions.map((admission, index) => (
-              <div key={admission.id} className={`mb-6 ${index > 0 ? 'page-break' : ''}`}>
-                <div className="bg-purple-50 p-3 rounded-t-lg">
-                  <p className="font-medium">
-                    Admission #{index + 1} - Bed: {admission.bed?.bed_number} 
-                    <span className={`ml-3 text-xs px-2 py-1 rounded ${
-                      admission.status === 'ACTIVE' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {admission.status}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {formatDate(admission.admission_date)} - {
-                      admission.actual_discharge_date 
-                        ? formatDate(admission.actual_discharge_date)
-                        : 'Ongoing'
-                    }
-                  </p>
-                </div>
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border p-2 text-left text-sm">Description</th>
-                      <th className="border p-2 text-center text-sm">Days/Qty</th>
-                      <th className="border p-2 text-right text-sm">Rate</th>
-                      <th className="border p-2 text-right text-sm">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="border p-2 text-sm">Bed Charges ({admission.bed?.room_type})</td>
-                      <td className="border p-2 text-center text-sm">{calculateDays(admission)}</td>
-                      <td className="border p-2 text-right text-sm">₹{admission.bed?.daily_rate || 0}</td>
-                      <td className="border p-2 text-right text-sm">
-                        ₹{(calculateDays(admission) * (admission.bed?.daily_rate || 0)).toLocaleString()}
-                      </td>
-                    </tr>
-                    {admission.services && Object.entries(admission.services).map(([key, service]: [string, any]) => (
-                      <tr key={key}>
-                        <td className="border p-2 text-sm">{service.name || key}</td>
-                        <td className="border p-2 text-center text-sm">{service.quantity || 1}</td>
-                        <td className="border p-2 text-right text-sm">₹{service.rate || service.amount || 0}</td>
-                        <td className="border p-2 text-right text-sm">₹{(service.amount || 0).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* OPD Details Section */}
         {Object.keys(groupOPDTransactionsByType()).length > 0 && (

@@ -12,7 +12,7 @@ const BillingSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showBillingModal, setShowBillingModal] = useState(false);
-  const [filterType, setFilterType] = useState<'ALL' | 'IPD' | 'OPD'>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'OPD'>('ALL');
 
   useEffect(() => {
     loadPatients();
@@ -39,9 +39,7 @@ const BillingSection: React.FC = () => {
     let filtered = patients;
 
     // Filter by department status
-    if (filterType === 'IPD') {
-      filtered = filtered.filter(p => p.departmentStatus === 'IPD');
-    } else if (filterType === 'OPD') {
+    if (filterType === 'OPD') {
       filtered = filtered.filter(p => p.departmentStatus === 'OPD');
     }
 
@@ -75,7 +73,7 @@ const BillingSection: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">💰 Billing Section</h1>
-              <p className="text-gray-600 mt-1">Generate IPD, OPD, and Combined bills for patients</p>
+              <p className="text-gray-600 mt-1">Generate OPD and Combined bills for patients</p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
@@ -117,16 +115,6 @@ const BillingSection: React.FC = () => {
                   }`}
                 >
                   All Patients
-                </button>
-                <button
-                  onClick={() => setFilterType('IPD')}
-                  className={`px-4 py-2 text-sm font-medium border-l ${
-                    filterType === 'IPD'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  IPD Only
                 </button>
                 <button
                   onClick={() => setFilterType('OPD')}

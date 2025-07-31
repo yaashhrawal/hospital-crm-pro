@@ -10,10 +10,10 @@ import RealTimeDashboard from './components/RealTimeDashboard';
 import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
 import RefundTab from './components/RefundTab';
-import EnhancedIPDManagement from './components/EnhancedIPDManagement';
 import EnhancedDashboard from './components/EnhancedDashboard';
 import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
+import IPDBedManagement from './components/IPDBedManagement';
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
 // Login Component
@@ -241,10 +241,10 @@ const App: React.FC = () => {
       description: 'Schedule and manage patient appointments' 
     },
     { 
-      id: 'ipd', 
-      name: '🛏️ IPD Management', 
-      component: EnhancedIPDManagement,
-      description: 'In-Patient Department with bed management and admissions' 
+      id: 'ipd-beds', 
+      name: '🛏️ IPD Beds', 
+      component: IPDBedManagement,
+      description: 'Real-time hospital bed occupancy tracking and management' 
     },
     { 
       id: 'expenses', 
@@ -278,6 +278,8 @@ const App: React.FC = () => {
   const renderActiveComponent = () => {
     if (activeTab === 'dashboard') {
       return <EnhancedDashboard onNavigate={setActiveTab} />;
+    } else if (activeTab === 'patient-list') {
+      return <ComprehensivePatientList onNavigate={setActiveTab} />;
     }
     return <ActiveComponent />;
   };
