@@ -1,0 +1,1230 @@
+import React, { useState, useEffect } from 'react';
+import type { PatientWithRelations } from '../config/supabaseNew';
+import toast from 'react-hot-toast';
+
+interface IPDConsentFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  patient: PatientWithRelations;
+  bedNumber: number;
+  onSubmit: (consentData: any) => void;
+}
+
+interface ConsentFormData {
+  // Patient Information
+  patientName: string;
+  patientId: string;
+  ipdNo: string;
+  
+  // Consent Point 1 fields
+  consentName1: string;
+  patientAddress: string;
+  admissionDate: string;
+  admissionTime: string;
+  
+  // Patient Signature
+  patientSignatureName: string;
+  patientSignature: string;
+  patientSignatureDate: string;
+  patientSignatureTime: string;
+  
+  // Employee Signature
+  employeeName: string;
+  employeeSignature: string;
+  employeeSignatureDate: string;
+  employeeSignatureTime: string;
+  
+  // Unable to consent (if applicable)
+  unableReason: string;
+  relativeName: string;
+  relationshipToPatient: string;
+  relativeName2: string;
+  relativeSignature: string;
+  relativeSignatureDate: string;
+  relativeSignatureTime: string;
+}
+
+const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
+  isOpen,
+  onClose,
+  patient,
+  bedNumber,
+  onSubmit
+}) => {
+  const [formData, setFormData] = useState<ConsentFormData>({
+    patientName: '',
+    patientId: '',
+    ipdNo: '',
+    consentName1: '',
+    patientAddress: '',
+    admissionDate: '',
+    admissionTime: '',
+    patientSignatureName: '',
+    patientSignature: '',
+    patientSignatureDate: '',
+    patientSignatureTime: '',
+    employeeName: '',
+    employeeSignature: '',
+    employeeSignatureDate: '',
+    employeeSignatureTime: '',
+    unableReason: '',
+    relativeName: '',
+    relationshipToPatient: '',
+    relativeName2: '',
+    relativeSignature: '',
+    relativeSignatureDate: '',
+    relativeSignatureTime: ''
+  });
+
+  // Auto-populate form with patient data and current date/time
+  useEffect(() => {
+    if (isOpen && patient) {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      
+      setFormData(prev => ({
+        ...prev,
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        patientId: patient.patient_id,
+        ipdNo: `IPD-${bedNumber}-${Date.now().toString().slice(-6)}`,
+        consentName1: `${patient.first_name} ${patient.last_name}`,
+        patientAddress: patient.address || '',
+        admissionDate: today,
+        admissionTime: currentTime,
+        patientSignatureName: `${patient.first_name} ${patient.last_name}`,
+        patientSignatureDate: today,
+        patientSignatureTime: currentTime,
+        employeeSignatureDate: today,
+        employeeSignatureTime: currentTime,
+        relativeSignatureDate: today,
+        relativeSignatureTime: currentTime
+      }));
+    }
+  }, [isOpen, patient, bedNumber]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Basic validation
+    if (!formData.patientName || !formData.patientId) {
+      toast.error('Please fill in all required patient information');
+      return;
+    }
+
+    // Save consent data
+    onSubmit({
+      ...formData,
+      submittedAt: new Date().toISOString(),
+      bedNumber
+    });
+    
+    toast.success('Consent form submitted successfully');
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    const printContent = document.getElementById('consent-form-content');
+    
+    if (printWindow && printContent) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>IPD Consent Form - ${formData.patientName}</title>
+          <style>
+            @page {
+              margin: 0.75in;
+              size: A4 portrait;
+            }
+            
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+              font-size: 12pt;
+              line-height: 1.4;
+              color: black;
+              background: white;
+            }
+            
+            .print-container {
+              max-width: 100%;
+              margin: 0 auto;
+              padding: 0;
+            }
+            
+            /* Header styling */
+            .print-header {
+              text-align: center;
+              border-bottom: 2px solid black;
+              margin-bottom: 20pt;
+              padding-bottom: 15pt;
+            }
+            
+            .print-header h1 {
+              font-size: 24pt;
+              font-weight: bold;
+              margin-bottom: 8pt;
+            }
+            
+            .print-header h2 {
+              font-size: 18pt;
+              font-weight: bold;
+              margin-top: 8pt;
+            }
+            
+            .print-header p {
+              font-size: 10pt;
+              margin: 4pt 0;
+            }
+            
+            /* Section styling */
+            .print-section {
+              margin-bottom: 15pt;
+              page-break-inside: avoid;
+              border: 1px solid #ccc;
+              padding: 10pt;
+              background: #f9f9f9;
+            }
+            
+            .print-section h3 {
+              font-size: 14pt;
+              font-weight: bold;
+              margin-bottom: 10pt;
+              border-bottom: 1px solid #666;
+              padding-bottom: 5pt;
+            }
+            
+            /* Patient info grid */
+            .print-patient-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 10pt;
+              margin-bottom: 10pt;
+            }
+            
+            .print-patient-field {
+              margin-bottom: 8pt;
+            }
+            
+            .print-patient-field label {
+              font-weight: bold;
+              font-size: 10pt;
+              display: block;
+              margin-bottom: 2pt;
+            }
+            
+            .print-patient-field .field-value {
+              border-bottom: 1px solid black;
+              padding: 2pt 0;
+              font-size: 11pt;
+              min-height: 16pt;
+              display: block;
+            }
+            
+            /* Consent points */
+            .print-consent-point {
+              margin-bottom: 12pt;
+              page-break-inside: avoid;
+              border: 1px solid #ddd;
+              padding: 8pt;
+              background: #f8f8f8;
+            }
+            
+            .print-consent-number {
+              font-weight: bold;
+              font-size: 14pt;
+              margin-right: 8pt;
+              float: left;
+            }
+            
+            .print-consent-text {
+              font-size: 11pt;
+              line-height: 1.5;
+              text-align: justify;
+            }
+            
+            .print-consent-text .field-value {
+              border-bottom: 1px solid black;
+              padding: 1pt 4pt;
+              margin: 0 2pt;
+              font-size: 11pt;
+              min-width: 100pt;
+              display: inline-block;
+            }
+            
+            .print-consent-text ul {
+              margin: 8pt 0 8pt 15pt;
+              padding: 0;
+            }
+            
+            .print-consent-text li {
+              margin-bottom: 4pt;
+              font-size: 10pt;
+            }
+            
+            /* Signature sections */
+            .print-signature-section {
+              margin-top: 15pt;
+              page-break-inside: avoid;
+              border: 1px solid black;
+              padding: 10pt;
+              background: white;
+            }
+            
+            .print-signature-section h4 {
+              font-size: 12pt;
+              font-weight: bold;
+              margin-bottom: 8pt;
+              border-bottom: 1px solid #666;
+              padding-bottom: 3pt;
+            }
+            
+            .print-signature-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr 1fr;
+              gap: 10pt;
+            }
+            
+            .print-signature-field {
+              margin-bottom: 5pt;
+            }
+            
+            .print-signature-field label {
+              font-weight: bold;
+              font-size: 9pt;
+              display: block;
+              margin-bottom: 2pt;
+            }
+            
+            .print-signature-field .field-value {
+              border-bottom: 1px solid black;
+              padding: 2pt 0;
+              font-size: 10pt;
+              min-height: 14pt;
+              display: block;
+            }
+            
+            /* Highlight section */
+            .print-highlight {
+              background: #ffffcc;
+              border: 2px solid #ff9900;
+              padding: 10pt;
+              margin: 15pt 0;
+              page-break-inside: avoid;
+            }
+            
+            .print-highlight p {
+              font-weight: bold;
+              font-size: 11pt;
+              text-align: justify;
+              margin: 0;
+            }
+            
+            /* Page break controls */
+            .page-break-before {
+              page-break-before: always;
+            }
+            
+            .page-break-after {
+              page-break-after: always;
+            }
+            
+            .page-break-avoid {
+              page-break-inside: avoid;
+            }
+            
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${generatePrintContent()}
+          </div>
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+  };
+
+  const generatePrintContent = () => {
+    return `
+      <!-- Header Section -->
+      <div class="print-header">
+        <h1>VALANT HOSPITAL</h1>
+        <p>A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000</p>
+        <h2>General Consent</h2>
+      </div>
+
+      <!-- Patient Information Section -->
+      <div class="print-section">
+        <h3>Patient Information</h3>
+        <div class="print-patient-grid">
+          <div class="print-patient-field">
+            <label>Patient's Name:</label>
+            <span class="field-value">${formData.patientName || ''}</span>
+          </div>
+          <div class="print-patient-field">
+            <label>Patient ID:</label>
+            <span class="field-value">${formData.patientId || ''}</span>
+          </div>
+          <div class="print-patient-field">
+            <label>IPD No.:</label>
+            <span class="field-value">${formData.ipdNo || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Consent Declaration -->
+      <div style="margin-bottom: 15pt;">
+        <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10pt;">Consent Declaration</h3>
+
+        <!-- Consent Point 1 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">1.</span>
+          <div class="print-consent-text">
+            <p>I, <span class="field-value">${formData.consentName1 || ''}</span>, of <span class="field-value">${formData.patientAddress || ''}</span>, give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on <span class="field-value">${formData.admissionDate || ''}</span> at <span class="field-value">${formData.admissionTime || ''}</span>.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 2 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">2.</span>
+          <div class="print-consent-text">
+            <p style="margin-bottom: 8pt;">I give my consent to Valant Hospital/Doctors/Staff for the following:</p>
+            <ul>
+              <li>Medical Advice</li>
+              <li>Performing all necessary medical examinations (with full confidentiality)</li>
+              <li>Regular medical tests (physical, pathological, investigation, assessment, medication)</li>
+              <li>Regular Radiology and Laboratory Tests</li>
+              <li>Nursing Care and Medication</li>
+            </ul>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 3 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">3.</span>
+          <div class="print-consent-text">
+            <p>I have been thoroughly explained about the illness, its severity, and potential complications. I am fully satisfied with and agree to all decisions made by the doctors and staff of Valant Hospital.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 4 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">4.</span>
+          <div class="print-consent-text">
+            <p>I have been informed that I/the patient may need to be admitted to the ICU due to my/the patient's condition. I have been informed about the potential expenses for treatment in the ICU. The doctors will keep me updated on the patient's condition from time to time.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 5 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">5.</span>
+          <div class="print-consent-text">
+            <p>I have been informed that depending on my/the patient's condition, an operation/blood transfusion may be necessary.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 6 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">6.</span>
+          <div class="print-consent-text">
+            <p>I give my consent for consultation/discussion with other doctors in the best interest of myself/the patient.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+
+        <!-- Consent Point 7 -->
+        <div class="print-consent-point">
+          <span class="print-consent-number">7.</span>
+          <div class="print-consent-text">
+            <p>I take responsibility for the payment of all hospital expenses incurred during my/the patient's treatment.</p>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+      </div>
+
+      <!-- Concluding Paragraph -->
+      <div class="print-highlight">
+        <p>I hereby affirm that I have read and understood the above consent form in my own language. I confirm that I am giving this consent willingly and without any pressure or coercion for my/the patient's treatment. All expenses/risks/responsibilities will be my/patient's.</p>
+      </div>
+
+      <!-- Patient Signature Section -->
+      <div class="print-signature-section">
+        <h4>Patient's Consent</h4>
+        <div class="print-signature-grid">
+          <div class="print-signature-field">
+            <label>Patient's Name:</label>
+            <span class="field-value">${formData.patientSignatureName || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Signature:</label>
+            <span class="field-value">${formData.patientSignature || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Date:</label>
+            <span class="field-value">${formData.patientSignatureDate || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Time:</label>
+            <span class="field-value">${formData.patientSignatureTime || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Signature Section -->
+      <div class="print-signature-section">
+        <h4>Hospital Employee's Verification</h4>
+        <div class="print-signature-grid">
+          <div class="print-signature-field">
+            <label>Employee's Name:</label>
+            <span class="field-value">${formData.employeeName || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Signature:</label>
+            <span class="field-value">${formData.employeeSignature || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Date:</label>
+            <span class="field-value">${formData.employeeSignatureDate || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Time:</label>
+            <span class="field-value">${formData.employeeSignatureTime || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unable to Give Consent Section -->
+      ${formData.unableReason || formData.relativeName ? `
+      <div class="print-signature-section">
+        <h4>If Patient Unable to Give Consent</h4>
+        ${formData.unableReason ? `
+        <div style="margin-bottom: 10pt;">
+          <label style="font-weight: bold; font-size: 10pt; display: block; margin-bottom: 2pt;">Unable to give consent because:</label>
+          <div style="border: 1px solid black; padding: 5pt; min-height: 30pt; background: white;">
+            ${formData.unableReason}
+          </div>
+        </div>
+        ` : ''}
+        
+        ${formData.relativeName ? `
+        <div style="margin-bottom: 10pt;">
+          <p class="print-consent-text">
+            Therefore, I, <span class="field-value">${formData.relativeName || ''}</span>, 
+            (<span class="field-value">${formData.relationshipToPatient || ''}</span>) 
+            give consent on behalf of the patient.
+          </p>
+        </div>
+        
+        <div class="print-signature-grid">
+          <div class="print-signature-field">
+            <label>Patient's Relative/Witness Name:</label>
+            <span class="field-value">${formData.relativeName2 || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Signature:</label>
+            <span class="field-value">${formData.relativeSignature || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Date:</label>
+            <span class="field-value">${formData.relativeSignatureDate || ''}</span>
+          </div>
+          <div class="print-signature-field">
+            <label>Time:</label>
+            <span class="field-value">${formData.relativeSignatureTime || ''}</span>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+    `;
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Print Styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            @page {
+              margin: 0.75in;
+              size: A4 portrait;
+            }
+            
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            body {
+              margin: 0;
+              padding: 0;
+              font-size: 12pt;
+              line-height: 1.4;
+              color: black;
+            }
+            
+            body * {
+              visibility: hidden;
+            }
+            
+            #consent-form-content, #consent-form-content * {
+              visibility: visible;
+            }
+            
+            #consent-form-content {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              background: white;
+              box-shadow: none;
+              border: none;
+              border-radius: 0;
+              margin: 0;
+              padding: 0;
+            }
+            
+            .print-hide {
+              display: none !important;
+            }
+            
+            /* Header styling for print */
+            .print-header {
+              background: white !important;
+              color: black !important;
+              border-bottom: 2px solid black !important;
+              margin-bottom: 20pt;
+              padding: 15pt 0;
+            }
+            
+            .print-header h1 {
+              color: black !important;
+              font-size: 24pt !important;
+              font-weight: bold !important;
+              margin: 0 0 8pt 0 !important;
+            }
+            
+            .print-header h2 {
+              color: black !important;
+              font-size: 18pt !important;
+              font-weight: bold !important;
+              margin: 8pt 0 0 0 !important;
+            }
+            
+            .print-header p {
+              color: black !important;
+              font-size: 10pt !important;
+              margin: 4pt 0 !important;
+            }
+            
+            /* Form sections */
+            .print-section {
+              margin-bottom: 15pt;
+              page-break-inside: avoid;
+              border: 1px solid #ccc !important;
+              padding: 10pt;
+              background: #f9f9f9 !important;
+            }
+            
+            .print-section h3 {
+              color: black !important;
+              font-size: 14pt !important;
+              font-weight: bold !important;
+              margin: 0 0 10pt 0 !important;
+              border-bottom: 1px solid #666 !important;
+              padding-bottom: 5pt !important;
+            }
+            
+            /* Patient info grid */
+            .print-patient-grid {
+              display: grid !important;
+              grid-template-columns: 1fr 1fr 1fr !important;
+              gap: 10pt !important;
+              margin-bottom: 10pt !important;
+            }
+            
+            .print-patient-field {
+              margin-bottom: 8pt !important;
+            }
+            
+            .print-patient-field label {
+              font-weight: bold !important;
+              font-size: 10pt !important;
+              display: block !important;
+              margin-bottom: 2pt !important;
+            }
+            
+            .print-patient-field input {
+              border: none !important;
+              border-bottom: 1px solid black !important;
+              background: transparent !important;
+              padding: 2pt 0 !important;
+              font-size: 11pt !important;
+              width: 100% !important;
+            }
+            
+            /* Consent points */
+            .print-consent-point {
+              margin-bottom: 12pt !important;
+              page-break-inside: avoid !important;
+              border: 1px solid #ddd !important;
+              padding: 8pt !important;
+              background: #f8f8f8 !important;
+            }
+            
+            .print-consent-number {
+              color: black !important;
+              font-weight: bold !important;
+              font-size: 14pt !important;
+              margin-right: 8pt !important;
+            }
+            
+            .print-consent-text {
+              color: black !important;
+              font-size: 11pt !important;
+              line-height: 1.5 !important;
+              text-align: justify !important;
+            }
+            
+            .print-consent-text input {
+              border: none !important;
+              border-bottom: 1px solid black !important;
+              background: transparent !important;
+              padding: 1pt 4pt !important;
+              margin: 0 2pt !important;
+              font-size: 11pt !important;
+              min-width: 100pt !important;
+            }
+            
+            .print-consent-text ul {
+              margin: 8pt 0 8pt 15pt !important;
+              padding: 0 !important;
+            }
+            
+            .print-consent-text li {
+              margin-bottom: 4pt !important;
+              font-size: 10pt !important;
+            }
+            
+            /* Signature sections */
+            .print-signature-section {
+              margin-top: 15pt !important;
+              page-break-inside: avoid !important;
+              border: 1px solid black !important;
+              padding: 10pt !important;
+              background: white !important;
+            }
+            
+            .print-signature-section h4 {
+              color: black !important;
+              font-size: 12pt !important;
+              font-weight: bold !important;
+              margin: 0 0 8pt 0 !important;
+              border-bottom: 1px solid #666 !important;
+              padding-bottom: 3pt !important;
+            }
+            
+            .print-signature-grid {
+              display: grid !important;
+              grid-template-columns: 1fr 1fr 1fr 1fr !important;
+              gap: 10pt !important;
+            }
+            
+            .print-signature-field {
+              margin-bottom: 5pt !important;
+            }
+            
+            .print-signature-field label {
+              font-weight: bold !important;
+              font-size: 9pt !important;
+              display: block !important;
+              margin-bottom: 2pt !important;
+            }
+            
+            .print-signature-field input {
+              border: none !important;
+              border-bottom: 1px solid black !important;
+              background: transparent !important;
+              padding: 2pt 0 !important;
+              font-size: 10pt !important;
+              width: 100% !important;
+            }
+            
+            /* Special highlight section */
+            .print-highlight {
+              background: #ffffcc !important;
+              border: 2px solid #ff9900 !important;
+              padding: 10pt !important;
+              margin: 15pt 0 !important;
+              page-break-inside: avoid !important;
+            }
+            
+            .print-highlight p {
+              font-weight: bold !important;
+              font-size: 11pt !important;
+              color: black !important;
+              text-align: justify !important;
+              margin: 0 !important;
+            }
+            
+            /* Page break controls */
+            .page-break-before {
+              page-break-before: always !important;
+            }
+            
+            .page-break-after {
+              page-break-after: always !important;
+            }
+            
+            .page-break-avoid {
+              page-break-inside: avoid !important;
+            }
+            
+            /* Ensure proper margins and spacing */
+            .print-form-container {
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            
+            /* Table styling for better print */
+            table {
+              border-collapse: collapse !important;
+              width: 100% !important;
+              margin: 10pt 0 !important;
+            }
+            
+            th, td {
+              border: 1px solid black !important;
+              padding: 5pt !important;
+              font-size: 10pt !important;
+              text-align: left !important;
+            }
+            
+            th {
+              background: #f0f0f0 !important;
+              font-weight: bold !important;
+            }
+          }
+        `
+      }} />
+
+      <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[95vh] overflow-y-auto">
+        {/* Action Buttons - Hidden during print */}
+        <div className="flex justify-end gap-2 p-4 border-b print-hide">
+          <button
+            onClick={handlePrint}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            <span>🖨️</span> Print Form
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Form Content */}
+        <div id="consent-form-content" className="print-form-container">
+          {/* Header Section */}
+          <div className="bg-blue-600 text-white p-6 text-center print-header">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">VALANT HOSPITAL</h1>
+            <p className="text-blue-100 text-sm sm:text-base mb-2">
+              A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000
+            </p>
+            <h2 className="text-xl sm:text-2xl font-semibold">General Consent</h2>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Patient Information Section */}
+            <div className="bg-gray-50 p-4 rounded-lg print-section">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Patient Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print-patient-grid">
+                <div className="print-patient-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Name:</label>
+                  <input
+                    type="text"
+                    name="patientName"
+                    value={formData.patientName}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-patient-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient ID:</label>
+                  <input
+                    type="text"
+                    name="patientId"
+                    value={formData.patientId}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-patient-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">IPD No.:</label>
+                  <input
+                    type="text"
+                    name="ipdNo"
+                    value={formData.ipdNo}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Consent Points Section */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-800">Consent Declaration</h3>
+
+              {/* Consent Point 1 */}
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">1.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800 mb-3">
+                      I, 
+                      <input
+                        type="text"
+                        name="consentName1"
+                        value={formData.consentName1}
+                        onChange={handleInputChange}
+                        placeholder="Your Name/Patient's Name"
+                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[200px]"
+                      />, 
+                      of 
+                      <input
+                        type="text"
+                        name="patientAddress"
+                        value={formData.patientAddress}
+                        onChange={handleInputChange}
+                        placeholder="Your Address"
+                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[250px]"
+                      />, 
+                      give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on 
+                      <input
+                        type="date"
+                        name="admissionDate"
+                        value={formData.admissionDate}
+                        onChange={handleInputChange}
+                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent"
+                      /> 
+                      at 
+                      <input
+                        type="time"
+                        name="admissionTime"
+                        value={formData.admissionTime}
+                        onChange={handleInputChange}
+                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent"
+                      />.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Consent Point 2 */}
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">2.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800 mb-3">I give my consent to Valant Hospital/Doctors/Staff for the following:</p>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                      <li>Medical Advice</li>
+                      <li>Performing all necessary medical examinations (with full confidentiality)</li>
+                      <li>Regular medical tests (physical, pathological, investigation, assessment, medication)</li>
+                      <li>Regular Radiology and Laboratory Tests</li>
+                      <li>Nursing Care and Medication</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">3.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800">I have been thoroughly explained about the illness, its severity, and potential complications. I am fully satisfied with and agree to all decisions made by the doctors and staff of Valant Hospital.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">4.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800">I have been informed that I/the patient may need to be admitted to the ICU due to my/the patient's condition. I have been informed about the potential expenses for treatment in the ICU. The doctors will keep me updated on the patient's condition from time to time.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">5.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800">I have been informed that depending on my/the patient's condition, an operation/blood transfusion may be necessary.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">6.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800">I give my consent for consultation/discussion with other doctors in the best interest of myself/the patient.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
+                <div className="flex items-start space-x-2">
+                  <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">7.</span>
+                  <div className="flex-1 print-consent-text">
+                    <p className="text-gray-800">I take responsibility for the payment of all hospital expenses incurred during my/the patient's treatment.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Concluding Paragraph */}
+            <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400 print-highlight">
+              <p className="text-gray-800 font-medium">I hereby affirm that I have read and understood the above consent form in my own language. I confirm that I am giving this consent willingly and without any pressure or coercion for my/the patient's treatment. All expenses/risks/responsibilities will be my/patient's.</p>
+            </div>
+
+            {/* Patient Signature Section */}
+            <div className="bg-blue-50 p-4 rounded-lg print-signature-section">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">Patient's Consent</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Name:</label>
+                  <input
+                    type="text"
+                    name="patientSignatureName"
+                    value={formData.patientSignatureName}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <input
+                    type="text"
+                    name="patientSignature"
+                    value={formData.patientSignature}
+                    onChange={handleInputChange}
+                    placeholder="Sign here"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <input
+                    type="date"
+                    name="patientSignatureDate"
+                    value={formData.patientSignatureDate}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <input
+                    type="time"
+                    name="patientSignatureTime"
+                    value={formData.patientSignatureTime}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Employee Signature Section */}
+            <div className="bg-green-50 p-4 rounded-lg print-signature-section">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">Hospital Employee's Verification</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee's Name:</label>
+                  <input
+                    type="text"
+                    name="employeeName"
+                    value={formData.employeeName}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <input
+                    type="text"
+                    name="employeeSignature"
+                    value={formData.employeeSignature}
+                    onChange={handleInputChange}
+                    placeholder="Sign here"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <input
+                    type="date"
+                    name="employeeSignatureDate"
+                    value={formData.employeeSignatureDate}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <input
+                    type="time"
+                    name="employeeSignatureTime"
+                    value={formData.employeeSignatureTime}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Unable to Give Consent Section */}
+            <div className="bg-red-50 p-4 rounded-lg print-signature-section">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">If Patient Unable to Give Consent</h4>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Unable to give consent because:</label>
+                <textarea
+                  name="unableReason"
+                  value={formData.unableReason}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Please specify the reason..."
+                />
+              </div>
+              
+              <div className="mb-4 print-consent-text">
+                <p className="text-gray-800 mb-3">
+                  Therefore, I, 
+                  <input
+                    type="text"
+                    name="relativeName"
+                    value={formData.relativeName}
+                    onChange={handleInputChange}
+                    placeholder="Name"
+                    className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[150px]"
+                  />, 
+                  (
+                  <input
+                    type="text"
+                    name="relationshipToPatient"
+                    value={formData.relationshipToPatient}
+                    onChange={handleInputChange}
+                    placeholder="Relationship to patient"
+                    className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[200px]"
+                  />
+                  ) give consent on behalf of the patient.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Relative/Witness Name:</label>
+                  <input
+                    type="text"
+                    name="relativeName2"
+                    value={formData.relativeName2}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <input
+                    type="text"
+                    name="relativeSignature"
+                    value={formData.relativeSignature}
+                    onChange={handleInputChange}
+                    placeholder="Sign here"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <input
+                    type="date"
+                    name="relativeSignatureDate"
+                    value={formData.relativeSignatureDate}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="print-signature-field">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <input
+                    type="time"
+                    name="relativeSignatureTime"
+                    value={formData.relativeSignatureTime}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Button - Hidden during print */}
+            <div className="flex justify-center pt-6 print-hide">
+              <button
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-lg"
+              >
+                Submit Consent Form
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default IPDConsentForm;
