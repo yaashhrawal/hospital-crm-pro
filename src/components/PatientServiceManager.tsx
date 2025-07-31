@@ -16,6 +16,7 @@ interface ServiceItem {
   price: number;
   quantity: number;
   notes?: string;
+  paymentMode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'INSURANCE';
   transactionId?: string; // For existing services
 }
 
@@ -68,7 +69,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     name: '',
     category: 'LAB_TEST',
     price: 0,
-    quantity: 1
+    quantity: 1,
+    paymentMode: 'CASH'
   });
   const [selectedCategory, setSelectedCategory] = useState<ServiceItem['category']>('LAB_TEST');
   const [isCustomService, setIsCustomService] = useState(false);
@@ -84,10 +86,10 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
       setLoading(true);
       const transactions = await HospitalService.getTransactionsByPatient(patient.id);
       
-      // Filter service-related transactions
+      // Filter service-related transactions (exclude cancelled ones)
       const serviceTransactions = transactions.filter(t => 
         ['LAB_TEST', 'XRAY', 'PROCEDURE', 'MEDICINE', 'SERVICE'].includes(t.transaction_type) &&
-        t.status === 'COMPLETED'
+        t.status === 'COMPLETED' // This already excludes CANCELLED status
       );
       
       setExistingTransactions(serviceTransactions);
@@ -99,6 +101,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         category: t.transaction_type as ServiceItem['category'],
         price: t.amount,
         quantity: 1,
+        paymentMode: t.payment_mode as ServiceItem['paymentMode'],
         transactionId: t.id
       }));
       
@@ -141,7 +144,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         transaction_type: newService.category,
         amount: newService.price * newService.quantity,
         description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
-        payment_mode: 'CASH' as const, // Default to cash, can be updated later
+        payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const
       };
 
@@ -161,7 +164,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         name: '',
         category: selectedCategory,
         price: 0,
-        quantity: 1
+        quantity: 1,
+        paymentMode: 'CASH'
       });
       setIsCustomService(false);
       
@@ -173,17 +177,19 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     }
   };
 
-  const handleRemoveService = async (serviceId: string, transactionId?: string) => {
-    if (!transactionId) {
-      // Just remove from local state if no transaction
-      setServices(services.filter(s => s.id !== serviceId));
-      return;
-    }
-
+  const handleRemoveService = async (index: number) => {
+    const serviceToRemove = services[index];
+    
     try {
-      // For now, we'll just remove from display
-      // In production, you might want to add a "cancelled" status instead
-      setServices(services.filter(s => s.id !== serviceId));
+      // If the service has a transaction ID, cancel it in the database
+      if (serviceToRemove.transactionId) {
+        await HospitalService.updateTransactionStatus(serviceToRemove.transactionId, 'CANCELLED');
+      }
+      
+      // Remove from local state by index
+      const updatedServices = services.filter((_, i) => i !== index);
+      setServices(updatedServices);
+      
       toast.success('Service removed');
       onServicesUpdated?.();
     } catch (error) {
@@ -320,9 +326,27 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Payment Mode and Notes Row */}
             <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="md:col-span-3">
+              {/* Payment Mode */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Mode
+                </label>
+                <select
+                  value={newService.paymentMode}
+                  onChange={(e) => setNewService({ ...newService, paymentMode: e.target.value as ServiceItem['paymentMode'] })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="ONLINE">Online</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="INSURANCE">Insurance</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notes (Optional)
                 </label>
@@ -363,7 +387,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
               <div className="space-y-2">
                 {services.map((service, index) => (
                   <div
-                    key={service.id || index}
+                    key={service.transactionId || service.id || `service-${index}`}
                     className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50"
                   >
                     <div className="flex-1">
@@ -375,11 +399,12 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                       </div>
                       <div className="text-sm text-gray-600 mt-1">
                         ₹{service.price} × {service.quantity} = ₹{service.price * service.quantity}
+                        <span className="ml-2 text-gray-500">• {service.paymentMode}</span>
                         {service.notes && <span className="ml-2 text-gray-500">• {service.notes}</span>}
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRemoveService(service.id || String(index), service.transactionId)}
+                      onClick={() => handleRemoveService(index)}
                       className="ml-4 text-red-600 hover:text-red-800 p-1"
                       title="Remove service"
                     >

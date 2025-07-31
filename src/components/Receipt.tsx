@@ -32,6 +32,7 @@ interface ServiceItem {
   qty: number;
   rate: number;
   amount: number;
+  paymentMode?: string;
 }
 
 const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
@@ -64,15 +65,13 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       let otherServices = 0;
       let consultationTransactions = [];
 
-      // Debug: Log all transactions to see actual data structure
-      console.log('🔍 All transactions for receipt:', transactions);
+      // Filter out cancelled transactions
+      const activeTransactions = transactions.filter(t => t.status !== 'CANCELLED');
       
       // Analyze transactions to extract consultation fee and discount details
-      transactions.forEach(transaction => {
-        console.log('📊 Processing transaction:', transaction);
+      activeTransactions.forEach(transaction => {
         
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
-          console.log('💰 Found consultation transaction:', transaction);
           consultationTransactions.push(transaction);
           
           // Extract original and net amounts from description for multiple doctors
@@ -119,7 +118,6 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             }
           }
         } else if (transaction.transaction_type === 'DISCOUNT' || transaction.transaction_type === 'discount') {
-          console.log('💸 Found discount transaction:', transaction);
           // Handle separate discount transactions
           totalDiscountAmount += Math.abs(transaction.amount);
           
@@ -142,15 +140,6 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       // Use totalDiscountAmount for calculations
       let discountAmount = totalDiscountAmount;
 
-      console.log('📋 Final calculated values:');
-      console.log('- Number of consultation transactions:', consultationTransactions.length);
-      console.log('- Total original consultation fee:', originalConsultationFee);
-      console.log('- Total consultation fee (after discount):', consultationFee);
-      console.log('- Total discount amount:', discountAmount);
-      console.log('- Discount percentage:', discountPercentage);
-      console.log('- Discount reason:', discountReason);
-      console.log('- Other services:', otherServices);
-
       // Handle old transaction format where discounted amount was stored directly
       if (originalConsultationFee > 0 && discountAmount === 0 && consultationTransactions.length > 0) {
         // Check if this is old format with discount info in description
@@ -162,7 +151,6 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
         if (hasOldFormatDiscount) {
           const firstTransaction = consultationTransactions[0];
           const description = firstTransaction.description || '';
-          console.log('🔍 Checking old format description:', description);
           
           // Look for old format: "Consultation Fee - Dr. X (20% discount applied)"
           const oldDiscountMatch = description.match(/(\d+)%\s*discount\s*applied/i);
@@ -173,18 +161,13 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             consultationFee = currentTotal;
             originalConsultationFee = currentTotal / (1 - discountPercentage / 100);
             discountAmount = originalConsultationFee - consultationFee;
-            
-            console.log('📜 Detected old format:');
-            console.log('- Stored amount (discounted):', consultationFee);
-            console.log('- Calculated original fee:', originalConsultationFee);
-            console.log('- Calculated discount:', discountAmount);
           }
         }
       }
 
       // If no consultation fee found, use the old calculation method
       if (originalConsultationFee === 0) {
-        const totalAmount = transactions.reduce((sum, transaction) => {
+        const totalAmount = activeTransactions.reduce((sum, transaction) => {
           return transaction.amount > 0 ? sum + transaction.amount : sum;
         }, 0);
         originalConsultationFee = totalAmount;
@@ -199,15 +182,15 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       
       // Get doctor name from patient assignment or transactions  
       const doctor = patient.assigned_doctor || 
-                    transactions.find(t => t.doctor_name)?.doctor_name || 
+                    activeTransactions.find(t => t.doctor_name)?.doctor_name || 
                     'General Physician';
       
       // Get payment mode from the most recent transaction
-      const paymentMode = transactions.length > 0 ? transactions[0].payment_mode || 'Cash' : 'Cash';
+      const paymentMode = activeTransactions.length > 0 ? activeTransactions[0].payment_mode || 'Cash' : 'Cash';
 
       setReceiptData({
         patient,
-        transactions,
+        transactions: activeTransactions,
         billNo,
         date: new Date().toLocaleDateString('en-IN'),
         regDate: new Date(patient.created_at).toLocaleDateString('en-IN'),
@@ -297,7 +280,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
     let srCounter = 1;
 
     transactions
-      .filter(transaction => transaction.amount > 0) // Only positive amounts (actual services)
+      .filter(transaction => transaction.amount > 0 && transaction.status !== 'CANCELLED') // Only positive amounts and non-cancelled
       .forEach(transaction => {
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
           // Enhanced consultation handling for both single and multiple doctors
@@ -330,7 +313,8 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             service: serviceLabel,
             qty: 1,
             rate: originalAmount, // Original rate
-            amount: finalAmount // Final amount after discount
+            amount: finalAmount, // Final amount after discount
+            paymentMode: transaction.payment_mode
           });
         } else {
           // For other services, show normal rate = amount
@@ -339,7 +323,8 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
             service: transaction.description || transaction.transaction_type,
             qty: 1,
             rate: transaction.amount,
-            amount: transaction.amount
+            amount: transaction.amount,
+            paymentMode: transaction.payment_mode
           });
         }
       });
@@ -480,6 +465,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
                   <th className="border border-gray-300 px-3 py-2 text-center">Qty</th>
                   <th className="border border-gray-300 px-3 py-2 text-right">Rate (₹)</th>
                   <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
+                  <th className="border border-gray-300 px-3 py-2 text-center">Payment Mode</th>
                 </tr>
               </thead>
               <tbody>
@@ -490,10 +476,11 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
                     <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
                     <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate.toFixed(2)}</td>
                     <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-center">{service.paymentMode || 'CASH'}</td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={5} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
+                    <td colSpan={6} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
                       No services recorded
                     </td>
                   </tr>

@@ -437,18 +437,23 @@ export class HospitalService {
       const enhancedPatients = patients?.map(patient => {
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
-        const totalSpent = transactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-        // Count patient entries/registrations and consultations (including 0 fee consultations)
+        // Only count completed transactions (exclude cancelled)
+        const totalSpent = transactions
+          .filter((t: any) => t.status !== 'CANCELLED')
+          .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
         const registrationVisits = transactions.filter((t: any) => 
-          t.transaction_type === 'ENTRY_FEE' || 
+          (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation'
+          t.transaction_type === 'consultation') &&
+          t.status !== 'CANCELLED'
         ).length;
         // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
         const visitCount = registrationVisits > 0 ? registrationVisits : 1;
-        const lastVisit = transactions.length > 0 
-          ? transactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+        const activeTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        const lastVisit = activeTransactions.length > 0 
+          ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
         // All patients are OPD now
@@ -653,6 +658,31 @@ export class HospitalService {
       
     } catch (error: any) {
       console.error('🚨 getTransactionsByPatient error:', error);
+      throw error;
+    }
+  }
+
+  static async updateTransactionStatus(transactionId: string, status: 'PENDING' | 'COMPLETED' | 'CANCELLED'): Promise<PatientTransaction> {
+    try {
+      console.log(`🔄 Updating transaction ${transactionId} status to ${status}`);
+      
+      const { data: transaction, error } = await supabase
+        .from('patient_transactions')
+        .update({ status })
+        .eq('id', transactionId)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Update transaction status error:', error);
+        throw new Error(`Failed to update transaction status: ${error.message}`);
+      }
+      
+      console.log('✅ Transaction status updated successfully');
+      return transaction as PatientTransaction;
+      
+    } catch (error: any) {
+      console.error('🚨 updateTransactionStatus error:', error);
       throw error;
     }
   }
