@@ -1,0 +1,23 @@
+# Backup data files
+data/
+logs/
+
+# Keep the scripts directory
+!scripts/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Node modules (if any local deps)
+node_modules/
+
+# Environment files (just in case)
+.env
+.env.local
+.env.production
