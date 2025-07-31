@@ -9,7 +9,13 @@
     "build:typecheck": "tsc -b && vite build --mode production",
     "build:vercel": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backup": "node backup/scripts/backup-database.js",
+    "backup:restore": "node backup/scripts/restore-database.js",
+    "backup:schedule": "node backup/scripts/schedule-backup.js",
+    "backup:manager": "node backup/scripts/backup-manager.js",
+    "backup:pg": "node backup/scripts/pg-backup.js",
+    "backup:pg-restore": "node backup/scripts/pg-restore.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
