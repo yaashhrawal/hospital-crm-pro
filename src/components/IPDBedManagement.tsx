@@ -5,6 +5,8 @@ import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import ProcedureConsentForm from './ProcedureConsentForm';
 import IPDConsentForm from './IPDConsentForm';
+import ClinicalRecordForm from './ClinicalRecordForm';
+import DoctorProgressSheet from './DoctorProgressSheet';
 
 interface BedData {
   id: string;
@@ -29,6 +31,10 @@ interface BedData {
   }>;
   consentFormData?: any; // Store consent form data
   consentFormSubmitted?: boolean; // Track if consent form was submitted
+  clinicalRecordData?: any; // Store clinical record data
+  clinicalRecordSubmitted?: boolean; // Track if clinical record was submitted
+  progressSheetData?: any; // Store doctor's progress sheet data
+  progressSheetSubmitted?: boolean; // Track if progress sheet was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -253,6 +259,13 @@ const IPDBedManagement: React.FC = () => {
   const [showIPDConsentForm, setShowIPDConsentForm] = useState(false);
   const [selectedPatientForIPDConsent, setSelectedPatientForIPDConsent] = useState<PatientWithRelations | null>(null);
   const [selectedBedForIPDConsent, setSelectedBedForIPDConsent] = useState<BedData | null>(null);
+  const [showClinicalRecordForm, setShowClinicalRecordForm] = useState(false);
+  const [selectedPatientForClinicalRecord, setSelectedPatientForClinicalRecord] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForClinicalRecord, setSelectedBedForClinicalRecord] = useState<BedData | null>(null);
+  const [expandedProcedureBed, setExpandedProcedureBed] = useState<string | null>(null);
+  const [showProgressSheet, setShowProgressSheet] = useState(false);
+  const [selectedPatientForProgressSheet, setSelectedPatientForProgressSheet] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForProgressSheet, setSelectedBedForProgressSheet] = useState<BedData | null>(null);
 
   // TAT timer management
   useEffect(() => {
@@ -331,7 +344,10 @@ const IPDBedManagement: React.FC = () => {
         tatStatus: 'idle',
         tatRemainingSeconds: 30 * 60, // 30 minutes
         consultantNotes: [],
-        nursingNotes: []
+        nursingNotes: [],
+        consentFormSubmitted: false,
+        clinicalRecordSubmitted: false,
+        progressSheetSubmitted: false
       });
     }
     setBeds(initialBeds);
@@ -455,6 +471,76 @@ const IPDBedManagement: React.FC = () => {
     setSelectedBedForIPDConsent(null);
     
     toast.success('IPD Consent form submitted and saved successfully');
+  };
+
+  const handleShowClinicalRecord = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForClinicalRecord(bed.patient);
+      setSelectedBedForClinicalRecord(bed);
+      setShowClinicalRecordForm(true);
+    }
+  };
+
+  const handleToggleProcedure = (bedId: string) => {
+    setExpandedProcedureBed(expandedProcedureBed === bedId ? null : bedId);
+  };
+
+  const handleShowProgressSheet = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForProgressSheet(bed.patient);
+      setSelectedBedForProgressSheet(bed);
+      setShowProgressSheet(true);
+    }
+  };
+
+  const handleClinicalRecordSubmit = (clinicalData: any) => {
+    if (!selectedBedForClinicalRecord) return;
+
+    // Save clinical record data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForClinicalRecord.id) {
+          return {
+            ...bed,
+            clinicalRecordData: clinicalData,
+            clinicalRecordSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowClinicalRecordForm(false);
+    setSelectedPatientForClinicalRecord(null);
+    setSelectedBedForClinicalRecord(null);
+    
+    toast.success('Clinical record submitted and saved successfully');
+  };
+
+  const handleProgressSheetSubmit = (progressData: any) => {
+    if (!selectedBedForProgressSheet) return;
+
+    // Save progress sheet data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForProgressSheet.id) {
+          return {
+            ...bed,
+            progressSheetData: progressData,
+            progressSheetSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowProgressSheet(false);
+    setSelectedPatientForProgressSheet(null);
+    setSelectedBedForProgressSheet(null);
+    
+    toast.success('Doctor\'s Progress Sheet submitted and saved successfully');
   };
 
   const handleConsentSubmit = async (consentData: any) => {
@@ -611,7 +697,13 @@ const IPDBedManagement: React.FC = () => {
               tatStartTime: undefined,
               tatRemainingSeconds: 30 * 60,
               consultantNotes: [],
-              nursingNotes: []
+              nursingNotes: [],
+              consentFormSubmitted: false,
+              clinicalRecordSubmitted: false,
+              progressSheetSubmitted: false,
+              consentFormData: undefined,
+              clinicalRecordData: undefined,
+              progressSheetData: undefined
             };
           }
           return b;
@@ -867,52 +959,126 @@ const IPDBedManagement: React.FC = () => {
 
             {/* Notes and Consent Buttons - Only show for occupied beds */}
             {bed.status === 'occupied' && (
-              <div className="mb-3 space-y-2">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleShowNotes(bed, 'consultant')}
-                    className="flex-1 bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 flex items-center justify-center gap-1"
-                  >
-                    <span>👨‍⚕️</span>
-                    <span>Consultant Notes</span>
-                    {bed.consultantNotes && bed.consultantNotes.length > 0 && (
-                      <span className="bg-white text-purple-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                        {bed.consultantNotes.length}
-                      </span>
-                    )}
-                  </button>
+              <div className="mb-3 space-y-3">
+                {/* Notes Section */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleShowNotes(bed, 'consultant')}
+                      className="flex-1 bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 flex items-center justify-center gap-1"
+                    >
+                      <span>👨‍⚕️</span>
+                      <span>Consultant Notes</span>
+                      {bed.consultantNotes && bed.consultantNotes.length > 0 && (
+                        <span className="bg-white text-purple-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          {bed.consultantNotes.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleShowNotes(bed, 'nursing')}
+                      className="flex-1 bg-teal-500 text-white px-2 py-1 rounded text-xs hover:bg-teal-600 flex items-center justify-center gap-1"
+                    >
+                      <span>👩‍⚕️</span>
+                      <span>Nursing Notes</span>
+                      {bed.nursingNotes && bed.nursingNotes.length > 0 && (
+                        <span className="bg-white text-teal-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          {bed.nursingNotes.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleShowNotes(bed, 'nursing')}
-                    className="flex-1 bg-teal-500 text-white px-2 py-1 rounded text-xs hover:bg-teal-600 flex items-center justify-center gap-1"
-                  >
-                    <span>👩‍⚕️</span>
-                    <span>Nursing Notes</span>
-                    {bed.nursingNotes && bed.nursingNotes.length > 0 && (
-                      <span className="bg-white text-teal-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                        {bed.nursingNotes.length}
-                      </span>
-                    )}
-                  </button>
+
+                {/* Consent Form Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleShowConsentForm(bed)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                        bed.consentFormSubmitted 
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-orange-500 hover:bg-orange-600'
+                      }`}
+                    >
+                      <span>{bed.consentFormSubmitted ? '✅' : '📋'}</span>
+                      <span>Consent Form</span>
+                      {bed.consentFormSubmitted && (
+                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleShowConsentForm(bed)}
-                    className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                      bed.consentFormSubmitted 
-                        ? 'bg-green-500 hover:bg-green-600' 
-                        : 'bg-orange-500 hover:bg-orange-600'
-                    }`}
-                  >
-                    <span>{bed.consentFormSubmitted ? '✅' : '📋'}</span>
-                    <span>Consent Form</span>
-                    {bed.consentFormSubmitted && (
-                      <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                        ✓
+
+                {/* Procedure Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleProcedure(bed.id)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                        bed.clinicalRecordSubmitted && bed.progressSheetSubmitted
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-purple-500 hover:bg-purple-600'
+                      }`}
+                    >
+                      <span>{bed.clinicalRecordSubmitted && bed.progressSheetSubmitted ? '🏥✅' : '🏥'}</span>
+                      <span>Procedure</span>
+                      <span className={`ml-1 transition-transform ${expandedProcedureBed === bed.id ? 'rotate-90' : ''}`}>
+                        ▶
                       </span>
-                    )}
-                  </button>
+                      {bed.clinicalRecordSubmitted && bed.progressSheetSubmitted && (
+                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Procedure Options */}
+                  {expandedProcedureBed === bed.id && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowClinicalRecord(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.clinicalRecordSubmitted 
+                              ? 'bg-blue-500 hover:bg-blue-600' 
+                              : 'bg-indigo-500 hover:bg-indigo-600'
+                          }`}
+                        >
+                          <span>{bed.clinicalRecordSubmitted ? '📋✅' : '📋'}</span>
+                          <span>Clinical Record</span>
+                          {bed.clinicalRecordSubmitted && (
+                            <span className="bg-white text-blue-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowProgressSheet(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.progressSheetSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-orange-500 hover:bg-orange-600'
+                          }`}
+                        >
+                          <span>{bed.progressSheetSubmitted ? '📊✅' : '📊'}</span>
+                          <span>Progress Sheet</span>
+                          {bed.progressSheetSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1001,6 +1167,36 @@ const IPDBedManagement: React.FC = () => {
           patient={selectedPatientForIPDConsent}
           bedNumber={selectedBedForAdmission?.number || 0}
           onSubmit={handleIPDConsentSubmit}
+        />
+      )}
+
+      {/* Clinical Record Form Modal */}
+      {showClinicalRecordForm && selectedPatientForClinicalRecord && selectedBedForClinicalRecord && (
+        <ClinicalRecordForm
+          isOpen={showClinicalRecordForm}
+          onClose={() => {
+            setShowClinicalRecordForm(false);
+            setSelectedPatientForClinicalRecord(null);
+            setSelectedBedForClinicalRecord(null);
+          }}
+          patient={selectedPatientForClinicalRecord}
+          bedNumber={selectedBedForClinicalRecord.number}
+          onSubmit={handleClinicalRecordSubmit}
+        />
+      )}
+
+      {/* Doctor's Progress Sheet Modal */}
+      {showProgressSheet && selectedPatientForProgressSheet && selectedBedForProgressSheet && (
+        <DoctorProgressSheet
+          isOpen={showProgressSheet}
+          onClose={() => {
+            setShowProgressSheet(false);
+            setSelectedPatientForProgressSheet(null);
+            setSelectedBedForProgressSheet(null);
+          }}
+          patient={selectedPatientForProgressSheet}
+          bedNumber={selectedBedForProgressSheet.number}
+          onSubmit={handleProgressSheetSubmit}
         />
       )}
     </div>
