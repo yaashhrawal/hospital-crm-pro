@@ -13,6 +13,7 @@ import MedicationChartForm from './MedicationChartForm';
 import CarePlanForm from './CarePlanForm';
 import DiabeticChartForm from './DiabeticChartForm';
 import NursesNotesForm from './NursesNotesForm';
+import TatForm from './TatForm';
 import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
@@ -39,6 +40,8 @@ interface BedData {
   progressSheetSubmitted?: boolean; // Track if progress sheet was submitted
   nursesOrdersData?: any; // Store nurses orders data
   nursesOrdersSubmitted?: boolean; // Track if nurses orders was submitted
+  tatFormData?: any; // Store TAT form data
+  tatFormSubmitted?: boolean; // Track if TAT form was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -319,6 +322,9 @@ const IPDBedManagement: React.FC = () => {
   const [showCarePlan, setShowCarePlan] = useState(false);
   const [showDiabeticChart, setShowDiabeticChart] = useState(false);
   const [showNursesNotes, setShowNursesNotes] = useState(false);
+  const [showTatForm, setShowTatForm] = useState(false);
+  const [selectedPatientForTat, setSelectedPatientForTat] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForTat, setSelectedBedForTat] = useState<BedData | null>(null);
   
   // IPD Statistics state
   const [ipdStats, setIPDStats] = useState(() => getIPDStats());
@@ -524,6 +530,14 @@ const IPDBedManagement: React.FC = () => {
     }
   };
 
+  const handleShowTatForm = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForTat(bed.patient);
+      setSelectedBedForTat(bed);
+      setShowTatForm(true);
+    }
+  };
+
   const handleIPDConsentSubmit = (consentData: any) => {
     if (!selectedBedForIPDConsent) return;
 
@@ -547,6 +561,30 @@ const IPDBedManagement: React.FC = () => {
     setSelectedBedForIPDConsent(null);
     
     toast.success('IPD Consent form submitted and saved successfully');
+  };
+
+  const handleTatFormSubmit = (tatData: any) => {
+    if (!selectedBedForTat) return;
+
+    // Save TAT data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForTat.id) {
+          return {
+            ...bed,
+            tatFormData: tatData,
+            tatFormSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowTatForm(false);
+    setSelectedPatientForTat(null);
+    setSelectedBedForTat(null);
+    toast.success('TAT Form submitted successfully');
   };
 
   const handleShowClinicalRecord = (bed: BedData) => {
@@ -1229,6 +1267,21 @@ const IPDBedManagement: React.FC = () => {
                         </button>
                       )}
                     </div>
+                    
+                    {/* TAT Form Button */}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => handleShowTatForm(bed)}
+                        className={`w-full text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                          bed.tatFormSubmitted 
+                            ? 'bg-green-500 hover:bg-green-600' 
+                            : 'bg-blue-500 hover:bg-blue-600'
+                        }`}
+                      >
+                        <span>{bed.tatFormSubmitted ? '✅' : '📋'}</span>
+                        <span>TAT Form</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1656,6 +1709,20 @@ const IPDBedManagement: React.FC = () => {
           bedNumber={selectedBedForNursing.number}
           ipdNumber={selectedBedForNursing?.ipdNumber}
           onSubmit={handleNursesNotesSubmit}
+        />
+      )}
+
+      {/* TAT Form Modal */}
+      {showTatForm && selectedPatientForTat && selectedBedForTat && (
+        <TatForm
+          patientId={selectedPatientForTat.id}
+          bedNumber={selectedBedForTat.number.toString()}
+          onClose={() => {
+            setShowTatForm(false);
+            setSelectedPatientForTat(null);
+            setSelectedBedForTat(null);
+          }}
+          onSave={handleTatFormSubmit}
         />
       )}
     </div>
