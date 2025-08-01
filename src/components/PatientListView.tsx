@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import dataService from '../services/dataService';
 import PatientHistoryModal from './PatientHistoryModal';
+import VisitAgainModal from './VisitAgainModal';
 import type { Patient, PatientTransaction } from '../types/index';
 
 interface PatientListItem extends Patient {
@@ -17,6 +18,7 @@ const PatientListView: React.FC = () => {
   const [filteredPatients, setFilteredPatients] = useState<PatientListItem[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showVisitAgain, setShowVisitAgain] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'lastVisit' | 'totalSpent' | 'visitCount'>('name');
@@ -150,6 +152,11 @@ const PatientListView: React.FC = () => {
   const openPatientHistory = (patient: PatientListItem) => {
     setSelectedPatient(patient);
     setShowHistory(true);
+  };
+
+  const openVisitAgain = (patient: PatientListItem) => {
+    setSelectedPatient(patient);
+    setShowVisitAgain(true);
   };
 
   const onQuickEntrySubmit = async (data: any) => {
@@ -332,15 +339,23 @@ const PatientListView: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => openPatientHistory(patient)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
-                    >
-                      View History
-                    </button>
-                    <button className="text-green-600 hover:text-green-900">
-                      Schedule
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openPatientHistory(patient)}
+                        className="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 border border-indigo-200 rounded hover:bg-indigo-50"
+                      >
+                        📋 History
+                      </button>
+                      <button
+                        onClick={() => openVisitAgain(patient)}
+                        className="text-green-600 hover:text-green-900 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50"
+                      >
+                        🔄 Visit Again
+                      </button>
+                      <button className="text-blue-600 hover:text-blue-900 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50">
+                        📅 Schedule
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -362,6 +377,20 @@ const PatientListView: React.FC = () => {
           onClose={() => {
             setShowHistory(false);
             setSelectedPatient(null);
+          }}
+        />
+      )}
+
+      {/* Visit Again Modal */}
+      {showVisitAgain && selectedPatient && (
+        <VisitAgainModal
+          patient={selectedPatient}
+          onClose={() => {
+            setShowVisitAgain(false);
+            setSelectedPatient(null);
+          }}
+          onVisitCreated={() => {
+            loadPatients(); // Refresh the patient list to show updated data
           }}
         />
       )}
