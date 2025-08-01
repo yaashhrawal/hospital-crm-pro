@@ -307,6 +307,13 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
     }));
   };
 
+  const deleteMedicationRow = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      medications: prev.medications.filter((_, i) => i !== index).map((med, i) => ({ ...med, srNo: i + 1 }))
+    }));
+  };
+
   const addValuableRow = () => {
     setFormData(prev => ({
       ...prev,
@@ -314,9 +321,54 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
     }));
   };
 
+  const deleteValuableRow = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      valuables: prev.valuables.filter((_, i) => i !== index).map((val, i) => ({ ...val, srNo: i + 1 }))
+    }));
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden">
+    <>
+      <style>
+        {`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .tat-form-content, .tat-form-content * {
+              visibility: visible;
+            }
+            .tat-form-content {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              max-width: none !important;
+              max-height: none !important;
+              overflow: visible !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .print-break {
+              page-break-after: always;
+            }
+            table {
+              page-break-inside: avoid;
+            }
+            .bg-blue-50, .bg-green-50, .bg-yellow-50, .bg-purple-50, 
+            .bg-red-50, .bg-indigo-50, .bg-orange-50, .bg-teal-50, 
+            .bg-pink-50, .bg-gray-50 {
+              background-color: #f9f9f9 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+        `}
+      </style>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden tat-form-content">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-blue-50">
           <div className="flex justify-between items-center">
@@ -328,12 +380,20 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                 {bedNumber && `Bed: ${bedNumber}`} • Turn Around Time Assessment
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
-              ✕ Close
-            </button>
+            <div className="flex gap-2 no-print">
+              <button
+                onClick={() => window.print()}
+                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={onClose}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+              >
+                ✕ Close
+              </button>
+            </div>
           </div>
         </div>
 
@@ -712,6 +772,7 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                         <th className="border border-gray-300 px-2 py-1 text-left">Name of medicine</th>
                         <th className="border border-gray-300 px-2 py-1 text-left">Doses</th>
                         <th className="border border-gray-300 px-2 py-1 text-left">Timing</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -753,6 +814,17 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                               }}
                               className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-yellow-500"
                             />
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-center">
+                            {formData.medications.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => deleteMedicationRow(index)}
+                                className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 no-print"
+                              >
+                                🗑️ Delete
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1228,6 +1300,7 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                       <th className="border border-gray-300 px-2 py-1 text-left">Sr. No.</th>
                       <th className="border border-gray-300 px-2 py-1 text-left">Name of Valuable Item</th>
                       <th className="border border-gray-300 px-2 py-1 text-left">Qty.</th>
+                      <th className="border border-gray-300 px-2 py-1 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1257,6 +1330,17 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                             }}
                             className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-pink-500"
                           />
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center">
+                          {formData.valuables.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => deleteValuableRow(index)}
+                              className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                            >
+                              🗑️ Delete
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1324,7 +1408,7 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             </div>
 
             {/* Form Actions */}
-            <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
+            <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 no-print">
               <button
                 type="button"
                 onClick={onClose}
@@ -1342,8 +1426,9 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             </div>
           </form>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
