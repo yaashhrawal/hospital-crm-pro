@@ -16,16 +16,45 @@ interface PatientHistoryModalProps {
   patient: PatientWithRelations;
   isOpen: boolean;
   onClose: () => void;
+  onPatientUpdated?: () => void;
 }
 
-const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose }) => {
+const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose, onPatientUpdated }) => {
   const { printServiceReceipt } = useReceiptPrinting();
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   
   if (!isOpen) return null;
 
   const totalSpent = patient.totalSpent || 0;
   const visitCount = patient.visitCount || 0;
   const transactions = patient.transactions || [];
+
+  const handleDeleteTransaction = async (transactionId: string, description: string, amount: number) => {
+    if (!confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\nAmount: ₹${amount.toLocaleString()}\n\nThis will mark the transaction as cancelled and cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingTransactionId(transactionId);
+      console.log('🗑️ Deleting transaction:', transactionId);
+      
+      // Update transaction status to CANCELLED
+      await HospitalService.updateTransactionStatus(transactionId, 'CANCELLED');
+      
+      toast.success('Transaction cancelled successfully. Patient totals will be updated.');
+      
+      // Close modal and trigger patient list refresh
+      onClose();
+      if (onPatientUpdated) {
+        onPatientUpdated();
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to delete transaction:', error);
+      toast.error(`Failed to delete transaction: ${error.message}`);
+    } finally {
+      setDeletingTransactionId(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -104,7 +133,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                     <th className="text-left p-2">Amount</th>
                     <th className="text-left p-2">Payment</th>
                     <th className="text-left p-2">Status</th>
-                    <th className="text-left p-2">Print</th>
+                    <th className="text-left p-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,15 +167,27 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                         </span>
                       </td>
                       <td className="p-2">
-                        {transaction.status === 'COMPLETED' && (
-                          <button
-                            onClick={() => printServiceReceipt(transaction.id)}
-                            className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600"
-                            title="Print Receipt"
-                          >
-                            🖨️
-                          </button>
-                        )}
+                        <div className="flex space-x-2">
+                          {transaction.status === 'COMPLETED' && (
+                            <button
+                              onClick={() => printServiceReceipt(transaction.id)}
+                              className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600"
+                              title="Print Receipt"
+                            >
+                              🖨️
+                            </button>
+                          )}
+                          {transaction.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() => handleDeleteTransaction(transaction.id, transaction.description, transaction.amount)}
+                              disabled={deletingTransactionId === transaction.id}
+                              className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Delete Transaction"
+                            >
+                              {deletingTransactionId === transaction.id ? '⏳' : '🗑️'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -840,6 +881,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             setShowHistoryModal(false);
             setSelectedPatient(null);
           }}
+          onPatientUpdated={loadPatients}
         />
       )}
 
