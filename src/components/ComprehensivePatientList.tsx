@@ -8,6 +8,7 @@ import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
 import MultiplePrescriptionGenerator from './MultiplePrescriptionGenerator';
 import PatientServiceManager from './PatientServiceManager';
+import VisitAgainModal from './VisitAgainModal';
 import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 
@@ -53,7 +54,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="text-2xl font-bold text-purple-700">
-              {patient.date_of_entry ? new Date(patient.date_of_entry).toLocaleDateString('en-IN') : 'Never'}
+              {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString('en-IN') : 
+               patient.date_of_entry ? new Date(patient.date_of_entry).toLocaleDateString('en-IN') : 'Never'}
             </div>
             <div className="text-purple-600">Last Visit</div>
           </div>
@@ -189,6 +191,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
   const [showServiceManager, setShowServiceManager] = useState(false);
   const [selectedPatientForServices, setSelectedPatientForServices] = useState<PatientWithRelations | null>(null);
+  const [showVisitAgainModal, setShowVisitAgainModal] = useState(false);
+  const [selectedPatientForVisitAgain, setSelectedPatientForVisitAgain] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
   useEffect(() => {
@@ -282,6 +286,11 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const handleEditPatient = (patient: PatientWithRelations) => {
     setSelectedPatient(patient);
     setShowEditModal(true);
+  };
+
+  const handleVisitAgain = (patient: PatientWithRelations) => {
+    setSelectedPatientForVisitAgain(patient);
+    setShowVisitAgainModal(true);
   };
 
 
@@ -405,7 +414,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           visit_count: patient.visitCount || 0,
           department_status: patient.departmentStatus || 'OPD',
           total_spent: patient.totalSpent || 0, // Clean numeric value
-          last_visit: formatDate(patient.date_of_entry || ''),
+          last_visit: formatDate(patient.lastVisit || patient.date_of_entry || ''),
           registration_date: patient.created_at || '', // Store raw date
         };
       });
@@ -672,21 +681,18 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                           transactions_count: patient.transactions?.length || 0
                         });
                         
-                        // Prioritize date_of_entry (actual visit date) over transaction dates
+                        // Use the calculated lastVisit field from HospitalService for accurate last visit date
                         let lastVisitDate = null;
                         
-                        // First priority: use date_of_entry (the actual visit date entered by user)
-                        if (patient.date_of_entry) {
+                        // First priority: use the calculated lastVisit field (most recent transaction date)
+                        if (patient.lastVisit) {
+                          lastVisitDate = patient.lastVisit;
+                          console.log(`Using calculated lastVisit: ${lastVisitDate}`);
+                        }
+                        // Second priority: use date_of_entry (for patients without transactions)
+                        else if (patient.date_of_entry) {
                           lastVisitDate = patient.date_of_entry;
                           console.log(`Using date_of_entry: ${lastVisitDate}`);
-                        }
-                        // Second priority: get last transaction date
-                        else if (patient.transactions && patient.transactions.length > 0) {
-                          const sortedTransactions = patient.transactions.sort((a: any, b: any) => 
-                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                          );
-                          lastVisitDate = sortedTransactions[0].created_at;
-                          console.log(`Using transaction date: ${lastVisitDate}`);
                         }
                         // Third priority: use patient creation date
                         else if (patient.created_at) {
@@ -724,6 +730,16 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                           title="Edit Patient Details"
                         >
                           ✏️ Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVisitAgain(patient);
+                          }}
+                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          title="New Visit for Existing Patient"
+                        >
+                          🔄 Visit Again
                         </button>
                         <button
                           onClick={(e) => {
@@ -896,6 +912,20 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           }}
           onServicesUpdated={() => {
             loadPatients(); // Reload to update totals
+          }}
+        />
+      )}
+
+      {/* Visit Again Modal */}
+      {showVisitAgainModal && selectedPatientForVisitAgain && (
+        <VisitAgainModal
+          patient={selectedPatientForVisitAgain}
+          onClose={() => {
+            setShowVisitAgainModal(false);
+            setSelectedPatientForVisitAgain(null);
+          }}
+          onVisitCreated={() => {
+            loadPatients(); // Reload to update patient data and totals
           }}
         />
       )}
