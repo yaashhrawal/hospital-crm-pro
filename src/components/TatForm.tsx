@@ -279,6 +279,736 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
 
   const [loading, setLoading] = useState(false);
 
+  const handlePrint = () => {
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    // Get the form content
+    const formContent = document.querySelector('.tat-form-content');
+    if (!formContent) return;
+
+    // Create print-optimized HTML
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>TAT Form - ${formData.patientName || 'Patient'}</title>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .page-break {
+            page-break-after: always;
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+          }
+          
+          .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+          }
+          
+          .header p {
+            margin: 5px 0 0 0;
+            color: #666;
+          }
+          
+          .section {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+          }
+          
+          .section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+          }
+          
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+          
+          .grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          
+          .field {
+            margin-bottom: 8px;
+          }
+          
+          .field label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 10px;
+          }
+          
+          .field-value {
+            border: 1px solid #ccc;
+            padding: 4px;
+            background: white;
+            min-height: 20px;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 10px;
+          }
+          
+          table th {
+            background-color: #e0e0e0;
+            border: 1px solid #999;
+            padding: 4px;
+            text-align: left;
+            font-weight: bold;
+          }
+          
+          table td {
+            border: 1px solid #999;
+            padding: 4px;
+          }
+          
+          .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 5px 0;
+          }
+          
+          .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
+          
+          .checkbox {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #333;
+            display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .checkbox.checked::after {
+            content: "✓";
+            display: block;
+            text-align: center;
+            line-height: 12px;
+          }
+          
+          .radio-group {
+            display: flex;
+            gap: 15px;
+            margin: 5px 0;
+          }
+          
+          .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
+          
+          .radio {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #333;
+            border-radius: 50%;
+            display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .radio.checked::after {
+            content: "●";
+            display: block;
+            text-align: center;
+            line-height: 12px;
+            font-size: 8px;
+          }
+          
+          /* Page 1 Sections */
+          .page-1 {
+            min-height: 100vh;
+          }
+          
+          /* Page 2 Sections */
+          .page-2 {
+            min-height: 100vh;
+          }
+          
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${generatePrintContent()}
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    
+    // Wait for content to load then print
+    setTimeout(() => {
+      printWindow.print();
+      // Close window after printing
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    }, 500);
+  };
+
+  const generatePrintContent = () => {
+    return `
+      <!-- Page 1 -->
+      <div class="page-1">
+        <div class="header">
+          <h1>INITIAL NURSING ASSESSMENT (TAT FORM)</h1>
+          <p>Turn Around Time Assessment • ${bedNumber ? `Bed: ${bedNumber}` : ''} • Date: ${new Date().toLocaleDateString()}</p>
+        </div>
+
+        <!-- Section 1: Patient Information -->
+        <div class="section">
+          <h3>1. Patient Information</h3>
+          <div class="grid">
+            <div class="field">
+              <label>Consultant Name:</label>
+              <div class="field-value">${formData.consultantName || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Patient Name:</label>
+              <div class="field-value">${formData.patientName || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Date & Time of Arrival:</label>
+              <div class="field-value">${formData.arrivalDateTime ? new Date(formData.arrivalDateTime).toLocaleString() : '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Age/Sex:</label>
+              <div class="field-value">${formData.ageSex || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Department:</label>
+              <div class="field-value">${formData.department || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>UHID/IP No:</label>
+              <div class="field-value">${formData.uhidIpNo || '&nbsp;'}</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Receiving Staff:</label>
+            <div class="field-value">${formData.receivingStaff || '&nbsp;'}</div>
+          </div>
+          <div class="field">
+            <label>History Given By:</label>
+            <div class="radio-group">
+              <div class="radio-item">
+                <span class="radio ${formData.historyGivenBy === 'patient' ? 'checked' : ''}"></span>
+                <span>Patient</span>
+              </div>
+              <div class="radio-item">
+                <span class="radio ${formData.historyGivenBy === 'relative' ? 'checked' : ''}"></span>
+                <span>Relative</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Arrival & Vitals -->
+        <div class="section">
+          <h3>2. Arrival & Vitals</h3>
+          <div class="field">
+            <label>Arrival By:</label>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <span class="checkbox ${formData.arrivalBy.stretcher ? 'checked' : ''}"></span>
+                <span>Stretcher</span>
+              </div>
+              <div class="checkbox-item">
+                <span class="checkbox ${formData.arrivalBy.wheelChair ? 'checked' : ''}"></span>
+                <span>Wheel Chair</span>
+              </div>
+              <div class="checkbox-item">
+                <span class="checkbox ${formData.arrivalBy.ambulatory ? 'checked' : ''}"></span>
+                <span>Ambulatory</span>
+              </div>
+              <div class="checkbox-item">
+                <span class="checkbox ${formData.arrivalBy.other ? 'checked' : ''}"></span>
+                <span>Other: ${formData.arrivalBy.otherSpecify || ''}</span>
+              </div>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label>Height (cm):</label>
+              <div class="field-value">${formData.height || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Weight (kg):</label>
+              <div class="field-value">${formData.weight || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Unable to stand due to:</label>
+              <div class="field-value">${formData.unableToStandDue || '&nbsp;'}</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Vitals:</label>
+            <div class="grid" style="grid-template-columns: repeat(5, 1fr);">
+              <div class="field">
+                <label>Temp (°F):</label>
+                <div class="field-value">${formData.vitals.temp || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Pulse (bpm):</label>
+                <div class="field-value">${formData.vitals.pulse || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>BP (mmHg):</label>
+                <div class="field-value">${formData.vitals.bp || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>SpO2 (%):</label>
+                <div class="field-value">${formData.vitals.spo2 || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Resp (rpm):</label>
+                <div class="field-value">${formData.vitals.resp || '&nbsp;'}</div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Level of Consciousness:</label>
+            <div class="checkbox-group">
+              ${['conscious', 'semiConscious', 'unconscious'].map(key => `
+                <div class="checkbox-item">
+                  <span class="checkbox ${formData.levelOfConsciousness[key as keyof typeof formData.levelOfConsciousness] ? 'checked' : ''}"></span>
+                  <span>${key === 'conscious' ? 'Conscious' : key === 'semiConscious' ? 'Semi Conscious' : 'Unconscious'}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="field">
+            <label>Psychological Status:</label>
+            <div class="checkbox-group">
+              ${Object.entries({
+                calm: 'Calm',
+                anxious: 'Anxious',
+                withdrawn: 'Withdrawn',
+                agitated: 'Agitated',
+                depressed: 'Depressed',
+                sleepy: 'Sleepy'
+              }).map(([key, label]) => `
+                <div class="checkbox-item">
+                  <span class="checkbox ${formData.psychologicalStatus[key as keyof typeof formData.psychologicalStatus] ? 'checked' : ''}"></span>
+                  <span>${label}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="field">
+            <label>Provisional Diagnosis:</label>
+            <div class="field-value" style="min-height: 40px;">${formData.provisionalDiagnosis || '&nbsp;'}</div>
+          </div>
+        </div>
+
+        <!-- Section 3: Medical History -->
+        <div class="section">
+          <h3>3. Medical History</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label>History of Allergy:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.historyOfAllergy === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.historyOfAllergy === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+              ${formData.historyOfAllergy === 'yes' ? `
+                <div style="margin-top: 5px;">
+                  <label>Description:</label>
+                  <div class="field-value">${formData.allergyDescription || '&nbsp;'}</div>
+                </div>
+              ` : ''}
+            </div>
+            <div class="field">
+              <label>Medications on Admission:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.medicationsOnAdmission === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.medicationsOnAdmission === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+              ${formData.medicationsOnAdmission === 'yes' ? `
+                <div style="margin-top: 5px;">
+                  <label>Description:</label>
+                  <div class="field-value">${formData.medicationsDescription || '&nbsp;'}</div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          ${formData.medications.some(m => m.name || m.doses || m.timing) ? `
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr. No.</th>
+                  <th>Name of Medicine</th>
+                  <th>Doses</th>
+                  <th>Timing</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${formData.medications.filter(m => m.name || m.doses || m.timing).map(med => `
+                  <tr>
+                    <td>${med.srNo}</td>
+                    <td>${med.name || '&nbsp;'}</td>
+                    <td>${med.doses || '&nbsp;'}</td>
+                    <td>${med.timing || '&nbsp;'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="page-break"></div>
+
+      <!-- Page 2 -->
+      <div class="page-2">
+        <!-- Section 4: Patient Status and Assessment -->
+        <div class="section">
+          <h3>4. Patient Status and Assessment</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label>Any Deformities:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.anyDeformities === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.anyDeformities === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+              ${formData.anyDeformities === 'yes' ? `
+                <div style="margin-top: 5px;">
+                  <label>Specify:</label>
+                  <div class="field-value">${formData.deformitiesSpecify || '&nbsp;'}</div>
+                </div>
+              ` : ''}
+            </div>
+            <div class="field">
+              <label>Patient Items:</label>
+              <div class="checkbox-group">
+                ${Object.entries({
+                  denture: 'Denture',
+                  contactLenses: 'Contact Lenses',
+                  artificialLimbs: 'Artificial Limbs',
+                  implants: 'Implants'
+                }).map(([key, label]) => `
+                  <div class="checkbox-item">
+                    <span class="checkbox ${formData.patientItems[key as keyof typeof formData.patientItems] ? 'checked' : ''}"></span>
+                    <span>${label}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>On Admission:</label>
+            <div class="checkbox-group">
+              ${Object.entries({
+                rylesTube: 'Ryles Tube',
+                centralLine: 'Central Line',
+                foleysCath: 'Foleys Cath',
+                etTube: 'ET Tube',
+                ttTube: 'TT Tube',
+                arterialLine: 'Arterial Line',
+                gastroJejunostomy: 'Gastro Jejunostomy',
+                ivLine: 'IV Line',
+                slab: 'Slab',
+                other: 'Other'
+              }).map(([key, label]) => `
+                <div class="checkbox-item">
+                  <span class="checkbox ${formData.onAdmission[key as keyof typeof formData.onAdmission] ? 'checked' : ''}"></span>
+                  <span>${label}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label>Pressure Sore:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.pressureSore === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.pressureSore === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+            </div>
+            ${formData.pressureSore === 'yes' ? `
+              <div class="field">
+                <label>Location:</label>
+                <div class="field-value">${formData.pressureSoreLocation || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Stage:</label>
+                <div class="field-value">${
+                  formData.pressureSoreStage === '1' ? '1 (Patch)' :
+                  formData.pressureSoreStage === '2' ? '2 (Superficial)' :
+                  formData.pressureSoreStage === '3' ? '3 (Intermediate)' :
+                  formData.pressureSoreStage === '4' ? '4 (Deep)' : '&nbsp;'
+                }</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Section 5: Patient Safety -->
+        <div class="section">
+          <h3>5. Patient Safety</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label>Side railing up & lock:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.sideRailingUp === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.sideRailingUp === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label>Call bell within reach & working:</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <span class="radio ${formData.callBellWorking === 'yes' ? 'checked' : ''}"></span>
+                  <span>Yes</span>
+                </div>
+                <div class="radio-item">
+                  <span class="radio ${formData.callBellWorking === 'no' ? 'checked' : ''}"></span>
+                  <span>No</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 6: Major Surgical History -->
+        <div class="section">
+          <h3>6. Major Surgical History</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label>Major Surgical History:</label>
+              <div class="field-value" style="min-height: 40px;">${formData.majorSurgicalHistory || '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <label>Past Medical History:</label>
+              <div class="field-value" style="min-height: 40px;">${formData.pastMedicalHistory || '&nbsp;'}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 7: Vulnerable Assessment -->
+        <div class="section">
+          <h3>7. Vulnerable Assessment</h3>
+          <div class="field">
+            <label>Patient Vulnerable:</label>
+            <div class="radio-group">
+              <div class="radio-item">
+                <span class="radio ${formData.patientVulnerable === 'yes' ? 'checked' : ''}"></span>
+                <span>Yes</span>
+              </div>
+              <div class="radio-item">
+                <span class="radio ${formData.patientVulnerable === 'no' ? 'checked' : ''}"></span>
+                <span>No</span>
+              </div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Categories</th>
+                <th>YES</th>
+                <th>NO</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[
+                { key: 'ageCategory', label: 'Age more than 65 or less than 5 years' },
+                { key: 'physicallyDisabled', label: 'Physically Challenged' },
+                { key: 'mentallyDisabled', label: 'Mentally Challenged' },
+                { key: 'terminallyIll', label: 'Terminally ill' },
+                { key: 'unableToSpeak', label: 'Inability to speak' },
+                { key: 'alteredConsciousness', label: 'Altered Consciousness' },
+                { key: 'epilepticFit', label: 'Epileptic Fit' },
+                { key: 'medicationRelated', label: 'Medication Related Consciousness Defect' },
+                { key: 'absenceOfRelative', label: 'Absence of Relative' },
+                { key: 'immuneCompromised', label: 'Immune compromised/Low Immunity' }
+              ].map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.label}</td>
+                  <td style="text-align: center;">${formData.vulnerableCategories[item.key as keyof typeof formData.vulnerableCategories] === 'yes' ? '✓' : ''}</td>
+                  <td style="text-align: center;">${formData.vulnerableCategories[item.key as keyof typeof formData.vulnerableCategories] === 'no' ? '✓' : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Section 8: GCS Score (Compact) -->
+        <div class="section">
+          <h3>8. Total GCS Score on Admission</h3>
+          <div class="grid" style="grid-template-columns: repeat(3, 1fr); font-size: 10px;">
+            <div>
+              <strong>Eye Opening:</strong>
+              ${[
+                { key: 'spontaneous', label: 'Spontaneous (4)' },
+                { key: 'toVoice', label: 'To Voice (3)' },
+                { key: 'toPain', label: 'To Pain (2)' },
+                { key: 'none', label: 'None (1)' }
+              ].map(({ key, label }) => 
+                formData.gcsScore.eyeOpening[key as keyof typeof formData.gcsScore.eyeOpening] ? `<div>✓ ${label}</div>` : ''
+              ).join('')}
+            </div>
+            <div>
+              <strong>Motor Response:</strong>
+              ${[
+                { key: 'obeysCommands', label: 'Obeys Commands (6)' },
+                { key: 'localizesToPain', label: 'Localizes to Pain (5)' },
+                { key: 'withdrawsFromPain', label: 'Withdraws from Pain (4)' },
+                { key: 'flexionToPain', label: 'Flexion to Pain (3)' },
+                { key: 'extensionToPain', label: 'Extension to Pain (2)' },
+                { key: 'none', label: 'None (1)' }
+              ].map(({ key, label }) => 
+                formData.gcsScore.motorResponse[key as keyof typeof formData.gcsScore.motorResponse] ? `<div>✓ ${label}</div>` : ''
+              ).join('')}
+            </div>
+            <div>
+              <strong>Verbal Response:</strong>
+              ${[
+                { key: 'oriented', label: 'Oriented (5)' },
+                { key: 'confused', label: 'Confused (4)' },
+                { key: 'inappropriateWords', label: 'Inappropriate Words (3)' },
+                { key: 'incomprehensibleSounds', label: 'Incomprehensible Sounds (2)' },
+                { key: 'none', label: 'None (1)' }
+              ].map(({ key, label }) => 
+                formData.gcsScore.verbalResponse[key as keyof typeof formData.gcsScore.verbalResponse] ? `<div>✓ ${label}</div>` : ''
+              ).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 9: Patient Valuables (Compact) -->
+        ${formData.valuables.some(v => v.itemName || v.quantity) ? `
+          <div class="section">
+            <h3>9. Patient Valuable Handover</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr. No.</th>
+                  <th>Name of Valuable Item</th>
+                  <th>Qty.</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${formData.valuables.filter(v => v.itemName || v.quantity).map(valuable => `
+                  <tr>
+                    <td>${valuable.srNo}</td>
+                    <td>${valuable.itemName || '&nbsp;'}</td>
+                    <td>${valuable.quantity || '&nbsp;'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+
+        <!-- Section 10: Staff Signatures -->
+        <div class="section">
+          <h3>10. Staff Signatures</h3>
+          <div class="grid-2">
+            <div>
+              <h4 style="margin: 0 0 10px 0;">Nursing Staff</h4>
+              <div class="field">
+                <label>Name & Sign:</label>
+                <div class="field-value">${formData.nursingStaffName || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Date & Time:</label>
+                <div class="field-value">${formData.nursingStaffDateTime ? new Date(formData.nursingStaffDateTime).toLocaleString() : '&nbsp;'}</div>
+              </div>
+            </div>
+            <div>
+              <h4 style="margin: 0 0 10px 0;">Patient/Relative</h4>
+              <div class="field">
+                <label>Name & Sign:</label>
+                <div class="field-value">${formData.patientRelativeName || '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Date & Time:</label>
+                <div class="field-value">${formData.patientRelativeDateTime ? new Date(formData.patientRelativeDateTime).toLocaleString() : '&nbsp;'}</div>
+              </div>
+              <div class="field">
+                <label>Relation to Patient:</label>
+                <div class="field-value">${formData.relationToPatient || '&nbsp;'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -329,46 +1059,8 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
   };
 
   return (
-    <>
-      <style>
-        {`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            .tat-form-content, .tat-form-content * {
-              visibility: visible;
-            }
-            .tat-form-content {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              max-width: none !important;
-              max-height: none !important;
-              overflow: visible !important;
-            }
-            .no-print {
-              display: none !important;
-            }
-            .print-break {
-              page-break-after: always;
-            }
-            table {
-              page-break-inside: avoid;
-            }
-            .bg-blue-50, .bg-green-50, .bg-yellow-50, .bg-purple-50, 
-            .bg-red-50, .bg-indigo-50, .bg-orange-50, .bg-teal-50, 
-            .bg-pink-50, .bg-gray-50 {
-              background-color: #f9f9f9 !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-        `}
-      </style>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden tat-form-content">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden tat-form-content">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-blue-50">
           <div className="flex justify-between items-center">
@@ -382,7 +1074,7 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             </div>
             <div className="flex gap-2 no-print">
               <button
-                onClick={() => window.print()}
+                onClick={handlePrint}
                 className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
               >
                 🖨️ Print
@@ -1426,9 +2118,8 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             </div>
           </form>
         </div>
-        </div>
       </div>
-    </>
+    </div>
   );
 };
 
