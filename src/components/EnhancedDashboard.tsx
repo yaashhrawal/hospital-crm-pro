@@ -58,7 +58,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       // Get basic counts
       const [patientsRes, admissionsRes, bedsRes, revenueRes, expensesRes, appointmentsRes] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact' }).eq('is_active', true),
-        supabase.from('patient_admissions').select('id', { count: 'exact' }).eq('status', 'ACTIVE'),
+        supabase.from('patients').select('id', { count: 'exact' }).eq('is_active', true), // DISABLED: patient_admissions table removed
         supabase.from('beds').select('id, status', { count: 'exact' }),
         supabase.from('patient_transactions').select('amount').gte('created_at', `${today}T00:00:00`).lt('created_at', `${today}T23:59:59`).eq('status', 'COMPLETED'),
         supabase.from('daily_expenses').select('amount').eq('expense_date', today).eq('approval_status', 'APPROVED'),
@@ -66,7 +66,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       ]);
 
       const totalPatients = patientsRes.count || 0;
-      const activeAdmissions = admissionsRes.count || 0;
+      const activeAdmissions = 0; // DISABLED: patient_admissions table removed
       const totalBeds = bedsRes.count || 0;
       const availableBeds = bedsRes.data?.filter(bed => bed.status === 'AVAILABLE').length || 0;
       const todayRevenue = revenueRes.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
@@ -94,20 +94,9 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
   const loadRecentAdmissions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .select(`
-          *,
-          patient:patients(patient_id, first_name, last_name, age, blood_group),
-          bed:beds(bed_number, room_type, daily_rate),
-          admitted_by_user:users!patient_admissions_admitted_by_fkey(first_name, last_name)
-        `)
-        .eq('status', 'ACTIVE')
-        .order('admission_date', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setRecentAdmissions(data || []);
+      console.log('📡 Loading recent admissions - DISABLED (patient_admissions table removed)');
+      // DISABLED: patient_admissions table was removed during emergency rollback
+      setRecentAdmissions([]);
     } catch (error: any) {
       console.error('Error loading recent admissions:', error);
     }

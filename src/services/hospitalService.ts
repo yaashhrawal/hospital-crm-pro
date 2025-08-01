@@ -404,12 +404,12 @@ export class HospitalService {
     try {
       console.log('📋 Fetching patients from new schema...');
       
+      // Temporary fix: Remove patient_admissions join to avoid relationship errors
       const { data: patients, error } = await supabase
         .from('patients')
         .select(`
           *,
-          transactions:patient_transactions(*),
-          admissions:patient_admissions(*)
+          transactions:patient_transactions(*)
         `)
         .eq('hospital_id', HOSPITAL_ID)
         .order('created_at', { ascending: false })
@@ -436,7 +436,7 @@ export class HospitalService {
       // Enhance patients with calculated fields
       const enhancedPatients = patients?.map(patient => {
         const transactions = patient.transactions || [];
-        const admissions = patient.admissions || [];
+        const admissions = []; // Temporarily empty until patient_admissions is fixed
         // Only count completed transactions (exclude cancelled)
         const totalSpent = transactions
           .filter((t: any) => t.status !== 'CANCELLED')
@@ -482,9 +482,7 @@ export class HospitalService {
         .from('patients')
         .select(`
           *,
-          transactions:patient_transactions(*),
-          admissions:patient_admissions(*),
-          appointments:future_appointments(*)
+          transactions:patient_transactions(*)
         `)
         .eq('id', id)
         .single();
@@ -963,7 +961,6 @@ export class HospitalService {
         .from('discharge_summaries')
         .select(`
           *,
-          admission:patient_admissions(*),
           bill:discharge_bills(*),
           created_by_user:users(id, email, first_name, last_name)
         `)
@@ -991,7 +988,6 @@ export class HospitalService {
         .select(`
           *,
           bill:discharge_bills(*),
-          admission:patient_admissions(*),
           patient:patients(*),
           created_by_user:users(id, email, first_name, last_name)
         `)
@@ -1006,7 +1002,6 @@ export class HospitalService {
           .from('discharge_summaries')
           .select(`
             *,
-            admission:patient_admissions(*),
             patient:patients(*)
           `)
           .eq('admission_id', admissionId)
