@@ -5,9 +5,6 @@ import type { User } from './config/supabaseNew';
 
 // Import production components only
 import ComprehensivePatientList from './components/ComprehensivePatientList';
-import SimplePatientListTest from './components/SimplePatientListTest';
-import MinimalTest from './components/MinimalTest';
-import UltraMinimalTest from './components/UltraMinimalTest';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppointmentManagement from './components/AppointmentManagement';
 import RealTimeDashboard from './components/RealTimeDashboard';
