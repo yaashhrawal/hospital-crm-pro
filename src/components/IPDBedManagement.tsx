@@ -14,6 +14,7 @@ import CarePlanForm from './CarePlanForm';
 import DiabeticChartForm from './DiabeticChartForm';
 import NursesNotesForm from './NursesNotesForm';
 import TatForm from './TatForm';
+import PACRecordForm from './PACRecordForm';
 import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
@@ -42,6 +43,8 @@ interface BedData {
   nursesOrdersSubmitted?: boolean; // Track if nurses orders was submitted
   tatFormData?: any; // Store TAT form data
   tatFormSubmitted?: boolean; // Track if TAT form was submitted
+  pacRecordData?: any; // Store PAC record data
+  pacRecordSubmitted?: boolean; // Track if PAC record was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -326,6 +329,14 @@ const IPDBedManagement: React.FC = () => {
   const [selectedPatientForTat, setSelectedPatientForTat] = useState<PatientWithRelations | null>(null);
   const [selectedBedForTat, setSelectedBedForTat] = useState<BedData | null>(null);
   
+  // PAC Record Form state
+  const [showPACRecord, setShowPACRecord] = useState(false);
+  const [selectedPatientForPAC, setSelectedPatientForPAC] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForPAC, setSelectedBedForPAC] = useState<BedData | null>(null);
+  
+  // Surgical Record expansion state
+  const [expandedSurgicalRecordBed, setExpandedSurgicalRecordBed] = useState<string | null>(null);
+  
   // IPD Statistics state
   const [ipdStats, setIPDStats] = useState(() => getIPDStats());
   const [selectedPatientForNursing, setSelectedPatientForNursing] = useState<PatientWithRelations | null>(null);
@@ -587,6 +598,30 @@ const IPDBedManagement: React.FC = () => {
     toast.success('TAT Form submitted successfully');
   };
 
+  const handlePACRecordSubmit = (pacData: any) => {
+    if (!selectedBedForPAC) return;
+
+    // Save PAC record data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForPAC.id) {
+          return {
+            ...bed,
+            pacRecordData: pacData,
+            pacRecordSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowPACRecord(false);
+    setSelectedPatientForPAC(null);
+    setSelectedBedForPAC(null);
+    toast.success('PAC Record saved successfully!');
+  };
+
   const handleShowClinicalRecord = (bed: BedData) => {
     if (bed.patient) {
       setSelectedPatientForClinicalRecord(bed.patient);
@@ -605,6 +640,18 @@ const IPDBedManagement: React.FC = () => {
 
   const handleToggleAdmissionHistory = (bedId: string) => {
     setExpandedAdmissionHistoryBed(expandedAdmissionHistoryBed === bedId ? null : bedId);
+  };
+
+  const handleToggleSurgicalRecord = (bedId: string) => {
+    setExpandedSurgicalRecordBed(expandedSurgicalRecordBed === bedId ? null : bedId);
+  };
+
+  const handleShowPACRecord = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForPAC(bed.patient);
+      setSelectedBedForPAC(bed);
+      setShowPACRecord(true);
+    }
   };
 
   const handleShowProgressSheet = (bed: BedData) => {
@@ -1445,6 +1492,55 @@ const IPDBedManagement: React.FC = () => {
                   )}
                 </div>
 
+                {/* Surgical Record Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleSurgicalRecord(bed.id)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                        bed.pacRecordSubmitted
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-red-500 hover:bg-red-600'
+                      }`}
+                    >
+                      <span>{bed.pacRecordSubmitted ? '🏥✅' : '🏥'}</span>
+                      <span>Surgical Record</span>
+                      <span className={`ml-1 transition-transform ${expandedSurgicalRecordBed === bed.id ? 'rotate-90' : ''}`}>
+                        ▶
+                      </span>
+                      {bed.pacRecordSubmitted && (
+                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Surgical Record Options */}
+                  {expandedSurgicalRecordBed === bed.id && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowPACRecord(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.pacRecordSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-red-500 hover:bg-red-600'
+                          }`}
+                        >
+                          <span>{bed.pacRecordSubmitted ? '💉✅' : '💉'}</span>
+                          <span>PAC Record</span>
+                          {bed.pacRecordSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Consultation Orders Section */}
                 <div className="border-t border-gray-200 pt-2">
                   <div className="flex gap-2">
@@ -1723,6 +1819,26 @@ const IPDBedManagement: React.FC = () => {
             setSelectedBedForTat(null);
           }}
           onSave={handleTatFormSubmit}
+        />
+      )}
+
+      {/* PAC Record Form Modal */}
+      {showPACRecord && selectedPatientForPAC && selectedBedForPAC && (
+        <PACRecordForm
+          isOpen={showPACRecord}
+          onClose={() => {
+            setShowPACRecord(false);
+            setSelectedPatientForPAC(null);
+            setSelectedBedForPAC(null);
+          }}
+          patientData={{
+            name: `${selectedPatientForPAC.first_name || ''} ${selectedPatientForPAC.last_name || ''}`.trim(),
+            age: selectedPatientForPAC.age || '',
+            gender: selectedPatientForPAC.gender || '',
+            ipdNo: selectedBedForPAC.ipdNumber || '',
+            roomWardNo: `Bed ${selectedBedForPAC.number}`
+          }}
+          onSave={handlePACRecordSubmit}
         />
       )}
     </div>
