@@ -15,7 +15,7 @@ const patientEntrySchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
   last_name: z.string().min(2, 'Last name must be at least 2 characters'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+  gender: z.enum(['M', 'F', 'OTHER']),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   address: z.string().min(5, 'Address must be at least 5 characters'),
@@ -65,7 +65,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
   } = useForm({
     resolver: zodResolver(patientEntrySchema),
     defaultValues: {
-      gender: 'MALE',
+      gender: 'M',
       entry_fee: 100,
       entry_payment_mode: 'cash',
       consultation_payment_mode: 'cash',

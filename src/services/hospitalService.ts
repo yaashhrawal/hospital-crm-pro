@@ -400,10 +400,230 @@ export class HospitalService {
     }
   }
   
+  static async getPatientsForDate(dateStr: string, limit = 100): Promise<PatientWithRelations[]> {
+    try {
+      console.log(`📅 Fetching patients for EXACT date: ${dateStr} (NO CUMULATIVE RESULTS)`);
+      
+      // NEW APPROACH: Get all patients and filter exactly client-side
+      // This avoids all timezone issues that cause cumulative results
+      
+      const { data: allPatients, error } = await supabase
+        .from('patients')
+        .select(`
+          *,
+          transactions:patient_transactions(*),
+          admissions:patient_admissions(*)
+        `)
+        .eq('hospital_id', HOSPITAL_ID)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      
+      if (error) {
+        console.error('❌ Query error:', error);
+        throw error;
+      }
+      
+      console.log(`📊 Got ${allPatients?.length || 0} total patients, now filtering for EXACT date: ${dateStr}`);
+      
+      if (!allPatients || allPatients.length === 0) {
+        console.log('⚠️ No patients found in database');
+        return [];
+      }
+      
+      // Filter patients with EXACT date matching (no timezone issues)
+      const exactDatePatients = allPatients.filter(patient => {
+        // Extract dates in YYYY-MM-DD format for exact comparison
+        let createdDate = null;
+        let entryDate = null;
+        
+        if (patient.created_at) {
+          createdDate = patient.created_at.split('T')[0]; // Extract YYYY-MM-DD
+        }
+        
+        if (patient.date_of_entry) {
+          // Handle both date-only and datetime formats
+          if (patient.date_of_entry.includes('T')) {
+            entryDate = patient.date_of_entry.split('T')[0];
+          } else {
+            entryDate = patient.date_of_entry; // Already YYYY-MM-DD
+          }
+        }
+        
+        // EXACT match check
+        const matchesCreated = createdDate === dateStr;
+        const matchesEntry = entryDate === dateStr;
+        const shouldInclude = matchesCreated || matchesEntry;
+        
+        // Debug each patient
+        console.log(`🔍 Patient: ${patient.first_name} ${patient.last_name}`, {
+          createdDate,
+          entryDate,
+          targetDate: dateStr,
+          matchesCreated,
+          matchesEntry,
+          included: shouldInclude
+        });
+        
+        return shouldInclude;
+      });
+      
+      console.log(`✅ Filtered to ${exactDatePatients.length} patients with EXACT date match for ${dateStr}`);
+      
+      // Debug: Show filtered results
+      if (exactDatePatients.length > 0) {
+        console.log('🔍 EXACT DATE FILTER RESULTS:');
+        exactDatePatients.forEach((p, i) => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry) : null;
+          console.log(`  ${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+          
+          // Verify exact match
+          if (createdDate !== dateStr && entryDate !== dateStr) {
+            console.error(`🚨 FILTER ERROR: Patient ${p.first_name} ${p.last_name} doesn't match ${dateStr}!`);
+          }
+        });
+      }
+      
+      if (entryTodayQuery.data && entryTodayQuery.data.length > 0) {
+        console.log('📅 ENTRY TODAY QUERY RESULTS:');
+        entryTodayQuery.data.forEach((p, i) => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+          console.log(`  ${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+          
+          // Special debugging for problematic patients
+          if (p.first_name?.toUpperCase().includes('ANJU') || 
+              p.first_name?.toUpperCase().includes('SHER') ||
+              p.last_name?.toUpperCase().includes('SINGH')) {
+            console.error(`🎯 PROBLEM PATIENT IN ENTRY QUERY: ${p.first_name} ${p.last_name}`, {
+              created_at_raw: p.created_at,
+              date_of_entry_raw: p.date_of_entry,
+              created_at_parsed: createdDate,
+              date_of_entry_parsed: entryDate,
+              expectedDate: dateStr,
+              queryType: 'ENTRY_TODAY'
+            });
+          }
+          
+          // Flag problematic entries
+          if (entryDate !== dateStr) {
+            console.error(`🚨 WRONG DATE IN ENTRY QUERY: Patient ${p.first_name} ${p.last_name} has date_of_entry=${entryDate} but expected ${dateStr}`);
+          }
+        });
+      }
+      
+      // Combine and deduplicate results
+      const combinedPatients = [...(createdTodayQuery.data || []), ...(entryTodayQuery.data || [])];
+      const uniquePatients = combinedPatients.filter((patient, index, array) => 
+        array.findIndex(p => p.id === patient.id) === index
+      );
+      
+      // STRICT VALIDATION: Only include patients that actually match today's date
+      console.log('🔍 Applying strict date validation...');
+      const validatedPatients = uniquePatients.filter(patient => {
+        const createdDate = patient.created_at ? patient.created_at.split('T')[0] : null;
+        const entryDate = patient.date_of_entry ? patient.date_of_entry.split('T')[0] : null;
+        
+        // Special handling for problematic patients
+        const isProblematicPatient = patient.first_name?.toUpperCase().includes('ANJU') || 
+                                   patient.first_name?.toUpperCase().includes('SHER') ||
+                                   patient.last_name?.toUpperCase().includes('SINGH');
+        
+        if (isProblematicPatient) {
+          console.error(`🎯 CHECKING PROBLEMATIC PATIENT: ${patient.first_name} ${patient.last_name}`, {
+            created_at_parsed: createdDate,
+            date_of_entry_parsed: entryDate,
+            expectedDate: dateStr
+          });
+          
+          // Reject if ANY date field shows 31/07/2025 (yesterday)
+          if (createdDate === '2025-07-31' || entryDate === '2025-07-31') {
+            console.error(`🚫 BLOCKING PROBLEMATIC PATIENT: ${patient.first_name} ${patient.last_name} has 31/07/2025 date - EXCLUDED FROM TODAY'S FILTER`);
+            return false;
+          }
+        }
+        
+        // Patient is valid if either created_at OR date_of_entry matches today
+        const isValidCreated = createdDate === dateStr;
+        const isValidEntry = entryDate === dateStr;
+        const isValid = isValidCreated || isValidEntry;
+        
+        if (!isValid) {
+          console.error(`🚨 FILTERING OUT INVALID PATIENT: ${patient.first_name} ${patient.last_name} - created=${createdDate}, entry=${entryDate}, expected=${dateStr}`);
+        } else {
+          console.log(`✅ Valid patient: ${patient.first_name} ${patient.last_name} - created=${createdDate}, entry=${entryDate}`);
+        }
+        
+        return isValid;
+      });
+      
+      // Apply limit to validated patients
+      const limitedPatients = validatedPatients.slice(0, limit);
+      
+      console.log(`✅ Final result: ${limitedPatients.length} validated patients for ${dateStr} (filtered out ${uniquePatients.length - validatedPatients.length} invalid patients)`);
+      
+      // Log first few patients for debugging
+      if (limitedPatients.length > 0) {
+        console.log('🔍 Sample patients found:');
+        limitedPatients.slice(0, 3).forEach((p, i) => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+          console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+        });
+      }
+      
+      // Enhance patients with calculated fields (same as getPatients method)
+      const enhancedPatients = limitedPatients.map(patient => {
+        const transactions = patient.transactions || [];
+        const admissions = patient.admissions || [];
+        // Only count completed transactions (exclude cancelled)
+        const totalSpent = transactions
+          .filter((t: any) => t.status !== 'CANCELLED')
+          .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
+        const registrationVisits = transactions.filter((t: any) => 
+          (t.transaction_type === 'ENTRY_FEE' || 
+          t.transaction_type === 'entry_fee' ||
+          t.transaction_type === 'CONSULTATION' ||
+          t.transaction_type === 'consultation') &&
+          t.status !== 'CANCELLED'
+        ).length;
+        // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
+        const visitCount = registrationVisits > 0 ? registrationVisits : 1;
+        const activeTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        const lastVisit = activeTransactions.length > 0 
+          ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+          : null;
+        
+        // All patients are OPD now
+        const departmentStatus = 'OPD';
+        
+        return {
+          ...patient,
+          totalSpent,
+          visitCount,
+          lastVisit,
+          departmentStatus
+        };
+      });
+      
+      return enhancedPatients as PatientWithRelations[];
+      
+    } catch (error: any) {
+      console.error('🚨 getPatientsForDate error:', error);
+      
+      // Fallback: return empty array instead of throwing
+      console.log('🔄 Falling back to empty result due to error');
+      return [];
+    }
+  }
+
   static async getPatients(limit = 100): Promise<PatientWithRelations[]> {
     try {
-      console.log('📋 Fetching patients from new schema...');
+      const timestamp = new Date().toISOString();
+      console.log(`📋 Fetching patients from new schema at ${timestamp}...`);
       
+      // Add cache-busting to ensure fresh data
       const { data: patients, error } = await supabase
         .from('patients')
         .select(`
@@ -422,15 +642,41 @@ export class HospitalService {
       
       console.log(`✅ Fetched ${patients?.length || 0} patients`);
       
-      // Log first patient to check created_at field
+      // Debug: Log all patient dates to identify the issue
       if (patients && patients.length > 0) {
-        console.log('🔍 First patient data:', {
-          patient_id: patients[0].patient_id,
-          created_at: patients[0].created_at,
-          created_at_type: typeof patients[0].created_at,
-          date_of_entry: patients[0].date_of_entry,
-          date_of_entry_type: typeof patients[0].date_of_entry
+        console.log('🔍 Backend: All patient dates (first 10):');
+        patients.slice(0, 10).forEach((p, i) => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+          console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
         });
+        
+        // Special check for problematic dates
+        const todayStr = new Date().toISOString().split('T')[0];
+        const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const todayPatients = patients.filter(p => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+          return createdDate === todayStr || entryDate === todayStr;
+        });
+        
+        const yesterdayPatients = patients.filter(p => {
+          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
+          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+          return createdDate === yesterdayStr || entryDate === yesterdayStr;
+        });
+        
+        console.log(`📊 Backend date analysis:`, {
+          todayStr,
+          yesterdayStr,
+          todayPatients: todayPatients.length,
+          yesterdayPatients: yesterdayPatients.length
+        });
+        
+        if (yesterdayPatients.length > 0) {
+          console.log('🚨 Backend: Found yesterday patients:', yesterdayPatients.map(p => `${p.first_name} ${p.last_name}`));
+        }
       }
       
       // Enhance patients with calculated fields

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import { ExactDateService } from '../services/exactDateService';
 import type { PatientWithRelations } from '../config/supabaseNew';
+import { Input } from './ui/Input';
 import EditPatientModal from './EditPatientModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
@@ -83,8 +85,44 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="text-2xl font-bold text-purple-700">
-              {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString('en-IN') : 
-               patient.date_of_entry ? new Date(patient.date_of_entry).toLocaleDateString('en-IN') : 'Never'}
+              {(() => {
+                // Use the same logic as in the table for consistency
+                let lastVisitDate = null;
+                
+                // Priority 1: Use date_of_entry if it's explicitly set (user-defined visit date)
+                if (patient.date_of_entry) {
+                  lastVisitDate = patient.date_of_entry;
+                }
+                
+                // Priority 2: Most recent transaction date (if no date_of_entry)
+                else if (patient.transactions && patient.transactions.length > 0) {
+                  const activeTransactions = patient.transactions
+                    .filter(t => t.status !== 'CANCELLED' && t.created_at)
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  
+                  if (activeTransactions.length > 0) {
+                    lastVisitDate = activeTransactions[0].created_at;
+                  }
+                }
+                
+                // Priority 3: Use pre-calculated lastVisit field
+                else if (patient.lastVisit) {
+                  lastVisitDate = patient.lastVisit;
+                }
+                
+                // Priority 4: Fallback to creation date
+                else if (patient.created_at) {
+                  lastVisitDate = patient.created_at;
+                }
+                
+                return lastVisitDate 
+                  ? new Date(lastVisitDate).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: '2-digit', 
+                      year: 'numeric'
+                    })
+                  : 'Never';
+              })()}
             </div>
             <div className="text-purple-600">Last Visit</div>
           </div>
@@ -220,6 +258,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterTag, setFilterTag] = useState<string>('all');
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -238,7 +280,33 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
   useEffect(() => {
     loadPatients();
-  }, []);
+  }, [dateRange, startDate, endDate, selectedDate]);
+
+  useEffect(() => {
+    // Update date range when dateRange changes
+    const today = new Date();
+    switch (dateRange) {
+      case 'today':
+        setSelectedDate(today.toISOString().split('T')[0]);
+        setStartDate(today.toISOString().split('T')[0]);
+        setEndDate(today.toISOString().split('T')[0]);
+        break;
+      case 'week':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        setStartDate(weekStart.toISOString().split('T')[0]);
+        setEndDate(weekEnd.toISOString().split('T')[0]);
+        break;
+      case 'month':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        setStartDate(monthStart.toISOString().split('T')[0]);
+        setEndDate(monthEnd.toISOString().split('T')[0]);
+        break;
+    }
+  }, [dateRange]);
 
   useEffect(() => {
     filterAndSortPatients();
@@ -249,8 +317,346 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       setLoading(true);
       console.log('🔍 Loading patients from new schema...');
       
-      const patientsData = await HospitalService.getPatients(200);
+      let patientsData;
+      
+      // Use backend filtering for 'today' and single custom dates to get exact results
+      if (dateRange === 'today') {
+        const todayStr = selectedDate || new Date().toISOString().split('T')[0];
+        console.log(`📅 Using backend date filter for today: ${todayStr}`);
+        patientsData = await HospitalService.getPatientsForDate(todayStr, 500);
+      } else if (dateRange === 'custom') {
+        // For custom date, use NEW exact date service to avoid cumulative results
+        console.log(`📅 Using EXACT DATE SERVICE for custom date: ${startDate}`);
+        console.log('🎯 CUSTOM DATE DEBUG:', {
+          selectedCustomDate: startDate,
+          endDateShouldMatch: endDate,
+          areEqual: startDate === endDate,
+          dateFormat: 'YYYY-MM-DD',
+          service: 'ExactDateService (NO CUMULATIVE RESULTS)'
+        });
+        patientsData = await ExactDateService.getPatientsForExactDate(startDate, 500);
+      } else {
+        // For date ranges and 'all', load all patients and apply frontend filtering
+        console.log(`📅 Loading all patients for ${dateRange} filter`);
+        patientsData = await HospitalService.getPatients(500);
+      }
+      
       console.log(`✅ Loaded ${patientsData.length} patients`);
+      
+      // Debug: Check if backend or frontend filtering was used
+      if (dateRange === 'today' || dateRange === 'custom') {
+        console.log('🔍 Backend filtering used - results should be exact for single date');
+        
+        // CUSTOM DATE SPECIFIC DEBUG: Check all returned patients
+        if (dateRange === 'custom') {
+          console.log('🚨 CUSTOM DATE FILTER RESULTS ANALYSIS:');
+          console.log(`Expected date: ${startDate}`);
+          
+          patientsData.forEach((p, i) => {
+            const createdDate = p.created_at ? p.created_at.split('T')[0] : 'NO_CREATED';
+            const entryDate = p.date_of_entry ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry) : 'NO_ENTRY';
+            
+            const matchesExpected = (createdDate === startDate || entryDate === startDate);
+            
+            console.log(`${i + 1}. ${p.first_name} ${p.last_name}:`, {
+              created: createdDate,
+              entry: entryDate,
+              expected: startDate,
+              shouldMatch: matchesExpected,
+              warning: !matchesExpected ? '⚠️ WRONG DATE!' : '✅ Correct'
+            });
+            
+            if (!matchesExpected) {
+              console.error(`🚨 BACKEND FILTER FAILED: Patient ${p.first_name} ${p.last_name} returned but doesn't match ${startDate}`);
+            }
+          });
+        }
+      } else {
+        console.log('🔍 Frontend filtering will be applied for date ranges');
+      }
+      
+      // Quick debug: Show all patient dates to help identify the issue
+      console.log('📋 All patient dates (first 10):');
+      patientsData.slice(0, 10).forEach((p, i) => {
+        const createdDateStr = p.created_at ? p.created_at.split('T')[0] : null;
+        const entryDateStr = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
+        console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDateStr}, entry=${entryDateStr}`);
+      });
+      
+      // Apply date filtering if not 'all' and not using backend filtering
+      // Exclude custom dates since they're now handled by backend (always single dates)
+      if (dateRange !== 'all' && dateRange !== 'today' && dateRange !== 'custom') {
+        console.log('📊 Before filtering:', patientsData.length, 'patients');
+        const originalCount = patientsData.length;
+        // Calculate dates based on current dateRange - don't rely on state
+        let currentStartDate, currentEndDate;
+        const today = new Date().toISOString().split('T')[0];
+        
+        switch (dateRange) {
+          case 'today':
+            currentStartDate = selectedDate || today;
+            currentEndDate = selectedDate || today;
+            break;
+          case 'week':
+            const todayObj = new Date();
+            const weekStart = new Date(todayObj);
+            weekStart.setDate(todayObj.getDate() - todayObj.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            currentStartDate = weekStart.toISOString().split('T')[0];
+            currentEndDate = weekEnd.toISOString().split('T')[0];
+            break;
+          case 'month':
+            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+            currentStartDate = monthStart.toISOString().split('T')[0];
+            currentEndDate = monthEnd.toISOString().split('T')[0];
+            break;
+          case 'custom':
+            currentStartDate = startDate;
+            currentEndDate = endDate;
+            break;
+          default:
+            currentStartDate = today;
+            currentEndDate = today;
+        }
+        
+        // Debug today's date info
+        const todaysDateInfo = {
+          jsToday: new Date().toISOString().split('T')[0],
+          selectedDate: selectedDate,
+          startDate: startDate,
+          endDate: endDate,
+          currentStartDate,
+          currentEndDate,
+          dateRange,
+          dateTime: new Date().toLocaleString()
+        };
+        
+        console.log('🔍 Date filtering debug:', {
+          dateRange,
+          currentStartDate,
+          currentEndDate,
+          totalPatients: patientsData.length,
+          todaysDateInfo,
+          format: 'Using YYYY-MM-DD format like patient entry forms'
+        });
+        
+        // Find the specific patient to debug
+        const ashokPatient = patientsData.find(p => 
+          p.first_name?.toUpperCase().includes('ASHOK') && 
+          p.last_name?.toUpperCase().includes('KUMAR')
+        );
+        
+        if (ashokPatient) {
+          // Use the same date parsing logic as in the filter
+          let debugCreatedDate = null;
+          let debugEntryDate = null;
+          
+          if (ashokPatient.created_at) {
+            debugCreatedDate = new Date(ashokPatient.created_at).toISOString().split('T')[0];
+          }
+          
+          if (ashokPatient.date_of_entry) {
+            let entryDate;
+            if (typeof ashokPatient.date_of_entry === 'string' && ashokPatient.date_of_entry.includes('T')) {
+              entryDate = new Date(ashokPatient.date_of_entry);
+            } else {
+              entryDate = new Date(ashokPatient.date_of_entry + 'T00:00:00');
+            }
+            debugEntryDate = entryDate.toISOString().split('T')[0];
+          }
+          
+          console.log('👤 Found ASHOK KUMAR patient:', {
+            name: `${ashokPatient.first_name} ${ashokPatient.last_name}`,
+            created_at_raw: ashokPatient.created_at,
+            date_of_entry_raw: ashokPatient.date_of_entry,
+            created_at_parsed: debugCreatedDate,
+            date_of_entry_parsed: debugEntryDate,
+            finalDate: debugEntryDate || debugCreatedDate
+          });
+        }
+        
+        // Simplified and more reliable filtering logic
+        console.log('🔧 Starting patient filtering...');
+        
+        const filtered = [];
+        
+        for (let i = 0; i < patientsData.length; i++) {
+          const patient = patientsData[i];
+          
+          // Get patient date - standardized YYYY-MM-DD format like patient entry forms
+          let patientDateStr = null;
+          
+          // Try date_of_entry first (usually set by user) - ensure YYYY-MM-DD format
+          if (patient.date_of_entry) {
+            if (typeof patient.date_of_entry === 'string') {
+              // Handle both date strings and datetime strings
+              if (patient.date_of_entry.includes('T')) {
+                patientDateStr = patient.date_of_entry.split('T')[0]; // Extract YYYY-MM-DD from datetime
+              } else {
+                patientDateStr = patient.date_of_entry; // Already in YYYY-MM-DD format
+              }
+            }
+          }
+          
+          // Fall back to created_at - ensure YYYY-MM-DD format
+          if (!patientDateStr && patient.created_at) {
+            if (typeof patient.created_at === 'string') {
+              patientDateStr = patient.created_at.split('T')[0]; // Extract YYYY-MM-DD from datetime
+            }
+          }
+          
+          // Debug EVERY patient when using today filter to find the issue
+          const shouldDebug = dateRange === 'today' || (patient.first_name?.toUpperCase().includes('ASHOK') && patient.last_name?.toUpperCase().includes('KUMAR')) || i < 5;
+          
+          if (shouldDebug) {
+            console.log(`👤 Patient ${i + 1}: ${patient.first_name} ${patient.last_name}`, {
+              date_of_entry: patient.date_of_entry,
+              created_at: patient.created_at,
+              patientDateStr,
+              currentStartDate,
+              currentEndDate
+            });
+          }
+          
+          // Validate date format and exclude invalid dates
+          if (!patientDateStr) {
+            if (shouldDebug) {
+              console.log('❌ No date found - EXCLUDING patient for today filter');
+            }
+            // For today filter, be strict - only include patients with exact dates
+            if (dateRange !== 'today') {
+              filtered.push(patient); // Include for other filters
+            }
+            continue;
+          }
+          
+          // Ensure date is in YYYY-MM-DD format (same validation as patient entry forms)
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(patientDateStr)) {
+            if (shouldDebug) {
+              console.log('⚠️ Invalid date format - converting:', patientDateStr);
+            }
+            // Try to convert to YYYY-MM-DD format
+            try {
+              const dateObj = new Date(patientDateStr);
+              if (!isNaN(dateObj.getTime())) {
+                patientDateStr = dateObj.toISOString().split('T')[0];
+                if (shouldDebug) {
+                  console.log('✅ Converted to YYYY-MM-DD:', patientDateStr);
+                }
+              } else {
+                if (shouldDebug) {
+                  console.log('❌ Invalid date - EXCLUDING patient');
+                }
+                continue;
+              }
+            } catch (error) {
+              if (shouldDebug) {
+                console.log('❌ Date conversion failed - EXCLUDING patient:', error);
+              }
+              continue;
+            }
+          }
+          
+          // Smart date comparison using standardized YYYY-MM-DD format (same as patient entry)
+          let isInRange;
+          if (dateRange === 'today') {
+            // For today filter, use STRICT exact date matching in YYYY-MM-DD format
+            isInRange = patientDateStr === currentStartDate;
+            
+            // Double check with explicit comparison
+            if (shouldDebug) {
+              console.log('🔍 EXACT DATE CHECK (YYYY-MM-DD):', {
+                patientDateStr,
+                currentStartDate,
+                exactMatch: patientDateStr === currentStartDate,
+                stringComparison: `"${patientDateStr}" === "${currentStartDate}"`,
+                format: 'Both in YYYY-MM-DD format like patient entry'
+              });
+            }
+          } else if (dateRange === 'custom') {
+            // Custom dates are now handled by backend, this shouldn't be reached
+            console.warn('⚠️ Custom date filtering reached frontend - should be handled by backend');
+            isInRange = patientDateStr === currentStartDate;
+          } else {
+            // For date ranges (week, month, custom range), use range matching in YYYY-MM-DD format
+            isInRange = patientDateStr >= currentStartDate && patientDateStr <= currentEndDate;
+            
+            if (shouldDebug) {
+              console.log('🔍 DATE RANGE CHECK (YYYY-MM-DD):', {
+                patientDateStr,
+                startDate: currentStartDate,
+                endDate: currentEndDate,
+                isInRange,
+                dateRange,
+                format: 'Range comparison in YYYY-MM-DD format'
+              });
+            }
+          }
+          
+          if (shouldDebug) {
+            console.log(`📅 Date comparison:`, {
+              patientDate: patientDateStr,
+              startDate: currentStartDate,
+              endDate: currentEndDate,
+              isInRange,
+              comparison: {
+                'patient >= start': patientDateStr >= currentStartDate,
+                'patient <= end': patientDateStr <= currentEndDate
+              }
+            });
+          }
+          
+          if (isInRange) {
+            filtered.push(patient);
+            if (shouldDebug) {
+              console.log('✅ Patient included in filter');
+            }
+            // Special alert for problematic dates
+            if (dateRange === 'today' && patientDateStr !== currentStartDate) {
+              console.error('🚨 BUG: Patient included but date does not match!', {
+                patientName: `${patient.first_name} ${patient.last_name}`,
+                patientDate: patientDateStr,
+                expectedDate: currentStartDate,
+                exactMatch: patientDateStr === currentStartDate
+              });
+            }
+          } else {
+            if (shouldDebug) {
+              console.log('❌ Patient excluded from filter');
+            }
+          }
+        }
+        
+        patientsData = filtered;
+        
+        // Show final filtered patients for today filter
+        if (dateRange === 'today') {
+          console.log('🎯 FINAL FILTERED PATIENTS FOR TODAY:');
+          patientsData.forEach((p, idx) => {
+            const patientDateStr = (p.date_of_entry && p.date_of_entry.split('T')[0]) || (p.created_at && p.created_at.split('T')[0]) || 'NO_DATE';
+            console.log(`${idx + 1}. ${p.first_name} ${p.last_name} - Date: ${patientDateStr} (Expected: ${currentStartDate})`);
+            
+            if (patientDateStr !== currentStartDate && patientDateStr !== 'NO_DATE') {
+              console.error(`🚨 WRONG DATE PATIENT: ${p.first_name} ${p.last_name} has date ${patientDateStr} but should be ${currentStartDate}`);
+            }
+          });
+        }
+        
+        console.log(`📅 Filtered to ${patientsData.length} patients for date range: ${currentStartDate} to ${currentEndDate}`);
+        console.log(`📊 Filtering summary:`, {
+          originalCount,
+          filteredCount: patientsData.length,
+          dateRange,
+          removedCount: originalCount - patientsData.length
+        });
+      } else if (dateRange === 'today') {
+        console.log('📊 Using backend filtering for today - no client-side filtering needed:', patientsData.length);
+      } else {
+        console.log('📊 No date filtering applied - showing all patients:', patientsData.length);
+      }
       
       setPatients(patientsData);
       
@@ -521,6 +927,16 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">👥 Comprehensive Patient List</h1>
         <p className="text-gray-600">Complete patient management with search, filter, and detailed history</p>
+        {dateRange !== 'all' && (
+          <div className="mt-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">
+            📅 Showing patients from: {
+              dateRange === 'today' ? new Date(selectedDate).toLocaleDateString() :
+              dateRange === 'custom' ? new Date(startDate).toLocaleDateString() :
+              dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})` :
+              `This month (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})`
+            }
+          </div>
+        )}
       </div>
 
       {/* Stats Overview */}
@@ -569,8 +985,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Genders</option>
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
               <option value="OTHER">Other</option>
             </select>
           </div>
@@ -590,6 +1006,61 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
               ))}
             </select>
           </div>
+
+          {/* Date Range Filter */}
+          <div className="min-w-[150px]">
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as any)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="custom">Custom Date</option>
+            </select>
+          </div>
+
+          {/* Custom Single Date Input - Same format as Patient Entry */}
+          {dateRange === 'custom' && (
+            <div className="min-w-[180px]">
+              <Input
+                type="date"
+                label="Select Date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setEndDate(e.target.value); // Always keep start and end date the same
+                }}
+              />
+            </div>
+          )}
+
+          {/* Single Date Input for Today - Same format as Patient Entry */}
+          {dateRange === 'today' && (
+            <>
+              <div className="min-w-[180px]">
+                <Input
+                  type="date"
+                  label="Select Date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  const todayDate = new Date().toISOString().split('T')[0];
+                  console.log('🔄 Setting date to today:', todayDate);
+                  setSelectedDate(todayDate);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 shadow-sm mt-6"
+                title="Set to today's date"
+              >
+                Today
+              </button>
+            </>
+          )}
 
           {/* Action Buttons */}
           <div className="flex space-x-2">
@@ -715,39 +1186,92 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                     </td>
                     <td className="p-4 text-sm text-gray-600">
                       {(() => {
-                        // Debug logging
-                        console.log(`Patient ${patient.patient_id} date debug:`, {
+                        // EXTENSIVE DEBUGGING - Log all available date fields
+                        console.log(`\n🔍 PATIENT ${patient.patient_id} (${patient.first_name} ${patient.last_name}) DATE DEBUG:`);
+                        console.log('📊 All available date fields:', {
+                          lastVisit: patient.lastVisit,
                           date_of_entry: patient.date_of_entry,
                           created_at: patient.created_at,
-                          transactions_count: patient.transactions?.length || 0
+                          updated_at: patient.updated_at,
+                          transactions_count: patient.transactions?.length || 0,
+                          totalSpent: patient.totalSpent,
+                          visitCount: patient.visitCount
                         });
                         
-                        // Use the calculated lastVisit field from HospitalService for accurate last visit date
-                        let lastVisitDate = null;
+                        if (patient.transactions && patient.transactions.length > 0) {
+                          console.log('💳 Transaction details:');
+                          patient.transactions.forEach((t, idx) => {
+                            console.log(`  ${idx + 1}. ${t.transaction_type} - ${t.created_at} - Status: ${t.status} - Amount: ${t.amount}`);
+                          });
+                        }
                         
-                        // First priority: use the calculated lastVisit field (most recent transaction date)
-                        if (patient.lastVisit) {
-                          lastVisitDate = patient.lastVisit;
-                          console.log(`Using calculated lastVisit: ${lastVisitDate}`);
-                        }
-                        // Second priority: use date_of_entry (for patients without transactions)
-                        else if (patient.date_of_entry) {
+                        let lastVisitDate = null;
+                        let dateSource = 'none';
+                        
+                        // Priority 1: Use date_of_entry if it's explicitly set (user-defined visit date)
+                        if (patient.date_of_entry) {
                           lastVisitDate = patient.date_of_entry;
-                          console.log(`Using date_of_entry: ${lastVisitDate}`);
+                          dateSource = 'entry';
+                          console.log(`✅ Using user-defined date_of_entry: ${lastVisitDate}`);
                         }
-                        // Third priority: use patient creation date
+                        
+                        // Priority 2: Most recent transaction date (if transactions exist and no date_of_entry)
+                        else if (patient.transactions && patient.transactions.length > 0) {
+                          // Filter out cancelled transactions and sort by date
+                          const activeTransactions = patient.transactions
+                            .filter(t => t.status !== 'CANCELLED' && t.created_at)
+                            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                          
+                          console.log(`📈 Active transactions after filtering: ${activeTransactions.length}`);
+                          
+                          if (activeTransactions.length > 0) {
+                            lastVisitDate = activeTransactions[0].created_at;
+                            dateSource = 'transaction';
+                            console.log(`✅ Using transaction date: ${lastVisitDate}`);
+                          }
+                        }
+                        
+                        // Priority 3: Use pre-calculated lastVisit field from HospitalService
+                        else if (patient.lastVisit) {
+                          lastVisitDate = patient.lastVisit;
+                          dateSource = 'calculated';
+                          console.log(`✅ Using calculated lastVisit: ${lastVisitDate}`);
+                        }
+                        
+                        // Priority 4: Fallback to patient creation date
                         else if (patient.created_at) {
                           lastVisitDate = patient.created_at;
-                          console.log(`Using created_at: ${lastVisitDate}`);
+                          dateSource = 'created';
+                          console.log(`✅ Using created_at: ${lastVisitDate}`);
                         }
                         
-                        return lastVisitDate 
-                          ? new Date(lastVisitDate).toLocaleDateString('en-IN', {
+                        console.log(`🎯 FINAL RESULT: Date: ${lastVisitDate}, Source: ${dateSource}`);
+                        
+                        // Format the date consistently
+                        if (lastVisitDate) {
+                          try {
+                            const date = new Date(lastVisitDate);
+                            // Validate the date
+                            if (isNaN(date.getTime())) {
+                              console.warn(`❌ Invalid date for patient ${patient.patient_id}:`, lastVisitDate);
+                              return 'Invalid Date';
+                            }
+                            
+                            const formattedDate = date.toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: '2-digit', 
                               year: 'numeric'
-                            })
-                          : 'Never';
+                            });
+                            console.log(`📅 Formatted date: ${formattedDate}\n`);
+                            return formattedDate;
+                          } catch (error) {
+                            console.error(`❌ Date parsing error for patient ${patient.patient_id}:`, error);
+                            return 'Date Error';
+                          }
+                        }
+                        
+                        console.log(`⚠️ No date found - returning 'Never'\n`);
+                        return 'Never';
                       })()}
                     </td>
                     <td className="p-4">
@@ -858,7 +1382,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           <div className="text-6xl mb-4">👥</div>
           <h3 className="text-xl font-semibold text-gray-800 mb-2">No patients found</h3>
           <p className="text-gray-600 mb-4">
-            {searchTerm || filterGender !== 'all' || filterTag !== 'all'
+            {searchTerm || filterGender !== 'all' || filterTag !== 'all' || dateRange !== 'all'
               ? 'Try adjusting your search or filters'
               : 'No patients have been registered yet'
             }

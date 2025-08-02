@@ -52,8 +52,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [formData, setFormData] = useState({
     full_name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
     age: patient.age || '',
-    date_of_entry: patient.date_of_entry ? new Date(patient.date_of_entry) : new Date(),
-    gender: patient.gender || 'MALE',
+    date_of_entry: patient.date_of_entry ? new Date(patient.date_of_entry) : null,
+    gender: patient.gender || 'M',
     phone: patient.phone || '',
     email: patient.email || '',
     address: patient.address || '',
@@ -144,7 +144,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         last_name: lastName,
         age: formData.age && formData.age.trim() !== '' ? formData.age.trim() : null,
         date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : null,
-        gender: formData.gender || 'MALE',
+        gender: formData.gender || 'M',
         phone: (formData.phone || '').trim(),
         email: (formData.email || '').trim() || null,
         address: (formData.address || '').trim(),
@@ -391,19 +391,18 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                 <DatePicker
                   selected={formData.date_of_entry}
                   onChange={(date: Date | null) => {
-                    if (date) {
-                      setFormData({ ...formData, date_of_entry: date });
-                    }
+                    setFormData({ ...formData, date_of_entry: date });
                   }}
                   dateFormat="dd-MM-yyyy"
                   maxDate={new Date()}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholderText="DD-MM-YYYY"
+                  placeholderText="Select date of entry (optional)"
                   showMonthDropdown
                   showYearDropdown
                   dropdownMode="select"
                   calendarClassName="react-datepicker-custom"
                   wrapperClassName="w-full"
+                  isClearable={true}
                 />
               </div>
 
@@ -415,8 +414,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   >
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
+                  <option value="M">M</option>
+                  <option value="F">F</option>
                   <option value="OTHER">Other</option>
                 </select>
               </div>

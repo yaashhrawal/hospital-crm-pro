@@ -11,7 +11,7 @@ const FlexiblePatientEntry: React.FC = () => {
     last_name: '',
     phone: '',
     address: '',
-    gender: 'MALE' as 'MALE' | 'FEMALE' | 'OTHER',
+    gender: 'M' as 'M' | 'F' | 'OTHER',
     date_of_birth: '',
     patient_tag: '',
     emergency_contact_name: '',
@@ -149,7 +149,7 @@ const FlexiblePatientEntry: React.FC = () => {
         last_name: '',
         phone: '',
         address: '',
-        gender: 'MALE',
+        gender: 'M',
         date_of_birth: '',
         patient_tag: '',
         emergency_contact_name: '',
@@ -228,11 +228,11 @@ const FlexiblePatientEntry: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
               <select
                 value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'OTHER' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
+                <option value="M">M</option>
+                <option value="F">F</option>
                 <option value="OTHER">Other</option>
               </select>
             </div>
