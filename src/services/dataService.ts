@@ -1,5 +1,6 @@
 // Data Service - Adapter for Supabase with LocalStorage fallback
 import { supabase } from '../config/supabase';
+import { HOSPITAL_ID } from '../config/supabaseNew';
 import localStorageService from './localStorageService';
 import supabaseAuthService from './supabaseAuthService';
 import type { Patient, Doctor, Department, PatientTransaction, PatientAdmission, DailyExpense } from './localStorageService';
@@ -147,6 +148,7 @@ class DataService {
         .from('patients')
         .select('*')
         .eq('is_active', true)
+        .eq('hospital_id', HOSPITAL_ID)
         .order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Supabase patients fetch error:', error);
@@ -317,6 +319,7 @@ class DataService {
       const { data, error } = await supabase
         .from('patient_transactions')
         .select('*')
+        .eq('hospital_id', HOSPITAL_ID)
         .gte('created_at', date + 'T00:00:00.000Z')
         .lt('created_at', date + 'T23:59:59.999Z')
         .order('created_at', { ascending: false });
@@ -334,43 +337,13 @@ class DataService {
 
   // Admission Management - Direct Supabase Integration
   async createAdmission(admissionData: Omit<PatientAdmission, 'id'>): Promise<PatientAdmission> {
-    console.log('📡 Creating admission directly in Supabase:', admissionData);
-    try {
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .insert([admissionData])
-        .select()
-        .single();
-      if (error) {
-        console.error('❌ Supabase admission creation error:', error);
-        throw error;
-      }
-      console.log('✅ Admission created successfully in Supabase:', data);
-      return data;
-    } catch (error) {
-      console.error('🚨 Admission creation failed:', error);
-      throw error;
-    }
+    console.log('📡 Creating admission - DISABLED (table removed):', admissionData);
+    throw new Error('Patient admissions functionality is temporarily disabled');
   }
 
   async getActiveAdmissions(): Promise<PatientAdmission[]> {
-    console.log('📡 Fetching active admissions directly from Supabase');
-    try {
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .select('*')
-        .eq('status', 'active')
-        .order('admission_date', { ascending: false });
-      if (error) {
-        console.error('❌ Supabase active admissions fetch error:', error);
-        throw error;
-      }
-      console.log('✅ Active admissions fetched successfully from Supabase:', data?.length || 0, 'records');
-      return data || [];
-    } catch (error) {
-      console.error('🚨 Active admissions fetch failed:', error);
-      throw error;
-    }
+    console.log('📡 Fetching active admissions - DISABLED (table removed)');
+    return []; // Return empty array since patient_admissions table was removed
   }
 
   // Expense Management - Direct Supabase Integration

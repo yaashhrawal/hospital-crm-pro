@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { DashboardStats, PatientAdmissionWithRelations, TransactionWithRelations } from '../config/supabaseNew';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
-import { Input } from './ui/Input';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -14,10 +13,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [recentAdmissions, setRecentAdmissions] = useState<PatientAdmissionWithRelations[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<TransactionWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const { printDailySummary } = useReceiptPrinting();
 
   useEffect(() => {
@@ -26,33 +21,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     // Set up real-time refresh every 30 seconds
     const interval = setInterval(loadDashboardData, 30000);
     return () => clearInterval(interval);
-  }, [selectedDate, dateRange, startDate, endDate]);
-
-  useEffect(() => {
-    // Update date range when dateRange changes
-    const today = new Date();
-    switch (dateRange) {
-      case 'today':
-        setSelectedDate(today.toISOString().split('T')[0]);
-        setStartDate(today.toISOString().split('T')[0]);
-        setEndDate(today.toISOString().split('T')[0]);
-        break;
-      case 'week':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        setStartDate(weekStart.toISOString().split('T')[0]);
-        setEndDate(weekEnd.toISOString().split('T')[0]);
-        break;
-      case 'month':
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        setStartDate(monthStart.toISOString().split('T')[0]);
-        setEndDate(monthEnd.toISOString().split('T')[0]);
-        break;
-    }
-  }, [dateRange]);
+  }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -84,85 +53,38 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
   const loadStatsManually = async () => {
     try {
-      // Use consistent YYYY-MM-DD format like patient entry forms
-      const currentStartDate = dateRange === 'custom' ? startDate : (dateRange === 'today' ? selectedDate : startDate);
-      const currentEndDate = dateRange === 'custom' ? endDate : (dateRange === 'today' ? selectedDate : endDate);
+      const today = new Date().toISOString().split('T')[0];
       
-      console.log('📅 Dashboard date filter:', {
-        dateRange,
-        selectedDate,
-        startDate,
-        endDate,
-        currentStartDate,
-        currentEndDate,
-        format: 'YYYY-MM-DD (ISO standard like patient entry)'
-      });
-      
-      // Get basic counts filtered by date range
-      const [patientsRes, revenueRes, allTransactionsRes, expensesRes, appointmentsRes] = await Promise.all([
-        supabase.from('patients').select('id', { count: 'exact' }).eq('is_active', true).gte('created_at', `${currentStartDate}T00:00:00`).lte('created_at', `${currentEndDate}T23:59:59`),
-        supabase.from('patient_transactions').select('amount, created_at, status').gte('created_at', `${currentStartDate}T00:00:00`).lte('created_at', `${currentEndDate}T23:59:59`).neq('status', 'CANCELLED'),
-        supabase.from('patient_transactions').select('amount, created_at, status').gte('created_at', `${currentStartDate}T00:00:00`).lte('created_at', `${currentEndDate}T23:59:59`),
-        supabase.from('daily_expenses').select('amount').gte('expense_date', currentStartDate).lte('expense_date', currentEndDate),
-        supabase.from('future_appointments').select('id', { count: 'exact' }).gte('appointment_date', currentStartDate).lte('appointment_date', currentEndDate)
+      // Get basic counts
+      const [patientsRes, admissionsRes, bedsRes, revenueRes, expensesRes, appointmentsRes] = await Promise.all([
+        supabase.from('patients').select('id', { count: 'exact' }).eq('is_active', true),
+        supabase.from('patients').select('id', { count: 'exact' }).eq('is_active', true), // DISABLED: patient_admissions table removed
+        supabase.from('beds').select('id, status', { count: 'exact' }),
+        supabase.from('patient_transactions').select('amount').gte('created_at', `${today}T00:00:00`).lt('created_at', `${today}T23:59:59`).eq('status', 'COMPLETED'),
+        supabase.from('daily_expenses').select('amount').eq('expense_date', today).eq('approval_status', 'APPROVED'),
+        supabase.from('future_appointments').select('id', { count: 'exact' }).eq('appointment_date', today)
       ]);
 
-      // Calculate bed statistics from localStorage (beds are managed locally)
-      const totalBeds = 50; // Fixed total beds (as per your IPD bed management)
-      let occupiedBeds = 0;
-      
-      try {
-        const savedBeds = localStorage.getItem('hospital-ipd-beds');
-        if (savedBeds) {
-          const beds = JSON.parse(savedBeds);
-          occupiedBeds = beds.filter((bed: any) => bed.status === 'occupied').length;
-        }
-      } catch (error) {
-        console.error('Error reading bed data from localStorage:', error);
-        occupiedBeds = 0;
-      }
-      
-      const availableBeds = totalBeds - occupiedBeds;
+      const totalPatients = patientsRes.count || 0;
+      const activeAdmissions = 0; // DISABLED: patient_admissions table removed
+      const totalBeds = bedsRes.count || 0;
+      const availableBeds = bedsRes.data?.filter(bed => bed.status === 'AVAILABLE').length || 0;
+      const todayRevenue = revenueRes.data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+      const todayExpenses = expensesRes.data?.reduce((sum, e) => sum + e.amount, 0) || 0;
+      const todaysAppointments = appointmentsRes.count || 0;
 
-      const periodPatients = patientsRes.count || 0; // Patients registered in selected period
-      const activeAdmissions = occupiedBeds; // Active admissions = occupied beds
-      
-      // Debug revenue calculation
-      console.log('💰 Revenue Debug:', {
-        dateRange: `${currentStartDate} to ${currentEndDate}`,
-        filteredTransactionCount: revenueRes.data?.length || 0,
-        allTransactionCount: allTransactionsRes.data?.length || 0,
-        expenseCount: expensesRes.data?.length || 0,
-        filteredTransactions: revenueRes.data?.slice(0, 3).map(t => ({ amount: t.amount, status: t.status, created_at: t.created_at })) || [],
-        allTransactions: allTransactionsRes.data?.slice(0, 3).map(t => ({ amount: t.amount, status: t.status, created_at: t.created_at })) || [],
-        expenses: expensesRes.data?.slice(0, 3).map(e => ({ amount: e.amount })) || [],
-        filteredRevenue: revenueRes.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-        allRevenue: allTransactionsRes.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-        rawExpenses: expensesRes.data?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0
-      });
-      
-      const periodRevenue = revenueRes.data?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-      const periodExpenses = expensesRes.data?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0;
-      const periodAppointments = appointmentsRes.count || 0;
-
-      const occupancyRate = totalBeds > 0 ? (occupiedBeds / totalBeds) * 100 : 0;
-
-      console.log('📊 Setting stats:', {
-        periodRevenue,
-        periodExpenses,
-        netRevenue: periodRevenue - periodExpenses
-      });
+      const occupancyRate = totalBeds > 0 ? ((totalBeds - availableBeds) / totalBeds) * 100 : 0;
 
       setStats({
-        total_patients: periodPatients,
+        total_patients: totalPatients,
         active_admissions: activeAdmissions,
         available_beds: availableBeds,
         total_beds: totalBeds,
-        today_revenue: periodRevenue,
-        today_expenses: periodExpenses,
-        net_revenue: periodRevenue - periodExpenses,
+        today_revenue: todayRevenue,
+        today_expenses: todayExpenses,
+        net_revenue: todayRevenue - todayExpenses,
         pending_appointments: 0, // Would need additional query
-        todays_appointments: periodAppointments,
+        todays_appointments: todaysAppointments,
         occupancy_rate: occupancyRate
       });
     } catch (error: any) {
@@ -172,25 +94,9 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
   const loadRecentAdmissions = async () => {
     try {
-      const currentStartDate = dateRange === 'custom' ? startDate : (dateRange === 'today' ? selectedDate : startDate);
-      const currentEndDate = dateRange === 'custom' ? endDate : (dateRange === 'today' ? selectedDate : endDate);
-      
-      const { data, error } = await supabase
-        .from('patient_admissions')
-        .select(`
-          *,
-          patient:patients(patient_id, first_name, last_name, age, blood_group),
-          bed:beds(bed_number, room_type, daily_rate),
-          admitted_by_user:users!patient_admissions_admitted_by_fkey(first_name, last_name)
-        `)
-        .eq('status', 'ACTIVE')
-        .gte('admission_date', currentStartDate)
-        .lte('admission_date', currentEndDate)
-        .order('admission_date', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setRecentAdmissions(data || []);
+      console.log('📡 Loading recent admissions - DISABLED (patient_admissions table removed)');
+      // DISABLED: patient_admissions table was removed during emergency rollback
+      setRecentAdmissions([]);
     } catch (error: any) {
       console.error('Error loading recent admissions:', error);
     }
@@ -198,9 +104,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
   const loadRecentTransactions = async () => {
     try {
-      const currentStartDate = dateRange === 'custom' ? startDate : (dateRange === 'today' ? selectedDate : startDate);
-      const currentEndDate = dateRange === 'custom' ? endDate : (dateRange === 'today' ? selectedDate : endDate);
-      
       const { data, error } = await supabase
         .from('patient_transactions')
         .select(`
@@ -208,9 +111,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           patient:patients(patient_id, first_name, last_name),
           doctor:users!patient_transactions_doctor_id_fkey(first_name, last_name)
         `)
-        .gte('created_at', `${currentStartDate}T00:00:00`)
-        .lte('created_at', `${currentEndDate}T23:59:59`)
-        .neq('status', 'CANCELLED')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -254,67 +154,10 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">🏥 Hospital Dashboard</h1>
-            <p className="text-gray-600">Real-time overview of hospital operations</p>
-            <div className="text-xs text-gray-500 mt-1">
-              Last updated: {new Date().toLocaleTimeString()} • Auto-refresh: 30s
-            </div>
-          </div>
-
-          {/* Date Filter Controls */}
-          <div className="mt-4 lg:mt-0">
-            <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">View:</label>
-                  <select
-                    value={dateRange}
-                    onChange={(e) => setDateRange(e.target.value as any)}
-                    className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="custom">Custom Date</option>
-                  </select>
-                </div>
-
-                {dateRange === 'custom' && (
-                  <div className="min-w-[200px]">
-                    <Input
-                      type="date"
-                      label="Select Date"
-                      value={startDate}
-                      onChange={(e) => {
-                        setStartDate(e.target.value);
-                        setEndDate(e.target.value); // Always keep start and end date the same
-                      }}
-                    />
-                  </div>
-                )}
-
-                {dateRange === 'today' && (
-                  <div className="min-w-[200px]">
-                    <Input
-                      type="date"
-                      label="Select Date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                <div className="text-sm text-gray-600">
-                  {dateRange === 'today' ? `Data for ${new Date(selectedDate).toLocaleDateString()}` :
-                   dateRange === 'custom' ? `Data for ${new Date(startDate).toLocaleDateString()}` :
-                   dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})` :
-                   `This month (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})`}
-                </div>
-              </div>
-            </div>
-          </div>
+        <h1 className="text-3xl font-bold text-gray-900">🏥 Hospital Dashboard</h1>
+        <p className="text-gray-600">Real-time overview of hospital operations</p>
+        <div className="text-xs text-gray-500 mt-1">
+          Last updated: {new Date().toLocaleTimeString()} • Auto-refresh: 30s
         </div>
       </div>
 
@@ -324,12 +167,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100">
-                  {dateRange === 'today' ? "Today's Patients" : 
-                   dateRange === 'week' ? "Week's Patients" : 
-                   dateRange === 'month' ? "Month's Patients" : 
-                   "Period Patients"}
-                </p>
+                <p className="text-blue-100">Total Patients</p>
                 <p className="text-3xl font-bold">{stats.total_patients}</p>
               </div>
               <div className="text-4xl opacity-80">👥</div>
@@ -360,12 +198,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-xl text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-100">
-                  {dateRange === 'today' ? "Today's Revenue" : 
-                   dateRange === 'week' ? "Week's Revenue" : 
-                   dateRange === 'month' ? "Month's Revenue" : 
-                   "Period Revenue"}
-                </p>
+                <p className="text-orange-100">Today's Revenue</p>
                 <p className="text-3xl font-bold">{formatCurrency(stats.today_revenue)}</p>
               </div>
               <div className="text-4xl opacity-80">💰</div>
@@ -386,7 +219,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <button
           onClick={() => onNavigate?.('patient-entry')}
           className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
@@ -423,29 +256,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-sm text-gray-600">Track daily expenses</div>
         </button>
 
-        <button
-          onClick={() => {
-            if (stats) {
-              printDailySummary({
-                date: dateRange === 'today' ? selectedDate : `${startDate} to ${endDate}`,
-                stats: {
-                  totalPatients: stats.total_patients,
-                  totalRevenue: stats.today_revenue,
-                  totalExpenses: stats.today_expenses || 0,
-                  netRevenue: stats.net_revenue,
-                  activeAdmissions: stats.active_admissions,
-                  availableBeds: stats.available_beds
-                }
-              });
-            }
-          }}
-          className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-        >
-          <div className="text-2xl mb-2">🖨️</div>
-          <div className="font-medium">Print Report</div>
-          <div className="text-sm text-gray-600">Daily summary</div>
-        </button>
-
       </div>
 
       {/* Recent Activity */}
@@ -453,12 +263,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         {/* Recent Admissions */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">
-              {dateRange === 'today' ? "Today's Admissions" : 
-               dateRange === 'week' ? "This Week's Admissions" : 
-               dateRange === 'month' ? "This Month's Admissions" : 
-               "Period Admissions"}
-            </h2>
+            <h2 className="text-lg font-semibold">Recent Admissions</h2>
           </div>
           <div className="p-6">
             {recentAdmissions.length > 0 ? (
@@ -493,12 +298,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         {/* Recent Transactions */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">
-              {dateRange === 'today' ? "Today's Transactions" : 
-               dateRange === 'week' ? "This Week's Transactions" : 
-               dateRange === 'month' ? "This Month's Transactions" : 
-               "Period Transactions"}
-            </h2>
+            <h2 className="text-lg font-semibold">Recent Transactions</h2>
           </div>
           <div className="p-6">
             {recentTransactions.length > 0 ? (

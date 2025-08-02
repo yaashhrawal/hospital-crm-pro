@@ -135,70 +135,15 @@ export const useReceiptPrinting = () => {
     }
   };
 
-  // Admission Receipt
+  // Admission Receipt - DISABLED
   const printAdmissionReceipt = async (admissionId: string, receiptType: 'ADMISSION' | 'IP_STICKER' = 'ADMISSION') => {
     try {
-      console.log('Printing admission receipt for ID:', admissionId);
+      console.log('📋 Admission receipt printing - DISABLED (patient_admissions table removed)');
+      alert('Admission receipts are temporarily disabled. The IPD system is being updated.');
+      return;
       
-      // First try with bed_id relationship (new schema)
-      let { data: admission, error } = await supabase
-        .from('patient_admissions')
-        .select(`
-          *,
-          patient:patients(*),
-          bed:beds(id, bed_number, room_type, daily_rate),
-          history_present_illness,
-          past_medical_history,
-          procedure_planned
-        `)
-        .eq('id', admissionId)
-        .single();
-
-      // If bed relationship fails, try without bed join (fallback)
-      if (error && error.message?.includes('relationship')) {
-        console.log('Bed relationship not found, trying without bed join...');
-        
-        const { data: admissionFallback, error: fallbackError } = await supabase
-          .from('patient_admissions')
-          .select(`
-            *,
-            patient:patients(*)
-          `)
-          .eq('id', admissionId)
-          .single();
-          
-        if (fallbackError) {
-          console.error('Fallback database error:', fallbackError);
-          throw new Error(`Failed to fetch admission data: ${fallbackError.message}`);
-        }
-        
-        admission = admissionFallback;
-        
-        // Try to get bed info separately if bed_number exists
-        if (admission?.bed_number) {
-          const { data: bedInfo } = await supabase
-            .from('beds')
-            .select('*')
-            .eq('bed_number', admission.bed_number)
-            .single();
-            
-          if (bedInfo) {
-            admission.bed = bedInfo;
-          }
-        }
-      } else if (error) {
-        console.error('Database error:', error);
-        throw new Error(`Failed to fetch admission data: ${error.message}`);
-      }
-      
-      if (!admission) {
-        throw new Error('Admission not found');
-      }
-      
-      if (!admission.patient) {
-        console.error('Admission data missing patient information:', admission);
-        throw new Error('Patient information not found for this admission');
-      }
+      // DISABLED: patient_admissions table was removed during emergency rollback
+      // This functionality will be restored when IPD system is fixed
 
       const receiptData: ReceiptData = {
         type: receiptType,
