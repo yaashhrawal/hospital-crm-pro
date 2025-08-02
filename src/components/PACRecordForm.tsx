@@ -133,7 +133,506 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!printWindow) {
+      alert('Please allow pop-ups to print the form');
+      return;
+    }
+
+    // Build the print content
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title></title>
+        <style>
+          @page {
+            size: A4;
+            margin: 5mm;
+          }
+          
+          @media print {
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+              font-size: 10px;
+              line-height: 1.3;
+            }
+            
+            .print-button {
+              display: none !important;
+            }
+            
+            @page {
+              margin: 5mm;
+              size: A4;
+              @top-left { content: ""; }
+              @top-center { content: ""; }
+              @top-right { content: ""; }
+              @bottom-left { content: ""; }
+              @bottom-center { content: ""; }
+              @bottom-right { content: ""; }
+            }
+            
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            line-height: 1.2;
+            color: #000;
+            margin: 0;
+            padding: 8px;
+          }
+          
+          .container {
+            width: 100%;
+            max-width: 100%;
+          }
+          
+          h1 {
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 6px;
+            text-decoration: underline;
+            font-weight: bold;
+          }
+          
+          .section {
+            margin-bottom: 3px;
+            border: 1px solid #000;
+            padding: 4px;
+          }
+          
+          .section-title {
+            font-weight: bold;
+            font-size: 10px;
+            margin-bottom: 3px;
+            text-decoration: underline;
+          }
+          
+          .field-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 3px;
+          }
+          
+          .field {
+            flex: 1;
+            min-width: 120px;
+          }
+          
+          .field-small {
+            flex: 0.5;
+            min-width: 80px;
+          }
+          
+          label {
+            font-weight: bold;
+            margin-right: 4px;
+          }
+          
+          .value {
+            border-bottom: 1px solid #333;
+            display: inline-block;
+            min-width: 60px;
+            padding: 2px 4px;
+            min-height: 12px;
+          }
+          
+          .checkbox-value {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid #333;
+            margin-right: 4px;
+            text-align: center;
+            line-height: 8px;
+          }
+          
+          .textarea-value {
+            border: 1px solid #333;
+            padding: 3px;
+            min-height: 20px;
+            width: 100%;
+            margin-top: 2px;
+          }
+          
+          .two-column {
+            display: flex;
+            gap: 10px;
+          }
+          
+          .column {
+            flex: 1;
+          }
+          
+          .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+          }
+          
+          .signature-section {
+            flex: 1;
+            margin: 0 8px;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>PRE ANAESTHESIA CHECK UP (PAC) Record</h1>
+          
+          <!-- Patient Header -->
+          <div class="section">
+            <div class="field-group">
+              <div class="field">
+                <label>Name:</label>
+                <span class="value">${formData.name || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>Age/Sex:</label>
+                <span class="value">${formData.ageSex || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>IPD No.:</label>
+                <span class="value">${formData.ipdNo || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Room/Ward No.:</label>
+                <span class="value">${formData.roomWardNo || ''}</span>
+              </div>
+              <div class="field">
+                <label>Operation:</label>
+                <span class="value">${formData.operation || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Alert/Allergies/Medications:</label>
+                <span class="value">${formData.alertAllergiesMedications || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Anaesthetic Plan:</label>
+                <span class="value">${formData.anaestheticPlan || ''}</span>
+              </div>
+              <div class="field">
+                <label>Drug to be used:</label>
+                <span class="value">${formData.drugToBeUsed || ''}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Patient Details -->
+          <div class="two-column">
+            <div class="column">
+              <div class="section">
+                <div class="section-title">Patient Details</div>
+                <div class="field-group">
+                  <div class="field-small">
+                    <label>Type of Anaesthesia:</label>
+                    <span class="value">${formData.anaesthesiaType || ''}</span>
+                  </div>
+                  <div class="field-small">
+                    <label>ASA Grade:</label>
+                    <span class="value">${formData.asaGrade || ''}</span>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <div class="field-small">
+                    <label>Consent:</label>
+                    <span class="value">${formData.consent || ''}</span>
+                  </div>
+                  <div class="field-small">
+                    <label>Blood Group:</label>
+                    <span class="value">${formData.bloodGroup || ''}</span>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <div class="field-small">
+                    <label>Height:</label>
+                    <span class="value">${formData.height || ''}</span>
+                  </div>
+                  <div class="field-small">
+                    <label>Weight:</label>
+                    <span class="value">${formData.weight || ''}</span>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <div class="field-small">
+                    <label>Temp:</label>
+                    <span class="value">${formData.temp || ''}</span>
+                  </div>
+                  <div class="field-small">
+                    <label>HR & Rhythm:</label>
+                    <span class="value">${formData.hrRhythm || ''}</span>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <div class="field-small">
+                    <label>BP:</label>
+                    <span class="value">${formData.bp || ''}</span>
+                  </div>
+                  <div class="field-small">
+                    <label>RR:</label>
+                    <span class="value">${formData.rr || ''}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="column">
+              <div class="section">
+                <div class="section-title">Medical History</div>
+                <div style="margin-bottom: 4px;">
+                  <label>Present Illness:</label>
+                  <div class="textarea-value">${formData.presentIllness || ''}</div>
+                </div>
+                <div style="margin-bottom: 4px;">
+                  <label>Past Illness:</label>
+                  <div class="textarea-value">${formData.pastIllness || ''}</div>
+                </div>
+                <div style="margin-bottom: 4px;">
+                  <label>Previous Surgery:</label>
+                  <div class="textarea-value">${formData.previousSurgery || ''}</div>
+                </div>
+                <div style="margin-bottom: 4px;">
+                  <label>Personal History:</label>
+                  <div class="textarea-value">${formData.personalHistory || ''}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- General Examination -->
+          <div class="section">
+            <div class="section-title">General Examination</div>
+            <div class="field-group">
+              <div class="field">
+                <label>General Condition:</label>
+                <span class="value">${formData.generalCondition || ''}</span>
+              </div>
+              <div class="field">
+                <label>Built:</label>
+                <span class="value">${formData.built || ''}</span>
+              </div>
+              <div class="field">
+                <label>Nourishment:</label>
+                <span class="value">${formData.nourishment || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Pallor:</label>
+                <span class="value">${formData.pallor || ''}</span>
+              </div>
+              <div class="field">
+                <label>Icterus:</label>
+                <span class="value">${formData.icterus || ''}</span>
+              </div>
+              <div class="field">
+                <label>Cyanosis:</label>
+                <span class="value">${formData.cyanosis || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Clubbing:</label>
+                <span class="value">${formData.clubbing || ''}</span>
+              </div>
+              <div class="field">
+                <label>Oedema:</label>
+                <span class="value">${formData.oedema || ''}</span>
+              </div>
+              <div class="field">
+                <label>Lymphadenopathy:</label>
+                <span class="value">${formData.lymphadenopathy || ''}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- System Examination -->
+          <div class="two-column">
+            <div class="column">
+              <div class="section">
+                <div class="section-title">Cardiovascular System</div>
+                <div class="textarea-value">${formData.cardiovascularExamination || ''}</div>
+              </div>
+              
+              <div class="section">
+                <div class="section-title">Respiratory System</div>
+                <div class="textarea-value">${formData.respiratoryExamination || ''}</div>
+              </div>
+            </div>
+            
+            <div class="column">
+              <div class="section">
+                <div class="section-title">Central Nervous System</div>
+                <div class="textarea-value">${formData.cnsExamination || ''}</div>
+              </div>
+              
+              <div class="section">
+                <div class="section-title">Abdomen</div>
+                <div class="textarea-value">${formData.abdomenExamination || ''}</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Airway Assessment -->
+          <div class="section">
+            <div class="section-title">Airway Assessment</div>
+            <div class="field-group">
+              <div class="field">
+                <label>Mouth Opening:</label>
+                <span class="value">${formData.mouthOpening || ''}</span>
+              </div>
+              <div class="field">
+                <label>Mallampati Grade:</label>
+                <span class="value">${formData.mallampatiGrade || ''}</span>
+              </div>
+              <div class="field">
+                <label>Neck Movement:</label>
+                <span class="value">${formData.neckMovement || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>Thyromental Distance:</label>
+                <span class="value">${formData.thyromentalDistance || ''}</span>
+              </div>
+              <div class="field">
+                <label>Dentition:</label>
+                <span class="value">${formData.dentition || ''}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Investigations -->
+          <div class="section">
+            <div class="section-title">Investigations</div>
+            <div class="field-group">
+              <div class="field">
+                <label>Hb:</label>
+                <span class="value">${formData.hb || ''}</span>
+              </div>
+              <div class="field">
+                <label>Blood Sugar:</label>
+                <span class="value">${formData.bloodSugar || ''}</span>
+              </div>
+              <div class="field">
+                <label>Blood Urea:</label>
+                <span class="value">${formData.bloodUrea || ''}</span>
+              </div>
+              <div class="field">
+                <label>Serum Creatinine:</label>
+                <span class="value">${formData.serumCreatinine || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>ECG:</label>
+                <span class="value">${formData.ecg || ''}</span>
+              </div>
+              <div class="field">
+                <label>Chest X-ray:</label>
+                <span class="value">${formData.chestXray || ''}</span>
+              </div>
+              <div class="field">
+                <label>Others:</label>
+                <span class="value">${formData.otherInvestigations || ''}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Final Assessment -->
+          <div class="section">
+            <div class="section-title">Final Assessment & Plan</div>
+            <div style="margin-bottom: 4px;">
+              <label>Final Assessment:</label>
+              <div class="textarea-value">${formData.finalAssessment || ''}</div>
+            </div>
+            <div style="margin-bottom: 4px;">
+              <label>Anaesthetic Plan:</label>
+              <div class="textarea-value">${formData.finalAnaestheticPlan || ''}</div>
+            </div>
+            <div style="margin-bottom: 4px;">
+              <label>Special Instructions:</label>
+              <div class="textarea-value">${formData.specialInstructions || ''}</div>
+            </div>
+          </div>
+          
+          <!-- Signatures -->
+          <div class="signatures">
+            <div class="signature-section">
+              <div style="margin-bottom: 20px; border-bottom: 1px solid #333;"></div>
+              <div><strong>Anaesthetist's Name & Signature</strong></div>
+              <div>${formData.anaesthetistName || ''}</div>
+              <div>Date: ${formData.anaesthetistDate || ''}</div>
+            </div>
+            <div class="signature-section">
+              <div style="margin-bottom: 20px; border-bottom: 1px solid #333;"></div>
+              <div><strong>Consultant's Name & Signature</strong></div>
+              <div>${formData.consultantName || ''}</div>
+              <div>Date: ${formData.consultantDate || ''}</div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Write content to the new window
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Focus the new window and let user control printing
+    setTimeout(() => {
+      printWindow.focus();
+      
+      // Add script to handle print settings
+      const script = printWindow.document.createElement('script');
+      script.innerHTML = `
+        // Remove title from the document to avoid showing in print header
+        document.title = '';
+        
+        // Override print to ensure clean printing
+        window.originalPrint = window.print;
+        window.print = function() {
+          // Hide the print button during printing
+          const btn = document.querySelector('.print-button');
+          if (btn) btn.style.display = 'none';
+          
+          // Call original print
+          window.originalPrint();
+          
+          // Show button again after print dialog
+          setTimeout(() => {
+            if (btn) btn.style.display = 'block';
+          }, 1000);
+        };
+      `;
+      printWindow.document.head.appendChild(script);
+      
+      // Add a print button to the new window for user control
+      const printBtn = printWindow.document.createElement('button');
+      printBtn.innerHTML = 'Print Document';
+      printBtn.className = 'print-button';
+      printBtn.style.cssText = 'position: fixed; top: 10px; right: 10px; z-index: 1000; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;';
+      printBtn.onclick = () => printWindow.print();
+      printWindow.document.body.appendChild(printBtn);
+    }, 500);
   };
 
   if (!isOpen) return null;

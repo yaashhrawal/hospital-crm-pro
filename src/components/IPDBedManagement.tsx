@@ -15,6 +15,9 @@ import DiabeticChartForm from './DiabeticChartForm';
 import NursesNotesForm from './NursesNotesForm';
 import TatForm from './TatForm';
 import PACRecordForm from './PACRecordForm';
+import PreOperativeOrdersForm from './PreOperativeOrdersForm';
+import PreOpChecklistForm from './PreOpChecklistForm';
+import SurgicalSafetyChecklist from './SurgicalSafetyChecklist';
 import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
@@ -45,6 +48,12 @@ interface BedData {
   tatFormSubmitted?: boolean; // Track if TAT form was submitted
   pacRecordData?: any; // Store PAC record data
   pacRecordSubmitted?: boolean; // Track if PAC record was submitted
+  preOpOrdersData?: any; // Store Pre-Operative Orders data
+  preOpOrdersSubmitted?: boolean; // Track if Pre-Operative Orders was submitted
+  preOpChecklistData?: any; // Store Pre-OP-Check List data
+  preOpChecklistSubmitted?: boolean; // Track if Pre-OP-Check List was submitted
+  surgicalSafetyData?: any; // Store Surgical Safety Checklist data
+  surgicalSafetySubmitted?: boolean; // Track if Surgical Safety Checklist was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -292,6 +301,7 @@ const getIPDStats = (): { date: string; count: number; lastIPD: string } => {
   const count = parseInt(localStorage.getItem(counterKey) || '0');
   const lastIPD = count > 0 ? `IPD-${dateString}-${count.toString().padStart(3, '0')}` : 'None';
   
+  
   return { date: dateString, count, lastIPD };
 };
 
@@ -333,6 +343,21 @@ const IPDBedManagement: React.FC = () => {
   const [showPACRecord, setShowPACRecord] = useState(false);
   const [selectedPatientForPAC, setSelectedPatientForPAC] = useState<PatientWithRelations | null>(null);
   const [selectedBedForPAC, setSelectedBedForPAC] = useState<BedData | null>(null);
+  
+  // Pre-Operative Orders Form state
+  const [showPreOpOrders, setShowPreOpOrders] = useState(false);
+  const [selectedPatientForPreOpOrders, setSelectedPatientForPreOpOrders] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForPreOpOrders, setSelectedBedForPreOpOrders] = useState<BedData | null>(null);
+  
+  // Pre-OP-Check List Form state
+  const [showPreOpChecklist, setShowPreOpChecklist] = useState(false);
+  const [selectedPatientForPreOpChecklist, setSelectedPatientForPreOpChecklist] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForPreOpChecklist, setSelectedBedForPreOpChecklist] = useState<BedData | null>(null);
+  
+  // Surgical Safety Checklist Form state
+  const [showSurgicalSafety, setShowSurgicalSafety] = useState(false);
+  const [selectedPatientForSurgicalSafety, setSelectedPatientForSurgicalSafety] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForSurgicalSafety, setSelectedBedForSurgicalSafety] = useState<BedData | null>(null);
   
   // Surgical Record expansion state
   const [expandedSurgicalRecordBed, setExpandedSurgicalRecordBed] = useState<string | null>(null);
@@ -622,6 +647,78 @@ const IPDBedManagement: React.FC = () => {
     toast.success('PAC Record saved successfully!');
   };
 
+  const handlePreOpOrdersSubmit = (preOpData: any) => {
+    if (!selectedBedForPreOpOrders) return;
+
+    // Save Pre-Operative Orders data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForPreOpOrders.id) {
+          return {
+            ...bed,
+            preOpOrdersData: preOpData,
+            preOpOrdersSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowPreOpOrders(false);
+    setSelectedPatientForPreOpOrders(null);
+    setSelectedBedForPreOpOrders(null);
+    toast.success('Pre-Operative Orders saved successfully!');
+  };
+
+  const handlePreOpChecklistSubmit = (checklistData: any) => {
+    if (!selectedBedForPreOpChecklist) return;
+
+    // Save Pre-OP-Check List data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForPreOpChecklist.id) {
+          return {
+            ...bed,
+            preOpChecklistData: checklistData,
+            preOpChecklistSubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowPreOpChecklist(false);
+    setSelectedPatientForPreOpChecklist(null);
+    setSelectedBedForPreOpChecklist(null);
+    toast.success('Pre-OP-Check List saved successfully!');
+  };
+
+  const handleSurgicalSafetySubmit = (safetyData: any) => {
+    if (!selectedBedForSurgicalSafety) return;
+
+    // Save Surgical Safety Checklist data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForSurgicalSafety.id) {
+          return {
+            ...bed,
+            surgicalSafetyData: safetyData,
+            surgicalSafetySubmitted: true
+          };
+        }
+        return bed;
+      })
+    );
+
+    // Close the form
+    setShowSurgicalSafety(false);
+    setSelectedPatientForSurgicalSafety(null);
+    setSelectedBedForSurgicalSafety(null);
+    toast.success('Surgical Safety Checklist saved successfully!');
+  };
+
   const handleShowClinicalRecord = (bed: BedData) => {
     if (bed.patient) {
       setSelectedPatientForClinicalRecord(bed.patient);
@@ -651,6 +748,30 @@ const IPDBedManagement: React.FC = () => {
       setSelectedPatientForPAC(bed.patient);
       setSelectedBedForPAC(bed);
       setShowPACRecord(true);
+    }
+  };
+
+  const handleShowPreOpOrders = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForPreOpOrders(bed.patient);
+      setSelectedBedForPreOpOrders(bed);
+      setShowPreOpOrders(true);
+    }
+  };
+
+  const handleShowPreOpChecklist = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForPreOpChecklist(bed.patient);
+      setSelectedBedForPreOpChecklist(bed);
+      setShowPreOpChecklist(true);
+    }
+  };
+
+  const handleShowSurgicalSafety = (bed: BedData) => {
+    if (bed.patient) {
+      setSelectedPatientForSurgicalSafety(bed.patient);
+      setSelectedBedForSurgicalSafety(bed);
+      setShowSurgicalSafety(true);
     }
   };
 
@@ -970,6 +1091,7 @@ const IPDBedManagement: React.FC = () => {
     toast.info('IPD statistics refreshed');
   };
 
+
   const handleShowNotes = (bed: BedData) => {
     setSelectedBedForNotes(bed);
     setNoteType('consultant');
@@ -1044,7 +1166,11 @@ const IPDBedManagement: React.FC = () => {
               progressSheetSubmitted: false,
               consentFormData: undefined,
               clinicalRecordData: undefined,
-              progressSheetData: undefined
+              progressSheetData: undefined,
+              preOpChecklistSubmitted: false,
+              preOpChecklistData: undefined,
+              surgicalSafetySubmitted: false,
+              surgicalSafetyData: undefined
             };
           }
           return b;
@@ -1537,6 +1663,60 @@ const IPDBedManagement: React.FC = () => {
                           )}
                         </button>
                       </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowPreOpOrders(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.preOpOrdersSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-purple-500 hover:bg-purple-600'
+                          }`}
+                        >
+                          <span>{bed.preOpOrdersSubmitted ? '🔧✅' : '🔧'}</span>
+                          <span>Pre-Op Orders</span>
+                          {bed.preOpOrdersSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowPreOpChecklist(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.preOpChecklistSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-indigo-500 hover:bg-indigo-600'
+                          }`}
+                        >
+                          <span>{bed.preOpChecklistSubmitted ? '📋✅' : '📋'}</span>
+                          <span>Pre-OP-Check List</span>
+                          {bed.preOpChecklistSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowSurgicalSafety(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.surgicalSafetySubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-orange-500 hover:bg-orange-600'
+                          }`}
+                        >
+                          <span>{bed.surgicalSafetySubmitted ? '🛡️✅' : '🛡️'}</span>
+                          <span>Safety Checklist</span>
+                          {bed.surgicalSafetySubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1839,6 +2019,73 @@ const IPDBedManagement: React.FC = () => {
             roomWardNo: `Bed ${selectedBedForPAC.number}`
           }}
           onSave={handlePACRecordSubmit}
+        />
+      )}
+
+      {/* Pre-Operative Orders Form Modal */}
+      {showPreOpOrders && selectedPatientForPreOpOrders && selectedBedForPreOpOrders && (
+        <PreOperativeOrdersForm
+          isOpen={showPreOpOrders}
+          onClose={() => {
+            setShowPreOpOrders(false);
+            setSelectedPatientForPreOpOrders(null);
+            setSelectedBedForPreOpOrders(null);
+          }}
+          patientData={{
+            name: `${selectedPatientForPreOpOrders.first_name || ''} ${selectedPatientForPreOpOrders.last_name || ''}`.trim(),
+            age: selectedPatientForPreOpOrders.age || '',
+            gender: selectedPatientForPreOpOrders.gender || '',
+            ipdNo: selectedBedForPreOpOrders.ipdNumber || '',
+            roomWardNo: `Bed ${selectedBedForPreOpOrders.number}`,
+            patientId: selectedPatientForPreOpOrders.patient_id || '',
+            doctorName: selectedPatientForPreOpOrders.assigned_doctor || ''
+          }}
+          onSave={handlePreOpOrdersSubmit}
+        />
+      )}
+
+      {/* Pre-OP-Check List Form Modal */}
+      {showPreOpChecklist && selectedPatientForPreOpChecklist && selectedBedForPreOpChecklist && (
+        <PreOpChecklistForm
+          isOpen={showPreOpChecklist}
+          onClose={() => {
+            setShowPreOpChecklist(false);
+            setSelectedPatientForPreOpChecklist(null);
+            setSelectedBedForPreOpChecklist(null);
+          }}
+          patientData={{
+            name: `${selectedPatientForPreOpChecklist.first_name || ''} ${selectedPatientForPreOpChecklist.last_name || ''}`.trim(),
+            age: selectedPatientForPreOpChecklist.age || '',
+            gender: selectedPatientForPreOpChecklist.gender || '',
+            ipdNo: selectedBedForPreOpChecklist.ipdNumber || '',
+            roomWardNo: `Bed ${selectedBedForPreOpChecklist.number}`,
+            patientId: selectedPatientForPreOpChecklist.patient_id || '',
+            doctorName: selectedPatientForPreOpChecklist.assigned_doctor || ''
+          }}
+          onSave={handlePreOpChecklistSubmit}
+        />
+      )}
+
+      {/* Surgical Safety Checklist Modal */}
+      {showSurgicalSafety && selectedPatientForSurgicalSafety && selectedBedForSurgicalSafety && (
+        <SurgicalSafetyChecklist
+          isOpen={showSurgicalSafety}
+          onClose={() => {
+            setShowSurgicalSafety(false);
+            setSelectedPatientForSurgicalSafety(null);
+            setSelectedBedForSurgicalSafety(null);
+          }}
+          patientData={{
+            name: `${selectedPatientForSurgicalSafety.first_name || ''} ${selectedPatientForSurgicalSafety.last_name || ''}`.trim(),
+            age: selectedPatientForSurgicalSafety.age || '',
+            gender: selectedPatientForSurgicalSafety.gender || '',
+            ipdNo: selectedBedForSurgicalSafety.ipdNumber || '',
+            roomWardNo: `Bed ${selectedBedForSurgicalSafety.number}`,
+            patientId: selectedPatientForSurgicalSafety.patient_id || '',
+            doctorName: selectedPatientForSurgicalSafety.assigned_doctor || ''
+          }}
+          savedData={selectedBedForSurgicalSafety.surgicalSafetyData}
+          onSave={handleSurgicalSafetySubmit}
         />
       )}
     </div>
