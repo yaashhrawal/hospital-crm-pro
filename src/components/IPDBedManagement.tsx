@@ -1408,9 +1408,11 @@ const IPDBedManagement: React.FC = () => {
     setShowDischargeModal(true);
   };
 
-  const handleDischargeSuccess = () => {
+  const handleDischargeSuccess = async () => {
     // Refresh the beds data after successful discharge
     const bedId = selectedAdmissionForDischarge?.bed_id;
+    const patientId = selectedAdmissionForDischarge?.patient_id;
+    
     if (bedId) {
       // Update bed status to vacant
       setBeds(prevBeds => 
@@ -1439,11 +1441,64 @@ const IPDBedManagement: React.FC = () => {
           return b;
         })
       );
+      
+      // Update patient's IPD status back to OPD in database
+      if (patientId) {
+        try {
+          await HospitalService.updatePatient(patientId, {
+            ipd_status: 'OPD',
+            ipd_bed_number: null
+          });
+          console.log('✅ Patient IPD status updated to OPD after discharge');
+          toast.success('Patient discharged and status updated successfully');
+        } catch (updateError) {
+          console.warn('⚠️ Patient IPD status update failed after discharge:', updateError);
+          toast.warning('Patient discharged but status update failed - please refresh patient list');
+        }
+      }
     }
     
     // Close the modal
     setShowDischargeModal(false);
     setSelectedAdmissionForDischarge(null);
+  };
+
+  // Function to sync patient database with actual bed occupancy
+  const syncPatientIPDStatus = async () => {
+    try {
+      // Get all patients with IPD status = ADMITTED
+      const admittedPatients = await HospitalService.getAllPatients();
+      const ipdPatients = admittedPatients.filter(p => p.ipd_status === 'ADMITTED');
+      
+      // Get all patients actually in beds
+      const occupiedBeds = beds.filter(bed => bed.status === 'occupied' && bed.patient);
+      const bedsPatientIds = occupiedBeds.map(bed => bed.patient?.id).filter(Boolean);
+      
+      // Find patients marked as IPD but not in any bed
+      const orphanedPatients = ipdPatients.filter(patient => !bedsPatientIds.includes(patient.id));
+      
+      if (orphanedPatients.length > 0) {
+        console.log(`🔄 Found ${orphanedPatients.length} patients marked as IPD but not in beds, fixing...`);
+        
+        // Update their status back to OPD
+        const updatePromises = orphanedPatients.map(patient => 
+          HospitalService.updatePatient(patient.id, {
+            ipd_status: 'OPD',
+            ipd_bed_number: null
+          })
+        );
+        
+        await Promise.all(updatePromises);
+        
+        toast.success(`Fixed ${orphanedPatients.length} patients with inconsistent IPD status`);
+        console.log('✅ IPD status sync completed');
+      } else {
+        console.log('✅ All IPD patient statuses are consistent');
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync IPD patient status:', error);
+      toast.error('Failed to sync patient IPD status');
+    }
   };
 
   const statistics = getStatistics();
