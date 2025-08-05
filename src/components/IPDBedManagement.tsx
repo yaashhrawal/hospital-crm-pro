@@ -1442,14 +1442,14 @@ const IPDBedManagement: React.FC = () => {
         })
       );
       
-      // Update patient's IPD status back to OPD in database
+      // Update patient's IPD status to DISCHARGED in database
       if (patientId) {
         try {
           await HospitalService.updatePatient(patientId, {
-            ipd_status: 'OPD',
+            ipd_status: 'DISCHARGED',
             ipd_bed_number: null
           });
-          console.log('✅ Patient IPD status updated to OPD after discharge');
+          console.log('✅ Patient IPD status updated to DISCHARGED after discharge');
           toast.success('Patient discharged and status updated successfully');
         } catch (updateError) {
           console.warn('⚠️ Patient IPD status update failed after discharge:', updateError);
@@ -1480,10 +1480,10 @@ const IPDBedManagement: React.FC = () => {
       if (orphanedPatients.length > 0) {
         console.log(`🔄 Found ${orphanedPatients.length} patients marked as IPD but not in beds, fixing...`);
         
-        // Update their status back to OPD
+        // Update their status to DISCHARGED
         const updatePromises = orphanedPatients.map(patient => 
           HospitalService.updatePatient(patient.id, {
-            ipd_status: 'OPD',
+            ipd_status: 'DISCHARGED',
             ipd_bed_number: null
           })
         );
@@ -1532,6 +1532,12 @@ const IPDBedManagement: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-col gap-2">
+            <button
+              onClick={syncPatientIPDStatus}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            >
+              🔄 Sync IPD Status
+            </button>
             <button
               onClick={clearAllBedData}
               className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"

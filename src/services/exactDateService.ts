@@ -133,7 +133,7 @@ export class ExactDateService {
           totalSpent,
           visitCount,
           lastVisit: lastTransactionDate.toISOString().split('T')[0],
-          departmentStatus: patient.ipd_status === 'ADMITTED' ? 'IPD' as const : 'OPD' as const
+          departmentStatus: patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' as const : 'OPD' as const
         };
       });
       

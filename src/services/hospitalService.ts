@@ -523,7 +523,7 @@ export class HospitalService {
           : null;
         
         // Check IPD status to determine department
-        const departmentStatus = patient.ipd_status === 'ADMITTED' ? 'IPD' : 'OPD';
+        const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
         
         return {
           ...patient,
@@ -630,7 +630,7 @@ export class HospitalService {
           : null;
         
         // Check IPD status to determine department
-        const departmentStatus = patient.ipd_status === 'ADMITTED' ? 'IPD' : 'OPD';
+        const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
         
         return {
           ...patient,
