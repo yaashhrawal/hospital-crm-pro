@@ -484,83 +484,10 @@ export class HospitalService {
         });
       }
       
-      if (entryTodayQuery.data && entryTodayQuery.data.length > 0) {
-        console.log('📅 ENTRY TODAY QUERY RESULTS:');
-        entryTodayQuery.data.forEach((p, i) => {
-          const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
-          const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
-          console.log(`  ${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
-          
-          // Special debugging for problematic patients
-          if (p.first_name?.toUpperCase().includes('ANJU') || 
-              p.first_name?.toUpperCase().includes('SHER') ||
-              p.last_name?.toUpperCase().includes('SINGH')) {
-            console.error(`🎯 PROBLEM PATIENT IN ENTRY QUERY: ${p.first_name} ${p.last_name}`, {
-              created_at_raw: p.created_at,
-              date_of_entry_raw: p.date_of_entry,
-              created_at_parsed: createdDate,
-              date_of_entry_parsed: entryDate,
-              expectedDate: dateStr,
-              queryType: 'ENTRY_TODAY'
-            });
-          }
-          
-          // Flag problematic entries
-          if (entryDate !== dateStr) {
-            console.error(`🚨 WRONG DATE IN ENTRY QUERY: Patient ${p.first_name} ${p.last_name} has date_of_entry=${entryDate} but expected ${dateStr}`);
-          }
-        });
-      }
+      // Apply limit to filtered patients
+      const limitedPatients = exactDatePatients.slice(0, limit);
       
-      // Combine and deduplicate results
-      const combinedPatients = [...(createdTodayQuery.data || []), ...(entryTodayQuery.data || [])];
-      const uniquePatients = combinedPatients.filter((patient, index, array) => 
-        array.findIndex(p => p.id === patient.id) === index
-      );
-      
-      // STRICT VALIDATION: Only include patients that actually match today's date
-      console.log('🔍 Applying strict date validation...');
-      const validatedPatients = uniquePatients.filter(patient => {
-        const createdDate = patient.created_at ? patient.created_at.split('T')[0] : null;
-        const entryDate = patient.date_of_entry ? patient.date_of_entry.split('T')[0] : null;
-        
-        // Special handling for problematic patients
-        const isProblematicPatient = patient.first_name?.toUpperCase().includes('ANJU') || 
-                                   patient.first_name?.toUpperCase().includes('SHER') ||
-                                   patient.last_name?.toUpperCase().includes('SINGH');
-        
-        if (isProblematicPatient) {
-          console.error(`🎯 CHECKING PROBLEMATIC PATIENT: ${patient.first_name} ${patient.last_name}`, {
-            created_at_parsed: createdDate,
-            date_of_entry_parsed: entryDate,
-            expectedDate: dateStr
-          });
-          
-          // Reject if ANY date field shows 31/07/2025 (yesterday)
-          if (createdDate === '2025-07-31' || entryDate === '2025-07-31') {
-            console.error(`🚫 BLOCKING PROBLEMATIC PATIENT: ${patient.first_name} ${patient.last_name} has 31/07/2025 date - EXCLUDED FROM TODAY'S FILTER`);
-            return false;
-          }
-        }
-        
-        // Patient is valid if either created_at OR date_of_entry matches today
-        const isValidCreated = createdDate === dateStr;
-        const isValidEntry = entryDate === dateStr;
-        const isValid = isValidCreated || isValidEntry;
-        
-        if (!isValid) {
-          console.error(`🚨 FILTERING OUT INVALID PATIENT: ${patient.first_name} ${patient.last_name} - created=${createdDate}, entry=${entryDate}, expected=${dateStr}`);
-        } else {
-          console.log(`✅ Valid patient: ${patient.first_name} ${patient.last_name} - created=${createdDate}, entry=${entryDate}`);
-        }
-        
-        return isValid;
-      });
-      
-      // Apply limit to validated patients
-      const limitedPatients = validatedPatients.slice(0, limit);
-      
-      console.log(`✅ Final result: ${limitedPatients.length} validated patients for ${dateStr} (filtered out ${uniquePatients.length - validatedPatients.length} invalid patients)`);
+      console.log(`✅ Final result: ${limitedPatients.length} patients for exact date ${dateStr}`);
       
       // Log first few patients for debugging
       if (limitedPatients.length > 0) {
@@ -595,8 +522,8 @@ export class HospitalService {
           ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
-        // All patients are OPD now
-        const departmentStatus = 'OPD';
+        // Check IPD status to determine department
+        const departmentStatus = patient.ipd_status === 'ADMITTED' ? 'IPD' : 'OPD';
         
         return {
           ...patient,
@@ -702,8 +629,8 @@ export class HospitalService {
           ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
-        // All patients are OPD now
-        const departmentStatus = 'OPD';
+        // Check IPD status to determine department
+        const departmentStatus = patient.ipd_status === 'ADMITTED' ? 'IPD' : 'OPD';
         
         return {
           ...patient,
@@ -1268,6 +1195,183 @@ export class HospitalService {
     } catch (error: any) {
       console.error('❌ Error loading discharge record:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+  }
+
+  static async getDischargedAdmissions() {
+    try {
+      console.log('📋 Loading discharged admissions...');
+      
+      const { data, error } = await supabase
+        .from('patient_admissions')
+        .select(`
+          *,
+          patient:patients(*),
+          bed:beds(*)
+        `)
+        .eq('status', 'DISCHARGED')
+        .eq('hospital_id', HOSPITAL_ID)
+        .order('updated_at', { ascending: false });
+      
+      if (error) {
+        console.warn('⚠️ Full query failed, trying simplified query:', error);
+        
+        // Fallback: try without relationships
+        const { data: simplifiedData, error: simplifiedError } = await supabase
+          .from('patient_admissions')
+          .select('*')
+          .eq('status', 'DISCHARGED')
+          .eq('hospital_id', HOSPITAL_ID)
+          .order('updated_at', { ascending: false });
+        
+        if (simplifiedError) {
+          console.error('❌ Simplified query also failed:', simplifiedError);
+          throw simplifiedError;
+        }
+        
+        console.log('✅ Simplified discharged admissions loaded');
+        return simplifiedData || [];
+      }
+      
+      console.log(`✅ Loaded ${data?.length || 0} discharged admissions`);
+      return data || [];
+      
+    } catch (error: any) {
+      console.error('❌ Error loading discharged admissions:', error);
+      throw error;
+    }
+  }
+
+  static async getDischargeSummary(admissionId: string) {
+    try {
+      console.log('📄 Loading discharge summary for admission:', admissionId);
+      
+      const { data, error } = await supabase
+        .from('discharge_summaries')
+        .select('*')
+        .eq('admission_id', admissionId)
+        .single();
+      
+      if (error) {
+        console.warn('⚠️ No discharge summary found:', error);
+        return null;
+      }
+      
+      console.log('✅ Discharge summary loaded');
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error loading discharge summary:', error);
+      return null;
+    }
+  }
+
+  static async createAdmission(admissionData: any) {
+    try {
+      console.log('🏥 Creating admission record:', admissionData);
+      
+      // First, let's try to get the table schema to understand what fields are required
+      console.log('📊 Attempting to understand table structure...');
+      
+      // Try to fetch one record to see the structure
+      const { data: sampleRecord, error: sampleError } = await supabase
+        .from('patient_admissions')
+        .select('*')
+        .limit(1);
+        
+      if (sampleRecord && sampleRecord.length > 0) {
+        console.log('📋 Sample admission record structure:', Object.keys(sampleRecord[0]));
+      }
+      
+      // Now try to insert
+      const { data, error } = await supabase
+        .from('patient_admissions')
+        .insert(admissionData)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Error creating admission:');
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        console.error('Error hint:', error.hint);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+        
+        // If it's a not-null constraint error, log which field is missing
+        if (error.code === '23502') {
+          console.error('🚨 MISSING REQUIRED FIELD:', error.message);
+        }
+        
+        throw error;
+      }
+      
+      console.log('✅ Admission record created successfully:', data);
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error creating admission:', error);
+      throw error;
+    }
+  }
+
+  static async verifyAdmissionExists(admissionId: string) {
+    try {
+      console.log('🔍 Verifying admission exists:', admissionId);
+      
+      const { data, error } = await supabase
+        .from('patient_admissions')
+        .select('*')
+        .eq('id', admissionId)
+        .single();
+      
+      if (error) {
+        console.error('❌ Admission verification failed:', error);
+        return false;
+      }
+      
+      console.log('✅ Admission found:', data);
+      return true;
+      
+    } catch (error: any) {
+      console.error('❌ Error verifying admission:', error);
+      return false;
+    }
+  }
+
+  static async createMissingAdmissionRecord(patientId: string, bedId: string, admissionDate?: string, bedNumber?: number) {
+    try {
+      console.log('🆘 Creating missing admission record for patient:', patientId);
+      
+      const admissionData = {
+        patient_id: patientId,
+        // bed_id removed - it requires a valid bed record in beds table
+        bed_number: bedNumber || 1, // Add bed number, default to 1 if not provided
+        room_type: 'GENERAL', // Add room type field
+        department: 'GENERAL', // Add department field
+        admission_date: admissionDate || new Date().toISOString(),
+        status: 'ADMITTED' as const,
+        hospital_id: HOSPITAL_ID
+        // Removed fields that don't exist: admission_reason, treating_doctor, ipd_number, bed_id
+      };
+
+      const { data, error } = await supabase
+        .from('patient_admissions')
+        .insert(admissionData)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Error creating missing admission:', error);
+        throw error;
+      }
+      
+      console.log('✅ Missing admission record created:', data);
+      return data;
+      
+    } catch (error: any) {
+      console.error('❌ Error creating missing admission:', error);
       throw error;
     }
   }

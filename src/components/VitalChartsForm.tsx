@@ -10,6 +10,7 @@ interface VitalChartsFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (vitalChartsData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface VitalEntry {
@@ -33,7 +34,8 @@ const VitalChartsForm: React.FC<VitalChartsFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   // Get effective IPD number with fallback
   const [effectiveIPDNumber, setEffectiveIPDNumber] = useState<string>('');
@@ -44,20 +46,22 @@ const VitalChartsForm: React.FC<VitalChartsFormProps> = ({
       setEffectiveIPDNumber(ipd);
     }
   }, [ipdNumber, isOpen]);
-  const [vitalEntries, setVitalEntries] = useState<VitalEntry[]>([{
-    id: `vital-${Date.now()}`,
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-    pulse: '',
-    bpSyst: '',
-    bpDiast: '',
-    resp: '',
-    temp: '',
-    spo2: '',
-    painScore: '',
-    gcs: '',
-    sign: ''
-  }]);
+  const [vitalEntries, setVitalEntries] = useState<VitalEntry[]>(
+    savedData?.vitalEntries || [{
+      id: `vital-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      pulse: '',
+      bpSyst: '',
+      bpDiast: '',
+      resp: '',
+      temp: '',
+      spo2: '',
+      painScore: '',
+      gcs: '',
+      sign: ''
+    }]
+  );
 
   const addVitalEntry = () => {
     const newEntry: VitalEntry = {

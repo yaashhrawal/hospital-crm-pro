@@ -236,6 +236,17 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       console.log('✅ Table access successful');
       
+      // Verify that the admission record actually exists in the database
+      console.log('🔍 Verifying admission record exists...');
+      const admissionExists = await HospitalService.verifyAdmissionExists(admission.id);
+      
+      if (!admissionExists) {
+        console.error('❌ Admission record does not exist in database:', admission.id);
+        throw new Error(`Admission record not found in database. Cannot create discharge summary for non-existent admission: ${admission.id}`);
+      }
+      
+      console.log('✅ Admission record verified, proceeding with discharge summary...');
+      
       // Prepare discharge summary data with validation
       const dischargeSummaryData = {
         admission_id: admission.id,
@@ -299,7 +310,21 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       
       console.log('✅ Admission status updated to DISCHARGED');
 
-      // 5. Update bed status to available
+      // 3. Update patient ipd_status to DISCHARGED
+      console.log('👤 Updating patient ipd_status to DISCHARGED...');
+      const { error: patientUpdateError } = await supabase
+        .from('patients')
+        .update({ ipd_status: 'DISCHARGED' })
+        .eq('id', admission.patient?.id);
+
+      if (patientUpdateError) {
+        console.warn('⚠️ Failed to update patient ipd_status:', patientUpdateError);
+        // Don't throw error as the main discharge process succeeded
+      } else {
+        console.log('✅ Patient ipd_status updated to DISCHARGED');
+      }
+
+      // 4. Update bed status to available
       if (admission.bed_id) {
         console.log('🛏️ Updating bed status to available...');
         const { error: bedError } = await supabase

@@ -150,131 +150,132 @@ interface TatFormProps {
   bedNumber?: string;
   onClose: () => void;
   onSave?: (data: TatFormData) => void;
+  savedData?: TatFormData; // Previously saved form data
 }
 
-const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave }) => {
+const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave, savedData }) => {
   const [formData, setFormData] = useState<TatFormData>({
-    consultantName: '',
-    patientName: '',
-    arrivalDateTime: new Date().toISOString().slice(0, 16),
-    ageSex: '',
-    department: '',
-    uhidIpNo: '',
-    receivingStaff: '',
-    historyGivenBy: '',
+    consultantName: savedData?.consultantName || '',
+    patientName: savedData?.patientName || '',
+    arrivalDateTime: savedData?.arrivalDateTime || new Date().toISOString().slice(0, 16),
+    ageSex: savedData?.ageSex || '',
+    department: savedData?.department || '',
+    uhidIpNo: savedData?.uhidIpNo || '',
+    receivingStaff: savedData?.receivingStaff || '',
+    historyGivenBy: savedData?.historyGivenBy || '',
     arrivalBy: {
-      stretcher: false,
-      wheelChair: false,
-      ambulatory: false,
-      other: false,
-      otherSpecify: '',
+      stretcher: savedData?.arrivalBy?.stretcher || false,
+      wheelChair: savedData?.arrivalBy?.wheelChair || false,
+      ambulatory: savedData?.arrivalBy?.ambulatory || false,
+      other: savedData?.arrivalBy?.other || false,
+      otherSpecify: savedData?.arrivalBy?.otherSpecify || '',
     },
-    height: '',
-    weight: '',
-    unableToStandDue: '',
+    height: savedData?.height || '',
+    weight: savedData?.weight || '',
+    unableToStandDue: savedData?.unableToStandDue || '',
     vitals: {
-      temp: '',
-      pulse: '',
-      bp: '',
-      spo2: '',
-      resp: '',
+      temp: savedData?.vitals?.temp || '',
+      pulse: savedData?.vitals?.pulse || '',
+      bp: savedData?.vitals?.bp || '',
+      spo2: savedData?.vitals?.spo2 || '',
+      resp: savedData?.vitals?.resp || '',
     },
     levelOfConsciousness: {
-      conscious: false,
-      semiConscious: false,
-      unconscious: false,
+      conscious: savedData?.levelOfConsciousness?.conscious || false,
+      semiConscious: savedData?.levelOfConsciousness?.semiConscious || false,
+      unconscious: savedData?.levelOfConsciousness?.unconscious || false,
     },
     psychologicalStatus: {
-      calm: false,
-      anxious: false,
-      withdrawn: false,
-      agitated: false,
-      depressed: false,
-      sleepy: false,
+      calm: savedData?.psychologicalStatus?.calm || false,
+      anxious: savedData?.psychologicalStatus?.anxious || false,
+      withdrawn: savedData?.psychologicalStatus?.withdrawn || false,
+      agitated: savedData?.psychologicalStatus?.agitated || false,
+      depressed: savedData?.psychologicalStatus?.depressed || false,
+      sleepy: savedData?.psychologicalStatus?.sleepy || false,
     },
-    provisionalDiagnosis: '',
-    historyOfAllergy: '',
-    allergyDescription: '',
-    medicationsOnAdmission: '',
-    medicationsDescription: '',
-    medications: [
+    provisionalDiagnosis: savedData?.provisionalDiagnosis || '',
+    historyOfAllergy: savedData?.historyOfAllergy || '',
+    allergyDescription: savedData?.allergyDescription || '',
+    medicationsOnAdmission: savedData?.medicationsOnAdmission || '',
+    medicationsDescription: savedData?.medicationsDescription || '',
+    medications: savedData?.medications || [
       { srNo: 1, name: '', doses: '', timing: '' },
       { srNo: 2, name: '', doses: '', timing: '' },
       { srNo: 3, name: '', doses: '', timing: '' },
     ],
-    anyDeformities: '',
-    deformitiesSpecify: '',
+    anyDeformities: savedData?.anyDeformities || '',
+    deformitiesSpecify: savedData?.deformitiesSpecify || '',
     patientItems: {
-      denture: false,
-      contactLenses: false,
-      artificialLimbs: false,
-      implants: false,
+      denture: savedData?.patientItems?.denture || false,
+      contactLenses: savedData?.patientItems?.contactLenses || false,
+      artificialLimbs: savedData?.patientItems?.artificialLimbs || false,
+      implants: savedData?.patientItems?.implants || false,
     },
     onAdmission: {
-      rylesTube: false,
-      centralLine: false,
-      foleysCath: false,
-      etTube: false,
-      ttTube: false,
-      arterialLine: false,
-      gastroJejunostomy: false,
-      ivLine: false,
-      slab: false,
-      other: false,
+      rylesTube: savedData?.onAdmission?.rylesTube || false,
+      centralLine: savedData?.onAdmission?.centralLine || false,
+      foleysCath: savedData?.onAdmission?.foleysCath || false,
+      etTube: savedData?.onAdmission?.etTube || false,
+      ttTube: savedData?.onAdmission?.ttTube || false,
+      arterialLine: savedData?.onAdmission?.arterialLine || false,
+      gastroJejunostomy: savedData?.onAdmission?.gastroJejunostomy || false,
+      ivLine: savedData?.onAdmission?.ivLine || false,
+      slab: savedData?.onAdmission?.slab || false,
+      other: savedData?.onAdmission?.other || false,
     },
-    pressureSore: '',
-    pressureSoreLocation: '',
-    pressureSoreStage: '',
-    sideRailingUp: '',
-    callBellWorking: '',
-    majorSurgicalHistory: '',
-    pastMedicalHistory: '',
-    patientVulnerable: '',
+    pressureSore: savedData?.pressureSore || '',
+    pressureSoreLocation: savedData?.pressureSoreLocation || '',
+    pressureSoreStage: savedData?.pressureSoreStage || '',
+    sideRailingUp: savedData?.sideRailingUp || '',
+    callBellWorking: savedData?.callBellWorking || '',
+    majorSurgicalHistory: savedData?.majorSurgicalHistory || '',
+    pastMedicalHistory: savedData?.pastMedicalHistory || '',
+    patientVulnerable: savedData?.patientVulnerable || '',
     vulnerableCategories: {
-      ageCategory: '',
-      physicallyDisabled: '',
-      mentallyDisabled: '',
-      terminallyIll: '',
-      unableToSpeak: '',
-      alteredConsciousness: '',
-      epilepticFit: '',
-      medicationRelated: '',
-      absenceOfRelative: '',
-      immuneCompromised: '',
+      ageCategory: savedData?.vulnerableCategories?.ageCategory || '',
+      physicallyDisabled: savedData?.vulnerableCategories?.physicallyDisabled || '',
+      mentallyDisabled: savedData?.vulnerableCategories?.mentallyDisabled || '',
+      terminallyIll: savedData?.vulnerableCategories?.terminallyIll || '',
+      unableToSpeak: savedData?.vulnerableCategories?.unableToSpeak || '',
+      alteredConsciousness: savedData?.vulnerableCategories?.alteredConsciousness || '',
+      epilepticFit: savedData?.vulnerableCategories?.epilepticFit || '',
+      medicationRelated: savedData?.vulnerableCategories?.medicationRelated || '',
+      absenceOfRelative: savedData?.vulnerableCategories?.absenceOfRelative || '',
+      immuneCompromised: savedData?.vulnerableCategories?.immuneCompromised || '',
     },
     gcsScore: {
       eyeOpening: {
-        spontaneous: false,
-        toVoice: false,
-        toPain: false,
-        none: false,
+        spontaneous: savedData?.gcsScore?.eyeOpening?.spontaneous || false,
+        toVoice: savedData?.gcsScore?.eyeOpening?.toVoice || false,
+        toPain: savedData?.gcsScore?.eyeOpening?.toPain || false,
+        none: savedData?.gcsScore?.eyeOpening?.none || false,
       },
       motorResponse: {
-        obeysCommands: false,
-        localizesToPain: false,
-        withdrawsFromPain: false,
-        flexionToPain: false,
-        extensionToPain: false,
-        none: false,
+        obeysCommands: savedData?.gcsScore?.motorResponse?.obeysCommands || false,
+        localizesToPain: savedData?.gcsScore?.motorResponse?.localizesToPain || false,
+        withdrawsFromPain: savedData?.gcsScore?.motorResponse?.withdrawsFromPain || false,
+        flexionToPain: savedData?.gcsScore?.motorResponse?.flexionToPain || false,
+        extensionToPain: savedData?.gcsScore?.motorResponse?.extensionToPain || false,
+        none: savedData?.gcsScore?.motorResponse?.none || false,
       },
       verbalResponse: {
-        oriented: false,
-        confused: false,
-        inappropriateWords: false,
-        incomprehensibleSounds: false,
-        none: false,
+        oriented: savedData?.gcsScore?.verbalResponse?.oriented || false,
+        confused: savedData?.gcsScore?.verbalResponse?.confused || false,
+        inappropriateWords: savedData?.gcsScore?.verbalResponse?.inappropriateWords || false,
+        incomprehensibleSounds: savedData?.gcsScore?.verbalResponse?.incomprehensibleSounds || false,
+        none: savedData?.gcsScore?.verbalResponse?.none || false,
       },
     },
-    valuables: [
+    valuables: savedData?.valuables || [
       { srNo: 1, itemName: '', quantity: '' },
       { srNo: 2, itemName: '', quantity: '' },
       { srNo: 3, itemName: '', quantity: '' },
     ],
-    nursingStaffName: '',
-    nursingStaffDateTime: new Date().toISOString().slice(0, 16),
-    patientRelativeName: '',
-    patientRelativeDateTime: new Date().toISOString().slice(0, 16),
-    relationToPatient: '',
+    nursingStaffName: savedData?.nursingStaffName || '',
+    nursingStaffDateTime: savedData?.nursingStaffDateTime || new Date().toISOString().slice(0, 16),
+    patientRelativeName: savedData?.patientRelativeName || '',
+    patientRelativeDateTime: savedData?.patientRelativeDateTime || new Date().toISOString().slice(0, 16),
+    relationToPatient: savedData?.relationToPatient || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -298,13 +299,13 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
         <style>
           @page {
             size: A4;
-            margin: 15mm;
+            margin: 10mm;
           }
           
           body {
             font-family: Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.4;
+            font-size: 10px;
+            line-height: 1.3;
             margin: 0;
             padding: 0;
           }
@@ -315,42 +316,44 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
           
           .header {
             text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 6px;
           }
           
           .header h1 {
             margin: 0;
-            font-size: 18px;
+            font-size: 16px;
             color: #333;
           }
           
           .header p {
-            margin: 5px 0 0 0;
+            margin: 3px 0 0 0;
             color: #666;
+            font-size: 9px;
           }
           
           .section {
-            margin-bottom: 15px;
+            margin-bottom: 6px;
             border: 1px solid #ddd;
-            padding: 10px;
+            padding: 6px;
             background-color: #f9f9f9;
+            page-break-inside: avoid;
           }
           
           .section h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
+            margin: 0 0 5px 0;
+            font-size: 12px;
             color: #333;
             border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
+            padding-bottom: 3px;
           }
           
           .grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 6px;
+            margin-bottom: 4px;
           }
           
           .grid-2 {
@@ -358,54 +361,59 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
           }
           
           .field {
-            margin-bottom: 8px;
+            margin-bottom: 3px;
           }
           
           .field label {
             font-weight: bold;
             display: block;
             margin-bottom: 2px;
-            font-size: 10px;
+            font-size: 9px;
           }
           
           .field-value {
             border: 1px solid #ccc;
-            padding: 4px;
+            padding: 3px;
             background: white;
-            min-height: 20px;
+            min-height: 16px;
+            font-size: 9px;
           }
           
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 10px;
+            margin-top: 4px;
+            font-size: 9px;
           }
           
           table th {
             background-color: #e0e0e0;
             border: 1px solid #999;
-            padding: 4px;
+            padding: 3px;
             text-align: left;
             font-weight: bold;
+            font-size: 9px;
           }
           
           table td {
             border: 1px solid #999;
-            padding: 4px;
+            padding: 3px;
+            font-size: 9px;
           }
           
           .checkbox-group {
             display: flex;
             flex-wrap: wrap;
-            gap: 15px;
-            margin: 5px 0;
+            gap: 10px;
+            margin: 3px 0;
+            font-size: 9px;
           }
           
           .checkbox-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
+            font-size: 9px;
           }
           
           .checkbox {
@@ -421,18 +429,21 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             display: block;
             text-align: center;
             line-height: 12px;
+            font-size: 9px;
           }
           
           .radio-group {
             display: flex;
-            gap: 15px;
-            margin: 5px 0;
+            gap: 10px;
+            margin: 3px 0;
+            font-size: 9px;
           }
           
           .radio-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
+            font-size: 9px;
           }
           
           .radio {
@@ -708,12 +719,7 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             </table>
           ` : ''}
         </div>
-      </div>
 
-      <div class="page-break"></div>
-
-      <!-- Page 2 -->
-      <div class="page-2">
         <!-- Section 4: Patient Status and Assessment -->
         <div class="section">
           <h3>4. Patient Status and Assessment</h3>

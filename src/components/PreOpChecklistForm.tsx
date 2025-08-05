@@ -15,56 +15,58 @@ interface PreOpChecklistFormProps {
     doctorName?: string;
   };
   onSave?: (data: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 const PreOpChecklistForm: React.FC<PreOpChecklistFormProps> = ({
   isOpen,
   onClose,
   patientData,
-  onSave
+  onSave,
+  savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    patientName: patientData.name || '',
-    ageSex: `${patientData.age || ''} / ${patientData.gender || ''}`,
-    date: new Date().toISOString().split('T')[0],
-    nameOfSurgery: '',
-    patientId: patientData.patientId || '',
-    ipdNo: patientData.ipdNo || '',
-    consultantName: patientData.doctorName || '',
+    patientName: savedData?.patientName || patientData.name || '',
+    ageSex: savedData?.ageSex || `${patientData.age || ''} / ${patientData.gender || ''}`,
+    date: savedData?.date || new Date().toISOString().split('T')[0],
+    nameOfSurgery: savedData?.nameOfSurgery || '',
+    patientId: savedData?.patientId || patientData.patientId || '',
+    ipdNo: savedData?.ipdNo || patientData.ipdNo || '',
+    consultantName: savedData?.consultantName || patientData.doctorName || '',
     
     // Checklist items (Yes/No)
-    consentTaken: '',
-    preparationOfOperationSite: '',
-    nilByMouthSince: '',
-    nilByMouthTime: '',
-    investigationReportsAttached: '',
-    removalOfDentureJewellery: '',
-    removalOfNailPolishHairPin: '',
-    enemaGivenBladderEmptied: '',
-    surgicalSiteMarkingDone: '',
-    arrangementOfBlood: '',
-    physicianFitnessTaken: '',
-    clearanceSlipReceived: '',
+    consentTaken: savedData?.consentTaken || '',
+    preparationOfOperationSite: savedData?.preparationOfOperationSite || '',
+    nilByMouthSince: savedData?.nilByMouthSince || '',
+    nilByMouthTime: savedData?.nilByMouthTime || '',
+    investigationReportsAttached: savedData?.investigationReportsAttached || '',
+    removalOfDentureJewellery: savedData?.removalOfDentureJewellery || '',
+    removalOfNailPolishHairPin: savedData?.removalOfNailPolishHairPin || '',
+    enemaGivenBladderEmptied: savedData?.enemaGivenBladderEmptied || '',
+    surgicalSiteMarkingDone: savedData?.surgicalSiteMarkingDone || '',
+    arrangementOfBlood: savedData?.arrangementOfBlood || '',
+    physicianFitnessTaken: savedData?.physicianFitnessTaken || '',
+    clearanceSlipReceived: savedData?.clearanceSlipReceived || '',
     
     // Vitals
-    temperature: '',
-    pulse: '',
-    bloodPressure: '',
-    respiratoryRate: '',
-    spo2: '',
+    temperature: savedData?.temperature || '',
+    pulse: savedData?.pulse || '',
+    bloodPressure: savedData?.bloodPressure || '',
+    respiratoryRate: savedData?.respiratoryRate || '',
+    spo2: savedData?.spo2 || '',
     
     // Medication and Patient Details
-    antibioticGiven: '',
-    whichAntibiotic: '',
-    antibioticTime: '',
-    nameTagApplied: '',
-    weightInKg: '',
-    patientReceivedInOTAt: '',
+    antibioticGiven: savedData?.antibioticGiven || '',
+    whichAntibiotic: savedData?.whichAntibiotic || '',
+    antibioticTime: savedData?.antibioticTime || '',
+    nameTagApplied: savedData?.nameTagApplied || '',
+    weightInKg: savedData?.weightInKg || '',
+    patientReceivedInOTAt: savedData?.patientReceivedInOTAt || '',
     
     // Signatures
-    wardStaffSignature: '',
-    otStaffSignature: ''
+    wardStaffSignature: savedData?.wardStaffSignature || '',
+    otStaffSignature: savedData?.otStaffSignature || ''
   });
 
   const handleInputChange = (field: string, value: string) => {

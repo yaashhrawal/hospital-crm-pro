@@ -9,6 +9,7 @@ interface NursesNotesFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (nursesNotesData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 const NursesNotesForm: React.FC<NursesNotesFormProps> = ({
@@ -17,7 +18,8 @@ const NursesNotesForm: React.FC<NursesNotesFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   // Get effective IPD number with fallback
   const [effectiveIPDNumber, setEffectiveIPDNumber] = useState<string>('');
@@ -43,12 +45,12 @@ const NursesNotesForm: React.FC<NursesNotesFormProps> = ({
   }, [ipdNumber, isOpen]);
 
   const [nursesNotes, setNursesNotes] = useState({
-    morningNotes: '',
-    morningSign: '',
-    eveningNotes: '',
-    eveningSign: '',
-    nightNotes: '',
-    nightSign: ''
+    morningNotes: savedData?.nursesNotes?.morningNotes || '',
+    morningSign: savedData?.nursesNotes?.morningSign || '',
+    eveningNotes: savedData?.nursesNotes?.eveningNotes || '',
+    eveningSign: savedData?.nursesNotes?.eveningSign || '',
+    nightNotes: savedData?.nursesNotes?.nightNotes || '',
+    nightSign: savedData?.nursesNotes?.nightSign || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -328,7 +328,7 @@ const DailyExpenseTab: React.FC = () => {
                   Total Expenses: ₹{totalExpenses.toLocaleString()}
                 </span>
                 <div className="text-sm text-red-600">
-                  for {new Date(selectedDate).toLocaleDateString()}
+                  for {new Date(selectedDate).toLocaleDateString('en-IN')}
                 </div>
               </div>
             </div>
@@ -386,7 +386,7 @@ const DailyExpenseTab: React.FC = () => {
           ) : (
             <div className="text-center py-8">
               <div className="text-4xl mb-2">💸</div>
-              <p className="text-gray-600">No expenses recorded for {new Date(selectedDate).toLocaleDateString()}</p>
+              <p className="text-gray-600">No expenses recorded for {new Date(selectedDate).toLocaleDateString('en-IN')}</p>
               <p className="text-gray-500 text-sm">Add your first expense above</p>
             </div>
           )}

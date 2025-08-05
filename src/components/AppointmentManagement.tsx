@@ -99,7 +99,7 @@ const AppointmentManagement: React.FC = () => {
 
       setAppointments(appointments);
       
-      toast.success(`Appointment scheduled for ${data.patient_name} on ${new Date(data.appointment_date).toLocaleDateString()}`);
+      toast.success(`Appointment scheduled for ${data.patient_name} on ${new Date(data.appointment_date).toLocaleDateString('en-IN')}`);
       setShowNewAppointment(false);
       reset();
     } catch (error: any) {
@@ -395,7 +395,7 @@ const AppointmentManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-gray-900">
-                        {new Date(appointment.appointment_date).toLocaleDateString()}
+                        {new Date(appointment.appointment_date).toLocaleDateString('en-IN')}
                       </div>
                       <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
                     </td>

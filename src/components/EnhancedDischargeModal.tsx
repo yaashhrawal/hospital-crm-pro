@@ -39,7 +39,7 @@ interface EnhancedDischargeFormData {
   next_appointment_date: string;
   doctor_name: string;
   
-  // Billing Information (Manual Entry)
+  // Manual Entry
   manual_bed_charges: number;
   doctor_fees: number;
   nursing_charges: number;

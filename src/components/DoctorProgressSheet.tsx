@@ -8,6 +8,7 @@ interface DoctorProgressSheetProps {
   patient: PatientWithRelations;
   bedNumber: number;
   onSubmit: (progressData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface ProgressEntry {
@@ -41,20 +42,21 @@ const DoctorProgressSheet: React.FC<DoctorProgressSheetProps> = ({
   onClose,
   patient,
   bedNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   const [formData, setFormData] = useState<ProgressSheetData>({
-    patientName: '',
-    ageSex: '',
-    ipdNumber: '',
-    progressEntries: [],
-    residentConsultantSignature: '',
-    bedNumber: 0
+    patientName: savedData?.patientName || '',
+    ageSex: savedData?.ageSex || '',
+    ipdNumber: savedData?.ipdNumber || '',
+    progressEntries: savedData?.progressEntries || [],
+    residentConsultantSignature: savedData?.residentConsultantSignature || '',
+    bedNumber: savedData?.bedNumber || 0
   });
 
-  // Auto-populate form with patient data when opened
+  // Auto-populate form with patient data when opened only if no savedData
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const initialEntry: ProgressEntry = {
         id: `entry-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
@@ -74,7 +76,7 @@ const DoctorProgressSheet: React.FC<DoctorProgressSheetProps> = ({
         progressEntries: [initialEntry]
       }));
     }
-  }, [isOpen, patient, bedNumber]);
+  }, [isOpen, patient, bedNumber, savedData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

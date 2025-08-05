@@ -9,6 +9,7 @@ interface DiabeticChartFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (diabeticData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface DiabeticEntry {
@@ -27,7 +28,8 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   // Get effective IPD number with fallback
   const [effectiveIPDNumber, setEffectiveIPDNumber] = useState<string>('');
@@ -53,26 +55,28 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
   }, [ipdNumber, isOpen]);
 
   const [diabeticPatientInfo, setDiabeticPatientInfo] = useState({
-    patientName: '',
-    patientId: '',
-    ipNo: '',
-    ageSex: '',
-    department: '',
-    doctor: ''
+    patientName: savedData?.diabeticPatientInfo?.patientName || '',
+    patientId: savedData?.diabeticPatientInfo?.patientId || '',
+    ipNo: savedData?.diabeticPatientInfo?.ipNo || '',
+    ageSex: savedData?.diabeticPatientInfo?.ageSex || '',
+    department: savedData?.diabeticPatientInfo?.department || '',
+    doctor: savedData?.diabeticPatientInfo?.doctor || ''
   });
 
-  const [diabeticEntries, setDiabeticEntries] = useState<DiabeticEntry[]>([{
-    id: `diabetic-${Date.now()}`,
-    dateTime: new Date().toISOString().slice(0, 16),
-    bloodSugar: '',
-    medicationName: '',
-    medicationDose: '',
-    route: '',
-    sign: ''
-  }]);
+  const [diabeticEntries, setDiabeticEntries] = useState<DiabeticEntry[]>(
+    savedData?.diabeticEntries || [{
+      id: `diabetic-${Date.now()}`,
+      dateTime: new Date().toISOString().slice(0, 16),
+      bloodSugar: '',
+      medicationName: '',
+      medicationDose: '',
+      route: '',
+      sign: ''
+    }]
+  );
 
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -84,7 +88,7 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
         ageSex
       }));
     }
-  }, [isOpen, patient, effectiveIPDNumber, bedNumber]);
+  }, [isOpen, patient, effectiveIPDNumber, bedNumber, savedData]);
 
   const addDiabeticEntry = () => {
     const newEntry: DiabeticEntry = {

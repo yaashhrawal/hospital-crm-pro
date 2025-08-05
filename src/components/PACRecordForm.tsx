@@ -12,13 +12,15 @@ interface PACRecordFormProps {
     roomWardNo?: string;
   };
   onSave?: (data: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 const PACRecordForm: React.FC<PACRecordFormProps> = ({
   isOpen,
   onClose,
   patientData,
-  onSave
+  onSave,
+  savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
@@ -26,92 +28,92 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
     ageSex: `${patientData.age || ''} / ${patientData.gender || ''}`,
     ipdNo: patientData.ipdNo || '',
     roomWardNo: patientData.roomWardNo || '',
-    operation: '',
-    alertAllergiesMedications: '',
-    anaestheticPlan: '',
-    drugToBeUsed: '',
+    operation: savedData?.operation || '',
+    alertAllergiesMedications: savedData?.alertAllergiesMedications || '',
+    anaestheticPlan: savedData?.anaestheticPlan || '',
+    drugToBeUsed: savedData?.drugToBeUsed || '',
     
     // Patient Vitals and History
-    anaesthesiaType: '',
-    asaGrade: '',
-    consent: '',
-    bloodGroup: '',
-    height: '',
-    weight: '',
-    temp: '',
-    hrRhythm: '',
-    bp: '',
-    rr: '',
-    presentIllness: '',
-    pastIllness: '',
-    previousSurgery: '',
-    personalHistory: '',
+    anaesthesiaType: savedData?.anaesthesiaType || '',
+    asaGrade: savedData?.asaGrade || '',
+    consent: savedData?.consent || '',
+    bloodGroup: savedData?.bloodGroup || '',
+    height: savedData?.height || '',
+    weight: savedData?.weight || '',
+    temp: savedData?.temp || '',
+    hrRhythm: savedData?.hrRhythm || '',
+    bp: savedData?.bp || '',
+    rr: savedData?.rr || '',
+    presentIllness: savedData?.presentIllness || '',
+    pastIllness: savedData?.pastIllness || '',
+    previousSurgery: savedData?.previousSurgery || '',
+    personalHistory: savedData?.personalHistory || '',
     
     // General Examination
-    generalCondition: '',
-    pallor: '',
-    cyanosis: '',
-    icterus: '',
-    exerciseTolerance: '',
-    edema: '',
-    oralHygiene: '',
-    dentures: '',
-    airway: '',
-    mouthOpening: '',
-    neckMovement: '',
-    mallampatiGrade: '',
-    mentothyroidDistance: '',
-    dentition: '',
-    bht: '',
-    spinal: '',
+    generalCondition: savedData?.generalCondition || '',
+    pallor: savedData?.pallor || '',
+    cyanosis: savedData?.cyanosis || '',
+    icterus: savedData?.icterus || '',
+    exerciseTolerance: savedData?.exerciseTolerance || '',
+    edema: savedData?.edema || '',
+    oralHygiene: savedData?.oralHygiene || '',
+    dentures: savedData?.dentures || '',
+    airway: savedData?.airway || '',
+    mouthOpening: savedData?.mouthOpening || '',
+    neckMovement: savedData?.neckMovement || '',
+    mallampatiGrade: savedData?.mallampatiGrade || '',
+    mentothyroidDistance: savedData?.mentothyroidDistance || '',
+    dentition: savedData?.dentition || '',
+    bht: savedData?.bht || '',
+    spinal: savedData?.spinal || '',
     
     // Systemic Examination
-    cns: '',
-    gcs: '',
-    cvs: '',
-    pulse: '',
-    echo: '',
-    resp: '',
-    rrSystemic: '',
-    pupillarySize: '',
-    bpSystemic: '',
-    ecg: '',
-    cxr: '',
+    cns: savedData?.cns || '',
+    gcs: savedData?.gcs || '',
+    cvs: savedData?.cvs || '',
+    pulse: savedData?.pulse || '',
+    echo: savedData?.echo || '',
+    resp: savedData?.resp || '',
+    rrSystemic: savedData?.rrSystemic || '',
+    pupillarySize: savedData?.pupillarySize || '',
+    bpSystemic: savedData?.bpSystemic || '',
+    ecg: savedData?.ecg || '',
+    cxr: savedData?.cxr || '',
     
     // Investigations
-    hbPcv: '',
-    tlc: '',
-    platelets: '',
-    crp: '',
-    tsh: '',
-    bloodSugar: '',
-    sgotSgpt: '',
-    bloodUrea: '',
-    uricAcid: '',
-    sodium: '',
-    potassium: '',
-    hbsAgHivHcv: '',
-    aptt: '',
-    ptInr: '',
-    sCreatinine: '',
-    otherInvestigations: '',
+    hbPcv: savedData?.hbPcv || '',
+    tlc: savedData?.tlc || '',
+    platelets: savedData?.platelets || '',
+    crp: savedData?.crp || '',
+    tsh: savedData?.tsh || '',
+    bloodSugar: savedData?.bloodSugar || '',
+    sgotSgpt: savedData?.sgotSgpt || '',
+    bloodUrea: savedData?.bloodUrea || '',
+    uricAcid: savedData?.uricAcid || '',
+    sodium: savedData?.sodium || '',
+    potassium: savedData?.potassium || '',
+    hbsAgHivHcv: savedData?.hbsAgHivHcv || '',
+    aptt: savedData?.aptt || '',
+    ptInr: savedData?.ptInr || '',
+    sCreatinine: savedData?.sCreatinine || '',
+    otherInvestigations: savedData?.otherInvestigations || '',
     
     // Preanaesthetic Instructions
-    preanaestheticInstructions: '',
+    preanaestheticInstructions: savedData?.preanaestheticInstructions || '',
     
     // PAC Revaluation
-    revaluationDate: '',
-    revaluationTime: '',
-    anaesthetistName1: '',
-    revaluationTemp: '',
-    revaluationRr: '',
-    revaluationPulse: '',
-    revaluationBp: '',
-    revaluationSpo2: '',
-    revaluationRemarks: '',
-    finalDate: '',
-    finalTime: '',
-    anaesthetistName2: ''
+    revaluationDate: savedData?.revaluationDate || '',
+    revaluationTime: savedData?.revaluationTime || '',
+    anaesthetistName1: savedData?.anaesthetistName1 || '',
+    revaluationTemp: savedData?.revaluationTemp || '',
+    revaluationRr: savedData?.revaluationRr || '',
+    revaluationPulse: savedData?.revaluationPulse || '',
+    revaluationBp: savedData?.revaluationBp || '',
+    revaluationSpo2: savedData?.revaluationSpo2 || '',
+    revaluationRemarks: savedData?.revaluationRemarks || '',
+    finalDate: savedData?.finalDate || '',
+    finalTime: savedData?.finalTime || '',
+    anaesthetistName2: savedData?.anaesthetistName2 || ''
   });
 
   const handleInputChange = (field: string, value: string) => {
@@ -208,6 +210,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
             margin-bottom: 3px;
             border: 1px solid #000;
             padding: 4px;
+            box-sizing: border-box;
           }
           
           .section-title {
@@ -261,17 +264,21 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
             border: 1px solid #333;
             padding: 3px;
             min-height: 20px;
-            width: 100%;
+            width: calc(100% - 2px);
             margin-top: 2px;
+            box-sizing: border-box;
+            word-wrap: break-word;
           }
           
           .two-column {
             display: flex;
-            gap: 10px;
+            gap: 8px;
           }
           
           .column {
             flex: 1;
+            box-sizing: border-box;
+            min-width: 0;
           }
           
           .signatures {
@@ -425,22 +432,8 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
                 <span class="value">${formData.generalCondition || ''}</span>
               </div>
               <div class="field">
-                <label>Built:</label>
-                <span class="value">${formData.built || ''}</span>
-              </div>
-              <div class="field">
-                <label>Nourishment:</label>
-                <span class="value">${formData.nourishment || ''}</span>
-              </div>
-            </div>
-            <div class="field-group">
-              <div class="field">
                 <label>Pallor:</label>
                 <span class="value">${formData.pallor || ''}</span>
-              </div>
-              <div class="field">
-                <label>Icterus:</label>
-                <span class="value">${formData.icterus || ''}</span>
               </div>
               <div class="field">
                 <label>Cyanosis:</label>
@@ -449,127 +442,268 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
             </div>
             <div class="field-group">
               <div class="field">
-                <label>Clubbing:</label>
-                <span class="value">${formData.clubbing || ''}</span>
+                <label>Icterus:</label>
+                <span class="value">${formData.icterus || ''}</span>
               </div>
               <div class="field">
-                <label>Oedema:</label>
-                <span class="value">${formData.oedema || ''}</span>
+                <label>Exercise Tolerance:</label>
+                <span class="value">${formData.exerciseTolerance || ''}</span>
               </div>
               <div class="field">
-                <label>Lymphadenopathy:</label>
-                <span class="value">${formData.lymphadenopathy || ''}</span>
+                <label>Edema:</label>
+                <span class="value">${formData.edema || ''}</span>
               </div>
             </div>
-          </div>
-          
-          <!-- System Examination -->
-          <div class="two-column">
-            <div class="column">
-              <div class="section">
-                <div class="section-title">Cardiovascular System</div>
-                <div class="textarea-value">${formData.cardiovascularExamination || ''}</div>
+            <div class="field-group">
+              <div class="field">
+                <label>Oral Hygiene:</label>
+                <span class="value">${formData.oralHygiene || ''}</span>
               </div>
-              
-              <div class="section">
-                <div class="section-title">Respiratory System</div>
-                <div class="textarea-value">${formData.respiratoryExamination || ''}</div>
+              <div class="field">
+                <label>Dentures:</label>
+                <span class="value">${formData.dentures || ''}</span>
               </div>
-            </div>
-            
-            <div class="column">
-              <div class="section">
-                <div class="section-title">Central Nervous System</div>
-                <div class="textarea-value">${formData.cnsExamination || ''}</div>
-              </div>
-              
-              <div class="section">
-                <div class="section-title">Abdomen</div>
-                <div class="textarea-value">${formData.abdomenExamination || ''}</div>
+              <div class="field">
+                <label>Airway:</label>
+                <span class="value">${formData.airway || ''}</span>
               </div>
             </div>
-          </div>
-          
-          <!-- Airway Assessment -->
-          <div class="section">
-            <div class="section-title">Airway Assessment</div>
             <div class="field-group">
               <div class="field">
                 <label>Mouth Opening:</label>
                 <span class="value">${formData.mouthOpening || ''}</span>
               </div>
               <div class="field">
-                <label>Mallampati Grade:</label>
-                <span class="value">${formData.mallampatiGrade || ''}</span>
-              </div>
-              <div class="field">
                 <label>Neck Movement:</label>
                 <span class="value">${formData.neckMovement || ''}</span>
+              </div>
+              <div class="field">
+                <label>Mallampati Grade:</label>
+                <span class="value">${formData.mallampatiGrade || ''}</span>
               </div>
             </div>
             <div class="field-group">
               <div class="field">
-                <label>Thyromental Distance:</label>
-                <span class="value">${formData.thyromentalDistance || ''}</span>
+                <label>Mentothyroid Distance:</label>
+                <span class="value">${formData.mentothyroidDistance || ''}</span>
               </div>
               <div class="field">
                 <label>Dentition:</label>
                 <span class="value">${formData.dentition || ''}</span>
               </div>
+              <div class="field">
+                <label>BHT (Breath Holding Rate):</label>
+                <span class="value">${formData.bht || ''}</span>
+              </div>
+            </div>
+            <div style="margin-bottom: 4px;">
+              <label>Spinal:</label>
+              <div class="textarea-value">${formData.spinal || ''}</div>
             </div>
           </div>
+          
+          <!-- Systemic Examination -->
+          <div class="section">
+            <div class="section-title">Systemic Examination</div>
+            <div class="field-group">
+              <div class="field">
+                <label>CNS:</label>
+                <span class="value">${formData.cns || ''}</span>
+              </div>
+              <div class="field">
+                <label>GCS:</label>
+                <span class="value">${formData.gcs || ''}</span>
+              </div>
+              <div class="field">
+                <label>CVS:</label>
+                <span class="value">${formData.cvs || ''}</span>
+              </div>
+              <div class="field">
+                <label>Pulse:</label>
+                <span class="value">${formData.pulse || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>ECHO:</label>
+                <span class="value">${formData.echo || ''}</span>
+              </div>
+              <div class="field">
+                <label>Resp:</label>
+                <span class="value">${formData.resp || ''}</span>
+              </div>
+              <div class="field">
+                <label>RR:</label>
+                <span class="value">${formData.rrSystemic || ''}</span>
+              </div>
+              <div class="field">
+                <label>Pupillary Size:</label>
+                <span class="value">${formData.pupillarySize || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>BP:</label>
+                <span class="value">${formData.bpSystemic || ''}</span>
+              </div>
+              <div class="field">
+                <label>ECG:</label>
+                <span class="value">${formData.ecg || ''}</span>
+              </div>
+              <div class="field">
+                <label>CXR:</label>
+                <span class="value">${formData.cxr || ''}</span>
+              </div>
+            </div>
+          </div>
+          
           
           <!-- Investigations -->
           <div class="section">
             <div class="section-title">Investigations</div>
             <div class="field-group">
               <div class="field">
-                <label>Hb:</label>
-                <span class="value">${formData.hb || ''}</span>
+                <label>Hb / PCV:</label>
+                <span class="value">${formData.hbPcv || ''}</span>
               </div>
               <div class="field">
-                <label>Blood Sugar:</label>
+                <label>TLC:</label>
+                <span class="value">${formData.tlc || ''}</span>
+              </div>
+              <div class="field">
+                <label>Platelets:</label>
+                <span class="value">${formData.platelets || ''}</span>
+              </div>
+              <div class="field">
+                <label>CRP:</label>
+                <span class="value">${formData.crp || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label>TSH:</label>
+                <span class="value">${formData.tsh || ''}</span>
+              </div>
+              <div class="field">
+                <label>B. Sugar:</label>
                 <span class="value">${formData.bloodSugar || ''}</span>
+              </div>
+              <div class="field">
+                <label>SGOT / SGPT:</label>
+                <span class="value">${formData.sgotSgpt || ''}</span>
               </div>
               <div class="field">
                 <label>Blood Urea:</label>
                 <span class="value">${formData.bloodUrea || ''}</span>
               </div>
+            </div>
+            <div class="field-group">
               <div class="field">
-                <label>Serum Creatinine:</label>
-                <span class="value">${formData.serumCreatinine || ''}</span>
+                <label>Uric Acid:</label>
+                <span class="value">${formData.uricAcid || ''}</span>
+              </div>
+              <div class="field">
+                <label>Na:</label>
+                <span class="value">${formData.sodium || ''}</span>
+              </div>
+              <div class="field">
+                <label>K:</label>
+                <span class="value">${formData.potassium || ''}</span>
+              </div>
+              <div class="field">
+                <label>HBsAg / HIV / HCV:</label>
+                <span class="value">${formData.hbsAgHivHcv || ''}</span>
               </div>
             </div>
             <div class="field-group">
               <div class="field">
+                <label>APTT:</label>
+                <span class="value">${formData.aptt || ''}</span>
+              </div>
+              <div class="field">
+                <label>PT-INR:</label>
+                <span class="value">${formData.ptInr || ''}</span>
+              </div>
+              <div class="field">
+                <label>S. Creatinine:</label>
+                <span class="value">${formData.sCreatinine || ''}</span>
+              </div>
+              <div class="field">
                 <label>ECG:</label>
                 <span class="value">${formData.ecg || ''}</span>
               </div>
-              <div class="field">
-                <label>Chest X-ray:</label>
-                <span class="value">${formData.chestXray || ''}</span>
-              </div>
-              <div class="field">
-                <label>Others:</label>
-                <span class="value">${formData.otherInvestigations || ''}</span>
-              </div>
+            </div>
+            <div style="margin-bottom: 4px;">
+              <label>Others:</label>
+              <div class="textarea-value">${formData.otherInvestigations || ''}</div>
             </div>
           </div>
           
-          <!-- Final Assessment -->
+          <!-- Preanaesthetic Instructions -->
           <div class="section">
-            <div class="section-title">Final Assessment & Plan</div>
+            <div class="section-title">Preanaesthetic Instructions</div>
             <div style="margin-bottom: 4px;">
-              <label>Final Assessment:</label>
-              <div class="textarea-value">${formData.finalAssessment || ''}</div>
+              <label>Preanaesthetic instructions / Medications:</label>
+              <div class="textarea-value">${formData.preanaestheticInstructions || ''}</div>
+            </div>
+          </div>
+          
+          <!-- PAC Revaluation -->
+          <div class="section">
+            <div class="section-title">PAC Revaluation</div>
+            <div class="field-group">
+              <div class="field-small">
+                <label>Date:</label>
+                <span class="value">${formData.revaluationDate || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>Time:</label>
+                <span class="value">${formData.revaluationTime || ''}</span>
+              </div>
+              <div class="field">
+                <label>Name and Signature of Anaesthetist:</label>
+                <span class="value">${formData.anaesthetistName1 || ''}</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-small">
+                <label>Temp:</label>
+                <span class="value">${formData.revaluationTemp || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>RR:</label>
+                <span class="value">${formData.revaluationRr || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>Pulse:</label>
+                <span class="value">${formData.revaluationPulse || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>BP:</label>
+                <span class="value">${formData.revaluationBp || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>SPO2:</label>
+                <span class="value">${formData.revaluationSpo2 || ''}</span>
+              </div>
             </div>
             <div style="margin-bottom: 4px;">
-              <label>Anaesthetic Plan:</label>
-              <div class="textarea-value">${formData.finalAnaestheticPlan || ''}</div>
+              <label>Remarks:</label>
+              <div class="textarea-value">${formData.revaluationRemarks || ''}</div>
             </div>
-            <div style="margin-bottom: 4px;">
-              <label>Special Instructions:</label>
-              <div class="textarea-value">${formData.specialInstructions || ''}</div>
+            <div class="field-group">
+              <div class="field-small">
+                <label>Date:</label>
+                <span class="value">${formData.finalDate || ''}</span>
+              </div>
+              <div class="field-small">
+                <label>Time:</label>
+                <span class="value">${formData.finalTime || ''}</span>
+              </div>
+              <div class="field">
+                <label>Name and Signature of Anaesthetist:</label>
+                <span class="value">${formData.anaesthetistName2 || ''}</span>
+              </div>
             </div>
           </div>
           
@@ -577,15 +711,15 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           <div class="signatures">
             <div class="signature-section">
               <div style="margin-bottom: 20px; border-bottom: 1px solid #333;"></div>
-              <div><strong>Anaesthetist's Name & Signature</strong></div>
-              <div>${formData.anaesthetistName || ''}</div>
-              <div>Date: ${formData.anaesthetistDate || ''}</div>
+              <div><strong>Primary Anaesthetist's Name & Signature</strong></div>
+              <div>${formData.anaesthetistName1 || ''}</div>
+              <div>Date: ${formData.revaluationDate || ''} Time: ${formData.revaluationTime || ''}</div>
             </div>
             <div class="signature-section">
               <div style="margin-bottom: 20px; border-bottom: 1px solid #333;"></div>
-              <div><strong>Consultant's Name & Signature</strong></div>
-              <div>${formData.consultantName || ''}</div>
-              <div>Date: ${formData.consultantDate || ''}</div>
+              <div><strong>Final Anaesthetist's Name & Signature</strong></div>
+              <div>${formData.anaesthetistName2 || ''}</div>
+              <div>Date: ${formData.finalDate || ''} Time: ${formData.finalTime || ''}</div>
             </div>
           </div>
         </div>
@@ -656,7 +790,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* Patient Header Section */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">Patient Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Name:</label>
                 <input
@@ -735,7 +869,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* Patient Vitals and History */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">Patient Vitals and History</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">GA / MAC / Reg. / N. Block / LA / SA / EPIDURAL:</label>
                 <input
@@ -774,7 +908,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Ht. (m):</label>
                 <input
@@ -831,13 +965,13 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">H/O PRESENT ILLNESS:</label>
                 <textarea
                   value={formData.presentIllness}
                   onChange={(e) => handleInputChange('presentIllness', e.target.value)}
-                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                   rows={3}
                 />
               </div>
@@ -846,7 +980,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
                 <textarea
                   value={formData.pastIllness}
                   onChange={(e) => handleInputChange('pastIllness', e.target.value)}
-                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                   rows={3}
                 />
               </div>
@@ -855,7 +989,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
                 <textarea
                   value={formData.previousSurgery}
                   onChange={(e) => handleInputChange('previousSurgery', e.target.value)}
-                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                   rows={3}
                 />
               </div>
@@ -864,7 +998,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
                 <textarea
                   value={formData.personalHistory}
                   onChange={(e) => handleInputChange('personalHistory', e.target.value)}
-                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                   rows={3}
                 />
               </div>
@@ -874,7 +1008,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* General Examination */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">General Examination</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">General Condition:</label>
                 <input
@@ -1016,7 +1150,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               <textarea
                 value={formData.spinal}
                 onChange={(e) => handleInputChange('spinal', e.target.value)}
-                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                 rows={2}
               />
             </div>
@@ -1025,7 +1159,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* Systemic Examination */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">Systemic Examination</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">CNS:</label>
                 <input
@@ -1131,7 +1265,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* Investigations */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">Investigations</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Hb / PCV:</label>
                 <input
@@ -1273,7 +1407,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               <textarea
                 value={formData.otherInvestigations}
                 onChange={(e) => handleInputChange('otherInvestigations', e.target.value)}
-                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                 rows={2}
               />
             </div>
@@ -1287,7 +1421,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               <textarea
                 value={formData.preanaestheticInstructions}
                 onChange={(e) => handleInputChange('preanaestheticInstructions', e.target.value)}
-                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                 rows={4}
               />
             </div>
@@ -1296,7 +1430,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
           {/* PAC Revaluation Section */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4 print:border-black">
             <h3 className="font-bold text-lg mb-3 text-blue-700 print:text-black">PAC Revaluation</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Date:</label>
                 <input
@@ -1326,7 +1460,7 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Temp:</label>
                 <input
@@ -1379,12 +1513,12 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
               <textarea
                 value={formData.revaluationRemarks}
                 onChange={(e) => handleInputChange('revaluationRemarks', e.target.value)}
-                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 box-border"
                 rows={3}
               />
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 box-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Date:</label>
                 <input

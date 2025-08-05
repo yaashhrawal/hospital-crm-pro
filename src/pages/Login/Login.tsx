@@ -107,7 +107,7 @@ export const Login: React.FC = () => {
             </div>
             <p className="text-lg text-gray-700 mb-8">
               Streamline your healthcare operations with our comprehensive management platform. 
-              Manage patients, appointments, billing, and more in one integrated solution.
+              Manage patients, appointments, and more in one integrated solution.
             </p>
           </div>
 

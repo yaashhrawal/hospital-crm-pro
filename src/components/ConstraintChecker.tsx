@@ -33,7 +33,6 @@ const ConstraintChecker: React.FC = () => {
     'discount',
     'adjustment',
     'registration',
-    'billing',
     'treatment'
   ];
 

@@ -20,7 +20,6 @@ export class PatientService {
    * Create a new patient with robust error handling
    */
   static async createPatient(patientData: CreatePatientData): Promise<Patient> {
-    console.log('🏥 PatientService: Creating patient with data:', patientData);
     
     try {
       // Prepare data with defaults
@@ -45,7 +44,6 @@ export class PatientService {
         ])
       );
 
-      console.log('📤 Sending cleaned data to Supabase:', finalData);
 
       // Insert into Supabase
       const { data, error } = await supabase
@@ -55,7 +53,6 @@ export class PatientService {
         .single();
 
       if (error) {
-        console.error('❌ Supabase insert error:', error);
         throw new Error(`Database error: ${error.message}`);
       }
 
@@ -63,11 +60,9 @@ export class PatientService {
         throw new Error('No data returned from patient creation');
       }
 
-      console.log('✅ Patient created successfully:', data);
       return data as Patient;
 
     } catch (error: any) {
-      console.error('🚨 PatientService error:', error);
       
       // Provide user-friendly error messages
       if (error.message?.includes('duplicate key')) {
@@ -89,7 +84,6 @@ export class PatientService {
    */
   static async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
-      console.log('🧪 Testing Supabase connection and permissions...');
 
       // Test basic read access
       const { data, error } = await supabase

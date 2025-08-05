@@ -9,6 +9,7 @@ interface IPDConsentFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (consentData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface ConsentFormData {
@@ -51,38 +52,39 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   // Debug logging for IPD number
   console.log(`📄 IPDConsentForm - IPD Number received: ${ipdNumber}`);
   const [formData, setFormData] = useState<ConsentFormData>({
-    patientName: '',
-    patientId: '',
-    ipdNo: '',
-    consentName1: '',
-    patientAddress: '',
-    admissionDate: '',
-    admissionTime: '',
-    patientSignatureName: '',
-    patientSignature: '',
-    patientSignatureDate: '',
-    patientSignatureTime: '',
-    employeeName: '',
-    employeeSignature: '',
-    employeeSignatureDate: '',
-    employeeSignatureTime: '',
-    unableReason: '',
-    relativeName: '',
-    relationshipToPatient: '',
-    relativeName2: '',
-    relativeSignature: '',
-    relativeSignatureDate: '',
-    relativeSignatureTime: ''
+    patientName: savedData?.patientName || '',
+    patientId: savedData?.patientId || '',
+    ipdNo: savedData?.ipdNo || '',
+    consentName1: savedData?.consentName1 || '',
+    patientAddress: savedData?.patientAddress || '',
+    admissionDate: savedData?.admissionDate || '',
+    admissionTime: savedData?.admissionTime || '',
+    patientSignatureName: savedData?.patientSignatureName || '',
+    patientSignature: savedData?.patientSignature || '',
+    patientSignatureDate: savedData?.patientSignatureDate || '',
+    patientSignatureTime: savedData?.patientSignatureTime || '',
+    employeeName: savedData?.employeeName || '',
+    employeeSignature: savedData?.employeeSignature || '',
+    employeeSignatureDate: savedData?.employeeSignatureDate || '',
+    employeeSignatureTime: savedData?.employeeSignatureTime || '',
+    unableReason: savedData?.unableReason || '',
+    relativeName: savedData?.relativeName || '',
+    relationshipToPatient: savedData?.relationshipToPatient || '',
+    relativeName2: savedData?.relativeName2 || '',
+    relativeSignature: savedData?.relativeSignature || '',
+    relativeSignatureDate: savedData?.relativeSignatureDate || '',
+    relativeSignatureTime: savedData?.relativeSignatureTime || ''
   });
 
-  // Auto-populate form with patient data and current date/time
+  // Auto-populate form with patient data and current date/time only if no savedData
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);

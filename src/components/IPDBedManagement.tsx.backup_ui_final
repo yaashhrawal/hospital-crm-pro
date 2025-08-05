@@ -25,7 +25,6 @@ import PostOperativeOrdersForm from './PostOperativeOrdersForm';
 import PhysiotherapyNotesForm from './PhysiotherapyNotesForm';
 import BloodTransfusionMonitoringForm from './BloodTransfusionMonitoringForm';
 import DischargePatientModal from './DischargePatientModal';
-import PatientAdmissionForm from './PatientAdmissionForm';
 import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
@@ -370,11 +369,6 @@ const IPDBedManagement: React.FC = () => {
   const [showDischargeModal, setShowDischargeModal] = useState(false);
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<PatientAdmissionWithRelations | null>(null);
   
-  // Patient Admission Form state
-  const [showPatientAdmissionForm, setShowPatientAdmissionForm] = useState(false);
-  const [selectedPatientForAdmissionForm, setSelectedPatientForAdmissionForm] = useState<PatientWithRelations | null>(null);
-  const [selectedBedForAdmissionForm, setSelectedBedForAdmissionForm] = useState<BedData | null>(null);
-  
   // Surgical Record expansion state
   const [expandedSurgicalRecordBed, setExpandedSurgicalRecordBed] = useState<string | null>(null);
   
@@ -694,14 +688,6 @@ const IPDBedManagement: React.FC = () => {
     }
   };
 
-  const handleShowPatientAdmissionForm = (bed: BedData) => {
-    if (bed.patient) {
-      setSelectedPatientForAdmissionForm(bed.patient);
-      setSelectedBedForAdmissionForm(bed);
-      setShowPatientAdmissionForm(true);
-    }
-  };
-
   const handleIPDConsentSubmit = (consentData: any) => {
     if (!selectedBedForIPDConsent) return;
 
@@ -748,7 +734,7 @@ const IPDBedManagement: React.FC = () => {
     setShowTatForm(false);
     setSelectedPatientForTat(null);
     setSelectedBedForTat(null);
-    toast.success('Initial Nursing Assessment submitted successfully');
+    toast.success('TAT Form submitted successfully');
   };
 
   const handlePACRecordSubmit = (pacData: any) => {
@@ -1141,7 +1127,7 @@ const IPDBedManagement: React.FC = () => {
     setSelectedPatientForClinicalRecord(null);
     setSelectedBedForClinicalRecord(null);
     
-    toast.success('Initial RMO Assessment submitted and saved successfully');
+    toast.success('Clinical record submitted and saved successfully');
   };
 
   const handleProgressSheetSubmit = (progressData: any) => {
@@ -1634,76 +1620,6 @@ const IPDBedManagement: React.FC = () => {
                       Admitted: {new Date(bed.admissionDate).toLocaleDateString('en-IN')}
                     </div>
                   )}
-                  {/* Admission History Section - Above TAT Timer */}
-                  <div className="mt-3 mb-2 p-2 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg border border-cyan-200">
-                    <div className="flex items-center justify-center mb-2">
-                      <span className="text-xs font-medium text-cyan-700">📚 ADMISSION HISTORY</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleToggleAdmissionHistory(bed.id)}
-                        className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                          bed.consentFormSubmitted
-                            ? "bg-green-500 hover:bg-green-600" 
-                            : "bg-cyan-500 hover:bg-cyan-600"
-                        }`}
-                        disabled={false}
-                        title="View admission history"
-                      >
-                        <span>{bed.consentFormSubmitted ? "📚✅" : "📚"}</span>
-                        <span>View History</span>
-                        <span className={`ml-1 transition-transform ${expandedAdmissionHistoryBed === bed.id ? "rotate-90" : ""}`}>
-                          ▶
-                        </span>
-                        {bed.consentFormSubmitted && (
-                          <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
-                            ✓
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    
-                    {/* Expanded Admission History Options */}
-                    {expandedAdmissionHistoryBed === bed.id && (
-                      <div className="mt-2 bg-white bg-opacity-80 p-2 rounded space-y-1">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleShowConsentForm(bed)}
-                            className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                              bed.consentFormSubmitted 
-                                ? "bg-orange-500 hover:bg-orange-600" 
-                                : "bg-orange-400 hover:bg-orange-500"
-                            }`}
-                            disabled={false}
-                            title="Access consent form"
-                          >
-                            <span>{bed.consentFormSubmitted ? "✅" : "📋"}</span>
-                            <span>IPD Consent Form</span>
-                            
-                            {bed.consentFormSubmitted && (
-                              <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                                ✓
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleShowPatientAdmissionForm(bed)}
-                            className="flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-purple-500 hover:bg-purple-600 font-medium border-2 border-purple-300"
-                            disabled={false}
-                            title="Access patient admission form"
-                          >
-                            <span>📝</span>
-                            <span>Patient Admission Form</span>
-                            <span>🏥</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   
                   {/* TAT Section */}
                   <div className="mt-3 p-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
@@ -1773,9 +1689,9 @@ const IPDBedManagement: React.FC = () => {
                       )}
                     </div>
                     
-                  {/* NEW: Admission History Section - Above TAT Timer */}
-                  <div className="mt-3 mb-2 p-2 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg border border-cyan-200">
-                    <div className="flex items-center justify-center mb-2">
+                    {/* Admission History Section - Now within TAT Section */}
+                    <div className="border-t border-blue-200 pt-2">
+                      <div className="flex gap-2">
                         <button
                           onClick={() => handleToggleAdmissionHistory(bed.id)}
                           className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
@@ -1787,7 +1703,7 @@ const IPDBedManagement: React.FC = () => {
                           title={bed.tatStatus === 'idle' ? 'Start TAT timer first to access admission history' : ''}
                         >
                           <span>{bed.consentFormSubmitted && bed.clinicalRecordSubmitted && bed.tatFormSubmitted ? '📚✅' : '📚'}</span>
-                          <span>TAT Forms</span>
+                          <span>Admission History</span>
                           <span className={`ml-1 transition-transform ${expandedAdmissionHistoryBed === bed.id ? 'rotate-90' : ''}`}>
                             ▶
                           </span>
@@ -1799,10 +1715,10 @@ const IPDBedManagement: React.FC = () => {
                         </button>
                       </div>
                       
-                      {/* Expanded Admission History Options - Now includes Initial Nursing Assessment */}
+                      {/* Expanded Admission History Options - Now includes TAT Form */}
                       {expandedAdmissionHistoryBed === bed.id && (
                         <div className="mt-2 bg-white bg-opacity-80 p-2 rounded space-y-1">
-                          {/* Initial Nursing Assessment - Now inside Admission History */}
+                          {/* TAT Form - Now inside Admission History */}
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleShowTatForm(bed)}
@@ -1815,7 +1731,7 @@ const IPDBedManagement: React.FC = () => {
                               title={bed.tatStatus === 'idle' ? 'Start TAT timer first' : bed.tatStatus === 'expired' ? 'TAT timer expired - reset to continue' : ''}
                             >
                               <span>{bed.tatFormSubmitted ? '✅' : '📋'}</span>
-                              <span>Initial Nursing Assessment</span>
+                              <span>TAT Assessment Form</span>
                               {bed.tatStatus === 'expired' && <span className="text-red-200 ml-1">⚠️</span>}
                               {bed.tatFormSubmitted && (
                                 <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
@@ -1825,6 +1741,27 @@ const IPDBedManagement: React.FC = () => {
                             </button>
                           </div>
                           
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleShowConsentForm(bed)}
+                              className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                                bed.consentFormSubmitted 
+                                  ? 'bg-green-500 hover:bg-green-600' 
+                                  : 'bg-orange-500 hover:bg-orange-600'
+                              }`}
+                              disabled={bed.tatStatus === 'idle' || bed.tatStatus === 'expired'}
+                              title={bed.tatStatus === 'idle' ? 'Start TAT timer first' : bed.tatStatus === 'expired' ? 'TAT timer expired - reset to continue' : ''}
+                            >
+                              <span>{bed.consentFormSubmitted ? '✅' : '📋'}</span>
+                              <span>Consent Form</span>
+                              {bed.tatStatus === 'expired' && <span className="text-red-200 ml-1">⚠️</span>}
+                              {bed.consentFormSubmitted && (
+                                <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleShowClinicalRecord(bed)}
@@ -1837,7 +1774,7 @@ const IPDBedManagement: React.FC = () => {
                               title={bed.tatStatus === 'idle' ? 'Start TAT timer first' : bed.tatStatus === 'expired' ? 'TAT timer expired - reset to continue' : ''}
                             >
                               <span>{bed.clinicalRecordSubmitted ? '📋✅' : '📋'}</span>
-                              <span>Initial RMO Assessment</span>
+                              <span>Clinical Record</span>
                               {bed.tatStatus === 'expired' && <span className="text-red-200 ml-1">⚠️</span>}
                               {bed.clinicalRecordSubmitted && (
                                 <span className="bg-white text-blue-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
@@ -1858,71 +1795,6 @@ const IPDBedManagement: React.FC = () => {
             {bed.status === 'occupied' && (
               <div className="mb-3 space-y-3">
 
-
-                {/* Consultation Orders Section */}
-                <div className="border-t border-gray-200 pt-2">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleToggleConsultationOrders(bed.id)}
-                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                        bed.progressSheetSubmitted
-                          ? 'bg-green-500 hover:bg-green-600' 
-                          : 'bg-purple-500 hover:bg-purple-600'
-                      }`}
-                    >
-                      <span>{bed.progressSheetSubmitted ? '👨‍⚕️✅' : '👨‍⚕️'}</span>
-                      <span>Consultation Orders</span>
-                      <span className={`ml-1 transition-transform ${expandedConsultationOrdersBed === bed.id ? 'rotate-90' : ''}`}>
-                        ▶
-                      </span>
-                      {bed.progressSheetSubmitted && (
-                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
-                          ✓
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                  
-                  {/* Expanded Consultation Orders Options */}
-                  {expandedConsultationOrdersBed === bed.id && (
-                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleShowProgressSheet(bed)}
-                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                            bed.progressSheetSubmitted 
-                              ? 'bg-green-500 hover:bg-green-600' 
-                              : 'bg-orange-500 hover:bg-orange-600'
-                          }`}
-                        >
-                          <span>{bed.progressSheetSubmitted ? '📊✅' : '📊'}</span>
-                          <span>Progress Sheet</span>
-                          {bed.progressSheetSubmitted && (
-                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleShowPhysiotherapyNotes(bed)}
-                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
-                            bed.physiotherapyNotesSubmitted 
-                              ? 'bg-green-500 hover:bg-green-600' 
-                              : 'bg-indigo-500 hover:bg-indigo-600'
-                          }`}
-                        >
-                          <span>{bed.physiotherapyNotesSubmitted ? '🏃✅' : '🏃'}</span>
-                          <span>Physiotherapy</span>
-                          {bed.physiotherapyNotesSubmitted && (
-                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 {/* Nurses Orders Section */}
                 <div className="border-t border-gray-200 pt-2">
@@ -2169,6 +2041,71 @@ const IPDBedManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Consultation Orders Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleConsultationOrders(bed.id)}
+                      className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                        bed.progressSheetSubmitted
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-purple-500 hover:bg-purple-600'
+                      }`}
+                    >
+                      <span>{bed.progressSheetSubmitted ? '👨‍⚕️✅' : '👨‍⚕️'}</span>
+                      <span>Consultation Orders</span>
+                      <span className={`ml-1 transition-transform ${expandedConsultationOrdersBed === bed.id ? 'rotate-90' : ''}`}>
+                        ▶
+                      </span>
+                      {bed.progressSheetSubmitted && (
+                        <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center ml-1">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Consultation Orders Options */}
+                  {expandedConsultationOrdersBed === bed.id && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShowProgressSheet(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.progressSheetSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-orange-500 hover:bg-orange-600'
+                          }`}
+                        >
+                          <span>{bed.progressSheetSubmitted ? '📊✅' : '📊'}</span>
+                          <span>Progress Sheet</span>
+                          {bed.progressSheetSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleShowPhysiotherapyNotes(bed)}
+                          className={`flex-1 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 ${
+                            bed.physiotherapyNotesSubmitted 
+                              ? 'bg-green-500 hover:bg-green-600' 
+                              : 'bg-indigo-500 hover:bg-indigo-600'
+                          }`}
+                        >
+                          <span>{bed.physiotherapyNotesSubmitted ? '🏃✅' : '🏃'}</span>
+                          <span>Physiotherapy</span>
+                          {bed.physiotherapyNotesSubmitted && (
+                            <span className="bg-white text-green-600 rounded-full text-xs px-1 min-w-[16px] h-4 flex items-center justify-center">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2254,7 +2191,7 @@ const IPDBedManagement: React.FC = () => {
         />
       )}
 
-      {/* Initial RMO Assessment Form Modal */}
+      {/* Clinical Record Form Modal */}
       {showClinicalRecordForm && selectedPatientForClinicalRecord && selectedBedForClinicalRecord && (
         <ClinicalRecordForm
           isOpen={showClinicalRecordForm}
@@ -2390,7 +2327,7 @@ const IPDBedManagement: React.FC = () => {
         />
       )}
 
-      {/* Initial Nursing Assessment Modal */}
+      {/* TAT Form Modal */}
       {showTatForm && selectedPatientForTat && selectedBedForTat && (
         <TatForm
           patientId={selectedPatientForTat.id}
@@ -2606,23 +2543,6 @@ const IPDBedManagement: React.FC = () => {
           setSelectedAdmissionForDischarge(null);
         }}
         onDischargeSuccess={handleDischargeSuccess}
-      />
-
-      {/* Patient Admission Form Modal */}
-      <PatientAdmissionForm
-        isOpen={showPatientAdmissionForm}
-        onClose={() => {
-          setShowPatientAdmissionForm(false);
-          setSelectedPatientForAdmissionForm(null);
-          setSelectedBedForAdmissionForm(null);
-        }}
-        patient={selectedPatientForAdmissionForm}
-        bedNumber={selectedBedForAdmissionForm?.number}
-        ipdNumber={selectedBedForAdmissionForm?.ipdNumber}
-        onSubmit={(formData) => {
-          console.log('Patient Admission Form submitted:', formData);
-          toast.success('Patient admission form saved successfully!');
-        }}
       />
     </div>
   );

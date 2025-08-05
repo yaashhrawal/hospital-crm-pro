@@ -19,7 +19,6 @@ export class FixedPatientService {
    * Create patient with only columns that actually exist in your table
    */
   static async createPatient(patientData: CreatePatientData): Promise<Patient> {
-    console.log('🔧 FixedPatientService: Creating patient with minimal columns');
     
     try {
       // Start with absolutely minimal data that should exist in any patients table
@@ -39,7 +38,6 @@ export class FixedPatientService {
       if (patientData.email?.trim()) optionalData.email = patientData.email.trim();
 
       const finalData = { ...minimalData, ...optionalData };
-      console.log('📤 Sending minimal compatible data:', finalData);
 
       // Try insertion
       const { data, error } = await supabase
@@ -49,11 +47,9 @@ export class FixedPatientService {
         .single();
 
       if (error) {
-        console.error('❌ Still failed with minimal data:', error);
         
         // If it's still a column error, try even more minimal
         if (error.message.includes('column') && error.message.includes('does not exist')) {
-          console.log('🔧 Trying ultra-minimal data...');
           
           const ultraMinimal = {
             first_name: patientData.first_name?.trim() || 'Unknown',
@@ -69,18 +65,15 @@ export class FixedPatientService {
             throw new Error(`Even minimal insertion failed: ${ultraError.message}`);
           }
           
-          console.log('✅ Ultra-minimal patient created:', ultraData);
           return ultraData as Patient;
         }
         
         throw new Error(`Database error: ${error.message}`);
       }
 
-      console.log('✅ Patient created successfully:', data);
       return data as Patient;
 
     } catch (error: any) {
-      console.error('🚨 FixedPatientService error:', error);
       throw new Error(`Patient creation failed: ${error.message}`);
     }
   }
@@ -90,7 +83,6 @@ export class FixedPatientService {
    */
   static async getTableStructure(): Promise<any> {
     try {
-      console.log('🔍 Getting actual table structure...');
       
       // Try to get one record to see actual structure
       const { data, error } = await supabase

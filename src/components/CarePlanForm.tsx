@@ -9,6 +9,7 @@ interface CarePlanFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (carePlanData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface CarePlanEntry {
@@ -27,29 +28,32 @@ const CarePlanForm: React.FC<CarePlanFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   const [carePlanPatientInfo, setCarePlanPatientInfo] = useState({
-    patientName: '',
-    patientId: '',
-    ipNo: '',
-    ageSex: '',
-    department: '',
-    doctor: ''
+    patientName: savedData?.carePlanPatientInfo?.patientName || '',
+    patientId: savedData?.carePlanPatientInfo?.patientId || '',
+    ipNo: savedData?.carePlanPatientInfo?.ipNo || '',
+    ageSex: savedData?.carePlanPatientInfo?.ageSex || '',
+    department: savedData?.carePlanPatientInfo?.department || '',
+    doctor: savedData?.carePlanPatientInfo?.doctor || ''
   });
 
-  const [carePlanEntries, setCarePlanEntries] = useState<CarePlanEntry[]>([{
-    id: `care-${Date.now()}`,
-    assessment: '',
-    goal: '',
-    plannedCare: '',
-    evaluation: '',
-    dateTime: new Date().toISOString().slice(0, 16),
-    nameSign: ''
-  }]);
+  const [carePlanEntries, setCarePlanEntries] = useState<CarePlanEntry[]>(
+    savedData?.carePlanEntries || [{
+      id: `care-${Date.now()}`,
+      assessment: '',
+      goal: '',
+      plannedCare: '',
+      evaluation: '',
+      dateTime: new Date().toISOString().slice(0, 16),
+      nameSign: ''
+    }]
+  );
 
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -61,7 +65,7 @@ const CarePlanForm: React.FC<CarePlanFormProps> = ({
         ageSex
       }));
     }
-  }, [isOpen, patient, ipdNumber, bedNumber]);
+  }, [isOpen, patient, ipdNumber, bedNumber, savedData]);
 
   const addCarePlanEntry = () => {
     const newEntry: CarePlanEntry = {

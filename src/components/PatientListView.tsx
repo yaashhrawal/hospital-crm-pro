@@ -61,7 +61,6 @@ const PatientListView: React.FC = () => {
 
       setPatients(enrichedPatients);
     } catch (error) {
-      console.error('Error loading patients:', error);
       toast.error('Failed to load patients');
     } finally {
       setLoading(false);
@@ -90,7 +89,6 @@ const PatientListView: React.FC = () => {
 
       return allTransactions;
     } catch (error) {
-      console.error('Error getting transactions:', error);
       return [];
     }
   };

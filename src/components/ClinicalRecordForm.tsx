@@ -10,6 +10,7 @@ interface ClinicalRecordFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (clinicalData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface ClinicalRecordData {
@@ -60,40 +61,41 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   const [formData, setFormData] = useState<ClinicalRecordData>({
-    patientName: '',
-    department: '',
-    patientId: '',
-    ipNumber: '',
-    ageSex: '',
-    doctorName: '',
-    presentHistory: '',
-    pastHistory: '',
-    personalHistory: '',
-    familyHistory: '',
-    temperature: '',
-    pulse: '',
-    respiration: '',
-    bloodPressure: '',
-    systemicExamination: '',
-    localExamination: '',
-    otherSystem: '',
-    provisionalDiagnosis: '',
-    finalDiagnosis: '',
-    admissionDate: '',
-    admissionTime: '',
-    roomBedNumber: '',
-    emergencyContact: '',
-    consultantName: '',
-    consultantSignature: '',
-    consultantDateTime: ''
+    patientName: savedData?.patientName || '',
+    department: savedData?.department || '',
+    patientId: savedData?.patientId || '',
+    ipNumber: savedData?.ipNumber || '',
+    ageSex: savedData?.ageSex || '',
+    doctorName: savedData?.doctorName || '',
+    presentHistory: savedData?.presentHistory || '',
+    pastHistory: savedData?.pastHistory || '',
+    personalHistory: savedData?.personalHistory || '',
+    familyHistory: savedData?.familyHistory || '',
+    temperature: savedData?.temperature || '',
+    pulse: savedData?.pulse || '',
+    respiration: savedData?.respiration || '',
+    bloodPressure: savedData?.bloodPressure || '',
+    systemicExamination: savedData?.systemicExamination || '',
+    localExamination: savedData?.localExamination || '',
+    otherSystem: savedData?.otherSystem || '',
+    provisionalDiagnosis: savedData?.provisionalDiagnosis || '',
+    finalDiagnosis: savedData?.finalDiagnosis || '',
+    admissionDate: savedData?.admissionDate || '',
+    admissionTime: savedData?.admissionTime || '',
+    roomBedNumber: savedData?.roomBedNumber || '',
+    emergencyContact: savedData?.emergencyContact || '',
+    consultantName: savedData?.consultantName || '',
+    consultantSignature: savedData?.consultantSignature || '',
+    consultantDateTime: savedData?.consultantDateTime || ''
   });
 
-  // Auto-populate form with patient data and current date/time
+  // Auto-populate form with patient data and current date/time only if no savedData
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -115,7 +117,7 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
         consultantDateTime: currentDateTime
       }));
     }
-  }, [isOpen, patient, bedNumber, ipdNumber]);
+  }, [isOpen, patient, bedNumber, ipdNumber, savedData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

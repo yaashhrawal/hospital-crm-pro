@@ -9,6 +9,7 @@ interface IntakeOutputFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (intakeOutputData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface IntakeOutputEntry {
@@ -33,29 +34,32 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
-  const [intakeOutputEntries, setIntakeOutputEntries] = useState<IntakeOutputEntry[]>([{
-    id: `io-${Date.now()}`,
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-    oralFeeding: '',
-    oralAmount: '',
-    iv01: '',
-    iv02: '',
-    rtAspiration: '',
-    urine: '',
-    vomit: '',
-    stool: '',
-    drain1: '',
-    drain2: ''
-  }]);
+  const [intakeOutputEntries, setIntakeOutputEntries] = useState<IntakeOutputEntry[]>(
+    savedData?.intakeOutputEntries || [{
+      id: `io-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      oralFeeding: '',
+      oralAmount: '',
+      iv01: '',
+      iv02: '',
+      rtAspiration: '',
+      urine: '',
+      vomit: '',
+      stool: '',
+      drain1: '',
+      drain2: ''
+    }]
+  );
 
-  const [totalIntake, setTotalIntake] = useState('');
-  const [totalOutput, setTotalOutput] = useState('');
-  const [balance, setBalance] = useState('');
-  const [previousDayBalance, setPreviousDayBalance] = useState('');
-  const [remarks, setRemarks] = useState('');
+  const [totalIntake, setTotalIntake] = useState(savedData?.totalIntake || '');
+  const [totalOutput, setTotalOutput] = useState(savedData?.totalOutput || '');
+  const [balance, setBalance] = useState(savedData?.balance || '');
+  const [previousDayBalance, setPreviousDayBalance] = useState(savedData?.previousDayBalance || '');
+  const [remarks, setRemarks] = useState(savedData?.remarks || '');
 
   const addIntakeOutputEntry = () => {
     const newEntry: IntakeOutputEntry = {

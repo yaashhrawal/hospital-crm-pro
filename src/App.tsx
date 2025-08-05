@@ -15,6 +15,7 @@ import EnhancedDashboard from './components/EnhancedDashboard';
 import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
 import IPDBedManagement from './components/IPDBedManagement';
+import DischargeSection from './components/DischargeSection';
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
 // Login Component
@@ -246,6 +247,12 @@ const App: React.FC = () => {
       name: '🛏️ IPD Beds', 
       component: IPDBedManagement,
       description: 'Real-time hospital bed occupancy tracking and management' 
+    },
+    { 
+      id: 'discharge', 
+      name: '📤 Discharge', 
+      component: DischargeSection,
+      description: 'View all discharged patients with complete discharge summaries' 
     },
     { 
       id: 'expenses', 

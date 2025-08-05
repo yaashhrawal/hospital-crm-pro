@@ -4,6 +4,7 @@ import HospitalService from '../services/hospitalService';
 import { ExactDateService } from '../services/exactDateService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { Input } from './ui/Input';
+import ModernDatePicker from './ui/ModernDatePicker';
 import EditPatientModal from './EditPatientModal';
 import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
@@ -38,7 +39,6 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
     try {
       setDeletingTransactionId(transactionId);
-      console.log('🗑️ Deleting transaction:', transactionId);
       
       // Update transaction status to CANCELLED
       await HospitalService.updateTransactionStatus(transactionId, 'CANCELLED');
@@ -51,7 +51,6 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
         onPatientUpdated();
       }
     } catch (error: any) {
-      console.error('❌ Failed to delete transaction:', error);
       toast.error(`Failed to delete transaction: ${error.message}`);
     } finally {
       setDeletingTransactionId(null);
@@ -177,7 +176,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 <tbody>
                   {transactions.map((transaction, index) => (
                     <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="p-2">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                      <td className="p-2">{new Date(transaction.created_at).toLocaleDateString('en-IN')}</td>
                       <td className="p-2">
                         <span className={`px-2 py-1 rounded text-xs ${
                           transaction.transaction_type === 'CONSULTATION' ? 'bg-blue-100 text-blue-800' :
@@ -258,10 +257,22 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterTag, setFilterTag] = useState<string>('all');
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  // Helper function to get local date in YYYY-MM-DD format
+  const getLocalDateString = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const result = `${year}-${month}-${day}`;
+    
+    // Debug logging
+    
+    return result;
+  };
+
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(getLocalDateString());
+  const [endDate, setEndDate] = useState(getLocalDateString());
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -287,23 +298,26 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
     const today = new Date();
     switch (dateRange) {
       case 'today':
-        setSelectedDate(today.toISOString().split('T')[0]);
-        setStartDate(today.toISOString().split('T')[0]);
-        setEndDate(today.toISOString().split('T')[0]);
+        const todayStr = getLocalDateString(today);
+        setSelectedDate(todayStr);
+        setStartDate(todayStr);
+        setEndDate(todayStr);
         break;
       case 'week':
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - today.getDay());
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
-        setStartDate(weekStart.toISOString().split('T')[0]);
-        setEndDate(weekEnd.toISOString().split('T')[0]);
+        const weekStartStr = getLocalDateString(weekStart);
+        const weekEndStr = getLocalDateString(weekEnd);
+        setStartDate(weekStartStr);
+        setEndDate(weekEndStr);
         break;
       case 'month':
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
         const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        setStartDate(monthStart.toISOString().split('T')[0]);
-        setEndDate(monthEnd.toISOString().split('T')[0]);
+        setStartDate(getLocalDateString(monthStart));
+        setEndDate(getLocalDateString(monthEnd));
         break;
     }
   }, [dateRange]);
@@ -315,42 +329,34 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const loadPatients = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading patients from new schema...');
       
       let patientsData;
       
       // Use backend filtering for 'today' and single custom dates to get exact results
       if (dateRange === 'today') {
-        const todayStr = selectedDate || new Date().toISOString().split('T')[0];
-        console.log(`📅 Using backend date filter for today: ${todayStr}`);
+        const todayStr = selectedDate || getLocalDateString();
+        
+        // Always use the backend method with error handling
         patientsData = await HospitalService.getPatientsForDate(todayStr, 500);
+        
+        // Debug the returned patients
+        if (patientsData.length > 0) {
+        } else {
+        }
       } else if (dateRange === 'custom') {
         // For custom date, use NEW exact date service to avoid cumulative results
-        console.log(`📅 Using EXACT DATE SERVICE for custom date: ${startDate}`);
-        console.log('🎯 CUSTOM DATE DEBUG:', {
-          selectedCustomDate: startDate,
-          endDateShouldMatch: endDate,
-          areEqual: startDate === endDate,
-          dateFormat: 'YYYY-MM-DD',
-          service: 'ExactDateService (NO CUMULATIVE RESULTS)'
-        });
         patientsData = await ExactDateService.getPatientsForExactDate(startDate, 500);
       } else {
         // For date ranges and 'all', load all patients and apply frontend filtering
-        console.log(`📅 Loading all patients for ${dateRange} filter`);
         patientsData = await HospitalService.getPatients(500);
       }
       
-      console.log(`✅ Loaded ${patientsData.length} patients`);
       
       // Debug: Check if backend or frontend filtering was used
       if (dateRange === 'today' || dateRange === 'custom') {
-        console.log('🔍 Backend filtering used - results should be exact for single date');
         
         // CUSTOM DATE SPECIFIC DEBUG: Check all returned patients
         if (dateRange === 'custom') {
-          console.log('🚨 CUSTOM DATE FILTER RESULTS ANALYSIS:');
-          console.log(`Expected date: ${startDate}`);
           
           patientsData.forEach((p, i) => {
             const createdDate = p.created_at ? p.created_at.split('T')[0] : 'NO_CREATED';
@@ -358,39 +364,23 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             
             const matchesExpected = (createdDate === startDate || entryDate === startDate);
             
-            console.log(`${i + 1}. ${p.first_name} ${p.last_name}:`, {
-              created: createdDate,
-              entry: entryDate,
-              expected: startDate,
-              shouldMatch: matchesExpected,
-              warning: !matchesExpected ? '⚠️ WRONG DATE!' : '✅ Correct'
-            });
             
             if (!matchesExpected) {
-              console.error(`🚨 BACKEND FILTER FAILED: Patient ${p.first_name} ${p.last_name} returned but doesn't match ${startDate}`);
             }
           });
         }
       } else {
-        console.log('🔍 Frontend filtering will be applied for date ranges');
       }
       
       // Quick debug: Show all patient dates to help identify the issue
-      console.log('📋 All patient dates (first 10):');
-      patientsData.slice(0, 10).forEach((p, i) => {
-        const createdDateStr = p.created_at ? p.created_at.split('T')[0] : null;
-        const entryDateStr = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
-        console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDateStr}, entry=${entryDateStr}`);
-      });
       
       // Apply date filtering if not 'all' and not using backend filtering
       // Exclude custom dates since they're now handled by backend (always single dates)
       if (dateRange !== 'all' && dateRange !== 'today' && dateRange !== 'custom') {
-        console.log('📊 Before filtering:', patientsData.length, 'patients');
         const originalCount = patientsData.length;
         // Calculate dates based on current dateRange - don't rely on state
         let currentStartDate, currentEndDate;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         
         switch (dateRange) {
           case 'today':
@@ -403,14 +393,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             weekStart.setDate(todayObj.getDate() - todayObj.getDay());
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
-            currentStartDate = weekStart.toISOString().split('T')[0];
-            currentEndDate = weekEnd.toISOString().split('T')[0];
+            currentStartDate = getLocalDateString(weekStart);
+            currentEndDate = getLocalDateString(weekEnd);
             break;
           case 'month':
             const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
             const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-            currentStartDate = monthStart.toISOString().split('T')[0];
-            currentEndDate = monthEnd.toISOString().split('T')[0];
+            currentStartDate = getLocalDateString(monthStart);
+            currentEndDate = getLocalDateString(monthEnd);
             break;
           case 'custom':
             currentStartDate = startDate;
@@ -423,7 +413,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         
         // Debug today's date info
         const todaysDateInfo = {
-          jsToday: new Date().toISOString().split('T')[0],
+          jsToday: getLocalDateString(),
           selectedDate: selectedDate,
           startDate: startDate,
           endDate: endDate,
@@ -433,14 +423,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           dateTime: new Date().toLocaleString()
         };
         
-        console.log('🔍 Date filtering debug:', {
-          dateRange,
-          currentStartDate,
-          currentEndDate,
-          totalPatients: patientsData.length,
-          todaysDateInfo,
-          format: 'Using YYYY-MM-DD format like patient entry forms'
-        });
         
         // Find the specific patient to debug
         const ashokPatient = patientsData.find(p => 
@@ -467,18 +449,9 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             debugEntryDate = entryDate.toISOString().split('T')[0];
           }
           
-          console.log('👤 Found ASHOK KUMAR patient:', {
-            name: `${ashokPatient.first_name} ${ashokPatient.last_name}`,
-            created_at_raw: ashokPatient.created_at,
-            date_of_entry_raw: ashokPatient.date_of_entry,
-            created_at_parsed: debugCreatedDate,
-            date_of_entry_parsed: debugEntryDate,
-            finalDate: debugEntryDate || debugCreatedDate
-          });
         }
         
         // Simplified and more reliable filtering logic
-        console.log('🔧 Starting patient filtering...');
         
         const filtered = [];
         
@@ -511,19 +484,11 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           const shouldDebug = dateRange === 'today' || (patient.first_name?.toUpperCase().includes('ASHOK') && patient.last_name?.toUpperCase().includes('KUMAR')) || i < 5;
           
           if (shouldDebug) {
-            console.log(`👤 Patient ${i + 1}: ${patient.first_name} ${patient.last_name}`, {
-              date_of_entry: patient.date_of_entry,
-              created_at: patient.created_at,
-              patientDateStr,
-              currentStartDate,
-              currentEndDate
-            });
           }
           
           // Validate date format and exclude invalid dates
           if (!patientDateStr) {
             if (shouldDebug) {
-              console.log('❌ No date found - EXCLUDING patient for today filter');
             }
             // For today filter, be strict - only include patients with exact dates
             if (dateRange !== 'today') {
@@ -536,25 +501,21 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
           if (!dateRegex.test(patientDateStr)) {
             if (shouldDebug) {
-              console.log('⚠️ Invalid date format - converting:', patientDateStr);
             }
             // Try to convert to YYYY-MM-DD format
             try {
               const dateObj = new Date(patientDateStr);
               if (!isNaN(dateObj.getTime())) {
-                patientDateStr = dateObj.toISOString().split('T')[0];
+                patientDateStr = getLocalDateString(dateObj);
                 if (shouldDebug) {
-                  console.log('✅ Converted to YYYY-MM-DD:', patientDateStr);
                 }
               } else {
                 if (shouldDebug) {
-                  console.log('❌ Invalid date - EXCLUDING patient');
                 }
                 continue;
               }
             } catch (error) {
               if (shouldDebug) {
-                console.log('❌ Date conversion failed - EXCLUDING patient:', error);
               }
               continue;
             }
@@ -568,64 +529,30 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             
             // Double check with explicit comparison
             if (shouldDebug) {
-              console.log('🔍 EXACT DATE CHECK (YYYY-MM-DD):', {
-                patientDateStr,
-                currentStartDate,
-                exactMatch: patientDateStr === currentStartDate,
-                stringComparison: `"${patientDateStr}" === "${currentStartDate}"`,
-                format: 'Both in YYYY-MM-DD format like patient entry'
-              });
             }
           } else if (dateRange === 'custom') {
             // Custom dates are now handled by backend, this shouldn't be reached
-            console.warn('⚠️ Custom date filtering reached frontend - should be handled by backend');
             isInRange = patientDateStr === currentStartDate;
           } else {
             // For date ranges (week, month, custom range), use range matching in YYYY-MM-DD format
             isInRange = patientDateStr >= currentStartDate && patientDateStr <= currentEndDate;
             
             if (shouldDebug) {
-              console.log('🔍 DATE RANGE CHECK (YYYY-MM-DD):', {
-                patientDateStr,
-                startDate: currentStartDate,
-                endDate: currentEndDate,
-                isInRange,
-                dateRange,
-                format: 'Range comparison in YYYY-MM-DD format'
-              });
             }
           }
           
           if (shouldDebug) {
-            console.log(`📅 Date comparison:`, {
-              patientDate: patientDateStr,
-              startDate: currentStartDate,
-              endDate: currentEndDate,
-              isInRange,
-              comparison: {
-                'patient >= start': patientDateStr >= currentStartDate,
-                'patient <= end': patientDateStr <= currentEndDate
-              }
-            });
           }
           
           if (isInRange) {
             filtered.push(patient);
             if (shouldDebug) {
-              console.log('✅ Patient included in filter');
             }
             // Special alert for problematic dates
             if (dateRange === 'today' && patientDateStr !== currentStartDate) {
-              console.error('🚨 BUG: Patient included but date does not match!', {
-                patientName: `${patient.first_name} ${patient.last_name}`,
-                patientDate: patientDateStr,
-                expectedDate: currentStartDate,
-                exactMatch: patientDateStr === currentStartDate
-              });
             }
           } else {
             if (shouldDebug) {
-              console.log('❌ Patient excluded from filter');
             }
           }
         }
@@ -634,31 +561,20 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         
         // Show final filtered patients for today filter
         if (dateRange === 'today') {
-          console.log('🎯 FINAL FILTERED PATIENTS FOR TODAY:');
-          patientsData.forEach((p, idx) => {
-            const patientDateStr = (p.date_of_entry && p.date_of_entry.split('T')[0]) || (p.created_at && p.created_at.split('T')[0]) || 'NO_DATE';
-            console.log(`${idx + 1}. ${p.first_name} ${p.last_name} - Date: ${patientDateStr} (Expected: ${currentStartDate})`);
-            
-            if (patientDateStr !== currentStartDate && patientDateStr !== 'NO_DATE') {
-              console.error(`🚨 WRONG DATE PATIENT: ${p.first_name} ${p.last_name} has date ${patientDateStr} but should be ${currentStartDate}`);
-            }
-          });
         }
         
-        console.log(`📅 Filtered to ${patientsData.length} patients for date range: ${currentStartDate} to ${currentEndDate}`);
-        console.log(`📊 Filtering summary:`, {
-          originalCount,
-          filteredCount: patientsData.length,
-          dateRange,
-          removedCount: originalCount - patientsData.length
-        });
+        
+        // Debug week filter specifically
+        if (dateRange === 'week') {
+        }
       } else if (dateRange === 'today') {
-        console.log('📊 Using backend filtering for today - no client-side filtering needed:', patientsData.length);
       } else {
-        console.log('📊 No date filtering applied - showing all patients:', patientsData.length);
       }
       
       setPatients(patientsData);
+      
+      // Force re-sorting after patients are loaded to ensure date-based order is correct
+      // This is important when back-dated entries are loaded
       
       // Extract unique tags from patients for filter dropdown
       const uniqueTags = [...new Set(
@@ -668,7 +584,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       )].sort();
       setAvailableTags(uniqueTags);
     } catch (error: any) {
-      console.error('❌ Failed to load patients:', error);
       toast.error(`Failed to load patients: ${error.message}`);
     } finally {
       setLoading(false);
@@ -709,7 +624,23 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           comparison = (a.first_name + ' ' + a.last_name).localeCompare(b.first_name + ' ' + b.last_name);
           break;
         case 'date':
-          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          // Use date_of_entry if available (user-defined entry date), otherwise fall back to created_at
+          const getPatientSortDate = (patient: PatientWithRelations) => {
+            if (patient.date_of_entry) {
+              // Handle both date strings and datetime strings
+              if (typeof patient.date_of_entry === 'string') {
+                if (patient.date_of_entry.includes('T')) {
+                  return new Date(patient.date_of_entry).getTime();
+                } else {
+                  return new Date(patient.date_of_entry + 'T00:00:00').getTime();
+                }
+              }
+              return new Date(patient.date_of_entry).getTime();
+            }
+            return new Date(patient.created_at).getTime();
+          };
+          
+          comparison = getPatientSortDate(a) - getPatientSortDate(b);
           break;
         case 'visits':
           comparison = (a.visitCount || 0) - (b.visitCount || 0);
@@ -823,7 +754,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       await loadPatients(); // Reload the patients list
       
     } catch (error: any) {
-      console.error('Error deleting patient:', error);
       toast.error(`Failed to delete patient: ${error.message}`);
     } finally {
       setLoading(false);
@@ -832,16 +762,12 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
   const exportPatientsToExcel = () => {
     try {
-      console.log('🔍 Exporting patients, checking registration dates...');
       
       const exportData = filteredPatients.map(patient => {
-        console.log(`Patient ${patient.patient_id}: created_at = ${patient.created_at}, type = ${typeof patient.created_at}`);
         
         // Debug registration date formatting
         const regDate = patient.created_at || '';
-        console.log(`Registration date raw: ${regDate}`);
         const formattedRegDate = formatDate(regDate);
-        console.log(`Registration date formatted: ${formattedRegDate}`);
         
         return {
           patient_id: patient.patient_id,
@@ -867,7 +793,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       });
 
       const success = exportToExcel({
-        filename: `Patient_List_${new Date().toISOString().split('T')[0]}`,
+        filename: `Patient_List_${getLocalDateString()}`,
         headers: [
           'Patient ID',
           'First Name',
@@ -903,7 +829,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         toast.error('Failed to export patient list');
       }
     } catch (error: any) {
-      console.error('Export error:', error);
       toast.error('Failed to export: ' + error.message);
     }
   };
@@ -930,10 +855,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         {dateRange !== 'all' && (
           <div className="mt-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">
             📅 Showing patients from: {
-              dateRange === 'today' ? new Date(selectedDate).toLocaleDateString() :
-              dateRange === 'custom' ? new Date(startDate).toLocaleDateString() :
-              dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})` :
-              `This month (${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()})`
+              dateRange === 'today' ? new Date(selectedDate).toLocaleDateString('en-IN') :
+              dateRange === 'custom' ? new Date(startDate).toLocaleDateString('en-IN') :
+              dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString('en-IN')} - ${new Date(endDate).toLocaleDateString('en-IN')})` :
+              `This month (${new Date(startDate).toLocaleDateString('en-IN')} - ${new Date(endDate).toLocaleDateString('en-IN')})`
             }
           </div>
         )}
@@ -1022,42 +947,45 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             </select>
           </div>
 
-          {/* Custom Single Date Input - Same format as Patient Entry */}
+          {/* Custom Single Date Input - Modern Date Picker */}
           {dateRange === 'custom' && (
-            <div className="min-w-[180px]">
-              <Input
-                type="date"
+            <div className="min-w-[200px]">
+              <ModernDatePicker
                 label="Select Date"
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setEndDate(e.target.value); // Always keep start and end date the same
+                onChange={(date) => {
+                  setStartDate(date);
+                  setEndDate(date); // Always keep start and end date the same
                 }}
+                placeholder="Select date (DD/MM/YYYY)"
               />
             </div>
           )}
 
-          {/* Single Date Input for Today - Same format as Patient Entry */}
+          {/* Single Date Input for Today - Modern Date Picker */}
           {dateRange === 'today' && (
             <>
-              <div className="min-w-[180px]">
-                <Input
-                  type="date"
+              <div className="min-w-[200px]">
+                <ModernDatePicker
                   label="Select Date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(date) => setSelectedDate(date)}
+                  placeholder="Select date (DD/MM/YYYY)"
                 />
               </div>
               <button
                 onClick={() => {
-                  const todayDate = new Date().toISOString().split('T')[0];
-                  console.log('🔄 Setting date to today:', todayDate);
+                  const todayDate = getLocalDateString();
                   setSelectedDate(todayDate);
+                  // Force reload after setting today's date
+                  setTimeout(() => {
+                    loadPatients();
+                  }, 100);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 shadow-sm mt-6"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 shadow-sm mt-6 transition-colors duration-200"
                 title="Set to today's date"
               >
-                Today
+                📅 Today
               </button>
             </>
           )}
@@ -1066,14 +994,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           <div className="flex space-x-2">
             <button
               onClick={loadPatients}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 shadow-sm hover:shadow-md"
             >
               🔄 Refresh
             </button>
             <button
               onClick={exportPatientsToExcel}
               disabled={filteredPatients.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md"
               title="Export to Excel"
             >
               📊 Export
@@ -1174,7 +1102,9 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-sm font-medium ${
-                        'bg-green-100 text-green-800'
+                        patient.departmentStatus === 'IPD' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
                       }`}>
                         {patient.departmentStatus || 'OPD'}
                       </span>
@@ -1187,23 +1117,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                     <td className="p-4 text-sm text-gray-600">
                       {(() => {
                         // EXTENSIVE DEBUGGING - Log all available date fields
-                        console.log(`\n🔍 PATIENT ${patient.patient_id} (${patient.first_name} ${patient.last_name}) DATE DEBUG:`);
-                        console.log('📊 All available date fields:', {
-                          lastVisit: patient.lastVisit,
-                          date_of_entry: patient.date_of_entry,
-                          created_at: patient.created_at,
-                          updated_at: patient.updated_at,
-                          transactions_count: patient.transactions?.length || 0,
-                          totalSpent: patient.totalSpent,
-                          visitCount: patient.visitCount
-                        });
-                        
-                        if (patient.transactions && patient.transactions.length > 0) {
-                          console.log('💳 Transaction details:');
-                          patient.transactions.forEach((t, idx) => {
-                            console.log(`  ${idx + 1}. ${t.transaction_type} - ${t.created_at} - Status: ${t.status} - Amount: ${t.amount}`);
-                          });
-                        }
                         
                         let lastVisitDate = null;
                         let dateSource = 'none';
@@ -1212,7 +1125,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         if (patient.date_of_entry) {
                           lastVisitDate = patient.date_of_entry;
                           dateSource = 'entry';
-                          console.log(`✅ Using user-defined date_of_entry: ${lastVisitDate}`);
                         }
                         
                         // Priority 2: Most recent transaction date (if transactions exist and no date_of_entry)
@@ -1222,12 +1134,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                             .filter(t => t.status !== 'CANCELLED' && t.created_at)
                             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                           
-                          console.log(`📈 Active transactions after filtering: ${activeTransactions.length}`);
                           
                           if (activeTransactions.length > 0) {
                             lastVisitDate = activeTransactions[0].created_at;
                             dateSource = 'transaction';
-                            console.log(`✅ Using transaction date: ${lastVisitDate}`);
                           }
                         }
                         
@@ -1235,17 +1145,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         else if (patient.lastVisit) {
                           lastVisitDate = patient.lastVisit;
                           dateSource = 'calculated';
-                          console.log(`✅ Using calculated lastVisit: ${lastVisitDate}`);
                         }
                         
                         // Priority 4: Fallback to patient creation date
                         else if (patient.created_at) {
                           lastVisitDate = patient.created_at;
                           dateSource = 'created';
-                          console.log(`✅ Using created_at: ${lastVisitDate}`);
                         }
                         
-                        console.log(`🎯 FINAL RESULT: Date: ${lastVisitDate}, Source: ${dateSource}`);
                         
                         // Format the date consistently
                         if (lastVisitDate) {
@@ -1253,7 +1160,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                             const date = new Date(lastVisitDate);
                             // Validate the date
                             if (isNaN(date.getTime())) {
-                              console.warn(`❌ Invalid date for patient ${patient.patient_id}:`, lastVisitDate);
                               return 'Invalid Date';
                             }
                             
@@ -1262,15 +1168,12 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                               month: '2-digit', 
                               year: 'numeric'
                             });
-                            console.log(`📅 Formatted date: ${formattedDate}\n`);
                             return formattedDate;
                           } catch (error) {
-                            console.error(`❌ Date parsing error for patient ${patient.patient_id}:`, error);
                             return 'Date Error';
                           }
                         }
                         
-                        console.log(`⚠️ No date found - returning 'Never'\n`);
                         return 'Never';
                       })()}
                     </td>

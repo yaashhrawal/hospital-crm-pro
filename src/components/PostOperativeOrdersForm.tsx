@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface PreOperativeOrdersFormProps {
+interface PostOperativeOrdersFormProps {
   isOpen: boolean;
   onClose: () => void;
   patientData: {
@@ -18,7 +18,7 @@ interface PreOperativeOrdersFormProps {
   savedData?: any; // Previously saved form data
 }
 
-const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
+const PostOperativeOrdersForm: React.FC<PostOperativeOrdersFormProps> = ({
   isOpen,
   onClose,
   patientData,
@@ -27,42 +27,47 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    patientId: patientData.patientId || '',
-    ipNo: patientData.ipdNo || '',
-    patientName: patientData.name || '',
-    ageSex: `${patientData.age || ''} / ${patientData.gender || ''}`,
-    date: new Date().toISOString().split('T')[0],
-    consultantName: patientData.doctorName || '',
+    patientId: savedData?.patientId || patientData.patientId || '',
+    ipNo: savedData?.ipNo || patientData.ipdNo || '',
+    patientName: savedData?.patientName || patientData.name || '',
+    ageSex: savedData?.ageSex || `${patientData.age || ''} / ${patientData.gender || ''}`,
+    date: savedData?.date || new Date().toISOString().split('T')[0],
+    consultantName: savedData?.consultantName || patientData.doctorName || '',
     
-    // Orders Section
-    writtenConsent: savedData?.writtenConsent || false,
-    nbmAfterTime: savedData?.nbmAfterTime || '',
-    nbmAfterDate: savedData?.nbmAfterDate || '',
-    bathShowerTime: savedData?.bathShowerTime || '',
-    bathShowerYesNo: savedData?.bathShowerYesNo || '',
-    enemaType: savedData?.enemaType || 'Simple',
-    enemaTime: savedData?.enemaTime || '',
-    enemaYesNo: savedData?.enemaYesNo || '',
-    removeDenturesEtc: savedData?.removeDenturesEtc || false,
-    skinPreparation: savedData?.skinPreparation || false,
-    transferToOTTime: savedData?.transferToOTTime || '',
-    specialOrders: savedData?.specialOrders || '',
+    // Main Orders Section
+    nbmTillChecked: savedData?.nbmTillChecked || false,
+    nbmTillTime: savedData?.nbmTillTime || '',
+    nbmTillAmPm: savedData?.nbmTillAmPm || 'am',
+    liquidsAfterTime: savedData?.liquidsAfterTime || '',
+    liquidsAfterAmPm: savedData?.liquidsAfterAmPm || 'am',
     
-    // Body Diagram Notes (6 text areas)
-    diagramNote1: savedData?.diagramNote1 || '',
-    diagramNote2: savedData?.diagramNote2 || '',
-    diagramNote3: savedData?.diagramNote3 || '',
-    diagramNote4: savedData?.diagramNote4 || '',
-    diagramNote5: savedData?.diagramNote5 || '',
-    diagramNote6: savedData?.diagramNote6 || '',
+    positionChecked: savedData?.positionChecked || false,
+    positionDetails: savedData?.positionDetails || '',
     
-    // Signatures
+    vitalsChecked: savedData?.vitalsChecked || false,
+    vitalsFrequency: savedData?.vitalsFrequency || '',
+    vitalsHourlyTill: savedData?.vitalsHourlyTill || '',
+    vitalsAmPm: savedData?.vitalsAmPm || 'am',
+    
+    intakeOutputChecked: savedData?.intakeOutputChecked || false,
+    intakeOutputYesNo: savedData?.intakeOutputYesNo || '',
+    
+    sitUpStandChecked: savedData?.sitUpStandChecked || false,
+    sitUpStandTime: savedData?.sitUpStandTime || '',
+    sitUpStandAmPm: savedData?.sitUpStandAmPm || 'am',
+    
+    // Drugs Section
+    drugsSection: savedData?.drugsSection || [
+      { drugName: '', dose: '', route: '', frequency: '', duration: '' }
+    ],
+    
+    // Signature Section
+    doctorName: savedData?.doctorName || patientData.doctorName || '',
+    doctorDate: savedData?.doctorDate || new Date().toISOString().split('T')[0],
+    doctorTime: savedData?.doctorTime || '',
     nurseName: savedData?.nurseName || '',
     nurseDate: savedData?.nurseDate || new Date().toISOString().split('T')[0],
-    nurseTime: savedData?.nurseTime || '',
-    surgeonName: savedData?.surgeonName || '',
-    surgeonDate: savedData?.surgeonDate || new Date().toISOString().split('T')[0],
-    surgeonTime: savedData?.surgeonTime || ''
+    nurseTime: savedData?.nurseTime || ''
   });
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -70,6 +75,32 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleDrugChange = (index: number, field: string, value: string) => {
+    const updatedDrugs = [...formData.drugsSection];
+    updatedDrugs[index] = { ...updatedDrugs[index], [field]: value };
+    setFormData(prev => ({
+      ...prev,
+      drugsSection: updatedDrugs
+    }));
+  };
+
+  const addDrugRow = () => {
+    setFormData(prev => ({
+      ...prev,
+      drugsSection: [...prev.drugsSection, { drugName: '', dose: '', route: '', frequency: '', duration: '' }]
+    }));
+  };
+
+  const removeDrugRow = (index: number) => {
+    if (formData.drugsSection.length > 1) {
+      const updatedDrugs = formData.drugsSection.filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        drugsSection: updatedDrugs
+      }));
+    }
   };
 
   const handleSubmit = () => {
@@ -80,7 +111,7 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
         patientId: patientData.ipdNo
       });
     }
-    toast.success('Pre-Operative Orders saved successfully');
+    toast.success('Post Operative Orders saved successfully');
     onClose();
   };
 
@@ -160,6 +191,7 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
             margin-bottom: 10px;
             border: 1px solid #000;
             padding: 8px;
+            box-sizing: border-box;
           }
           
           .section-title {
@@ -209,52 +241,29 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
             line-height: 13px;
           }
           
-          .textarea-value {
-            border: 1px solid #333;
-            padding: 5px;
-            min-height: 40px;
-            width: calc(100% - 2px);
-            margin-top: 5px;
-            box-sizing: border-box;
-            word-wrap: break-word;
-          }
-          
-          .diagram-section {
+          .order-item {
+            margin-bottom: 8px;
             display: flex;
-            gap: 18px;
-            margin: 12px 0;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
           }
           
-          .diagram-area {
-            flex: 1;
-            text-align: center;
+          .drugs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+          }
+          
+          .drugs-table th, .drugs-table td {
             border: 1px solid #333;
-            padding: 7px;
-          }
-          
-          .diagram-title {
-            font-weight: bold;
-            margin-bottom: 7px;
-          }
-          
-          .diagram-image {
-            width: 120px;
-            height: 240px;
-            border: 1px solid #666;
-            margin: 0 auto 7px;
-            object-fit: contain;
-          }
-          
-          .notes-section {
-            flex: 1;
-            margin-left: 18px;
-          }
-          
-          .note-area {
-            border: 1px solid #333;
-            min-height: 32px;
-            margin-bottom: 6px;
             padding: 4px;
+            text-align: left;
+          }
+          
+          .drugs-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
           }
           
           .signatures {
@@ -272,7 +281,7 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
       </head>
       <body>
         <div class="container">
-          <h1>PRE OPERATIVE ORDERS</h1>
+          <h1>POST OPERATIVE ORDERS</h1>
           
           <!-- Patient Header -->
           <div class="section">
@@ -308,93 +317,90 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
             </div>
           </div>
           
-          <!-- Orders Section -->
+          <!-- Main Orders Section -->
           <div class="section">
-            <div class="section-title">PRE-OPERATIVE ORDERS</div>
+            <div class="section-title">POST-OPERATIVE ORDERS</div>
             
-            <div style="margin-bottom: 10px;">
-              <span class="checkbox-value">${formData.writtenConsent ? '✓' : ''}</span>
-              <label>Take written consent for risk of surgery and Anaesthesia</label>
+            <div class="order-item">
+              <span class="checkbox-value">${formData.nbmTillChecked ? '✓' : ''}</span>
+              <label>NBM till:</label>
+              <span class="value">${formData.nbmTillTime || ''}</span>
+              <span>${formData.nbmTillAmPm || ''}</span>
+              <label>, Liquids after</label>
+              <span class="value">${formData.liquidsAfterTime || ''}</span>
+              <span>${formData.liquidsAfterAmPm || ''}</span>
+              <label>(if no vomiting)</label>
             </div>
             
-            <div style="margin-bottom: 10px;">
-              <label>N.B.M. after:</label>
-              <span class="value">${formData.nbmAfterTime || ''}</span>
-              <label>on date</label>
-              <span class="value">${formData.nbmAfterDate || ''}</span>
+            <div class="order-item">
+              <span class="checkbox-value">${formData.positionChecked ? '✓' : ''}</span>
+              <label>Position:</label>
+              <span class="value">${formData.positionDetails || ''}</span>
             </div>
             
-            <div style="margin-bottom: 10px;">
-              <label>Bath Shower at:</label>
-              <span class="value">${formData.bathShowerTime || ''}</span>
-              <label>yes/No:</label>
-              <span class="value">${formData.bathShowerYesNo || ''}</span>
+            <div class="order-item">
+              <span class="checkbox-value">${formData.vitalsChecked ? '✓' : ''}</span>
+              <label>Vitals:</label>
+              <span class="value">${formData.vitalsFrequency || ''}</span>
+              <label>hrly till</label>
+              <span class="value">${formData.vitalsHourlyTill || ''}</span>
+              <span>${formData.vitalsAmPm || ''}</span>
             </div>
             
-            <div style="margin-bottom: 10px;">
-              <label>Enema: ${formData.enemaType || 'Simple'}/ Glycerine/ Proctolysis at:</label>
-              <span class="value">${formData.enemaTime || ''}</span>
-              <label>yes/No:</label>
-              <span class="value">${formData.enemaYesNo || ''}</span>
+            <div class="order-item">
+              <span class="checkbox-value">${formData.intakeOutputChecked ? '✓' : ''}</span>
+              <label>Record Intake & Output chart:</label>
+              <span class="value">${formData.intakeOutputYesNo || ''}</span>
             </div>
             
-            <div style="margin-bottom: 10px;">
-              <span class="checkbox-value">${formData.removeDenturesEtc ? '✓' : ''}</span>
-              <label>Remove Dentures, Ornaments & Nail Polish, Spectacles & Contact Lenses</label>
-            </div>
-            
-            <div style="margin-bottom: 10px;">
-              <span class="checkbox-value">${formData.skinPreparation ? '✓' : ''}</span>
-              <label>Skin preparation, shaving (part of the body as shown in the diagram) & shaving wash</label>
-            </div>
-            
-            <div style="margin-bottom: 10px;">
-              <label>Transfer the patient to O.T. with case paper & Investigations Reports at:</label>
-              <span class="value">${formData.transferToOTTime || ''}</span>
-            </div>
-            
-            <div style="margin-bottom: 10px;">
-              <label>Special order or Pre-Ope Medications:</label>
-              <div class="textarea-value">${formData.specialOrders || ''}</div>
+            <div class="order-item">
+              <span class="checkbox-value">${formData.sitUpStandChecked ? '✓' : ''}</span>
+              <label>Allow the patient to sit up/stand after:</label>
+              <span class="value">${formData.sitUpStandTime || ''}</span>
+              <span>${formData.sitUpStandAmPm || ''}</span>
             </div>
           </div>
           
-          <!-- Body Diagrams and Notes -->
+          <!-- Drugs Section -->
           <div class="section">
-            <div class="section-title">BODY DIAGRAMS & SKIN PREPARATION</div>
-            <div class="diagram-section">
-              <div class="diagram-area">
-                <div class="diagram-title">Anterior</div>
-                <img src="/anterior-body-diagram.jpg" alt="Anterior Body Diagram" class="diagram-image" />
-              </div>
-              <div class="diagram-area">
-                <div class="diagram-title">Posterior</div>
-                <img src="/posterior-body-diagram.jpg" alt="Posterior Body Diagram" class="diagram-image" />
-              </div>
-              <div class="notes-section">
-                <div class="note-area">${formData.diagramNote1 || ''}</div>
-                <div class="note-area">${formData.diagramNote2 || ''}</div>
-                <div class="note-area">${formData.diagramNote3 || ''}</div>
-                <div class="note-area">${formData.diagramNote4 || ''}</div>
-                <div class="note-area">${formData.diagramNote5 || ''}</div>
-                <div class="note-area">${formData.diagramNote6 || ''}</div>
-              </div>
-            </div>
+            <div class="section-title">DRUGS</div>
+            <table class="drugs-table">
+              <thead>
+                <tr>
+                  <th>Drug Name</th>
+                  <th>Dose</th>
+                  <th>Route</th>
+                  <th>Frequency</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${formData.drugsSection.map(drug => `
+                  <tr>
+                    <td>${drug.drugName || ''}</td>
+                    <td>${drug.dose || ''}</td>
+                    <td>${drug.route || ''}</td>
+                    <td>${drug.frequency || ''}</td>
+                    <td>${drug.duration || ''}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
           </div>
           
           <!-- Signatures -->
           <div class="signatures">
             <div class="signature-section">
               <div style="margin-bottom: 40px; border-bottom: 1px solid #333;"></div>
-              <div><strong>Name & Signature of the Nurse</strong></div>
-              <div>${formData.nurseName || ''}</div>
-              <div>Date: ${formData.nurseDate || ''} Time: ${formData.nurseTime || ''}</div>
+              <div><strong>Name & Signature of the Doctor</strong></div>
+              <div>${formData.doctorName || ''}</div>
+              <div>Date: ${formData.doctorDate || ''} Time: ${formData.doctorTime || ''}</div>
             </div>
             <div class="signature-section">
               <div style="margin-bottom: 40px; border-bottom: 1px solid #333;"></div>
-              <div><strong>Name & Signature of the Surgeon</strong></div>
-              <div>${formData.surgeonName || ''}</div>
-              <div>Date: ${formData.surgeonDate || ''} Time: ${formData.surgeonTime || ''}</div>
+              <div><strong>Name & Signature of the Nurse</strong></div>
+              <div>${formData.nurseName || ''}</div>
+              <div>Date: ${formData.nurseDate || ''} Time: ${formData.nurseTime || ''}</div>
             </div>
           </div>
         </div>
@@ -451,7 +457,7 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
       <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="bg-green-600 text-white p-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold">PRE OPERATIVE ORDERS</h2>
+          <h2 className="text-xl font-bold">POST OPERATIVE ORDERS</h2>
           <button
             onClick={onClose}
             className="text-white hover:text-gray-200"
@@ -527,50 +533,115 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
             </div>
           </div>
 
-          {/* Orders Section */}
+          {/* Main Orders Section */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4">
-            <h3 className="font-bold text-lg mb-3 text-green-700">Pre-Operative Orders</h3>
+            <h3 className="font-bold text-lg mb-3 text-green-700">Post-Operative Orders</h3>
             
             <div className="space-y-4">
-              <div className="flex items-center">
+              {/* NBM till */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="checkbox"
-                  checked={formData.writtenConsent}
-                  onChange={(e) => handleInputChange('writtenConsent', e.target.checked)}
+                  checked={formData.nbmTillChecked}
+                  onChange={(e) => handleInputChange('nbmTillChecked', e.target.checked)}
                   className="mr-2"
                 />
-                <label className="text-sm">Take written consent for risk of surgery and Anaesthesia</label>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-sm font-medium">N.B.M. after:</label>
+                <label className="text-sm font-medium">NBM till:</label>
                 <input
                   type="time"
-                  value={formData.nbmAfterTime}
-                  onChange={(e) => handleInputChange('nbmAfterTime', e.target.value)}
+                  value={formData.nbmTillTime}
+                  onChange={(e) => handleInputChange('nbmTillTime', e.target.value)}
                   className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
-                <span className="text-sm">on date</span>
-                <input
-                  type="date"
-                  value={formData.nbmAfterDate}
-                  onChange={(e) => handleInputChange('nbmAfterDate', e.target.value)}
-                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-sm font-medium">Bath Shower at:</label>
-                <input
-                  type="time"
-                  value={formData.bathShowerTime}
-                  onChange={(e) => handleInputChange('bathShowerTime', e.target.value)}
-                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <span className="text-sm">yes/No:</span>
                 <select
-                  value={formData.bathShowerYesNo}
-                  onChange={(e) => handleInputChange('bathShowerYesNo', e.target.value)}
+                  value={formData.nbmTillAmPm}
+                  onChange={(e) => handleInputChange('nbmTillAmPm', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="am">AM</option>
+                  <option value="pm">PM</option>
+                </select>
+                <span className="text-sm">, Liquids after</span>
+                <input
+                  type="time"
+                  value={formData.liquidsAfterTime}
+                  onChange={(e) => handleInputChange('liquidsAfterTime', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <select
+                  value={formData.liquidsAfterAmPm}
+                  onChange={(e) => handleInputChange('liquidsAfterAmPm', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="am">AM</option>
+                  <option value="pm">PM</option>
+                </select>
+                <span className="text-sm">(if no vomiting)</span>
+              </div>
+
+              {/* Position */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="checkbox"
+                  checked={formData.positionChecked}
+                  onChange={(e) => handleInputChange('positionChecked', e.target.checked)}
+                  className="mr-2"
+                />
+                <label className="text-sm font-medium">Position:</label>
+                <input
+                  type="text"
+                  value={formData.positionDetails}
+                  onChange={(e) => handleInputChange('positionDetails', e.target.value)}
+                  className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Position details"
+                />
+              </div>
+
+              {/* Vitals */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="checkbox"
+                  checked={formData.vitalsChecked}
+                  onChange={(e) => handleInputChange('vitalsChecked', e.target.checked)}
+                  className="mr-2"
+                />
+                <label className="text-sm font-medium">Vitals:</label>
+                <input
+                  type="text"
+                  value={formData.vitalsFrequency}
+                  onChange={(e) => handleInputChange('vitalsFrequency', e.target.value)}
+                  className="w-16 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="4"
+                />
+                <span className="text-sm">hrly till</span>
+                <input
+                  type="time"
+                  value={formData.vitalsHourlyTill}
+                  onChange={(e) => handleInputChange('vitalsHourlyTill', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <select
+                  value={formData.vitalsAmPm}
+                  onChange={(e) => handleInputChange('vitalsAmPm', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="am">AM</option>
+                  <option value="pm">PM</option>
+                </select>
+              </div>
+
+              {/* Record Intake & Output chart */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="checkbox"
+                  checked={formData.intakeOutputChecked}
+                  onChange={(e) => handleInputChange('intakeOutputChecked', e.target.checked)}
+                  className="mr-2"
+                />
+                <label className="text-sm font-medium">Record Intake & Output chart:</label>
+                <select
+                  value={formData.intakeOutputYesNo}
+                  onChange={(e) => handleInputChange('intakeOutputYesNo', e.target.value)}
                   className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Select</option>
@@ -579,166 +650,156 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
                 </select>
               </div>
 
+              {/* Allow patient to sit up/stand after */}
               <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-sm font-medium">Enema:</label>
-                <select
-                  value={formData.enemaType}
-                  onChange={(e) => handleInputChange('enemaType', e.target.value)}
-                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="Simple">Simple</option>
-                  <option value="Glycerine">Glycerine</option>
-                  <option value="Proctolysis">Proctolysis</option>
-                </select>
-                <span className="text-sm">at:</span>
-                <input
-                  type="time"
-                  value={formData.enemaTime}
-                  onChange={(e) => handleInputChange('enemaTime', e.target.value)}
-                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <span className="text-sm">yes/No:</span>
-                <select
-                  value={formData.enemaYesNo}
-                  onChange={(e) => handleInputChange('enemaYesNo', e.target.value)}
-                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Select</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </div>
-
-              <div className="flex items-center">
                 <input
                   type="checkbox"
-                  checked={formData.removeDenturesEtc}
-                  onChange={(e) => handleInputChange('removeDenturesEtc', e.target.checked)}
+                  checked={formData.sitUpStandChecked}
+                  onChange={(e) => handleInputChange('sitUpStandChecked', e.target.checked)}
                   className="mr-2"
                 />
-                <label className="text-sm">Remove Dentures, Ornaments & Nail Polish, Spectacles & Contact Lenses</label>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.skinPreparation}
-                  onChange={(e) => handleInputChange('skinPreparation', e.target.checked)}
-                  className="mr-2"
-                />
-                <label className="text-sm">Skin preparation, shaving (part of the body as shown in the diagram) & shaving wash</label>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-sm font-medium">Transfer the patient to O.T. with case paper & Investigations Reports at:</label>
+                <label className="text-sm font-medium">Allow the patient to sit up/stand after:</label>
                 <input
                   type="time"
-                  value={formData.transferToOTTime}
-                  onChange={(e) => handleInputChange('transferToOTTime', e.target.value)}
+                  value={formData.sitUpStandTime}
+                  onChange={(e) => handleInputChange('sitUpStandTime', e.target.value)}
                   className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Special order or Pre-Ope Medications:</label>
-                <textarea
-                  value={formData.specialOrders}
-                  onChange={(e) => handleInputChange('specialOrders', e.target.value)}
-                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  rows={3}
-                />
+                <select
+                  value={formData.sitUpStandAmPm}
+                  onChange={(e) => handleInputChange('sitUpStandAmPm', e.target.value)}
+                  className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="am">AM</option>
+                  <option value="pm">PM</option>
+                </select>
               </div>
             </div>
           </div>
 
-          {/* Body Diagram and Instructions */}
+          {/* Drugs Section */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4">
-            <h3 className="font-bold text-lg mb-3 text-green-700">Skin Preparation & Body Diagrams</h3>
-            <div className="flex gap-4">
-              {/* Diagrams */}
-              <div className="flex gap-4 flex-1">
-                <div className="flex-1 text-center border border-gray-300 rounded p-4">
-                  <h4 className="font-medium mb-2">Anterior</h4>
-                  <img 
-                    src="/anterior-body-diagram.jpg" 
-                    alt="Anterior Body Diagram" 
-                    className="mx-auto border border-gray-400"
-                  />
-                </div>
-                <div className="flex-1 text-center border border-gray-300 rounded p-4">
-                  <h4 className="font-medium mb-2">Posterior</h4>
-                  <img 
-                    src="/posterior-body-diagram.jpg" 
-                    alt="Posterior Body Diagram" 
-                    className="mx-auto border border-gray-400"
-                  />
-                </div>
-              </div>
-              
-              {/* Notes */}
-              <div className="flex-1 space-y-2">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 1:</label>
-                  <textarea
-                    value={formData.diagramNote1}
-                    onChange={(e) => handleInputChange('diagramNote1', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 2:</label>
-                  <textarea
-                    value={formData.diagramNote2}
-                    onChange={(e) => handleInputChange('diagramNote2', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 3:</label>
-                  <textarea
-                    value={formData.diagramNote3}
-                    onChange={(e) => handleInputChange('diagramNote3', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 4:</label>
-                  <textarea
-                    value={formData.diagramNote4}
-                    onChange={(e) => handleInputChange('diagramNote4', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 5:</label>
-                  <textarea
-                    value={formData.diagramNote5}
-                    onChange={(e) => handleInputChange('diagramNote5', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Note 6:</label>
-                  <textarea
-                    value={formData.diagramNote6}
-                    onChange={(e) => handleInputChange('diagramNote6', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                    rows={2}
-                  />
-                </div>
-              </div>
+            <h3 className="font-bold text-lg mb-3 text-green-700">Drugs</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-2 py-2 text-left">Drug Name</th>
+                    <th className="border border-gray-300 px-2 py-2 text-left">Dose</th>
+                    <th className="border border-gray-300 px-2 py-2 text-left">Route</th>
+                    <th className="border border-gray-300 px-2 py-2 text-left">Frequency</th>
+                    <th className="border border-gray-300 px-2 py-2 text-left">Duration</th>
+                    <th className="border border-gray-300 px-2 py-2 text-left">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.drugsSection.map((drug, index) => (
+                    <tr key={index}>
+                      <td className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={drug.drugName}
+                          onChange={(e) => handleDrugChange(index, 'drugName', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="Drug name"
+                        />
+                      </td>
+                      <td className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={drug.dose}
+                          onChange={(e) => handleDrugChange(index, 'dose', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="Dose"
+                        />
+                      </td>
+                      <td className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={drug.route}
+                          onChange={(e) => handleDrugChange(index, 'route', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="Route"
+                        />
+                      </td>
+                      <td className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={drug.frequency}
+                          onChange={(e) => handleDrugChange(index, 'frequency', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="Frequency"
+                        />
+                      </td>
+                      <td className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={drug.duration}
+                          onChange={(e) => handleDrugChange(index, 'duration', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="Duration"
+                        />
+                      </td>
+                      <td className="border border-gray-300 p-1 text-center">
+                        <button
+                          onClick={() => removeDrugRow(index)}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                          disabled={formData.drugsSection.length === 1}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            
+            <button
+              onClick={addDrugRow}
+              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+            >
+              Add Drug Row
+            </button>
           </div>
 
           {/* Signatures */}
           <div className="border-2 border-gray-300 rounded-lg p-4 mb-4">
             <h3 className="font-bold text-lg mb-3 text-green-700">Signatures</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="text-center">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Name & Signature of the Doctor:</label>
+                  <input
+                    type="text"
+                    value={formData.doctorName}
+                    onChange={(e) => handleInputChange('doctorName', e.target.value)}
+                    className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1">Date:</label>
+                    <input
+                      type="date"
+                      value={formData.doctorDate}
+                      onChange={(e) => handleInputChange('doctorDate', e.target.value)}
+                      className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1">Time:</label>
+                    <input
+                      type="time"
+                      value={formData.doctorTime}
+                      onChange={(e) => handleInputChange('doctorTime', e.target.value)}
+                      className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              
               <div className="text-center">
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-1">Name & Signature of the Nurse:</label>
@@ -770,38 +831,6 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
                   </div>
                 </div>
               </div>
-              
-              <div className="text-center">
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Name & Signature of the Surgeon:</label>
-                  <input
-                    type="text"
-                    value={formData.surgeonName}
-                    onChange={(e) => handleInputChange('surgeonName', e.target.value)}
-                    className="w-full px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium mb-1">Date:</label>
-                    <input
-                      type="date"
-                      value={formData.surgeonDate}
-                      onChange={(e) => handleInputChange('surgeonDate', e.target.value)}
-                      className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium mb-1">Time:</label>
-                    <input
-                      type="time"
-                      value={formData.surgeonTime}
-                      onChange={(e) => handleInputChange('surgeonTime', e.target.value)}
-                      className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -824,7 +853,7 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
             onClick={handleSubmit}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
           >
-            Save Pre-Operative Orders
+            Save Post-Operative Orders
           </button>
         </div>
       </div>
@@ -832,4 +861,4 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
   );
 };
 
-export default PreOperativeOrdersForm;
+export default PostOperativeOrdersForm;

@@ -9,6 +9,7 @@ interface MedicationChartFormProps {
   bedNumber: number;
   ipdNumber?: string;
   onSubmit: (medicationData: any) => void;
+  savedData?: any; // Previously saved form data
 }
 
 interface MedicationEntry {
@@ -32,41 +33,44 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
   patient,
   bedNumber,
   ipdNumber,
-  onSubmit
+  onSubmit,
+  savedData
 }) => {
   const [medicationPatientInfo, setMedicationPatientInfo] = useState({
-    patientName: '',
-    patientId: '',
-    ipdNo: '',
-    ageSex: '',
-    dayOfAdmission: '',
-    consultant: '',
-    date: new Date().toISOString().split('T')[0],
-    pod: '',
-    allergy: '',
-    diagnosisSurgery: '',
-    diet: '',
-    investigation: '',
-    rbs: ''
+    patientName: savedData?.medicationPatientInfo?.patientName || '',
+    patientId: savedData?.medicationPatientInfo?.patientId || '',
+    ipdNo: savedData?.medicationPatientInfo?.ipdNo || '',
+    ageSex: savedData?.medicationPatientInfo?.ageSex || '',
+    dayOfAdmission: savedData?.medicationPatientInfo?.dayOfAdmission || '',
+    consultant: savedData?.medicationPatientInfo?.consultant || '',
+    date: savedData?.medicationPatientInfo?.date || new Date().toISOString().split('T')[0],
+    pod: savedData?.medicationPatientInfo?.pod || '',
+    allergy: savedData?.medicationPatientInfo?.allergy || '',
+    diagnosisSurgery: savedData?.medicationPatientInfo?.diagnosisSurgery || '',
+    diet: savedData?.medicationPatientInfo?.diet || '',
+    investigation: savedData?.medicationPatientInfo?.investigation || '',
+    rbs: savedData?.medicationPatientInfo?.rbs || ''
   });
 
-  const [medicationEntries, setMedicationEntries] = useState<MedicationEntry[]>([{
-    id: `med-${Date.now()}`,
-    sn: '1',
-    drugName: '',
-    route: '',
-    morningTime: '',
-    morningName: '',
-    noonTime: '',
-    noonName: '',
-    eveningTime: '',
-    eveningName: '',
-    nightTime: '',
-    nightName: ''
-  }]);
+  const [medicationEntries, setMedicationEntries] = useState<MedicationEntry[]>(
+    savedData?.medicationEntries || [{
+      id: `med-${Date.now()}`,
+      sn: '1',
+      drugName: '',
+      route: '',
+      morningTime: '',
+      morningName: '',
+      noonTime: '',
+      noonName: '',
+      eveningTime: '',
+      eveningName: '',
+      nightTime: '',
+      nightName: ''
+    }]
+  );
 
   useEffect(() => {
-    if (isOpen && patient) {
+    if (isOpen && patient && !savedData) {
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -78,7 +82,7 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
         ageSex
       }));
     }
-  }, [isOpen, patient, ipdNumber, bedNumber]);
+  }, [isOpen, patient, ipdNumber, bedNumber, savedData]);
 
   const addMedicationEntry = () => {
     const newEntry: MedicationEntry = {

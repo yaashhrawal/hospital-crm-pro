@@ -120,9 +120,6 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patientId, onClose }) =
     toast.info('Appointment scheduling feature coming soon!');
   };
 
-  const createBill = () => {
-    toast.info('Billing feature coming soon!');
-  };
 
   const contactPatient = () => {
     if (patient?.phone) {
@@ -347,12 +344,6 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patientId, onClose }) =
                     className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
                   >
                     📅 Schedule Appointment
-                  </button>
-                  <button
-                    onClick={createBill}
-                    className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
-                  >
-                    💳 Create Bill
                   </button>
                   <button
                     onClick={contactPatient}
