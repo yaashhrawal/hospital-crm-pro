@@ -607,7 +607,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         patientsData
           .map(p => p.patient_tag)
           .filter(tag => tag && tag.trim() !== '')
-      )].sort();
+      ), 'Community', 'Camp'].sort();
       setAvailableTags(uniqueTags);
     } catch (error: any) {
       toast.error(`Failed to load patients: ${error.message}`);
@@ -1206,56 +1206,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                     </td>
                     <td className="p-4">
                       <div className="flex space-x-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePatientClick(patient);
-                          }}
-                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          title="View Patient History"
-                        >
-                          📋 History
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditPatient(patient);
-                          }}
-                          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                          title="Edit Patient Details"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVisitAgain(patient);
-                          }}
-                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          title="New Visit for Existing Patient"
-                        >
-                          🔄 Visit Again
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleManageServices(patient);
-                          }}
-                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          title="Manage Medical Services"
-                        >
-                          🔬 Services
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewReceipt(patient);
-                          }}
-                          className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          title="View Receipt"
-                        >
-                          🧾 Receipt
-                        </button>
+                        {/* 1. Prescription */}
                         <div className="relative inline-block">
                           <select
                             onClick={(e) => e.stopPropagation()}
@@ -1277,6 +1228,32 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                             <option value="vh">V+H Template</option>
                           </select>
                         </div>
+                        
+                        {/* 2. Services */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleManageServices(patient);
+                          }}
+                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          title="Manage Medical Services"
+                        >
+                          🔬 Services
+                        </button>
+                        
+                        {/* 3. Edit */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditPatient(patient);
+                          }}
+                          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          title="Edit Patient Details"
+                        >
+                          ✏️ Edit
+                        </button>
+                        
+                        {/* 4. Shift to IPD */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1288,6 +1265,44 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         >
                           🏥 Shift to IPD
                         </button>
+                        
+                        {/* 5. History */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePatientClick(patient);
+                          }}
+                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          title="View Patient History"
+                        >
+                          📋 History
+                        </button>
+                        
+                        {/* 6. Visit Again */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVisitAgain(patient);
+                          }}
+                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          title="New Visit for Existing Patient"
+                        >
+                          🔄 Visit Again
+                        </button>
+                        
+                        {/* 7. Receipt */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewReceipt(patient);
+                          }}
+                          className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          title="View Receipt"
+                        >
+                          🧾 Receipt
+                        </button>
+                        
+                        {/* 8. Delete */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

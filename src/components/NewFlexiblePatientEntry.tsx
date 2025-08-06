@@ -97,11 +97,28 @@ const NewFlexiblePatientEntry: React.FC = () => {
     discount_reason: '',
     payment_mode: 'CASH',
     online_payment_method: 'UPI',
+    // Appointment scheduling fields
+    schedule_appointment: false,
+    appointment_mode: 'none', // 'none', 'new_patient', 'existing_patient'
+    existing_patient_search: '',
+    selected_existing_patient: null,
+    appointment_doctor_name: '',
+    appointment_department: '',
+    appointment_date: '',
+    appointment_time: '',
+    appointment_type: '',
+    appointment_duration: 30,
+    appointment_cost: 500,
+    appointment_notes: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
   const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
+  
+  // Existing patients management
+  const [existingPatients, setExistingPatients] = useState([]);
+  const [filteredExistingPatients, setFilteredExistingPatients] = useState([]);
   
   // Multiple doctors state
   const [selectedDoctors, setSelectedDoctors] = useState<AssignedDoctor[]>([]);
@@ -117,7 +134,38 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
   useEffect(() => {
     testConnection();
+    loadExistingPatients();
   }, []);
+
+  // Load existing patients for appointment scheduling
+  const loadExistingPatients = async () => {
+    try {
+      console.log('📋 Loading existing patients...');
+      const patients = await HospitalService.getPatients();
+      setExistingPatients(patients || []);
+      setFilteredExistingPatients(patients || []);
+      console.log('✅ Loaded', patients?.length || 0, 'existing patients');
+    } catch (error) {
+      console.error('❌ Error loading existing patients:', error);
+      setExistingPatients([]);
+      setFilteredExistingPatients([]);
+    }
+  };
+
+  // Filter existing patients based on search
+  useEffect(() => {
+    if (!formData.existing_patient_search.trim()) {
+      setFilteredExistingPatients(existingPatients);
+    } else {
+      const searchTerm = formData.existing_patient_search.toLowerCase();
+      const filtered = existingPatients.filter(patient => 
+        `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(searchTerm) ||
+        patient.patient_id?.toLowerCase().includes(searchTerm) ||
+        patient.phone?.includes(searchTerm)
+      );
+      setFilteredExistingPatients(filtered);
+    }
+  }, [formData.existing_patient_search, existingPatients]);
 
   // Filter doctors based on selected department
   useEffect(() => {
@@ -335,6 +383,74 @@ const NewFlexiblePatientEntry: React.FC = () => {
         await HospitalService.createTransaction(transactionData as CreateTransactionData);
       }
 
+      // Handle appointment scheduling for all modes
+      if (formData.schedule_appointment || formData.appointment_mode === 'existing_patient') {
+        console.log('📅 Creating appointment...');
+        
+        // Validate appointment fields
+        if (!formData.appointment_date || !formData.appointment_time || !formData.appointment_type || 
+            !formData.appointment_doctor_name || !formData.appointment_department) {
+          toast.error('Please fill in all required appointment fields');
+          setLoading(false);
+          return;
+        }
+
+        // For existing patient appointments, validate patient selection
+        if (formData.appointment_mode === 'existing_patient' && !formData.selected_existing_patient) {
+          toast.error('Please select an existing patient for the appointment');
+          setLoading(false);
+          return;
+        }
+
+        // Determine patient information based on appointment mode
+        const appointmentPatientName = formData.appointment_mode === 'existing_patient' 
+          ? `${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name}`
+          : `${formData.first_name} ${formData.last_name || ''}`.trim();
+
+        const appointmentPatientId = formData.appointment_mode === 'existing_patient' 
+          ? formData.selected_existing_patient.patient_id 
+          : 'manual-' + Date.now();
+
+        const appointmentData = {
+          id: Date.now().toString(),
+          patient_id: appointmentPatientId,
+          patient_name: appointmentPatientName,
+          doctor_name: formData.appointment_doctor_name,
+          department: formData.appointment_department,
+          appointment_date: formData.appointment_date,
+          appointment_time: formData.appointment_time,
+          appointment_type: formData.appointment_type as 'consultation' | 'follow-up' | 'procedure' | 'emergency',
+          status: 'scheduled' as const,
+          estimated_duration: formData.appointment_duration || 30,
+          estimated_cost: formData.appointment_cost || 500,
+          notes: formData.appointment_notes || '',
+          created_at: new Date().toISOString(),
+        };
+
+        try {
+          // Save appointment to localStorage (same as AppointmentManagement component)
+          const existingAppointments = localStorage.getItem('hospital_appointments');
+          const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
+          appointments.push(appointmentData);
+          localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+
+          console.log('✅ Appointment scheduled:', appointmentData);
+          
+          if (formData.appointment_mode === 'existing_patient') {
+            toast.success(`Appointment scheduled for existing patient ${appointmentPatientName} on ${formData.appointment_date} at ${formData.appointment_time}`);
+          } else {
+            toast.success(`Appointment scheduled for ${formData.appointment_date} at ${formData.appointment_time}`);
+          }
+        } catch (error) {
+          console.error('❌ Error scheduling appointment:', error);
+          if (formData.appointment_mode === 'existing_patient') {
+            toast.error('Failed to schedule appointment for existing patient');
+          } else {
+            toast.error('Patient created but appointment scheduling failed');
+          }
+        }
+      }
+
       // Calculate total amount based on consultation mode
       const totalAmount = formData.consultation_mode === 'single' 
         ? formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))
@@ -386,6 +502,19 @@ const NewFlexiblePatientEntry: React.FC = () => {
         discount_reason: '',
         payment_mode: 'CASH',
         online_payment_method: 'UPI',
+        // Appointment scheduling fields
+        schedule_appointment: false,
+        appointment_mode: 'none',
+        existing_patient_search: '',
+        selected_existing_patient: null,
+        appointment_doctor_name: '',
+        appointment_department: '',
+        appointment_date: '',
+        appointment_time: '',
+        appointment_type: '',
+        appointment_duration: 30,
+        appointment_cost: 500,
+        appointment_notes: '',
       });
 
       // Reset multiple doctors selection
@@ -402,6 +531,75 @@ const NewFlexiblePatientEntry: React.FC = () => {
     } catch (error: any) {
       console.error('🚨 Patient creation failed:', error);
       toast.error(`Failed to save patient: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Separate handler for existing patient appointments
+  const handleSaveAppointmentOnly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.selected_existing_patient) {
+      toast.error('Please select an existing patient for the appointment');
+      return;
+    }
+    
+    // Validate appointment fields
+    if (!formData.appointment_date || !formData.appointment_time || !formData.appointment_doctor_name) {
+      toast.error('Please fill all required appointment fields');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      console.log('📅 Creating appointment for existing patient...');
+
+      const appointmentData = {
+        id: Date.now().toString(),
+        patient_id: formData.selected_existing_patient.patient_id,
+        patient_name: `${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name}`,
+        doctor_name: formData.appointment_doctor_name,
+        department: formData.appointment_department || 'General',
+        appointment_date: formData.appointment_date,
+        appointment_time: formData.appointment_time,
+        appointment_type: formData.appointment_type || 'consultation',
+        status: 'scheduled',
+        estimated_duration: formData.appointment_duration || 30,
+        estimated_cost: formData.appointment_cost || 500,
+        notes: formData.appointment_notes || '',
+        created_at: new Date().toISOString(),
+      };
+
+      // Save appointment to localStorage
+      const existingAppointments = localStorage.getItem('hospital_appointments');
+      const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
+      appointments.push(appointmentData);
+      localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+
+      console.log('✅ Appointment created successfully:', appointmentData);
+      toast.success(`Appointment scheduled for ${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name} on ${new Date(formData.appointment_date).toLocaleDateString('en-IN')} at ${formData.appointment_time}`);
+
+      // Reset appointment fields only
+      setFormData({
+        ...formData,
+        appointment_mode: 'none',
+        existing_patient_search: '',
+        selected_existing_patient: null,
+        appointment_doctor_name: '',
+        appointment_department: '',
+        appointment_date: '',
+        appointment_time: '',
+        appointment_type: '',
+        appointment_duration: 30,
+        appointment_cost: 500,
+        appointment_notes: '',
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error creating appointment:', error);
+      toast.error('Failed to schedule appointment');
     } finally {
       setLoading(false);
     }
@@ -1113,24 +1311,292 @@ const NewFlexiblePatientEntry: React.FC = () => {
           )}
         </div>
 
+        {/* Comprehensive Appointment Management Section */}
+        <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-purple-800 mb-3">📅 Appointment Management</h3>
+            
+            {/* Appointment Mode Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="bg-white p-4 rounded-lg border border-purple-200">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="appointment_mode"
+                    value="none"
+                    checked={!formData.schedule_appointment}
+                    onChange={(e) => setFormData({ ...formData, schedule_appointment: false, appointment_mode: 'none' })}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <div>
+                    <div className="font-medium text-purple-800">📝 Register Patient Only</div>
+                    <div className="text-xs text-purple-600">No appointment needed</div>
+                  </div>
+                </label>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border border-purple-200">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="appointment_mode"
+                    value="new_patient"
+                    checked={formData.schedule_appointment && formData.appointment_mode === 'new_patient'}
+                    onChange={(e) => setFormData({ ...formData, schedule_appointment: true, appointment_mode: 'new_patient' })}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <div>
+                    <div className="font-medium text-purple-800">👤 New Patient + Appointment</div>
+                    <div className="text-xs text-purple-600">Register & schedule appointment</div>
+                  </div>
+                </label>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border border-purple-200">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="appointment_mode"
+                    value="existing_patient"
+                    checked={formData.appointment_mode === 'existing_patient'}
+                    onChange={(e) => setFormData({ ...formData, schedule_appointment: false, appointment_mode: 'existing_patient' })}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <div>
+                    <div className="font-medium text-purple-800">📅 Existing Patient Appointment</div>
+                    <div className="text-xs text-purple-600">Schedule for existing patient</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {(formData.schedule_appointment || formData.appointment_mode === 'existing_patient') && (
+            <div className="space-y-4">
+              
+              {/* Existing Patient Search - Only for existing patient appointments */}
+              {formData.appointment_mode === 'existing_patient' && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">👤 Select Existing Patient</label>
+                  
+                  {/* Patient Search */}
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="Search by name, Patient ID, or phone number..."
+                      value={formData.existing_patient_search}
+                      onChange={(e) => setFormData({ ...formData, existing_patient_search: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Patient Selection */}
+                  {formData.existing_patient_search.trim() && (
+                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md bg-white">
+                      {filteredExistingPatients.length > 0 ? (
+                        filteredExistingPatients.slice(0, 10).map((patient) => (
+                          <div
+                            key={patient.id}
+                            onClick={() => setFormData({ 
+                              ...formData, 
+                              selected_existing_patient: patient,
+                              existing_patient_search: `${patient.first_name} ${patient.last_name} (${patient.patient_id})`
+                            })}
+                            className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">
+                              {patient.first_name} {patient.last_name}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              ID: {patient.patient_id} • {patient.phone} • {patient.age ? `Age: ${patient.age}` : ''}
+                            </div>
+                            {patient.patient_tag && (
+                              <div className="text-xs text-blue-600">Tag: {patient.patient_tag}</div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-3 text-gray-500 text-center">No patients found</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selected Patient Display */}
+                  {formData.selected_existing_patient && (
+                    <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                      <div className="font-medium text-blue-900">
+                        Selected: {formData.selected_existing_patient.first_name} {formData.selected_existing_patient.last_name}
+                      </div>
+                      <div className="text-sm text-blue-700">
+                        ID: {formData.selected_existing_patient.patient_id} • Phone: {formData.selected_existing_patient.phone}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Doctor Information */}
+              <div className="bg-green-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Doctor Information</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor Name *</label>
+                    <input
+                      type="text"
+                      value={formData.appointment_doctor_name || ''}
+                      onChange={(e) => setFormData({ ...formData, appointment_doctor_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter doctor name"
+                      required={formData.schedule_appointment}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+                    <input
+                      type="text"
+                      value={formData.appointment_department || ''}
+                      onChange={(e) => setFormData({ ...formData, appointment_department: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter department"
+                      required={formData.schedule_appointment}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Date *</label>
+                  <input
+                    type="date"
+                    value={formData.appointment_date || ''}
+                    onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required={formData.schedule_appointment}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Time *</label>
+                  <input
+                    type="time"
+                    value={formData.appointment_time || ''}
+                    onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required={formData.schedule_appointment}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Type *</label>
+                  <select
+                    value={formData.appointment_type || ''}
+                    onChange={(e) => setFormData({ ...formData, appointment_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required={formData.schedule_appointment}
+                  >
+                    <option value="">Select Type</option>
+                    <option value="consultation">👨‍⚕️ Consultation</option>
+                    <option value="follow-up">🔄 Follow-up</option>
+                    <option value="procedure">🏥 Procedure</option>
+                    <option value="emergency">🚨 Emergency</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                  <input
+                    type="number"
+                    value={formData.appointment_duration || 30}
+                    onChange={(e) => setFormData({ ...formData, appointment_duration: parseInt(e.target.value) || 30 })}
+                    min={15}
+                    max={180}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost (₹)</label>
+                  <input
+                    type="number"
+                    value={formData.appointment_cost || 500}
+                    onChange={(e) => setFormData({ ...formData, appointment_cost: parseInt(e.target.value) || 500 })}
+                    min={0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Notes</label>
+                <textarea
+                  value={formData.appointment_notes || ''}
+                  onChange={(e) => setFormData({ ...formData, appointment_notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  rows={2}
+                  placeholder="Special instructions or notes about the appointment"
+                />
+              </div>
+
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <div className="text-sm text-purple-800">
+                  <strong>📅 Appointment Summary:</strong>
+                  {formData.appointment_date && formData.appointment_time && (
+                    <span className="ml-2">
+                      {new Date(formData.appointment_date).toLocaleDateString()} at {formData.appointment_time}
+                      {formData.appointment_type && ` - ${formData.appointment_type}`}
+                      {formData.appointment_cost && ` - ₹${formData.appointment_cost}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
-          <button
-            type="button"
-            onClick={(e) => handleSubmit(e, true)}
-            disabled={loading || !formData.first_name.trim()}
-            className="bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
-          >
-            {loading ? 'Saving Draft...' : '📝 Save as Draft'}
-          </button>
-          <button
-            type="submit"
-            disabled={loading || !formData.first_name.trim()}
-            className="bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            {loading ? 'Registering...' : '✅ Register Patient'}
-          </button>
+          {formData.appointment_mode === 'existing_patient' ? (
+            // Buttons for existing patient appointments
+            <>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, appointment_mode: 'none', existing_patient_search: '', selected_existing_patient: null })}
+                disabled={loading}
+                className="bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                🚫 Cancel Appointment
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAppointmentOnly}
+                disabled={loading || !formData.selected_existing_patient || !formData.appointment_date || !formData.appointment_time || !formData.appointment_doctor_name}
+                className="bg-purple-600 text-white py-3 px-6 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+              >
+                {loading ? 'Scheduling...' : '📅 Save Appointment'}
+              </button>
+            </>
+          ) : (
+            // Buttons for patient registration (with or without appointment)
+            <>
+              <button
+                type="button"
+                onClick={(e) => handleSubmit(e, true)}
+                disabled={loading || !formData.first_name.trim()}
+                className="bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                {loading ? 'Saving Draft...' : '📝 Save as Draft'}
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !formData.first_name.trim()}
+                className="bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {loading ? 'Registering...' : formData.schedule_appointment && formData.appointment_mode === 'new_patient' ? '✅ Register Patient & Schedule Appointment' : '✅ Register Patient'}
+              </button>
+            </>
+          )}
         </div>
       </form>
 
@@ -1141,6 +1607,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           <li>• <strong>Comprehensive Information:</strong> All patient details in one form</li>
           <li>• <strong>Reference Tracking:</strong> Option to record patient referrals</li>
           <li>• <strong>Flexible Payment:</strong> Cash and online payment options with sub-methods</li>
+          <li>• <strong>Appointment Scheduling:</strong> Optional appointment booking during patient registration</li>
           <li>• <strong>Essential Details:</strong> Address and date of birth included by default</li>
           <li>• <strong>Database Integration:</strong> Direct Supabase integration for reliable storage</li>
         </ul>
