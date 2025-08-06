@@ -348,19 +348,37 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         console.log('✅ Patient ipd_status updated to DISCHARGED');
       }
 
-      // 4. Update bed status to available
+      // 4. Update bed status to available and clear patient data
       if (admission.bed_id) {
-        console.log('🛏️ Updating bed status to available...');
+        console.log('🛏️ Clearing bed and updating status to available...');
         const { error: bedError } = await supabase
           .from('beds')
-          .update({ status: 'AVAILABLE' })
+          .update({ 
+            status: 'AVAILABLE',
+            patient_id: null,
+            ipd_number: null,
+            admission_date: null,
+            admission_id: null,
+            tat_start_time: null,
+            tat_status: 'idle',
+            tat_remaining_seconds: 1800,
+            consent_form_data: null,
+            consent_form_submitted: false,
+            clinical_record_data: null,
+            clinical_record_submitted: false,
+            progress_sheet_data: null,
+            progress_sheet_submitted: false,
+            nurses_orders_data: null,
+            nurses_orders_submitted: false,
+            ipd_consents_data: null
+          })
           .eq('id', admission.bed_id);
 
         if (bedError) {
-          console.warn('⚠️ Failed to update bed status:', bedError);
+          console.warn('⚠️ Failed to clear bed data:', bedError);
           // Don't throw error as the main discharge process succeeded
         } else {
-          console.log('✅ Bed status updated to AVAILABLE');
+          console.log('✅ Bed cleared and status updated to AVAILABLE');
         }
       }
 

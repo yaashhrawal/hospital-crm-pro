@@ -169,9 +169,8 @@ class BedService {
           department: patient.assigned_department || 'GENERAL',
           admission_date: admissionDateToUse,
           status: 'ADMITTED',
-          ipd_number: ipdNumber,
-          treating_doctor: patient.assigned_doctor || 'Not Assigned',
           hospital_id: bedData?.hospital_id || 'b8a8c5e2-5c4d-4a8b-9e6f-3d2c1a0b9c8d'
+          // Removed treating_doctor and ipd_number - columns don't exist in patient_admissions table
         })
         .select()
         .single();
