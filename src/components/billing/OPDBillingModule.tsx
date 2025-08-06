@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import toast from 'react-hot-toast';
 import { Plus, Search, Edit, Printer, Download, X, Calendar, User, Stethoscope, Trash2 } from 'lucide-react';
 import HospitalService from '../../services/hospitalService';
 import DoctorService, { type DoctorInfo } from '../../services/doctorService';
 import BillingService, { type OPDBill } from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
+import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -290,25 +292,147 @@ const OPDBillingModule: React.FC = () => {
     }
   };
 
-  const handlePrintBill = (billId: string) => {
+  const handlePrintBill = async (billId: string) => {
     const bill = opdBills.find(b => b.billId === billId);
     if (!bill) {
       toast.error('Bill not found');
       return;
     }
 
-    const printContent = generateOPDBillPrint(bill);
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-      toast.success(`Printing OPD bill ${billId}`);
-    } else {
-      toast.error('Unable to open print dialog');
+    // Fetch complete patient details
+    let patientDetails = null;
+    try {
+      patientDetails = await HospitalService.getPatientById(bill.patientId);
+    } catch (error) {
+      console.warn('Could not fetch patient details:', error);
     }
+
+    // Prepare receipt data in ReceiptTemplate format
+    const receiptData: ReceiptData = {
+      type: 'CONSULTATION',
+      receiptNumber: bill.billId,
+      date: new Date(bill.billDate).toLocaleDateString('en-IN'),
+      time: new Date(bill.billDate).toLocaleTimeString('en-IN'),
+      
+      hospital: {
+        name: 'VALANT HOSPITAL',
+        address: 'Madhuban, Siwan, Bihar',
+        phone: '+91 99999 99999',
+        email: 'info@valanthospital.com',
+        registration: 'REG/2024/001',
+        gst: 'GST123456789'
+      },
+      
+      patient: {
+        id: patientDetails?.patient_id || bill.patientId.slice(-6).toUpperCase(),
+        name: patientDetails ? `${patientDetails.first_name} ${patientDetails.last_name || ''}`.trim() : bill.patientName,
+        phone: patientDetails?.phone || bill.patientPhone || 'N/A',
+        age: patientDetails?.age,
+        gender: patientDetails?.gender,
+        address: patientDetails?.address,
+        bloodGroup: patientDetails?.blood_group
+      },
+      
+      charges: [],
+      
+      payments: [{
+        mode: bill.paymentMode,
+        amount: bill.totalAmount
+      }],
+      
+      totals: {
+        subtotal: (bill.totalAmount || 0) + (bill.discount || 0),
+        discount: bill.discount || 0,
+        insurance: 0,
+        netAmount: bill.totalAmount || 0,
+        amountPaid: bill.totalAmount || 0,
+        balance: 0
+      },
+      
+      staff: {
+        processedBy: 'OPD Billing',
+        authorizedBy: bill.doctorName
+      },
+      
+      notes: bill.notes || '',
+      isOriginal: true
+    };
+
+    // Add consultation fee
+    receiptData.charges.push({
+      description: `Consultation Fee - Dr. ${bill.doctorName}`,
+      amount: bill.consultationFee,
+      quantity: 1,
+      rate: bill.consultationFee
+    });
+
+    // Add investigation charges
+    if (bill.investigationCharges > 0) {
+      receiptData.charges.push({
+        description: 'Investigation Charges',
+        amount: bill.investigationCharges,
+        quantity: 1,
+        rate: bill.investigationCharges
+      });
+    }
+
+    // Add medicine charges
+    if (bill.medicineCharges > 0) {
+      receiptData.charges.push({
+        description: 'Medicine Charges',
+        amount: bill.medicineCharges,
+        quantity: 1,
+        rate: bill.medicineCharges
+      });
+    }
+
+    // Add other charges
+    if (bill.otherCharges > 0) {
+      receiptData.charges.push({
+        description: 'Other Charges',
+        amount: bill.otherCharges,
+        quantity: 1,
+        rate: bill.otherCharges
+      });
+    }
+
+    // Add services
+    if (bill.services && bill.services.length > 0) {
+      bill.services.forEach(service => {
+        receiptData.charges.push({
+          description: service,
+          amount: 0, // Services are included in other charges
+          quantity: 1,
+          rate: 0
+        });
+      });
+    }
+
+    // Create temporary container for printing
+    const printContainer = document.createElement('div');
+    printContainer.style.position = 'fixed';
+    printContainer.style.top = '0';
+    printContainer.style.left = '0';
+    printContainer.style.width = '100%';
+    printContainer.style.height = '100%';
+    printContainer.style.zIndex = '9999';
+    printContainer.style.backgroundColor = 'white';
+    document.body.appendChild(printContainer);
+
+    // Render the ReceiptTemplate
+    const root = createRoot(printContainer);
+    root.render(<ReceiptTemplate data={receiptData} />);
+
+    // Wait for render and then print
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        root.unmount();
+        document.body.removeChild(printContainer);
+      }, 100);
+    }, 100);
+
+    toast.success(`Printing OPD bill ${billId}`);
   };
 
   const handleDownloadBill = (billId: string) => {

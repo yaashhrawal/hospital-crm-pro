@@ -3,7 +3,9 @@ import toast from 'react-hot-toast';
 import { Search, Download, Printer, Calendar, User, FileText, DollarSign, Clock, Calculator, X } from 'lucide-react';
 import HospitalService from '../../services/hospitalService';
 import DoctorService from '../../services/doctorService';
+import BillingService from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
+import BillingReceipt from './BillingReceipt';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -74,6 +76,8 @@ const CombinedBillingModule: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'total' | 'visits' | 'last_visit'>('last_visit');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedPatient, setSelectedPatient] = useState<CombinedBill | null>(null);
+  const [showBillingReceipt, setShowBillingReceipt] = useState(false);
+  const [selectedBillForReceipt, setSelectedBillForReceipt] = useState<CombinedBill | null>(null);
 
   useEffect(() => {
     loadCombinedBillingData();
@@ -90,45 +94,152 @@ const CombinedBillingModule: React.FC = () => {
       // Load actual patients from HospitalService
       const actualPatients = await HospitalService.getPatients(1000);
       console.log('📊 Loaded patients for combined billing:', actualPatients.length);
+      console.log('👥 First few patients:', actualPatients.slice(0, 3));
 
-      // Filter patients who have transactions or admissions
-      const patientsWithBillingHistory = actualPatients.filter(patient => 
-        (patient.transactions && patient.transactions.length > 0) ||
-        (patient.admissions && patient.admissions.length > 0)
-      );
+      // Load OPD and IPD bills from BillingService
+      const opdBills = BillingService.getOPDBills();
+      const ipdBills = BillingService.getIPDBills();
+      console.log('💰 Loaded bills - OPD:', opdBills.length, 'IPD:', ipdBills.length);
+      console.log('🔍 IPD Bills:', ipdBills);
+      console.log('🔍 OPD Bills:', opdBills);
+
+      // Filter patients who have transactions, admissions, or bills
+      const patientsWithBillingHistory = actualPatients.filter(patient => {
+        if (!patient) return false;
+        
+        const hasTransactions = patient.transactions && patient.transactions.length > 0;
+        const hasAdmissions = patient.admissions && patient.admissions.length > 0;
+        const hasOPDBills = opdBills.some(bill => 
+          bill && (bill.patientId === patient.id || bill.patientId === patient.patient_id)
+        );
+        const hasIPDBills = ipdBills.some(bill => 
+          bill && (bill.patientId === patient.id || bill.patientId === patient.patient_id)
+        );
+        
+        const result = hasTransactions || hasAdmissions || hasOPDBills || hasIPDBills;
+        
+        if (result) {
+          console.log('✅ Found patient with billing:', patient.first_name, {
+            id: patient.id,
+            patient_id: patient.patient_id,
+            hasTransactions,
+            hasAdmissions,
+            hasOPDBills,
+            hasIPDBills
+          });
+        }
+        
+        return result;
+      });
+      
+      console.log('🔍 Patients with billing history found:', patientsWithBillingHistory.length);
+      
+      // If no patients found, let's include ALL patients with valid data for debugging
+      if (patientsWithBillingHistory.length === 0) {
+        console.log('⚠️ No patients with billing history found. Including first 5 patients for debugging');
+        const debugPatients = actualPatients.slice(0, 5).filter(p => p && p.first_name);
+        
+        const debugBills = debugPatients.map(patient => {
+          return {
+            patientId: patient.id,
+            patientName: `${patient.first_name} ${patient.last_name || ''}`.trim(),
+            patientPhone: patient.phone || 'N/A',
+            opdBills: [],
+            ipdBills: [],
+            totalOPDAmount: 0,
+            totalIPDAmount: 0,
+            grandTotal: 0,
+            firstVisit: patient.created_at,
+            lastVisit: patient.updated_at || patient.created_at,
+            totalVisits: (patient.transactions?.length || 0) + (patient.admissions?.length || 0)
+          };
+        });
+        
+        setCombinedBills(debugBills);
+        return;
+      }
 
       console.log('💰 Patients with billing history:', patientsWithBillingHistory.length);
 
       // Convert patient data to combined bills format
       const combinedBills: CombinedBill[] = patientsWithBillingHistory.map(patient => {
+        // Processing patient (removed verbose logging)
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
 
-        // Calculate OPD bills from transactions
-        const opdTransactions = transactions.filter(t => 
-          t.transaction_type === 'CONSULTATION' || t.transaction_type === 'TREATMENT'
-        );
-        
-        const totalOPDAmount = opdTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+        // Get OPD bills for this patient
+        const patientOPDBills = opdBills.filter(bill => {
+          if (!bill) return false;
+          return bill.patientId === patient.id || bill.patientId === patient.patient_id;
+        });
+        const totalOPDAmount = patientOPDBills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
 
-        // Calculate IPD related amounts (you can enhance this based on your data structure)
-        const totalIPDAmount = 0; // This would need to be calculated based on your IPD billing logic
+        // Get IPD bills for this patient
+        const patientIPDBills = ipdBills.filter(bill => {
+          if (!bill) return false;
+          return bill.patientId === patient.id || bill.patientId === patient.patient_id;
+        });
+        const totalIPDAmount = patientIPDBills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
 
-        // Get visit dates
+        // Get visit dates from transactions, admissions, and bills
         const allDates = [
           ...transactions.map(t => t.created_at),
-          ...admissions.map(a => a.created_at)
+          ...admissions.map(a => a.created_at),
+          ...patientOPDBills.map(bill => bill.billDate),
+          ...patientIPDBills.map(bill => bill.billDate)
         ].filter(Boolean).sort();
 
         const firstVisit = allDates.length > 0 ? allDates[0] : patient.created_at;
         const lastVisit = allDates.length > 0 ? allDates[allDates.length - 1] : patient.updated_at || patient.created_at;
 
+        // Convert bills to the format expected by CombinedBill interface
+        const formattedOPDBills = patientOPDBills.map(bill => ({
+          billId: bill.billId || '',
+          date: bill.billDate || new Date().toISOString(),
+          doctorName: bill.doctorName || 'Unknown',
+          consultationFee: bill.consultationFee || 0,
+          investigationCharges: bill.investigationCharges || 0,
+          medicineCharges: bill.medicineCharges || 0,
+          otherCharges: bill.otherCharges || 0,
+          services: (bill.services || []).map(service => ({ 
+            name: typeof service === 'string' ? service : service.name || 'Service', 
+            amount: 0, 
+            date: bill.billDate || new Date().toISOString()
+          })),
+          total: bill.totalAmount || 0
+        }));
+
+        const formattedIPDBills = patientIPDBills.map(bill => ({
+          billId: bill.billId || '',
+          admissionDate: bill.admissionDate || new Date().toISOString(),
+          dischargeDate: bill.dischargeDate || new Date().toISOString(),
+          admissionCharges: bill.admissionCharges || 0,
+          staySegments: (bill.staySegments || []).map(segment => ({
+            roomType: segment.roomType || 'GENERAL_WARD',
+            startDate: segment.startDate || bill.admissionDate || new Date().toISOString(),
+            endDate: segment.endDate || bill.dischargeDate || new Date().toISOString(),
+            days: segment.days || 1,
+            totalCharge: segment.totalCharge || 0
+          })),
+          services: (bill.services || []).map(service => ({ 
+            name: service.name || 'Service', 
+            amount: service.amount || 0 
+          })),
+          totalStayCharges: bill.totalStayCharges || 0,
+          totalServiceCharges: bill.totalServiceCharges || 0,
+          total: bill.totalAmount || 0
+        }));
+
+        if (totalOPDAmount > 0 || totalIPDAmount > 0) {
+          console.log('📊 Patient with bills:', patient.first_name, '- OPD: ₹' + totalOPDAmount, 'IPD: ₹' + totalIPDAmount);
+        }
+        
         return {
           patientId: patient.id,
           patientName: `${patient.first_name} ${patient.last_name}`,
           patientPhone: patient.phone || 'N/A',
-          opdBills: [], // Would be populated with actual OPD bills when created
-          ipdBills: [], // Would be populated with actual IPD bills when created
+          opdBills: formattedOPDBills,
+          ipdBills: formattedIPDBills,
           totalOPDAmount,
           totalIPDAmount,
           grandTotal: totalOPDAmount + totalIPDAmount,
@@ -273,6 +384,11 @@ const CombinedBillingModule: React.FC = () => {
     } else {
       toast.error('Unable to open print dialog. Please check popup settings.');
     }
+  };
+
+  const handlePrintBill = (bill: CombinedBill) => {
+    setSelectedBillForReceipt(bill);
+    setShowBillingReceipt(true);
   };
 
   const calculateDays = (startDate: string, endDate: string): number => {
@@ -1053,7 +1169,7 @@ const CombinedBillingModule: React.FC = () => {
                     <span>Export</span>
                   </button>
                   <button
-                    onClick={() => toast.success('Print patient bill - Feature coming soon!')}
+                    onClick={() => handlePrintBill(patient)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
                   >
                     <Printer className="h-4 w-4" />
@@ -1064,6 +1180,17 @@ const CombinedBillingModule: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Billing Receipt Modal */}
+      {showBillingReceipt && selectedBillForReceipt && (
+        <BillingReceipt
+          bill={selectedBillForReceipt}
+          onClose={() => {
+            setShowBillingReceipt(false);
+            setSelectedBillForReceipt(null);
+          }}
+        />
       )}
     </div>
   );

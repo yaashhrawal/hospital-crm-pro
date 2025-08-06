@@ -86,8 +86,9 @@ const BillingSection: React.FC = () => {
 
   const filteredAndSortedBills = recentBills
     .filter(bill => {
-      const matchesSearch = bill.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           bill.billId.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!bill) return false;
+      const matchesSearch = (bill.patientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (bill.billId || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'ALL' || bill.status === statusFilter;
       return matchesSearch && matchesStatus;
     })
@@ -98,10 +99,10 @@ const BillingSection: React.FC = () => {
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
           break;
         case 'amount':
-          comparison = a.amount - b.amount;
+          comparison = (a.amount || 0) - (b.amount || 0);
           break;
         case 'patient':
-          comparison = a.patientName.localeCompare(b.patientName);
+          comparison = (a.patientName || '').localeCompare(b.patientName || '');
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
@@ -234,7 +235,7 @@ const BillingSection: React.FC = () => {
           
           <div class="bill-details">
             <h3>Payment Details</h3>
-            <p class="amount">Amount: ₹${bill.amount.toLocaleString()}</p>
+            <p class="amount">Amount: ₹${(bill.amount || 0).toLocaleString()}</p>
             <p>Status: <span class="status status-${bill.status.toLowerCase()}">${bill.status}</span></p>
           </div>
         </div>
@@ -326,7 +327,7 @@ const BillingSection: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100">Total Revenue</p>
-                  <p className="text-2xl font-bold">₹{billingSummary.totalRevenue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">₹{(billingSummary.totalRevenue || 0).toLocaleString()}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-200" />
               </div>
@@ -447,7 +448,7 @@ const BillingSection: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₹{bill.amount.toLocaleString()}
+                        ₹{(bill.amount || 0).toLocaleString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(bill.status)}`}>

@@ -13,6 +13,38 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
   const [templateError, setTemplateError] = useState(false);
   const [doctorDetails, setDoctorDetails] = useState<{specialty?: string, hospital_experience?: string}>({});
 
+  const getCurrentDate = () => {
+    return new Date().toLocaleDateString('en-IN');
+  };
+
+  // Get the correct doctor name and degree from patient data
+  const getDoctorInfo = () => {
+    console.log('🩺 VH Patient data:', patient);
+    console.log('👨‍⚕️ VH assigned_doctor:', patient.assigned_doctor);
+    console.log('🏥 VH assigned_department:', patient.assigned_department);
+    console.log('📋 VH Current doctorDetails state:', doctorDetails);
+    
+    const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    const result = {
+      ...getDoctorWithDegree(doctorName),
+      specialty: doctorDetails.specialty || '',
+      hospital_experience: doctorDetails.hospital_experience || ''
+    };
+    console.log('👨‍⚕️ VH FINAL getDoctorInfo result:', result);
+    return result;
+  };
+
+  const getDepartmentName = () => {
+    let dept = patient.assigned_department || 'GENERAL PHYSICIAN';
+    
+    // Fix any ORTHOPEDIC spelling issues
+    if (dept.toUpperCase().includes('ORTHOPEDIC')) {
+      dept = dept.replace(/ORTHOPEDIC/gi, 'ORTHOPAEDIC');
+    }
+    
+    return dept;
+  };
+
   // Template path with fallback options
   const templatePaths = [
     '/vh-prescription-template.jpg',
@@ -135,6 +167,13 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
   }, [patient.assigned_department]);
 
   const handlePrint = () => {
+    // Calculate values before generating HTML
+    const doctorInfo = getDoctorInfo();
+    const departmentName = getDepartmentName();
+    const currentDate = getCurrentDate();
+    const ageText = patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A';
+    const genderText = patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender;
+    
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -294,47 +333,35 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           <div class="prescription-container">
             <div class="patient-details">
               <div>
-                <span class="label">Patient Name:</span>
+                <span class="label">Name:</span>
                 <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
               </div>
               <div>
-                <span class="label">Vitals</span>
-                <div class="vitals-section">
-                  <div>BP: ${patient.bp || '_____'}</div>
-                  <div>Pulse: ${patient.pulse || '_____'}</div>
-                  <div>Resp: ${patient.resp || '_____'}</div>
-                </div>
+                <span class="label">Patient No:</span>
+                <span class="value">${patient.patient_id}</span>
               </div>
               <div>
-                <span class="label">Chief Complaints:</span>
-                <div class="text-area">${patient.chief_complaints || ''}</div>
-              </div>
-              <div>
-                <span class="label">History</span>
-                <div class="text-area">${patient.history || ''}</div>
-              </div>
-              <div>
-                <span class="label">Treatment Advice</span>
-                <div class="text-area">${patient.treatment_advice || ''}</div>
+                <span class="label">Department:</span>
+                <span class="value">${departmentName}</span>
               </div>
             </div>
 
             <div class="right-details">
               <div>
-                <span class="label">OPD No:</span>
-                <span class="value">${patient.patient_id || patient.opd_no || ''}</span>
+                <span class="label">Date:</span>
+                <span class="value">${currentDate}</span>
               </div>
               <div>
-                <span class="label">Investigation</span>
-                <div class="text-area">${patient.investigation || ''}</div>
+                <span class="label">Age/Sex:</span>
+                <span class="value">${ageText} / ${genderText}</span>
               </div>
             </div>
 
             <div class="doctor-details">
-              <div class="doctor-name">${getDoctorInfo().name}</div>
-              ${getDoctorInfo().degree ? `<div class="doctor-degree">${getDoctorInfo().degree}</div>` : ''}
-              ${getDoctorInfo().specialty ? `<div class="doctor-specialty">${getDoctorInfo().specialty}</div>` : ''}
-              ${getDoctorInfo().hospital_experience ? `<div class="doctor-experience">${getDoctorInfo().hospital_experience}</div>` : ''}
+              <div class="doctor-name">${doctorInfo.name}</div>
+              ${doctorInfo.degree ? `<div class="doctor-degree">${doctorInfo.degree}</div>` : ''}
+              ${doctorInfo.specialty ? `<div class="doctor-specialty">${doctorInfo.specialty}</div>` : ''}
+              ${doctorInfo.hospital_experience ? `<div class="doctor-experience">${doctorInfo.hospital_experience}</div>` : ''}
             </div>
           </div>
 
@@ -355,39 +382,6 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
       printWindow.document.write(printContent);
       printWindow.document.close();
     }
-  };
-
-
-  const getCurrentDate = () => {
-    return new Date().toLocaleDateString('en-IN');
-  };
-
-  // Get the correct doctor name and degree from patient data
-  const getDoctorInfo = () => {
-    console.log('🩺 VH Patient data:', patient);
-    console.log('👨‍⚕️ VH assigned_doctor:', patient.assigned_doctor);
-    console.log('🏥 VH assigned_department:', patient.assigned_department);
-    console.log('📋 VH Current doctorDetails state:', doctorDetails);
-    
-    const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
-    const result = {
-      ...getDoctorWithDegree(doctorName),
-      specialty: doctorDetails.specialty || '',
-      hospital_experience: doctorDetails.hospital_experience || ''
-    };
-    console.log('👨‍⚕️ VH FINAL getDoctorInfo result:', result);
-    return result;
-  };
-
-  const getDepartmentName = () => {
-    let dept = patient.assigned_department || 'GENERAL PHYSICIAN';
-    
-    // Fix any ORTHOPEDIC spelling issues
-    if (dept.toUpperCase().includes('ORTHOPEDIC')) {
-      dept = dept.replace(/ORTHOPEDIC/gi, 'ORTHOPAEDIC');
-    }
-    
-    return dept;
   };
 
   return (

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import toast from 'react-hot-toast';
 import { Plus, Search, Edit, Printer, Download, X, Calendar, User, Bed, Trash2, Calculator } from 'lucide-react';
 import HospitalService from '../../services/hospitalService';
 import DoctorService from '../../services/doctorService';
 import BillingService, { type IPDBill, type StaySegment, type IPDService } from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
+import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -383,25 +385,133 @@ const IPDBillingModule: React.FC = () => {
     }
   };
 
-  const handlePrintIPDBill = (billId: string) => {
+  const handlePrintIPDBill = async (billId: string) => {
     const bill = ipdBills.find(b => b.billId === billId);
     if (!bill) {
       toast.error('IPD Bill not found');
       return;
     }
 
-    const printContent = generateIPDBillPrint(bill);
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-      toast.success(`Printing IPD bill ${billId}`);
-    } else {
-      toast.error('Unable to open print dialog');
+    // Fetch complete patient details
+    let patientDetails = null;
+    try {
+      patientDetails = await HospitalService.getPatientById(bill.patientId);
+    } catch (error) {
+      console.warn('Could not fetch patient details:', error);
     }
+
+    // Prepare receipt data in ReceiptTemplate format
+    const receiptData: ReceiptData = {
+      type: 'DISCHARGE',
+      receiptNumber: bill.billId,
+      date: new Date().toLocaleDateString('en-IN'),
+      time: new Date().toLocaleTimeString('en-IN'),
+      
+      hospital: {
+        name: 'VALANT HOSPITAL',
+        address: 'Madhuban, Siwan, Bihar',
+        phone: '+91 99999 99999',
+        email: 'info@valanthospital.com',
+        registration: 'REG/2024/001',
+        gst: 'GST123456789'
+      },
+      
+      patient: {
+        id: patientDetails?.patient_id || bill.patientId.slice(-6).toUpperCase(),
+        name: patientDetails ? `${patientDetails.first_name} ${patientDetails.last_name || ''}`.trim() : bill.patientName,
+        phone: patientDetails?.phone || bill.patientPhone || 'N/A',
+        age: patientDetails?.age,
+        gender: patientDetails?.gender,
+        address: patientDetails?.address,
+        bloodGroup: patientDetails?.blood_group
+      },
+      
+      medical: {
+        admissionDate: new Date(bill.admissionDate).toLocaleDateString('en-IN'),
+        dischargeDate: new Date(bill.dischargeDate).toLocaleDateString('en-IN'),
+        stayDuration: Math.ceil((new Date(bill.dischargeDate).getTime() - new Date(bill.admissionDate).getTime()) / (1000 * 60 * 60 * 24))
+      },
+      
+      charges: [],
+      
+      payments: [{
+        mode: bill.paymentMode || 'CASH',
+        amount: bill.totalAmount
+      }],
+      
+      totals: {
+        subtotal: bill.totalAmount || 0,
+        discount: bill.discount || 0,
+        insurance: 0,
+        netAmount: (bill.totalAmount || 0) - (bill.discount || 0),
+        amountPaid: bill.totalAmount || 0,
+        balance: 0
+      },
+      
+      staff: {
+        processedBy: 'IPD Billing',
+        authorizedBy: 'Hospital Administrator'
+      },
+      
+      notes: bill.notes || '',
+      isOriginal: true
+    };
+
+    // Add admission charges
+    if (bill.admissionCharges > 0) {
+      receiptData.charges.push({
+        description: 'Admission Charges',
+        amount: bill.admissionCharges,
+        quantity: 1,
+        rate: bill.admissionCharges
+      });
+    }
+
+    // Add stay charges
+    bill.staySegments.forEach(segment => {
+      receiptData.charges.push({
+        description: `${segment.roomType} Room (${segment.days} days @ ₹${segment.dailyRate}/day)`,
+        amount: segment.totalCharge,
+        quantity: segment.days,
+        rate: segment.dailyRate
+      });
+    });
+
+    // Add services
+    bill.services.forEach(service => {
+      receiptData.charges.push({
+        description: service.name,
+        amount: service.amount,
+        quantity: service.quantity || 1,
+        rate: service.amount / (service.quantity || 1)
+      });
+    });
+
+    // Create temporary container for printing
+    const printContainer = document.createElement('div');
+    printContainer.style.position = 'fixed';
+    printContainer.style.top = '0';
+    printContainer.style.left = '0';
+    printContainer.style.width = '100%';
+    printContainer.style.height = '100%';
+    printContainer.style.zIndex = '9999';
+    printContainer.style.backgroundColor = 'white';
+    document.body.appendChild(printContainer);
+
+    // Render the ReceiptTemplate
+    const root = createRoot(printContainer);
+    root.render(<ReceiptTemplate data={receiptData} />);
+
+    // Wait for render and then print
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        root.unmount();
+        document.body.removeChild(printContainer);
+      }, 100);
+    }, 100);
+
+    toast.success(`Printing IPD bill ${billId}`);
   };
 
   const handleDownloadIPDBill = (billId: string) => {

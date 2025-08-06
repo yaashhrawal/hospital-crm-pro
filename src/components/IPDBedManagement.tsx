@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bed, User, Users, Activity, Shuffle, AlertCircle, Plus, Clock, Play, Square } from 'lucide-react';
+import { Search, Bed, User, Users, Activity, AlertCircle, Plus, Clock, Play, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations, PatientAdmissionWithRelations } from '../config/supabaseNew';
@@ -1645,18 +1645,6 @@ const IPDBedManagement: React.FC = () => {
             >
               🔄 Sync IPD Status
             </button>
-            <button
-              onClick={clearAllIPDEntries}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm"
-            >
-              🗑️ Clear IPD Entries
-            </button>
-            <button
-              onClick={clearAllBedData}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
-            >
-              🗑️ Reset All Beds
-            </button>
           </div>
         </div>
       </div>
@@ -1711,26 +1699,6 @@ const IPDBedManagement: React.FC = () => {
               Vacant
             </button>
           </div>
-          
-          {/* Debug Database Button */}
-          <button
-            onClick={debugDatabaseBeds}
-            className="px-4 py-3 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
-            title="Debug: Check what's in the main database"
-          >
-            <AlertCircle className="h-4 w-4" />
-            Debug DB
-          </button>
-          
-          {/* Clear & Reload Button */}
-          <button
-            onClick={clearLocalStateAndReload}
-            className="px-4 py-3 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
-            title="Clear local data and reload from main database"
-          >
-            <Shuffle className="h-4 w-4" />
-            Clear & Reload
-          </button>
         </div>
       </div>
 

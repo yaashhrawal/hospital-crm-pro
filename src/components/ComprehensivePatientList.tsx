@@ -289,6 +289,32 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [selectedPatientForVisitAgain, setSelectedPatientForVisitAgain] = useState<PatientWithRelations | null>(null);
   const { printConsultationReceipt } = useReceiptPrinting();
 
+  // Helper function to determine patient department status
+  const getDepartmentStatus = (patient: PatientWithRelations) => {
+    // Check if patient has been discharged from IPD
+    if (patient.ipd_status === 'DISCHARGED') {
+      return { status: 'Discharged', style: 'bg-gray-100 text-gray-800' };
+    }
+    
+    // Check if patient has discharged admissions
+    if (patient.admissions && patient.admissions.length > 0) {
+      const hasDischargedAdmission = patient.admissions.some(
+        admission => admission.status === 'DISCHARGED'
+      );
+      if (hasDischargedAdmission && patient.ipd_status !== 'ADMITTED') {
+        return { status: 'Discharged', style: 'bg-gray-100 text-gray-800' };
+      }
+    }
+    
+    // Check if currently admitted to IPD
+    if (patient.ipd_status === 'ADMITTED') {
+      return { status: 'IPD', style: 'bg-red-100 text-red-800' };
+    }
+    
+    // Default to OPD
+    return { status: patient.departmentStatus || 'OPD', style: 'bg-green-100 text-green-800' };
+  };
+
   useEffect(() => {
     loadPatients();
   }, [dateRange, startDate, endDate, selectedDate]);
@@ -1101,13 +1127,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${
-                        patient.departmentStatus === 'IPD' 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {patient.departmentStatus || 'OPD'}
-                      </span>
+                      {(() => {
+                        const deptStatus = getDepartmentStatus(patient);
+                        return (
+                          <span className={`px-2 py-1 rounded text-sm font-medium ${deptStatus.style}`}>
+                            {deptStatus.status}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-4">
                       <span className="text-green-600 font-semibold">

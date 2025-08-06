@@ -84,6 +84,23 @@ interface ReceiptTemplateProps {
 }
 
 const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' }) => {
+  // Calculate totals from charges if not provided
+  const calculateTotals = () => {
+    const chargesTotal = data.charges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+    const paymentsTotal = data.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    
+    return {
+      subtotal: data.totals?.subtotal || chargesTotal,
+      discount: data.totals?.discount || 0,
+      insurance: data.totals?.insurance || 0,
+      netAmount: data.totals?.netAmount || (chargesTotal - (data.totals?.discount || 0) - (data.totals?.insurance || 0)),
+      amountPaid: data.totals?.amountPaid || paymentsTotal,
+      balance: data.totals?.balance || 0
+    };
+  };
+
+  const totals = calculateTotals();
+
   const getReceiptTitle = () => {
     switch (data.type) {
       case 'CONSULTATION': return 'CONSULTATION RECEIPT';
@@ -110,7 +127,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
   const services = convertCharges();
 
   return (
-    <div className={`receipt-template bg-white p-6 max-w-4xl mx-auto ${className}`}>
+    <div className={`receipt-template bg-white p-6 max-w-4xl mx-auto print:p-0 print:max-w-none ${className}`}>
       {/* Print-specific styles */}
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -123,35 +140,107 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
               visibility: hidden;
             }
             .receipt-template, .receipt-template * {
-              visibility: visible;
+              visibility: visible !important;
+              opacity: 1 !important;
             }
             .receipt-template {
               position: absolute;
               left: 0;
               top: 0;
               width: 100%;
+              background: white !important;
+            }
+            .receipt-template img {
+              display: block !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              max-height: 64px !important;
+              height: auto !important;
+              width: auto !important;
             }
             .print\\:hidden {
               display: none !important;
+            }
+            /* Ensure all text and borders are visible */
+            .receipt-template p, 
+            .receipt-template span, 
+            .receipt-template div, 
+            .receipt-template h1, 
+            .receipt-template h2, 
+            .receipt-template h3, 
+            .receipt-template table, 
+            .receipt-template td, 
+            .receipt-template th {
+              color: black !important;
+              border-color: #333 !important;
+            }
+            /* Ensure summary section is visible */
+            .receipt-template .border-t-2 {
+              border-top: 2px solid #333 !important;
+            }
+            .bg-gray-50, .bg-blue-50, .bg-yellow-50, .bg-gray-100 {
+              background-color: #f8f9fa !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            /* Force visibility of totals */
+            .receipt-template .font-bold {
+              font-weight: bold !important;
+            }
+            .receipt-template .text-lg {
+              font-size: 1.125rem !important;
+            }
+            /* Ensure table borders are visible */
+            .receipt-template table, 
+            .receipt-template th, 
+            .receipt-template td {
+              border-color: #333 !important;
+            }
+            /* Make sure total amounts are bold and visible */
+            .receipt-template .text-right {
+              text-align: right !important;
+            }
+            /* Ensure patient information is visible */
+            .receipt-template p,
+            .receipt-template strong {
+              color: black !important;
+            }
+            .receipt-template .bg-gray-50 {
+              background-color: #f8f9fa !important;
+            }
+            /* Force visibility of all content */
+            .receipt-template * {
+              color: black !important;
             }
           }
         `
       }} />
       
       {/* Header */}
-      <div className="text-center border-b-2 border-gray-300 pb-4 mb-6">
-        <div className="flex items-center justify-center mb-4">
+      <div className="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black">
+        <div className="flex flex-col items-center justify-center mb-4">
+          {/* Hospital Name - Always visible */}
+          <h1 className="text-2xl font-bold text-blue-600 mb-2 print:text-black print:block">
+            {data.hospital.name || 'VALANT HOSPITAL'}
+          </h1>
+          {/* Logo - Optional */}
           <img 
             src="/logo.png" 
-            alt="VALANT Hospital Logo" 
-            className="h-16 w-auto"
-            style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
+            alt="Hospital Logo" 
+            className="h-12 w-auto print:block"
+            style={{ maxHeight: '48px', height: 'auto', width: 'auto' }}
+            onError={(e) => {
+              // Hide image if it fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
           />
         </div>
-        <div className="text-sm text-gray-700 mt-4">
-          <p>{data.hospital.address}</p>
-          <p>Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
-          <p>Reg. No: {data.hospital.registration} | GST: {data.hospital.gst}</p>
+        <div className="text-sm text-gray-700 mt-4 print:text-black">
+          <p className="print:text-black">{data.hospital.address}</p>
+          <p className="print:text-black">Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
+          <p className="print:text-black">Reg. No: {data.hospital.registration} | GST: {data.hospital.gst}</p>
         </div>
       </div>
 
@@ -174,13 +263,13 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
       </div>
 
       {/* Patient Information */}
-      <div className="bg-gray-50 p-4 rounded-lg mb-6">
-        <h3 className="font-semibold mb-3 text-gray-800">Patient Information</h3>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="bg-gray-50 p-4 rounded-lg mb-6 print:bg-gray-100 print:p-4">
+        <h3 className="font-semibold mb-3 text-gray-800 print:text-black print:font-bold">Patient Information</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm print:grid-cols-2 print:gap-4">
           <div>
-            <p><strong>NAME:</strong> {data.patient.name}</p>
-            <p><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} / {data.patient.gender || 'N/A'}</p>
-            <p><strong>MOBILE:</strong> {data.patient.phone || 'N/A'}</p>
+            <p className="print:text-black"><strong>NAME:</strong> {data.patient.name || 'N/A'}</p>
+            <p className="print:text-black"><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} / {data.patient.gender || 'N/A'}</p>
+            <p className="print:text-black"><strong>MOBILE:</strong> {data.patient.phone || 'N/A'}</p>
             {data.type === 'IP_STICKER' && data.patient.history_present_illness && (
               <p><strong>HPI:</strong> {data.patient.history_present_illness}</p>
             )}
@@ -189,9 +278,9 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             )}
           </div>
           <div>
-            <p><strong>BLOOD GROUP:</strong> {data.patient.bloodGroup || 'N/A'}</p>
-            <p><strong>ADDRESS:</strong> {data.patient.address || 'N/A'}</p>
-            {data.staff.processedBy && <p><strong>PROCESSED BY:</strong> {data.staff.processedBy}</p>}
+            <p className="print:text-black"><strong>BLOOD GROUP:</strong> {data.patient.bloodGroup || 'N/A'}</p>
+            <p className="print:text-black"><strong>ADDRESS:</strong> {data.patient.address || 'N/A'}</p>
+            {data.staff.processedBy && <p className="print:text-black"><strong>PROCESSED BY:</strong> {data.staff.processedBy}</p>}
             {data.type === 'IP_STICKER' && data.patient.procedure_planned && (
               <p><strong>Procedure:</strong> {data.patient.procedure_planned}</p>
             )}
@@ -270,30 +359,41 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
       )}
 
       {/* Services Table */}
-      <div className="mb-6">
-        <h3 className="font-semibold mb-3 text-gray-800">Services & Charges</h3>
-        <table className="w-full border-collapse border border-gray-300">
+      <div className="mb-6 print:block">
+        <h3 className="font-semibold mb-3 text-gray-800 print:text-black">Services & Charges</h3>
+        <table className="w-full border-collapse border border-gray-300 print:border-black">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-gray-300 px-3 py-2 text-left">Sr</th>
-              <th className="border border-gray-300 px-3 py-2 text-left">Service</th>
-              <th className="border border-gray-300 px-3 py-2 text-center">Qty</th>
-              <th className="border border-gray-300 px-3 py-2 text-right">Rate (₹)</th>
-              <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
+            <tr className="bg-gray-100 print:bg-gray-200">
+              <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Sr</th>
+              <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Service</th>
+              <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Qty</th>
+              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Rate (₹)</th>
+              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {services.length > 0 ? services.map((service) => (
-              <tr key={service.sr}>
-                <td className="border border-gray-300 px-3 py-2">{service.sr}</td>
-                <td className="border border-gray-300 px-3 py-2">{service.service}</td>
-                <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
-                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate}</td>
-                <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount}</td>
-              </tr>
-            )) : (
+            {services.length > 0 ? (
+              <>
+                {services.map((service) => (
+                  <tr key={service.sr}>
+                    <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.sr}</td>
+                    <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.service}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">{service.qty}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.rate.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+                {/* Total Row */}
+                <tr className="bg-gray-100 font-bold print:bg-gray-200">
+                  <td colSpan={4} className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">TOTAL:</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">
+                    ₹{services.reduce((sum, service) => sum + service.amount, 0).toFixed(2)}
+                  </td>
+                </tr>
+              </>
+            ) : (
               <tr>
-                <td colSpan={5} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
+                <td colSpan={5} className="border border-gray-300 px-3 py-2 text-center text-gray-500 print:border-black print:text-black">
                   No services recorded
                 </td>
               </tr>
@@ -312,7 +412,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
                 {data.payments.map((payment, index) => (
                   <div key={index} className="flex justify-between text-sm mb-1">
                     <span><strong>{payment.mode}:</strong> {payment.reference ? `(Ref: ${payment.reference})` : ''}</span>
-                    <span>₹{payment.amount}</span>
+                    <span>₹{(payment.amount || 0).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -320,37 +420,37 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
           )}
 
           {/* Summary */}
-          <div className="border-t-2 border-gray-300 pt-4 mb-6">
-            <div className="flex justify-end">
-              <div className="w-64">
-                <div className="flex justify-between mb-2">
-                  <span>Total Amount:</span>
-                  <span>₹{data.totals.subtotal}</span>
+          <div className="border-t-2 border-gray-300 pt-4 mb-6 print:block">
+            <div className="flex justify-end print:block">
+              <div className="w-64 print:w-full">
+                <div className="flex justify-between mb-2 print:font-normal">
+                  <span className="print:text-black">Total Amount:</span>
+                  <span className="print:text-black">₹{totals.subtotal.toFixed(2)}</span>
                 </div>
-                {data.totals.discount > 0 && (
-                  <div className="flex justify-between mb-2 text-red-600">
+                {totals.discount > 0 && (
+                  <div className="flex justify-between mb-2 text-red-600 print:text-black">
                     <span>Discount:</span>
-                    <span>- ₹{data.totals.discount}</span>
+                    <span>- ₹{totals.discount.toFixed(2)}</span>
                   </div>
                 )}
-                {data.totals.insurance > 0 && (
-                  <div className="flex justify-between mb-2 text-blue-600">
+                {totals.insurance > 0 && (
+                  <div className="flex justify-between mb-2 text-blue-600 print:text-black">
                     <span>Insurance Covered:</span>
-                    <span>- ₹{data.totals.insurance}</span>
+                    <span>- ₹{totals.insurance.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2">
-                  <span>Net Amount:</span>
-                  <span>₹{data.totals.netAmount}</span>
+                <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2 print:text-black print:border-black">
+                  <span className="print:font-bold">Net Amount:</span>
+                  <span className="print:font-bold">₹{totals.netAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between mt-2">
+                <div className="flex justify-between mt-2 print:text-black">
                   <span>Amount Paid:</span>
-                  <span>₹{data.totals.amountPaid}</span>
+                  <span>₹{totals.amountPaid.toFixed(2)}</span>
                 </div>
-                {data.totals.balance !== 0 && (
-                  <div className={`flex justify-between mt-2 font-semibold ${data.totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    <span>{data.totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
-                    <span>₹{Math.abs(data.totals.balance)}</span>
+                {totals.balance !== 0 && (
+                  <div className={`flex justify-between mt-2 font-semibold ${totals.balance > 0 ? 'text-red-600' : 'text-green-600'} print:text-black`}>
+                    <span>{totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
+                    <span>₹{Math.abs(totals.balance).toFixed(2)}</span>
                   </div>
                 )}
               </div>
