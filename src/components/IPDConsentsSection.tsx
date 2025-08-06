@@ -32,8 +32,19 @@ const IPDConsentsSection: React.FC<IPDConsentsSectionProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       console.log('IPDConsentsSection opened with savedData:', savedData);
+      console.log('IPDConsentsSection - ipdNumber prop received:', ipdNumber);
+      console.log('IPDConsentsSection - patient:', patient);
+      console.log('IPDConsentsSection - bedNumber:', bedNumber);
+      console.log('IPDConsentsSection - DEBUGGING: IPD number value and type:', {
+        value: ipdNumber,
+        type: typeof ipdNumber,
+        isEmpty: !ipdNumber,
+        isEmptyString: ipdNumber === '',
+        isUndefined: ipdNumber === undefined,
+        isNull: ipdNumber === null
+      });
     }
-  }, [isOpen, savedData]);
+  }, [isOpen, savedData, ipdNumber, patient, bedNumber]);
 
   const consentForms = [
     {

@@ -55,12 +55,12 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
   }, [ipdNumber, isOpen]);
 
   const [diabeticPatientInfo, setDiabeticPatientInfo] = useState({
-    patientName: savedData?.diabeticPatientInfo?.patientName || '',
-    patientId: savedData?.diabeticPatientInfo?.patientId || '',
-    ipNo: savedData?.diabeticPatientInfo?.ipNo || '',
-    ageSex: savedData?.diabeticPatientInfo?.ageSex || '',
-    department: savedData?.diabeticPatientInfo?.department || '',
-    doctor: savedData?.diabeticPatientInfo?.doctor || ''
+    patientName: '',
+    patientId: '',
+    ipNo: '',
+    ageSex: '',
+    department: '',
+    doctor: ''
   });
 
   const [diabeticEntries, setDiabeticEntries] = useState<DiabeticEntry[]>(
@@ -76,7 +76,24 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 DiabeticChartForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        assigned_department: patient.assigned_department,
+        assigned_doctor: patient.assigned_doctor
+      } : null, 
+      ipdNumber,
+      effectiveIPDNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting DiabeticChartForm data with patient:', patient);
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -85,10 +102,21 @@ const DiabeticChartForm: React.FC<DiabeticChartFormProps> = ({
         patientName,
         patientId: patient.patient_id,
         ipNo: effectiveIPDNumber || 'IPD Number Not Available',
-        ageSex
+        ageSex,
+        department: patient.assigned_department || 'General',
+        doctor: patient.assigned_doctor || 'Not Assigned'
       }));
+      
+      console.log('✅ DiabeticChartForm data set with values:', {
+        patientName,
+        patientId: patient.patient_id,
+        ipNo: effectiveIPDNumber || 'IPD Number Not Available',
+        ageSex,
+        department: patient.assigned_department || 'General',
+        doctor: patient.assigned_doctor || 'Not Assigned'
+      });
     }
-  }, [isOpen, patient, effectiveIPDNumber, bedNumber, savedData]);
+  }, [isOpen, patient, effectiveIPDNumber, bedNumber]);
 
   const addDiabeticEntry = () => {
     const newEntry: DiabeticEntry = {

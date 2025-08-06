@@ -143,9 +143,9 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
   const t = translations[selectedLanguage];
   
   const [formData, setFormData] = useState<ConsentFormData>({
-    patientName: savedData?.patientName || '',
-    patientId: savedData?.patientId || '',
-    ipdNo: savedData?.ipdNo || '',
+    patientName: '',
+    patientId: '',
+    ipdNo: '',
     consentName1: savedData?.consentName1 || '',
     patientAddress: savedData?.patientAddress || '',
     admissionDate: savedData?.admissionDate || '',
@@ -187,9 +187,21 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
     });
   };
 
-  // Auto-populate form with patient data and current date/time only if no savedData
+  // Auto-populate form with patient data and current date/time
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 IPDConsentForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id 
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting form data with patient:', patient);
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime12Hour = getCurrentTime12Hour();
@@ -211,8 +223,14 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         relativeSignatureDate: today,
         relativeSignatureTime: currentTime12Hour
       }));
+      
+      console.log('✅ Form data set with values:', {
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        patientId: patient.patient_id,
+        ipdNo: ipdNumber || 'IPD Number Not Generated'
+      });
     }
-  }, [isOpen, patient, bedNumber]);
+  }, [isOpen, patient, ipdNumber, bedNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

@@ -27,49 +27,29 @@ import BloodTransfusionMonitoringForm from './BloodTransfusionMonitoringForm';
 import DischargePatientModal from './DischargePatientModal';
 import PatientAdmissionForm from './PatientAdmissionForm';
 import IPDConsentsSection from './IPDConsentsSection';
-import { storeIPDNumberForBed } from '../utils/ipdUtils';
+import BedService, { type BedData as DBBedData } from '../services/bedService';
 
-interface BedData {
-  id: string;
-  number: number;
-  status: 'occupied' | 'vacant';
-  patient?: PatientWithRelations;
+interface BedData extends DBBedData {
+  number: number; // Add number for compatibility
+  patient?: PatientWithRelations; // Add patient for compatibility
   admissionDate?: string;
-  admissionId?: string; // Store the real admission ID from database
-  ipdNumber?: string; // Store the IPD number generated at admission
-  tatStartTime?: number; // TAT start timestamp
-  tatStatus?: 'idle' | 'running' | 'completed' | 'expired';
-  tatRemainingSeconds?: number; // Remaining seconds for TAT
-  consentFormData?: any; // Store consent form data
-  consentFormSubmitted?: boolean; // Track if consent form was submitted
-  clinicalRecordData?: any; // Store clinical record data
-  clinicalRecordSubmitted?: boolean; // Track if clinical record was submitted
-  progressSheetData?: any; // Store doctor's progress sheet data
-  progressSheetSubmitted?: boolean; // Track if progress sheet was submitted
-  nursesOrdersData?: any; // Store nurses orders data
-  nursesOrdersSubmitted?: boolean; // Track if nurses orders was submitted
-  tatFormData?: any; // Store TAT form data
-  tatFormSubmitted?: boolean; // Track if TAT form was submitted
-  pacRecordData?: any; // Store PAC record data
-  pacRecordSubmitted?: boolean; // Track if PAC record was submitted
-  preOpOrdersData?: any; // Store Pre-Operative Orders data
-  preOpOrdersSubmitted?: boolean; // Track if Pre-Operative Orders was submitted
-  preOpChecklistData?: any; // Store Pre-OP-Check List data
-  preOpChecklistSubmitted?: boolean; // Track if Pre-OP-Check List was submitted
-  surgicalSafetyData?: any; // Store Surgical Safety Checklist data
-  surgicalSafetySubmitted?: boolean; // Track if Surgical Safety Checklist was submitted
-  anaesthesiaNotesData?: any; // Store Anaesthesia Notes data
-  anaesthesiaNotesSubmitted?: boolean; // Track if Anaesthesia Notes was submitted
-  intraOperativeNotesData?: any; // Store Intra Operative Notes data
-  intraOperativeNotesSubmitted?: boolean; // Track if Intra Operative Notes was submitted
-  postOperativeOrdersData?: any; // Store Post Operative Orders data
-  postOperativeOrdersSubmitted?: boolean; // Track if Post Operative Orders was submitted
-  physiotherapyNotesData?: any; // Store Physiotherapy Notes data
-  physiotherapyNotesSubmitted?: boolean; // Track if Physiotherapy Notes was submitted
-  bloodTransfusionData?: any; // Store Blood Transfusion Monitoring data
-  bloodTransfusionSubmitted?: boolean; // Track if Blood Transfusion Monitoring was submitted
-  ipdConsentsData?: any; // Store IPD consents data
-  ipdConsentsSubmitted?: boolean; // Track if IPD consents was submitted
+  tatStartTime?: number;
+  ipdNumber?: string;
+  consentFormData?: any;
+  clinicalRecordData?: any;
+  progressSheetData?: any;
+  nursesOrdersData?: any;
+  tatFormData?: any;
+  pacRecordData?: any;
+  preOpOrdersData?: any;
+  preOpChecklistData?: any;
+  surgicalSafetyData?: any;
+  anaesthesiaNotesData?: any;
+  intraOperativeNotesData?: any;
+  postOperativeOrdersData?: any;
+  physiotherapyNotesData?: any;
+  bloodTransfusionData?: any;
+  ipdConsentsData?: any;
 }
 
 interface PatientSelectionModalProps {
@@ -428,57 +408,141 @@ const IPDBedManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Load beds from localStorage on component mount, or initialize if none saved
+  // Load beds from database on component mount
   useEffect(() => {
-    const savedBeds = localStorage.getItem('hospital-ipd-beds');
-    if (savedBeds) {
-      try {
-        const parsedBeds = JSON.parse(savedBeds);
-        console.log('📋 Loading saved bed data from localStorage:', parsedBeds.length, 'beds');
-        
-        setBeds(parsedBeds);
-        console.log('✅ Bed data loaded successfully');
-      } catch (error) {
-        console.error('❌ Failed to parse saved bed data:', error);
-        initializeBeds();
-      }
-    } else {
-      console.log('🏥 No saved bed data found, initializing fresh beds');
-      initializeBeds();
-    }
+    loadBedsFromDatabase();
   }, []);
 
-  // Save beds to localStorage whenever beds state changes
+  // Subscribe to real-time bed changes
   useEffect(() => {
-    if (beds.length > 0) {
-      console.log('💾 Saving bed data to localStorage');
-      localStorage.setItem('hospital-ipd-beds', JSON.stringify(beds));
-    }
-  }, [beds]);
+    const subscription = BedService.subscribeToBedsChanges(async (payload) => {
+      console.log('🔄 Real-time bed change detected:', payload);
+      // Reload beds when changes occur
+      await loadBedsFromDatabase();
+    });
+
+    return () => {
+      BedService.unsubscribeFromBedsChanges(subscription);
+    };
+  }, []);
 
   // Filter beds when search term or filter status changes
   useEffect(() => {
     filterBeds();
   }, [beds, searchTerm, filterStatus]);
 
-  const initializeBeds = () => {
-    const initialBeds: BedData[] = [];
-    for (let i = 1; i <= 40; i++) {
-      initialBeds.push({
-        id: `bed-${i}`, // Simple string ID format
-        number: i,
-        status: 'vacant',
-        tatStatus: 'idle',
-        tatRemainingSeconds: 30 * 60, // 30 minutes
-        consentFormSubmitted: false,
-        clinicalRecordSubmitted: false,
-        progressSheetSubmitted: false,
-        physiotherapyNotesSubmitted: false,
-        bloodTransfusionSubmitted: false
-      });
+  // DEBUG: Show exact database contents
+  const debugDatabaseBeds = async () => {
+    try {
+      console.log('🔍 DEBUGGING: Checking database contents...');
+      const dbBeds = await BedService.getAllBeds();
+      console.log('🔍 TOTAL BEDS IN DATABASE:', dbBeds.length);
+      console.log('🔍 BED NUMBERS:', dbBeds.map(bed => bed.bed_number).sort());
+      
+      const bedNumbers = dbBeds.map(bed => parseInt(bed.bed_number)).filter(num => !isNaN(num));
+      const duplicates = bedNumbers.filter((num, index) => bedNumbers.indexOf(num) !== index);
+      
+      if (duplicates.length > 0) {
+        console.log('🚨 DUPLICATE BED NUMBERS FOUND:', duplicates);
+        alert(`Found ${duplicates.length} duplicate beds in DATABASE: ${duplicates.join(', ')}\n\nThe issue is in your main Supabase database, not local!`);
+      } else {
+        alert(`Database contains ${dbBeds.length} beds. No duplicates found locally.`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Debug failed:', error);
     }
-    setBeds(initialBeds);
-    console.log('🏥 Initialized beds with simple string IDs:', initialBeds.slice(0, 3));
+  };
+
+  // Clear local state and force fresh load
+  const clearLocalStateAndReload = async () => {
+    try {
+      console.log('🧹 Clearing local state and forcing fresh reload...');
+      
+      // Clear any localStorage remnants
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('bed') || key.includes('ipd') || key.includes('hospital')) {
+          console.log('🗑️ Removing localStorage key:', key);
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Clear current state
+      setBeds([]);
+      setFilteredBeds([]);
+      
+      // Force reload from database
+      await loadBedsFromDatabase();
+      
+    } catch (error) {
+      console.error('❌ Error clearing local state:', error);
+      toast.error('Failed to clear local state');
+    }
+  };
+
+  // Load beds from database
+  const loadBedsFromDatabase = async () => {
+    try {
+      console.log('🏥 Loading beds from MAIN database (not local)...');
+      
+      // Get all beds with patient information directly from main database
+      console.log('🔍 Fetching beds from database...');
+      const dbBeds = await BedService.getAllBeds();
+      console.log('📋 Raw beds data from database:', dbBeds);
+      console.log('📊 Loaded beds from database:', dbBeds?.length || 0, 'beds');
+      
+      // Transform database beds to match component interface
+      const transformedBeds: BedData[] = dbBeds.map(dbBed => {
+        console.log(`🔍 Bed ${dbBed.bed_number} - IPD Number from DB:`, dbBed.ipd_number);
+        return {
+          ...dbBed,
+          number: parseInt(dbBed.bed_number),
+          status: (dbBed.status === 'OCCUPIED' || dbBed.status === 'occupied') ? 'occupied' : 'vacant',
+          patient: dbBed.patients as PatientWithRelations,
+          admissionDate: dbBed.admission_date,
+          ipdNumber: dbBed.ipd_number,
+        tatStartTime: dbBed.tat_start_time,
+        tatStatus: dbBed.tat_status || 'idle',
+        tatRemainingSeconds: dbBed.tat_remaining_seconds || 1800,
+        consentFormData: dbBed.consent_form_data,
+        consentFormSubmitted: dbBed.consent_form_submitted || false,
+        clinicalRecordData: dbBed.clinical_record_data,
+        clinicalRecordSubmitted: dbBed.clinical_record_submitted || false,
+        progressSheetData: dbBed.progress_sheet_data,
+        progressSheetSubmitted: dbBed.progress_sheet_submitted || false,
+        nursesOrdersData: dbBed.nurses_orders_data,
+        nursesOrdersSubmitted: dbBed.nurses_orders_submitted || false,
+        ipdConsentsData: dbBed.ipd_consents_data,
+        physiotherapyNotesSubmitted: false, // Default values for missing fields
+        bloodTransfusionSubmitted: false
+        };
+      });
+      
+      // Sort beds numerically by bed number
+      const sortedBeds = transformedBeds.sort((a, b) => a.number - b.number);
+      
+      setBeds(sortedBeds);
+      console.log('✅ Beds loaded and transformed successfully, total beds:', sortedBeds.length);
+      
+      // Update stats
+      const stats = await BedService.getIPDStats();
+      setIPDStats(stats);
+      
+    } catch (error) {
+      console.error('❌ Error loading beds from database:', error);
+      console.error('❌ Error details:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        stack: error?.stack
+      });
+      toast.error(`Failed to load bed data: ${error?.message || 'Unknown error'}`);
+    }
+  };
+
+  const initializeBeds = async () => {
+    await loadBedsFromDatabase();
   };
 
   const filterBeds = () => {
@@ -537,109 +601,42 @@ const IPDBedManagement: React.FC = () => {
       return;
     }
 
-    try {
-      // Get the bed number for the selected bed
-      const selectedBed = beds.find(b => b.id === selectedBedForAdmission);
-      if (!selectedBed) return;
+    // Get the bed for admission
+    const selectedBed = beds.find(b => b.id === selectedBedForAdmission);
+    if (!selectedBed) return;
 
-      // Generate automatic unique IPD number
-      const ipdNumber = getNextIPDNumber();
-      console.log(`🏥 Assigned IPD Number: ${ipdNumber} to patient ${patient.patient_id} in bed ${selectedBed.number}`);
-      
-      // Create actual admission record in database
-      console.log('🏥 Creating admission record in database...');
-      
-      // Use custom date if provided, otherwise use current date
-      let admissionDateToUse;
-      if (useCustomDate && customAdmissionDate && customAdmissionDate.trim()) {
-        try {
-          // Parse the date and set to start of day in local timezone
-          const customDate = new Date(customAdmissionDate + 'T00:00:00');
-          admissionDateToUse = customDate.toISOString();
-        } catch (error) {
-          console.error('❌ Invalid custom date format:', customAdmissionDate, error);
-          toast.error('Invalid date format. Using today\'s date instead.');
-          admissionDateToUse = new Date().toISOString();
-        }
-      } else {
+    // Use custom date if provided, otherwise use current date (declare outside try block)
+    let admissionDateToUse;
+    if (useCustomDate && customAdmissionDate && customAdmissionDate.trim()) {
+      try {
+        // Parse the date and set to start of day in local timezone
+        const customDate = new Date(customAdmissionDate + 'T00:00:00');
+        admissionDateToUse = customDate.toISOString();
+      } catch (error) {
+        console.error('❌ Invalid custom date format:', customAdmissionDate, error);
+        toast.error('Invalid date format. Using today\'s date instead.');
         admissionDateToUse = new Date().toISOString();
       }
+    } else {
+      admissionDateToUse = new Date().toISOString();
+    }
+
+    try {
       
       console.log('📅 Using admission date:', admissionDateToUse);
       
-      // Validate required fields before creating admission
-      if (!patient.id || !selectedBed.id || !HOSPITAL_ID) {
-        throw new Error('Missing required fields for admission: patient_id, bed_id, or hospital_id');
-      }
+      // Use BedService to admit patient (this handles IPD generation and database updates)
+      const updatedBed = await BedService.admitPatientToBed(selectedBed.id, patient, admissionDateToUse);
       
-      console.log('🔍 Admission data validation:');
-      console.log('- Selected bed:', selectedBed);
-      console.log('- Selected bed ID:', selectedBed.id);
-      console.log('- Selected bed number:', selectedBed.number);
-      console.log('- Patient ID (will be used as bed_id):', patient.id);
-      console.log('- Hospital ID:', HOSPITAL_ID);
+      console.log('✅ Patient admitted successfully via BedService');
+      console.log('💾 Updated bed with IPD:', updatedBed.ipd_number);
       
-      const admissionData = {
-        patient_id: patient.id,
-        // bed_id removed - it requires a valid bed record in beds table
-        bed_number: selectedBed.number, // Add bed number field
-        room_type: 'GENERAL', // Add room type field (GENERAL, PRIVATE, ICU, etc.)
-        department: 'GENERAL', // Add department field
-        admission_date: admissionDateToUse,
-        status: 'ADMITTED',
-        hospital_id: HOSPITAL_ID
-        // Removed fields that don't exist: admission_reason, treating_doctor, ipd_number, bed_id
-      };
+      console.log('💾 Updated bed from BedService:', updatedBed);
+      console.log('💾 IPD Number in updated bed:', updatedBed.ipd_number);
       
-      console.log('📋 Admission data being inserted:', JSON.stringify(admissionData, null, 2));
-
-      // Insert admission record
-      let admissionId = null;
-      try {
-        const admission = await HospitalService.createAdmission(admissionData);
-        console.log('✅ Admission record created successfully');
-        admissionId = admission?.id;
-      } catch (admissionError: any) {
-        console.warn('⚠️ Could not create admission record in database:', admissionError);
-        console.warn('⚠️ Continuing with bed assignment anyway...');
-        // Continue with the bed assignment even if admission record fails
-        // This allows the system to work even if the database schema is incomplete
-      }
+      // Refresh beds from database to get latest state
+      await loadBedsFromDatabase();
       
-      // Update IPD statistics
-      setIPDStats(getIPDStats());
-      
-      // Update bed with patient data and admission ID
-      setBeds(prevBeds => {
-        const updatedBeds = prevBeds.map(bed => {
-          if (bed.id === selectedBedForAdmission) {
-            const updatedBed = {
-              ...bed,
-              status: 'occupied' as const,
-              patient: patient,
-              admissionDate: admissionDateToUse,
-              admissionId: admissionId || patient.id, // Use admission ID if created, otherwise patient ID
-              ipdNumber: ipdNumber, // Store the generated IPD number
-              tatStatus: 'idle' as const,
-              tatRemainingSeconds: 30 * 60, // Reset to 30 minutes
-              consentFormSubmitted: false
-            };
-            console.log(`💾 Updated bed data:`, updatedBed);
-            console.log(`💾 IPD Number in updated bed: ${updatedBed.ipdNumber}`);
-            console.log(`💾 Admission ID in updated bed: ${updatedBed.admissionId}`);
-            
-            // Also store in localStorage for persistence using utility
-            storeIPDNumberForBed(bed.id, ipdNumber);
-            
-            return updatedBed;
-          }
-          return bed;
-        });
-        
-        console.log(`💾 All beds after update:`, updatedBeds);
-        return updatedBeds;
-      });
-
       // Update patient's IPD status (if columns exist)
       try {
         await HospitalService.updatePatient(patient.id, {
@@ -655,12 +652,32 @@ const IPDBedManagement: React.FC = () => {
       
       // Close patient selection and immediately show IPD consent form
       setShowPatientSelection(false);
+      
+      // Use the updated bed data directly from BedService (has the correct IPD number)
+      const bedForConsents = {
+        ...selectedBed,
+        ipdNumber: updatedBed.ipd_number,
+        ipd_number: updatedBed.ipd_number,
+        patient: updatedBed.patients as PatientWithRelations,
+        status: 'occupied' as const,
+        admissionDate: updatedBed.admission_date
+      };
+      
+      console.log('🏥 Bed data for IPD consents:', bedForConsents);
+      console.log('🏥 IPD Number being passed to consent forms:', bedForConsents.ipdNumber);
+      
       setSelectedPatientForIPDConsent(patient);
-      setSelectedBedForIPDConsent(selectedBed);
+      setSelectedBedForIPDConsent(bedForConsents);
       setShowIPDConsentForm(true);
+      
       setSelectedBedForAdmission(null);
     } catch (error: any) {
-      console.error('Failed to admit patient:', error);
+      console.error('❌ Failed to admit patient:');
+      console.log(error); // Use console.log to expand the full error
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error code:', error?.code);
+      console.error('❌ Error details:', error?.details);
+      console.error('❌ Full error JSON:', JSON.stringify(error, null, 2));
       
       // Show detailed error message
       let errorMessage = 'Failed to admit patient. ';
@@ -675,13 +692,12 @@ const IPDBedManagement: React.FC = () => {
       
       toast.error(errorMessage);
       
-      // Also log the full error details
-      console.error('Full error details:', {
-        error,
-        patient,
-        selectedBed,
-        admissionDateToUse,
-        ipdNumber
+      // Also log the context data
+      console.error('❌ Context data:');
+      console.log({
+        patient: patient,
+        selectedBedForAdmission: selectedBedForAdmission,
+        admissionDateToUse: admissionDateToUse
       });
     }
   };
@@ -1695,6 +1711,26 @@ const IPDBedManagement: React.FC = () => {
               Vacant
             </button>
           </div>
+          
+          {/* Debug Database Button */}
+          <button
+            onClick={debugDatabaseBeds}
+            className="px-4 py-3 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+            title="Debug: Check what's in the main database"
+          >
+            <AlertCircle className="h-4 w-4" />
+            Debug DB
+          </button>
+          
+          {/* Clear & Reload Button */}
+          <button
+            onClick={clearLocalStateAndReload}
+            className="px-4 py-3 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+            title="Clear local data and reload from main database"
+          >
+            <Shuffle className="h-4 w-4" />
+            Clear & Reload
+          </button>
         </div>
       </div>
 
@@ -2396,7 +2432,7 @@ const IPDBedManagement: React.FC = () => {
       />
 
       {/* Procedure Consent Form Modal */}
-      {showProcedureConsent && selectedPatientForConsent && (
+      {showProcedureConsent && selectedPatientForConsent && selectedBedForIPDConsent && (
         <ProcedureConsentForm
           patient={selectedPatientForConsent}
           isOpen={showProcedureConsent}
@@ -2405,6 +2441,8 @@ const IPDBedManagement: React.FC = () => {
             setSelectedPatientForConsent(null);
           }}
           onSubmit={handleConsentSubmit}
+          ipdNumber={selectedBedForIPDConsent.ipdNumber}
+          bedNumber={selectedBedForIPDConsent.number}
         />
       )}
 
@@ -2453,6 +2491,7 @@ const IPDBedManagement: React.FC = () => {
           }}
           patient={selectedPatientForProgressSheet}
           bedNumber={selectedBedForProgressSheet.number}
+          ipdNumber={selectedBedForProgressSheet?.ipdNumber}
           savedData={selectedBedForProgressSheet?.progressSheetData}
           onSubmit={handleProgressSheetSubmit}
         />
@@ -2745,6 +2784,7 @@ const IPDBedManagement: React.FC = () => {
             setSelectedPatientForPhysiotherapyNotes(null);
             setSelectedBedForPhysiotherapyNotes(null);
           }}
+          patient={selectedPatientForPhysiotherapyNotes}
           patientName={`${selectedPatientForPhysiotherapyNotes.first_name || ''} ${selectedPatientForPhysiotherapyNotes.last_name || ''}`.trim()}
           bedNumber={`Bed ${selectedBedForPhysiotherapyNotes.number}`}
           initialData={selectedBedForPhysiotherapyNotes.physiotherapyNotesData}

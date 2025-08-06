@@ -100,6 +100,8 @@ const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({
 
       const ageSex = `${patient.age || ''}/${patient.gender || ''}`;
 
+      console.log('ProcedureConsentForm - Received ipdNumber prop:', ipdNumber);
+      
       setFormData(prev => ({
         ...prev,
         patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),

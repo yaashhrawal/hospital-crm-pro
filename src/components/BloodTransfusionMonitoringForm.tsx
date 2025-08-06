@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer, Plus, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import type { PatientWithRelations } from '../config/supabaseNew';
 
 interface MonitoringEntry {
   id: string;
@@ -82,7 +83,7 @@ interface BloodTransfusionMonitoringFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: BloodTransfusionFormData) => void;
-  patient?: any;
+  patient?: PatientWithRelations;
   bedNumber?: number;
   ipdNumber?: string;
   initialData?: BloodTransfusionFormData;
@@ -98,14 +99,14 @@ const BloodTransfusionMonitoringForm: React.FC<BloodTransfusionMonitoringFormPro
   initialData
 }) => {
   const [formData, setFormData] = useState<BloodTransfusionFormData>(() => ({
-    // Patient Details - Auto-populated from patient data
-    patientName: initialData?.patientName || (patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : ''),
-    patientId: initialData?.patientId || patient?.patient_id || '',
-    ipdNo: initialData?.ipdNo || ipdNumber || '',
-    age: initialData?.age || patient?.age?.toString() || '',
-    sex: initialData?.sex || patient?.gender || '',
-    room: initialData?.room || (patient?.address ? patient.address.split(',')[0] : ''), // Use first part of address as room hint
-    bedNo: initialData?.bedNo || bedNumber?.toString() || '',
+    // Patient Details - Will be auto-populated via useEffect
+    patientName: '',
+    patientId: '',
+    ipdNo: '',
+    age: '',
+    sex: '',
+    room: '', // Fixed: Will show proper room info, not address
+    bedNo: '',
 
     // Blood Product Details - Auto-populated with patient's blood group if available
     bloodGroup: initialData?.bloodGroup || patient?.blood_group || '',
@@ -167,6 +168,47 @@ const BloodTransfusionMonitoringForm: React.FC<BloodTransfusionMonitoringFormPro
     finalDate: initialData?.finalDate || new Date().toISOString().split('T')[0],
     finalTime: initialData?.finalTime || new Date().toTimeString().slice(0, 5),
   }));
+
+  // Auto-populate patient details when form opens
+  useEffect(() => {
+    console.log('🔍 BloodTransfusionMonitoringForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        blood_group: patient.blood_group
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting BloodTransfusionMonitoringForm data with patient:', patient);
+      
+      setFormData(prev => ({
+        ...prev,
+        patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+        patientId: patient.patient_id || '',
+        ipdNo: ipdNumber || '',
+        age: patient.age?.toString() || '',
+        sex: patient.gender || '',
+        room: bedNumber ? `Room/Ward` : 'Not Specified', // Fixed: Show proper room info
+        bedNo: bedNumber?.toString() || '',
+        bloodGroup: patient.blood_group || ''
+      }));
+      
+      console.log('✅ BloodTransfusionMonitoringForm data set with values:', {
+        patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+        patientId: patient.patient_id || '',
+        ipdNo: ipdNumber || '',
+        room: bedNumber ? `Room/Ward` : 'Not Specified',
+        bedNo: bedNumber?.toString() || ''
+      });
+    }
+  }, [isOpen, patient, ipdNumber, bedNumber]);
 
   // Show notification when patient data is auto-populated
   useEffect(() => {

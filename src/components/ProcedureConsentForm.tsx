@@ -9,13 +9,17 @@ interface ProcedureConsentFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit?: (consentData: any) => void;
+  ipdNumber?: string;
+  bedNumber?: number;
 }
 
 const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({ 
   patient, 
   isOpen, 
   onClose, 
-  onSubmit 
+  onSubmit,
+  ipdNumber,
+  bedNumber
 }) => {
   const [formData, setFormData] = useState({
     // Patient Information
@@ -57,8 +61,10 @@ const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({
         ...prev,
         patientName: `${patient.first_name} ${patient.last_name}`,
         uhidNo: patient.patient_id,
+        ipNo: ipdNumber || '', // Auto-populate IPD number
         ageSex: `${patient.age || 'N/A'} / ${patient.gender}`,
         doctorName: patient.assigned_doctor || '',
+        department: patient.assigned_department || '',
         patientDate: dateStr,
         patientTime: timeStr,
         doctorDate: dateStr,
@@ -67,7 +73,7 @@ const ProcedureConsentForm: React.FC<ProcedureConsentFormProps> = ({
         relationship: 'Self'
       }));
     }
-  }, [patient, isOpen]);
+  }, [patient, isOpen, ipdNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

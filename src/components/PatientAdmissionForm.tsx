@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface PatientAdmissionFormProps {
@@ -76,18 +76,18 @@ const PatientAdmissionForm: React.FC<PatientAdmissionFormProps> = ({
   onSubmit
 }) => {
   const [formData, setFormData] = useState<FormData>({
-    patientId: patient?.patient_id || '',
-    ipNo: ipdNumber || '',
-    patientFullName: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+    patientId: '',
+    ipNo: '',
+    patientFullName: '',
     typeOfAdmission: 'Cash',
     otherAdmissionType: '',
     fatherHusbandName: '',
-    age: patient?.age?.toString() || '',
-    gender: patient?.gender || '',
+    age: '',
+    gender: '',
     religion: '',
     nationality: 'Indian',
     occupation: '',
-    contactNo: patient?.phone || '',
+    contactNo: '',
     aadharNo: '',
     fullAddress: '',
     depositDate: new Date().toISOString().split('T')[0],
@@ -114,6 +114,43 @@ const PatientAdmissionForm: React.FC<PatientAdmissionFormProps> = ({
     declaredBy: '',
     doctorSign: ''
   });
+
+  // Auto-populate form with patient data when modal opens
+  useEffect(() => {
+    console.log('🔍 PatientAdmissionForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        phone: patient.phone
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting PatientAdmissionForm data with patient:', patient);
+      
+      setFormData(prev => ({
+        ...prev,
+        patientId: patient.patient_id || '',
+        ipNo: ipdNumber || '',
+        patientFullName: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '',
+        age: patient.age?.toString() || '',
+        gender: patient.gender || '',
+        contactNo: patient.phone || ''
+      }));
+      
+      console.log('✅ PatientAdmissionForm data set with values:', {
+        patientId: patient.patient_id || '',
+        ipNo: ipdNumber || '',
+        patientFullName: patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : ''
+      });
+    }
+  }, [isOpen, patient, ipdNumber, bedNumber]);
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

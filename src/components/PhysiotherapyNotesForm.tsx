@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
+import type { PatientWithRelations } from '../config/supabaseNew';
 
 interface PhysiotherapyNote {
   id: string;
@@ -22,6 +23,7 @@ interface PhysiotherapyNotesFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: PhysiotherapyFormData) => void;
+  patient?: PatientWithRelations;
   patientName?: string;
   bedNumber?: string;
   initialData?: PhysiotherapyFormData;
@@ -31,14 +33,15 @@ const PhysiotherapyNotesForm: React.FC<PhysiotherapyNotesFormProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  patient,
   patientName = '',
   bedNumber = '',
   initialData
 }) => {
   const [formData, setFormData] = useState<PhysiotherapyFormData>(() => ({
-    patientName: initialData?.patientName || patientName,
-    roomBedNo: initialData?.roomBedNo || bedNumber,
-    consultant: initialData?.consultant || '',
+    patientName: '',
+    roomBedNo: '',
+    consultant: '',
     physiotherapist: initialData?.physiotherapist || '',
     diagnosisSurgery: initialData?.diagnosisSurgery || '',
     notes: initialData?.notes || [
@@ -50,6 +53,44 @@ const PhysiotherapyNotesForm: React.FC<PhysiotherapyNotesFormProps> = ({
       }
     ]
   }));
+
+  // Auto-populate form with patient data and doctor name when opened
+  useEffect(() => {
+    console.log('🔍 PhysiotherapyNotesForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        assigned_doctor: patient.assigned_doctor
+      } : null, 
+      patientName, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting PhysiotherapyNotesForm data with patient:', patient);
+      
+      setFormData(prev => ({
+        ...prev,
+        patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || patientName,
+        roomBedNo: bedNumber,
+        consultant: patient.assigned_doctor || 'Not Assigned'
+      }));
+      
+      console.log('✅ PhysiotherapyNotesForm data set with values:', {
+        patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || patientName,
+        roomBedNo: bedNumber,
+        consultant: patient.assigned_doctor || 'Not Assigned'
+      });
+    } else if (isOpen && !patient) {
+      // Fallback to provided props if no patient object
+      setFormData(prev => ({
+        ...prev,
+        patientName: patientName,
+        roomBedNo: bedNumber
+      }));
+    }
+  }, [isOpen, patient, patientName, bedNumber]);
 
   const handleInputChange = (field: keyof PhysiotherapyFormData, value: string) => {
     setFormData(prev => ({

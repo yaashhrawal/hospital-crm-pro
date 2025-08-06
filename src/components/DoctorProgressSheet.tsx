@@ -7,6 +7,7 @@ interface DoctorProgressSheetProps {
   onClose: () => void;
   patient: PatientWithRelations;
   bedNumber: number;
+  ipdNumber?: string;
   onSubmit: (progressData: any) => void;
   savedData?: any; // Previously saved form data
 }
@@ -42,21 +43,35 @@ const DoctorProgressSheet: React.FC<DoctorProgressSheetProps> = ({
   onClose,
   patient,
   bedNumber,
+  ipdNumber,
   onSubmit,
   savedData
 }) => {
   const [formData, setFormData] = useState<ProgressSheetData>({
-    patientName: savedData?.patientName || '',
-    ageSex: savedData?.ageSex || '',
-    ipdNumber: savedData?.ipdNumber || '',
+    patientName: '',
+    ageSex: '',
+    ipdNumber: '',
     progressEntries: savedData?.progressEntries || [],
     residentConsultantSignature: savedData?.residentConsultantSignature || '',
-    bedNumber: savedData?.bedNumber || 0
+    bedNumber: 0
   });
 
-  // Auto-populate form with patient data when opened only if no savedData
+  // Auto-populate form with patient data when opened
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 DoctorProgressSheet Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        age: patient.age,
+        gender: patient.gender
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting DoctorProgressSheet data with patient:', patient);
       const initialEntry: ProgressEntry = {
         id: `entry-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
@@ -71,12 +86,18 @@ const DoctorProgressSheet: React.FC<DoctorProgressSheetProps> = ({
         ...prev,
         patientName: `${patient.first_name} ${patient.last_name}`,
         ageSex: `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`,
-        ipdNumber: `IPD-${bedNumber}-${Date.now().toString().slice(-6)}`,
+        ipdNumber: ipdNumber || '',
         bedNumber: bedNumber,
-        progressEntries: [initialEntry]
+        progressEntries: prev.progressEntries.length === 0 ? [initialEntry] : prev.progressEntries
       }));
+      
+      console.log('✅ DoctorProgressSheet data set with values:', {
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        ageSex: `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`,
+        ipdNumber: ipdNumber || ''
+      });
     }
-  }, [isOpen, patient, bedNumber, savedData]);
+  }, [isOpen, patient, bedNumber, ipdNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -156,217 +177,191 @@ const DoctorProgressSheet: React.FC<DoctorProgressSheetProps> = ({
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     
     if (printWindow) {
-      printWindow.document.write(generatePrintContent());
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Doctor's Progress Sheet - ${formData.patientName}</title>
+          <style>
+            ${generatePrintContent()}
+          </style>
+        </head>
+        <body>
+          <div class="print-content">
+            ${generateFormHTML()}
+          </div>
+        </body>
+        </html>
+      `);
+      
       printWindow.document.close();
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
         printWindow.close();
-      }, 250);
+      }, 100);
     }
   };
 
   const generatePrintContent = () => {
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Doctor's Progress Sheet - ${formData.patientName}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-        <style>
-          @page {
-            margin: 0.5in;
-            size: A4 portrait;
-          }
-          
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            font-size: 10pt;
-            line-height: 1.3;
-            color: black;
-            background: white;
-          }
-          
-          .print-container {
-            max-width: 100%;
-            margin: 0 auto;
-            padding: 0;
-          }
-          
-          .print-header {
-            text-align: center;
-            border-bottom: 2px solid black;
-            margin-bottom: 15pt;
-            padding-bottom: 10pt;
-          }
-          
-          .print-header h1 {
-            font-size: 18pt;
-            font-weight: bold;
-            margin-bottom: 4pt;
-          }
-          
-          .print-header h2 {
-            font-size: 14pt;
-            font-weight: bold;
-            margin-top: 4pt;
-          }
-          
-          .print-header p {
-            font-size: 9pt;
-            margin: 2pt 0;
-          }
-          
-          .print-section {
-            margin-bottom: 10pt;
-            page-break-inside: avoid;
-          }
-          
-          .print-field-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15pt;
-            margin-bottom: 10pt;
-          }
-          
-          .print-field {
-            margin-bottom: 6pt;
-            display: flex;
-            align-items: center;
-          }
-          
-          .print-field label {
-            font-weight: bold;
-            font-size: 9pt;
-            margin-right: 5pt;
-            min-width: 80pt;
-          }
-          
-          .print-field-value {
-            border-bottom: 1px solid black;
-            padding: 2pt 0;
-            font-size: 10pt;
-            min-height: 14pt;
-            flex: 1;
-          }
-          
-          .progress-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10pt 0;
-          }
-          
-          .progress-table th,
-          .progress-table td {
-            border: 1px solid black;
-            padding: 8pt;
-            text-align: left;
-            font-size: 9pt;
-            vertical-align: top;
-            min-height: 40pt;
-          }
-          
-          .progress-table th {
-            background: #f0f0f0;
-            font-weight: bold;
-            text-align: center;
-          }
-          
-          .progress-table .date-time-col {
-            width: 15%;
-          }
-          
-          .progress-table .notes-col {
-            width: 21.25%;
-          }
-          
-          .signature-section {
-            margin-top: 20pt;
-            page-break-inside: avoid;
-          }
-          
-          .signature-box {
-            border-bottom: 1px solid black;
-            height: 25pt;
-            margin: 5pt 0;
-            width: 200pt;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-container">
-          <!-- Header -->
-          <div class="print-header">
-            <h1>VALANT HOSPITAL</h1>
-            <p>A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000</p>
-            <h2>DOCTOR'S PROGRESS SHEET</h2>
-          </div>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 9pt;
+        line-height: 1.2;
+        margin: 0;
+        padding: 8pt;
+        color: #000;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 8pt;
+        border-bottom: 1pt solid #000;
+        padding-bottom: 4pt;
+      }
+      .hospital-name {
+        font-size: 12pt;
+        font-weight: bold;
+        margin-bottom: 2pt;
+      }
+      .hospital-address {
+        font-size: 8pt;
+        margin-bottom: 4pt;
+      }
+      .form-title {
+        font-size: 11pt;
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+      .section {
+        margin-bottom: 6pt;
+        page-break-inside: avoid;
+      }
+      .section-title {
+        font-size: 10pt;
+        font-weight: bold;
+        margin-bottom: 3pt;
+        border-bottom: 1pt solid #333;
+        padding-bottom: 1pt;
+      }
+      .field-row {
+        display: flex;
+        margin-bottom: 3pt;
+        align-items: center;
+      }
+      .field-label {
+        font-weight: bold;
+        margin-right: 4pt;
+        min-width: 80pt;
+        font-size: 8pt;
+      }
+      .field-value {
+        border-bottom: 1pt solid #000;
+        min-width: 60pt;
+        padding: 1pt 2pt;
+        display: inline-block;
+        font-size: 8pt;
+      }
+      .progress-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 6pt 0;
+      }
+      .progress-table th,
+      .progress-table td {
+        border: 1pt solid #000;
+        padding: 4pt;
+        text-align: left;
+        font-size: 7pt;
+        vertical-align: top;
+        min-height: 30pt;
+      }
+      .progress-table th {
+        background: #f0f0f0;
+        font-weight: bold;
+        text-align: center;
+      }
+      .progress-table .date-time-col {
+        width: 12%;
+      }
+      .progress-table .notes-col {
+        width: 22%;
+      }
+      .signature-section {
+        margin-top: 8pt;
+        page-break-inside: avoid;
+      }
+      .signature-line {
+        border-bottom: 1pt solid #000;
+        min-width: 150pt;
+        height: 20pt;
+        margin-top: 5pt;
+      }
+      @page {
+        margin: 0.3in;
+        size: A4 portrait;
+      }
+    `;
+  };
 
-          <!-- Patient Information -->
-          <div class="print-section">
-            <div class="print-field-grid">
-              <div class="print-field">
-                <label>Patient's Name :</label>
-                <span class="print-field-value">${formData.patientName || ''}</span>
-              </div>
-              <div class="print-field">
-                <label>Age/Sex :</label>
-                <span class="print-field-value">${formData.ageSex || ''}</span>
-              </div>
-              <div class="print-field">
-                <label>IPD No. :</label>
-                <span class="print-field-value">${formData.ipdNumber || ''}</span>
-              </div>
-            </div>
-          </div>
+  const generateFormHTML = () => {
+    return `
+      <div class="header">
+        <div class="hospital-name">VALANT HOSPITAL</div>
+        <div class="hospital-address">A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000</div>
+        <div class="form-title">DOCTOR'S PROGRESS SHEET</div>
+      </div>
 
-          <!-- Progress Notes Table -->
-          <div class="print-section">
-            <h3 style="font-size: 12pt; font-weight: bold; margin-bottom: 8pt;">Progress Notes</h3>
-            <table class="progress-table">
-              <thead>
-                <tr>
-                  <th class="date-time-col">Date & Time</th>
-                  <th class="notes-col">Clinical Notes</th>
-                  <th class="notes-col">Investigation Advise</th>
-                  <th class="notes-col">Treatment</th>
-                  <th class="notes-col">Diet Advise</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${formData.progressEntries.map(entry => `
-                  <tr>
-                    <td class="date-time-col">
-                      ${entry.date || ''}<br>
-                      ${entry.time || ''}
-                    </td>
-                    <td class="notes-col">${entry.clinicalNotes || ''}</td>
-                    <td class="notes-col">${entry.investigationAdvise || ''}</td>
-                    <td class="notes-col">${entry.treatment || ''}</td>
-                    <td class="notes-col">${entry.dietAdvise || ''}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Signature Section -->
-          <div class="signature-section">
-            <div class="print-field">
-              <label>Sign of Resident / Consultant :</label>
-              <div class="signature-box"></div>
-            </div>
-          </div>
+      <div class="section">
+        <div class="section-title">Patient Information</div>
+        <div class="field-row">
+          <span class="field-label">Patient's Name:</span>
+          <span class="field-value">${formData.patientName || ''}</span>
         </div>
-      </body>
-      </html>
+        <div class="field-row">
+          <span class="field-label">Age/Sex:</span>
+          <span class="field-value">${formData.ageSex || ''}</span>
+          <span class="field-label" style="margin-left: 20pt;">IPD No.:</span>
+          <span class="field-value">${formData.ipdNumber || ''}</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Progress Notes</div>
+        <table class="progress-table">
+          <thead>
+            <tr>
+              <th class="date-time-col">Date & Time</th>
+              <th class="notes-col">Clinical Notes</th>
+              <th class="notes-col">Investigation Advise</th>
+              <th class="notes-col">Treatment</th>
+              <th class="notes-col">Diet Advise</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${formData.progressEntries.map(entry => `
+              <tr>
+                <td class="date-time-col">
+                  ${entry.date || ''}<br>
+                  ${entry.time || ''}
+                </td>
+                <td class="notes-col">${entry.clinicalNotes || ''}</td>
+                <td class="notes-col">${entry.investigationAdvise || ''}</td>
+                <td class="notes-col">${entry.treatment || ''}</td>
+                <td class="notes-col">${entry.dietAdvise || ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="signature-section">
+        <div class="section-title">Authorization</div>
+        <div class="field-row">
+          <span class="field-label">Sign of Resident / Consultant:</span>
+          <div class="signature-line"></div>
+        </div>
+      </div>
     `;
   };
 

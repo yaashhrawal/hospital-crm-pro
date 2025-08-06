@@ -66,6 +66,9 @@ const HighRiskConsentForm: React.FC<HighRiskConsentFormProps> = ({
       const currentDateTime = now.toISOString().slice(0, 16);
       const ageSex = `${patient.age || ''}/${patient.gender || ''}`;
 
+      // Use the IPD number directly like other consent forms
+      console.log('HighRiskConsentForm - Received ipdNumber prop:', ipdNumber);
+
       setFormData(prev => ({
         ...prev,
         patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),

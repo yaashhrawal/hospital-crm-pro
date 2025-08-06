@@ -37,12 +37,12 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
   savedData
 }) => {
   const [medicationPatientInfo, setMedicationPatientInfo] = useState({
-    patientName: savedData?.medicationPatientInfo?.patientName || '',
-    patientId: savedData?.medicationPatientInfo?.patientId || '',
-    ipdNo: savedData?.medicationPatientInfo?.ipdNo || '',
-    ageSex: savedData?.medicationPatientInfo?.ageSex || '',
+    patientName: '',
+    patientId: '',
+    ipdNo: '',
+    ageSex: '',
     dayOfAdmission: savedData?.medicationPatientInfo?.dayOfAdmission || '',
-    consultant: savedData?.medicationPatientInfo?.consultant || '',
+    consultant: '',
     date: savedData?.medicationPatientInfo?.date || new Date().toISOString().split('T')[0],
     pod: savedData?.medicationPatientInfo?.pod || '',
     allergy: savedData?.medicationPatientInfo?.allergy || '',
@@ -70,7 +70,22 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 MedicationChartForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        assigned_doctor: patient.assigned_doctor
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting MedicationChartForm data with patient:', patient);
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -79,10 +94,19 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
         patientName,
         patientId: patient.patient_id,
         ipdNo: ipdNumber || 'IPD Number Not Available',
-        ageSex
+        ageSex,
+        consultant: patient.assigned_doctor || 'Not Assigned'
       }));
+      
+      console.log('✅ MedicationChartForm data set with values:', {
+        patientName,
+        patientId: patient.patient_id,
+        ipdNo: ipdNumber || 'IPD Number Not Available',
+        ageSex,
+        consultant: patient.assigned_doctor || 'Not Assigned'
+      });
     }
-  }, [isOpen, patient, ipdNumber, bedNumber, savedData]);
+  }, [isOpen, patient, ipdNumber, bedNumber]);
 
   const addMedicationEntry = () => {
     const newEntry: MedicationEntry = {

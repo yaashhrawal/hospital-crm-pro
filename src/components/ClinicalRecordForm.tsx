@@ -65,11 +65,11 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
   savedData
 }) => {
   const [formData, setFormData] = useState<ClinicalRecordData>({
-    patientName: savedData?.patientName || '',
-    department: savedData?.department || '',
-    patientId: savedData?.patientId || '',
-    ipNumber: savedData?.ipNumber || '',
-    ageSex: savedData?.ageSex || '',
+    patientName: '',
+    department: '',
+    patientId: '',
+    ipNumber: '',
+    ageSex: '',
     doctorName: savedData?.doctorName || '',
     presentHistory: savedData?.presentHistory || '',
     pastHistory: savedData?.pastHistory || '',
@@ -93,9 +93,25 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
     consultantDateTime: savedData?.consultantDateTime || ''
   });
 
-  // Auto-populate form with patient data and current date/time only if no savedData
+  // Auto-populate form with patient data and current date/time
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 ClinicalRecordForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        assigned_department: patient.assigned_department,
+        assigned_doctor: patient.assigned_doctor
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting ClinicalRecordForm data with patient:', patient);
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -116,8 +132,15 @@ const ClinicalRecordForm: React.FC<ClinicalRecordFormProps> = ({
         consultantName: patient.assigned_doctor || '',
         consultantDateTime: currentDateTime
       }));
+      
+      console.log('✅ ClinicalRecordForm data set with values:', {
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        patientId: patient.patient_id,
+        ipNumber: getEffectiveIPDNumber(ipdNumber),
+        ageSex: `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`
+      });
     }
-  }, [isOpen, patient, bedNumber, ipdNumber, savedData]);
+  }, [isOpen, patient, bedNumber, ipdNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

@@ -32,12 +32,12 @@ const CarePlanForm: React.FC<CarePlanFormProps> = ({
   savedData
 }) => {
   const [carePlanPatientInfo, setCarePlanPatientInfo] = useState({
-    patientName: savedData?.carePlanPatientInfo?.patientName || '',
-    patientId: savedData?.carePlanPatientInfo?.patientId || '',
-    ipNo: savedData?.carePlanPatientInfo?.ipNo || '',
-    ageSex: savedData?.carePlanPatientInfo?.ageSex || '',
-    department: savedData?.carePlanPatientInfo?.department || '',
-    doctor: savedData?.carePlanPatientInfo?.doctor || ''
+    patientName: '',
+    patientId: '',
+    ipNo: '',
+    ageSex: '',
+    department: '',
+    doctor: ''
   });
 
   const [carePlanEntries, setCarePlanEntries] = useState<CarePlanEntry[]>(
@@ -53,7 +53,23 @@ const CarePlanForm: React.FC<CarePlanFormProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen && patient && !savedData) {
+    console.log('🔍 CarePlanForm Debug:', { 
+      isOpen, 
+      patient: patient ? { 
+        first_name: patient.first_name, 
+        last_name: patient.last_name, 
+        patient_id: patient.patient_id,
+        age: patient.age,
+        gender: patient.gender,
+        assigned_department: patient.assigned_department,
+        assigned_doctor: patient.assigned_doctor
+      } : null, 
+      ipdNumber, 
+      bedNumber 
+    });
+    
+    if (isOpen && patient) {
+      console.log('📝 Setting CarePlanForm data with patient:', patient);
       const patientName = `${patient.first_name} ${patient.last_name}`;
       const ageSex = `${patient.age || 'N/A'}/${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}`;
       
@@ -62,10 +78,21 @@ const CarePlanForm: React.FC<CarePlanFormProps> = ({
         patientName,
         patientId: patient.patient_id,
         ipNo: ipdNumber || 'IPD Number Not Available',
-        ageSex
+        ageSex,
+        department: patient.assigned_department || 'General',
+        doctor: patient.assigned_doctor || 'Not Assigned'
       }));
+      
+      console.log('✅ CarePlanForm data set with values:', {
+        patientName,
+        patientId: patient.patient_id,
+        ipNo: ipdNumber || 'IPD Number Not Available',
+        ageSex,
+        department: patient.assigned_department || 'General',
+        doctor: patient.assigned_doctor || 'Not Assigned'
+      });
     }
-  }, [isOpen, patient, ipdNumber, bedNumber, savedData]);
+  }, [isOpen, patient, ipdNumber, bedNumber]);
 
   const addCarePlanEntry = () => {
     const newEntry: CarePlanEntry = {
