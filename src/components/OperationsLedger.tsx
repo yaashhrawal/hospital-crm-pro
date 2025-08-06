@@ -17,6 +17,7 @@ interface LedgerEntry {
   payment_mode: 'CASH' | 'ONLINE';
   patient_name?: string;
   patient_id?: string;
+  patient_tag?: string;
   reference_id?: string;
   created_at: string;
 }
@@ -24,10 +25,16 @@ interface LedgerEntry {
 const OperationsLedger: React.FC = () => {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30); // Start from 30 days ago
+    return date.toISOString().split('T')[0];
+  });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [filterPaymentMode, setFilterPaymentMode] = useState<'all' | 'CASH' | 'ONLINE'>('all');
   const [filterType, setFilterType] = useState<'all' | 'REVENUE' | 'EXPENSE' | 'REFUND'>('all');
+  const [filterPatientTag, setFilterPatientTag] = useState<string>('all');
+  const [availablePatientTags, setAvailablePatientTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadLedgerEntries();
@@ -50,7 +57,7 @@ const OperationsLedger: React.FC = () => {
           doctor_name,
           status,
           created_at,
-          patient:patients(id, patient_id, first_name, last_name, age)
+          patient:patients(id, patient_id, first_name, last_name, age, patient_tag)
         `)
         .gte('created_at', `${dateFrom}T00:00:00`)
         .lte('created_at', `${dateTo}T23:59:59`)
@@ -120,6 +127,7 @@ const OperationsLedger: React.FC = () => {
             payment_mode: trans.payment_mode || 'CASH',
             patient_name: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'Unknown',
             patient_id: trans.patient?.patient_id,
+            patient_tag: trans.patient?.patient_tag || '',
             reference_id: trans.id,
             created_at: trans.created_at
           });
@@ -158,7 +166,7 @@ const OperationsLedger: React.FC = () => {
         .from('patient_refunds')
         .select(`
           *,
-          patient:patients(id, patient_id, first_name, last_name)
+          patient:patients(id, patient_id, first_name, last_name, patient_tag)
         `)
         .gte('created_at', `${dateFrom}T00:00:00`)
         .lte('created_at', `${dateTo}T23:59:59`)
@@ -179,6 +187,7 @@ const OperationsLedger: React.FC = () => {
             payment_mode: refund.payment_mode || 'CASH',
             patient_name: refund.patient ? `${refund.patient.first_name} ${refund.patient.last_name}` : 'Unknown',
             patient_id: refund.patient?.patient_id,
+            patient_tag: refund.patient?.patient_tag || '',
             reference_id: refund.id,
             created_at: refund.created_at
           });
@@ -187,6 +196,31 @@ const OperationsLedger: React.FC = () => {
 
       // Sort all entries by date/time
       allEntries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      // Extract unique patient tags (add default suggestions like PatientList)
+      const uniqueTags = [...new Set([
+        ...allEntries
+          .map(entry => entry.patient_tag)
+          .filter(tag => tag && tag.trim() !== ''),
+        'Community', 'Camp' // Add common suggestions
+      ])].sort();
+      
+      console.log('🏥 Operations Debug - All Entries:', allEntries.length);
+      console.log('🏥 Operations Debug - Patient Tags Found:', uniqueTags);
+      console.log('🏥 Operations Debug - Sample entries with tags:', 
+        allEntries
+          .filter(e => e.patient_tag)
+          .slice(0, 3)
+          .map(e => ({ patient: e.patient_name, tag: e.patient_tag }))
+      );
+      console.log('🏥 Operations Debug - Date Range:', { dateFrom, dateTo });
+      
+      if (uniqueTags.length === 2) { // Only 'Camp' and 'Community' defaults
+        console.log('🔍 No actual patient tags found in database for date range');
+        console.log('💡 Try: 1) Add patients with tags, or 2) Expand date range');
+      }
+      
+      setAvailablePatientTags(uniqueTags);
       
       setEntries(allEntries);
     } catch (error: any) {
@@ -206,6 +240,10 @@ const OperationsLedger: React.FC = () => {
 
     if (filterPaymentMode !== 'all') {
       filtered = filtered.filter(entry => entry.payment_mode === filterPaymentMode);
+    }
+
+    if (filterPatientTag !== 'all') {
+      filtered = filtered.filter(entry => entry.patient_tag === filterPatientTag);
     }
 
     return filtered;
@@ -261,18 +299,31 @@ const OperationsLedger: React.FC = () => {
 
   const exportOperationsToExcel = () => {
     try {
-      const exportData = filteredEntries.map(entry => ({
-        date: entry.date,
-        time: entry.time,
-        type: entry.type,
-        category: entry.category,
-        description: entry.description,
-        patient_name: entry.patient_name || '',
-        patient_id: entry.patient_id || '',
-        payment_mode: entry.payment_mode,
-        amount: entry.amount,
-        formatted_amount: formatCurrency(entry.amount)
-      }));
+      const exportData = filteredEntries.map(entry => {
+        // Calculate proper amounts with negative signs for expenses/refunds
+        const originalAmount = entry.original_amount || entry.amount;
+        const discountAmount = entry.discount_amount || 0;
+        const netAmount = entry.net_amount || entry.amount;
+        
+        // Apply negative sign for expenses and refunds
+        const signedOriginalAmount = (entry.type === 'EXPENSE' || entry.type === 'REFUND') ? -originalAmount : originalAmount;
+        const signedNetAmount = (entry.type === 'EXPENSE' || entry.type === 'REFUND') ? -netAmount : netAmount;
+        
+        return {
+          date: entry.date,
+          time: entry.time,
+          type: entry.type,
+          category: entry.category,
+          description: entry.description,
+          patient_name: entry.patient_name || '',
+          patient_id: entry.patient_id || '',
+          patient_tag: entry.patient_tag || '',
+          payment_mode: entry.payment_mode,
+          original_amount: signedOriginalAmount,
+          discount_amount: discountAmount,
+          net_amount: signedNetAmount
+        };
+      });
 
       const success = exportToExcel({
         filename: `Operations_Ledger_${dateFrom}_to_${dateTo}`,
@@ -284,13 +335,17 @@ const OperationsLedger: React.FC = () => {
           'Description',
           'Patient Name',
           'Patient ID',
+          'Patient Tag',
           'Payment Mode',
-          'Amount',
-          'Formatted Amount'
+          'Original Amount',
+          'Discount Amount',
+          'Net Amount'
         ],
         data: exportData,
         formatters: {
-          amount: (value) => formatCurrency(value)
+          original_amount: (value) => Number(value).toFixed(2),
+          discount_amount: (value) => Number(value).toFixed(2),
+          net_amount: (value) => Number(value).toFixed(2)
         }
       });
 
@@ -333,7 +388,7 @@ const OperationsLedger: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
             <input
@@ -378,6 +433,22 @@ const OperationsLedger: React.FC = () => {
               <option value="all">All Payments</option>
               <option value="CASH">Cash Only</option>
               <option value="ONLINE">Online Only</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag</label>
+            <select
+              value={filterPatientTag}
+              onChange={(e) => setFilterPatientTag(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Tags</option>
+              {availablePatientTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -486,16 +557,25 @@ const OperationsLedger: React.FC = () => {
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="text-sm">{entry.description}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            entry.type === 'REVENUE' ? 'bg-green-100 text-green-800' : 
+                            entry.type === 'EXPENSE' ? 'bg-red-100 text-red-800' : 
+                            'bg-orange-100 text-orange-800'
+                          }`}>
+                            {entry.type === 'REVENUE' ? '💰' : entry.type === 'EXPENSE' ? '💸' : '↩️'} {entry.type}
+                          </span>
+                        </div>
+                        <div className="text-sm mt-1">{entry.description}</div>
                       </td>
-                      <td className="p-4 text-right" style={{ width: '100px' }}>
-                        ₹{originalAmount.toFixed(2)}
+                      <td className={`p-4 text-right ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-orange-600' : 'text-green-600'}`} style={{ width: '100px' }}>
+                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{originalAmount.toFixed(2)}
                       </td>
                       <td className="p-4 text-right" style={{ width: '100px' }}>
                         {discountAmount > 0 ? `₹${discountAmount.toFixed(2)}` : '-'}
                       </td>
-                      <td className="p-4 text-right font-medium" style={{ width: '120px' }}>
-                        ₹{netAmount.toFixed(2)}
+                      <td className={`p-4 text-right font-medium ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-orange-600' : 'text-green-600'}`} style={{ width: '120px' }}>
+                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{netAmount.toFixed(2)}
                       </td>
                     </tr>
                   );

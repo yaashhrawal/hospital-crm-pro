@@ -32,6 +32,7 @@ interface CombinedBill {
   patientId: string;
   patientName: string;
   patientPhone: string;
+  patientTag: string;
   
   // OPD Bills
   opdBills: {
@@ -78,6 +79,8 @@ const CombinedBillingModule: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<CombinedBill | null>(null);
   const [showBillingReceipt, setShowBillingReceipt] = useState(false);
   const [selectedBillForReceipt, setSelectedBillForReceipt] = useState<CombinedBill | null>(null);
+  const [filterTag, setFilterTag] = useState<string>('all');
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadCombinedBillingData();
@@ -85,7 +88,7 @@ const CombinedBillingModule: React.FC = () => {
 
   useEffect(() => {
     filterAndSortBills();
-  }, [combinedBills, searchTerm, dateFilter, sortBy, sortOrder]);
+  }, [combinedBills, searchTerm, dateFilter, sortBy, sortOrder, filterTag]);
 
   const loadCombinedBillingData = async () => {
     try {
@@ -238,6 +241,7 @@ const CombinedBillingModule: React.FC = () => {
           patientId: patient.id,
           patientName: `${patient.first_name} ${patient.last_name}`,
           patientPhone: patient.phone || 'N/A',
+          patientTag: patient.patient_tag || 'N/A',
           opdBills: formattedOPDBills,
           ipdBills: formattedIPDBills,
           totalOPDAmount,
@@ -253,6 +257,14 @@ const CombinedBillingModule: React.FC = () => {
       const filteredBills = combinedBills.filter(bill => bill.grandTotal > 0);
 
       setCombinedBills(filteredBills);
+
+      // Extract unique tags from patients for filter dropdown
+      const uniqueTags = [...new Set(
+        patientsWithBillingHistory
+          .map(p => p.patient_tag)
+          .filter(tag => tag && tag.trim() !== '')
+      ), 'Community', 'Camp'].sort();
+      setAvailableTags(uniqueTags);
       
     } catch (error: any) {
       console.error('Failed to load combined billing data:', error);
@@ -299,6 +311,11 @@ const CombinedBillingModule: React.FC = () => {
         const lastVisitDate = new Date(bill.lastVisit);
         return lastVisitDate >= startDate;
       });
+    }
+
+    // Apply tag filter
+    if (filterTag !== 'all') {
+      filtered = filtered.filter(bill => bill.patientTag === filterTag);
     }
 
     // Apply sorting
@@ -859,6 +876,19 @@ const CombinedBillingModule: React.FC = () => {
             <option value="last_month">Last Month</option>
             <option value="last_3_months">Last 3 Months</option>
             <option value="last_year">Last Year</option>
+          </select>
+
+          <select
+            value={filterTag}
+            onChange={(e) => setFilterTag(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Tags</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
           </select>
 
           <select
