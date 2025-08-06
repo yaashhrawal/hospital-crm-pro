@@ -240,6 +240,8 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       console.log('🔍 Verifying admission record exists...');
       const admissionExists = await HospitalService.verifyAdmissionExists(admission.id);
       
+      let validAdmissionId = admission.id; // Default to original admission ID
+      
       if (!admissionExists) {
         console.warn('⚠️ Admission record does not exist in database:', admission.id);
         console.log('🛠️ Creating missing admission record...');
@@ -253,18 +255,24 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
             admission.bed_number
           );
           console.log('✅ Missing admission record created:', missingAdmissionData);
+          
+          // Use the newly created admission ID
+          validAdmissionId = missingAdmissionData.id;
+          console.log('🔄 Updated admission ID for discharge summary:', validAdmissionId);
+          
         } catch (createError: any) {
           console.error('❌ Failed to create missing admission record:', createError);
-          // Continue with discharge process even if admission record creation fails
-          console.warn('⚠️ Proceeding with discharge without admission record...');
+          throw new Error(`Cannot create discharge summary: Unable to create or find valid admission record. ${createError.message}`);
         }
+      } else {
+        console.log('✅ Existing admission record found:', admission.id);
       }
       
       console.log('✅ Admission record handling complete, proceeding with discharge summary...');
       
       // Prepare discharge summary data with validation
       const dischargeSummaryData = {
-        admission_id: admission.id,
+        admission_id: validAdmissionId, // Use the validated admission ID
         patient_id: admission.patient?.id,
         final_diagnosis: formData.final_diagnosis?.trim() || 'Not specified',
         primary_consultant: formData.primary_consultant?.trim() || 'Not specified',
@@ -312,11 +320,12 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       };
       
       console.log('🔄 Attempting to update admission with:', updateData);
+      console.log('🔄 Using admission ID:', validAdmissionId);
       
       const { error: admissionError } = await supabase
         .from('patient_admissions')
         .update(updateData)
-        .eq('id', admission.id);
+        .eq('id', validAdmissionId);
 
       if (admissionError) {
         console.error('❌ Admission update error:', admissionError);
