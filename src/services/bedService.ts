@@ -152,7 +152,38 @@ class BedService {
       
       const admissionDateToUse = admissionDate || new Date().toISOString();
 
-      // Update bed with patient information
+      // Get bed details first to extract bed number
+      const { data: bedData } = await supabase
+        .from('beds')
+        .select('bed_number, room_type, hospital_id')
+        .eq('id', bedId)
+        .single();
+
+      // First, create admission record in patient_admissions table
+      const { data: admissionData, error: admissionError } = await supabase
+        .from('patient_admissions')
+        .insert({
+          patient_id: patient.id,
+          bed_number: bedData?.bed_number ? parseInt(bedData.bed_number) : 1,
+          room_type: bedData?.room_type || 'GENERAL',
+          department: patient.assigned_department || 'GENERAL',
+          admission_date: admissionDateToUse,
+          status: 'ADMITTED',
+          ipd_number: ipdNumber,
+          treating_doctor: patient.assigned_doctor || 'Not Assigned',
+          hospital_id: bedData?.hospital_id || 'b8a8c5e2-5c4d-4a8b-9e6f-3d2c1a0b9c8d'
+        })
+        .select()
+        .single();
+
+      if (admissionError) {
+        console.error('❌ Error creating admission record:', admissionError);
+        throw new Error(`Failed to create admission record: ${admissionError.message}`);
+      }
+
+      console.log('✅ Admission record created:', admissionData);
+
+      // Update bed with patient information and admission ID
       const { data, error } = await supabase
         .from('beds')
         .update({
@@ -160,6 +191,7 @@ class BedService {
           patient_id: patient.id,
           ipd_number: ipdNumber,
           admission_date: admissionDateToUse,
+          admission_id: admissionData.id, // Link to admission record
           tat_status: 'idle',
           tat_remaining_seconds: 1800, // 30 minutes
           consent_form_submitted: false,

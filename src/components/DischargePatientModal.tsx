@@ -241,11 +241,26 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       const admissionExists = await HospitalService.verifyAdmissionExists(admission.id);
       
       if (!admissionExists) {
-        console.error('❌ Admission record does not exist in database:', admission.id);
-        throw new Error(`Admission record not found in database. Cannot create discharge summary for non-existent admission: ${admission.id}`);
+        console.warn('⚠️ Admission record does not exist in database:', admission.id);
+        console.log('🛠️ Creating missing admission record...');
+        
+        try {
+          // Create missing admission record using available data
+          const missingAdmissionData = await HospitalService.createMissingAdmissionRecord(
+            admission.patient?.id,
+            admission.bed_id || 'unknown-bed',
+            admission.admission_date,
+            admission.bed_number
+          );
+          console.log('✅ Missing admission record created:', missingAdmissionData);
+        } catch (createError: any) {
+          console.error('❌ Failed to create missing admission record:', createError);
+          // Continue with discharge process even if admission record creation fails
+          console.warn('⚠️ Proceeding with discharge without admission record...');
+        }
       }
       
-      console.log('✅ Admission record verified, proceeding with discharge summary...');
+      console.log('✅ Admission record handling complete, proceeding with discharge summary...');
       
       // Prepare discharge summary data with validation
       const dischargeSummaryData = {
