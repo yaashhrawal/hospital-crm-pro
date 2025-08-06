@@ -46,6 +46,86 @@ interface ConsentFormData {
   relativeSignatureTime: string;
 }
 
+// Language translations
+const translations = {
+  english: {
+    title: "VALANT HOSPITAL",
+    subtitle: "A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000",
+    formTitle: "General Consent",
+    patientInfo: "Patient Information",
+    patientName: "Patient's Name:",
+    patientId: "Patient ID:",
+    ipdNo: "IPD No.:",
+    consentDeclaration: "Consent Declaration",
+    consentPoint1: "I, {name}, of {address}, give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on {date} at {time}.",
+    consentPoint2: "I give my consent to Valant Hospital/Doctors/Staff for the following:",
+    consentList: [
+      "Medical Advice",
+      "Performing all necessary medical examinations (with full confidentiality)",
+      "Regular medical tests (physical, pathological, investigation, assessment, medication)",
+      "Regular Radiology and Laboratory Tests",
+      "Nursing Care and Medication"
+    ],
+    consentPoint3: "I have been thoroughly explained about the illness, its severity, and potential complications. I am fully satisfied with and agree to all decisions made by the doctors and staff of Valant Hospital.",
+    consentPoint4: "I have been informed that I/the patient may need to be admitted to the ICU due to my/the patient's condition. I have been informed about the potential expenses for treatment in the ICU. The doctors will keep me updated on the patient's condition from time to time.",
+    consentPoint5: "I have been informed that depending on my/the patient's condition, an operation/blood transfusion may be necessary.",
+    consentPoint6: "I give my consent for consultation/discussion with other doctors in the best interest of myself/the patient.",
+    consentPoint7: "I take responsibility for the payment of all hospital expenses incurred during my/the patient's treatment.",
+    finalDeclaration: "I hereby affirm that I have read and understood the above consent form in my own language. I confirm that I am giving this consent willingly and without any pressure or coercion for my/the patient's treatment. All expenses/risks/responsibilities will be my/patient's.",
+    patientConsent: "Patient's Consent",
+    employeeName: "Employee's Name:",
+    employeeVerification: "Hospital Employee's Verification",
+    signature: "Signature:",
+    date: "Date:",
+    time: "Time:",
+    unableToConsent: "If Patient Unable to Give Consent",
+    unableReason: "Unable to give consent because:",
+    relativeConsent: "Therefore, I, {name}, ({relationship}) give consent on behalf of the patient.",
+    relativeWitness: "Patient's Relative/Witness Name:",
+    submitForm: "Submit Consent Form",
+    printForm: "Print Form",
+    close: "Close"
+  },
+  hindi: {
+    title: "वैलेंट हॉस्पिटल",
+    subtitle: "ए-10, माधव विहार, शोभागपुरा, उदयपुर | +91-911911 8000",
+    formTitle: "सामान्य सहमति",
+    patientInfo: "रोगी की जानकारी",
+    patientName: "रोगी का नाम:",
+    patientId: "रोगी आईडी:",
+    ipdNo: "आईपीडी नं.:",
+    consentDeclaration: "सहमति घोषणा",
+    consentPoint1: "मैं, {name}, निवासी {address}, अपने/रोगी के वैलेंट हॉस्पिटल, उदयपुर में दिनांक {date} को समय {time} पर भर्ती होने की सहमति देता/देती हूं।",
+    consentPoint2: "मैं वैलेंट हॉस्पिटल/डॉक्टरों/स्टाफ को निम्नलिखित के लिए अपनी सहमति देता/देती हूं:",
+    consentList: [
+      "चिकित्सा सलाह",
+      "सभी आवश्यक चिकित्सा परीक्षण करना (पूर्ण गोपनीयता के साथ)",
+      "नियमित चिकित्सा जांच (शारीरिक, पैथोलॉजिकल, जांच, मूल्यांकन, दवाई)",
+      "नियमित रेडियोलॉजी और प्रयोगशाला परीक्षण",
+      "नर्सिंग केयर और दवाई"
+    ],
+    consentPoint3: "मुझे बीमारी, इसकी गंभीरता और संभावित जटिलताओं के बारे में पूरी तरह से समझाया गया है। मैं वैलेंट हॉस्पिटल के डॉक्टरों और स्टाफ द्वारा लिए गए सभी निर्णयों से पूर्णतः संतुष्ट हूं और सहमत हूं।",
+    consentPoint4: "मुझे बताया गया है कि मेरी/रोगी की स्थिति के कारण मुझे/रोगी को आईसीयू में भर्ती करने की आवश्यकता हो सकती है। मुझे आईसीयू में इलाज के संभावित खर्च के बारे में जानकारी दी गई है। डॉक्टर समय-समय पर रोगी की स्थिति के बारे में मुझे अपडेट करते रहेंगे।",
+    consentPoint5: "मुझे बताया गया है कि मेरी/रोगी की स्थिति के आधार पर ऑपरेशन/रक्त चढ़ाना आवश्यक हो सकता है।",
+    consentPoint6: "मैं अपने/रोगी के हित में अन्य डॉक्टरों के साथ परामर्श/चर्चा के लिए अपनी सहमति देता/देती हूं।",
+    consentPoint7: "मैं अपने/रोगी के इलाज के दौरान आने वाले सभी अस्पताल के खर्च की जिम्मेदारी लेता/लेती हूं।",
+    finalDeclaration: "मैं एतद्द्वारा पुष्टि करता/करती हूं कि मैंने उपरोक्त सहमति फॉर्म को अपनी भाषा में पढ़ा और समझा है। मैं पुष्टि करता/करती हूं कि मैं यह सहमति स्वेच्छा से और बिना किसी दबाव या मजबूरी के अपने/रोगी के इलाज के लिए दे रहा/रही हूं। सभी खर्च/जोखिम/जिम्मेदारियां मेरी/रोगी की होंगी।",
+    patientConsent: "रोगी की सहमति",
+    employeeName: "कर्मचारी का नाम:",
+    employeeVerification: "अस्पताल कर्मचारी की पुष्टि",
+    signature: "हस्ताक्षर:",
+    date: "दिनांक:",
+    time: "समय:",
+    unableToConsent: "यदि रोगी सहमति देने में असमर्थ है",
+    unableReason: "सहमति देने में असमर्थ क्योंकि:",
+    relativeConsent: "इसलिए, मैं, {name}, ({relationship}) रोगी की ओर से सहमति देता/देती हूं।",
+    relativeWitness: "रोगी के रिश्तेदार/गवाह का नाम:",
+    submitForm: "सहमति फॉर्म जमा करें",
+    printForm: "फॉर्म प्रिंट करें",
+    close: "बंद करें"
+  }
+};
+
 const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
   isOpen,
   onClose,
@@ -57,6 +137,11 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 }) => {
   // Debug logging for IPD number
   console.log(`📄 IPDConsentForm - IPD Number received: ${ipdNumber}`);
+  
+  // Language selection state
+  const [selectedLanguage, setSelectedLanguage] = useState<'english' | 'hindi'>('english');
+  const t = translations[selectedLanguage];
+  
   const [formData, setFormData] = useState<ConsentFormData>({
     patientName: savedData?.patientName || '',
     patientId: savedData?.patientId || '',
@@ -82,12 +167,32 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
     relativeSignatureTime: savedData?.relativeSignatureTime || ''
   });
 
+  // Function to convert 24-hour time to 12-hour format
+  const formatTimeTo12Hour = (time24: string): string => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  // Function to get current time in 12-hour format
+  const getCurrentTime12Hour = (): string => {
+    const now = new Date();
+    return now.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
   // Auto-populate form with patient data and current date/time only if no savedData
   useEffect(() => {
     if (isOpen && patient && !savedData) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
-      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      const currentTime12Hour = getCurrentTime12Hour();
       
       setFormData(prev => ({
         ...prev,
@@ -97,14 +202,14 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         consentName1: `${patient.first_name} ${patient.last_name}`,
         patientAddress: patient.address || '',
         admissionDate: today,
-        admissionTime: currentTime,
+        admissionTime: currentTime12Hour,
         patientSignatureName: `${patient.first_name} ${patient.last_name}`,
         patientSignatureDate: today,
-        patientSignatureTime: currentTime,
+        patientSignatureTime: currentTime12Hour,
         employeeSignatureDate: today,
-        employeeSignatureTime: currentTime,
+        employeeSignatureTime: currentTime12Hour,
         relativeSignatureDate: today,
-        relativeSignatureTime: currentTime
+        relativeSignatureTime: currentTime12Hour
       }));
     }
   }, [isOpen, patient, bedNumber]);
@@ -380,28 +485,37 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
   };
 
   const generatePrintContent = () => {
+    // Get consent point 1 text for selected language
+    const consentPoint1Text = selectedLanguage === 'hindi' 
+      ? `मैं, <span class="field-value">${formData.consentName1 || ''}</span>, निवासी <span class="field-value">${formData.patientAddress || ''}</span>, अपने/रोगी के वैलेंट हॉस्पिटल, उदयपुर में दिनांक <span class="field-value">${formData.admissionDate || ''}</span> को समय <span class="field-value">${formData.admissionTime || ''}</span> पर भर्ती होने की सहमति देता/देती हूं।`
+      : `I, <span class="field-value">${formData.consentName1 || ''}</span>, of <span class="field-value">${formData.patientAddress || ''}</span>, give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on <span class="field-value">${formData.admissionDate || ''}</span> at <span class="field-value">${formData.admissionTime || ''}</span>.`;
+
+    const relativeConsentText = selectedLanguage === 'hindi'
+      ? `इसलिए, मैं, <span class="field-value">${formData.relativeName || ''}</span>, (<span class="field-value">${formData.relationshipToPatient || ''}</span>) रोगी की ओर से सहमति देता/देती हूं।`
+      : `Therefore, I, <span class="field-value">${formData.relativeName || ''}</span>, (<span class="field-value">${formData.relationshipToPatient || ''}</span>) give consent on behalf of the patient.`;
+
     return `
       <!-- Header Section -->
       <div class="print-header">
-        <h1>VALANT HOSPITAL</h1>
-        <p>A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000</p>
-        <h2>General Consent</h2>
+        <h1>${t.title}</h1>
+        <p>${t.subtitle}</p>
+        <h2>${t.formTitle}</h2>
       </div>
 
       <!-- Patient Information Section -->
       <div class="print-section">
-        <h3>Patient Information</h3>
+        <h3>${t.patientInfo}</h3>
         <div class="print-patient-grid">
           <div class="print-patient-field">
-            <label>Patient's Name:</label>
+            <label>${t.patientName}</label>
             <span class="field-value">${formData.patientName || ''}</span>
           </div>
           <div class="print-patient-field">
-            <label>Patient ID:</label>
+            <label>${t.patientId}</label>
             <span class="field-value">${formData.patientId || ''}</span>
           </div>
           <div class="print-patient-field">
-            <label>IPD No.:</label>
+            <label>${t.ipdNo}</label>
             <span class="field-value">${formData.ipdNo || ''}</span>
           </div>
         </div>
@@ -409,13 +523,13 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
       <!-- Consent Declaration -->
       <div style="margin-bottom: 15pt;">
-        <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10pt;">Consent Declaration</h3>
+        <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10pt;">${t.consentDeclaration}</h3>
 
         <!-- Consent Point 1 -->
         <div class="print-consent-point">
           <span class="print-consent-number">1.</span>
           <div class="print-consent-text">
-            <p>I, <span class="field-value">${formData.consentName1 || ''}</span>, of <span class="field-value">${formData.patientAddress || ''}</span>, give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on <span class="field-value">${formData.admissionDate || ''}</span> at <span class="field-value">${formData.admissionTime || ''}</span>.</p>
+            <p>${consentPoint1Text}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -424,13 +538,9 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">2.</span>
           <div class="print-consent-text">
-            <p style="margin-bottom: 8pt;">I give my consent to Valant Hospital/Doctors/Staff for the following:</p>
+            <p style="margin-bottom: 8pt;">${t.consentPoint2}</p>
             <ul>
-              <li>Medical Advice</li>
-              <li>Performing all necessary medical examinations (with full confidentiality)</li>
-              <li>Regular medical tests (physical, pathological, investigation, assessment, medication)</li>
-              <li>Regular Radiology and Laboratory Tests</li>
-              <li>Nursing Care and Medication</li>
+              ${t.consentList.map(item => `<li>${item}</li>`).join('')}
             </ul>
           </div>
           <div style="clear: both;"></div>
@@ -440,7 +550,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">3.</span>
           <div class="print-consent-text">
-            <p>I have been thoroughly explained about the illness, its severity, and potential complications. I am fully satisfied with and agree to all decisions made by the doctors and staff of Valant Hospital.</p>
+            <p>${t.consentPoint3}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -449,7 +559,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">4.</span>
           <div class="print-consent-text">
-            <p>I have been informed that I/the patient may need to be admitted to the ICU due to my/the patient's condition. I have been informed about the potential expenses for treatment in the ICU. The doctors will keep me updated on the patient's condition from time to time.</p>
+            <p>${t.consentPoint4}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -458,7 +568,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">5.</span>
           <div class="print-consent-text">
-            <p>I have been informed that depending on my/the patient's condition, an operation/blood transfusion may be necessary.</p>
+            <p>${t.consentPoint5}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -467,7 +577,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">6.</span>
           <div class="print-consent-text">
-            <p>I give my consent for consultation/discussion with other doctors in the best interest of myself/the patient.</p>
+            <p>${t.consentPoint6}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -476,7 +586,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         <div class="print-consent-point">
           <span class="print-consent-number">7.</span>
           <div class="print-consent-text">
-            <p>I take responsibility for the payment of all hospital expenses incurred during my/the patient's treatment.</p>
+            <p>${t.consentPoint7}</p>
           </div>
           <div style="clear: both;"></div>
         </div>
@@ -484,27 +594,27 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
       <!-- Concluding Paragraph -->
       <div class="print-highlight">
-        <p>I hereby affirm that I have read and understood the above consent form in my own language. I confirm that I am giving this consent willingly and without any pressure or coercion for my/the patient's treatment. All expenses/risks/responsibilities will be my/patient's.</p>
+        <p>${t.finalDeclaration}</p>
       </div>
 
       <!-- Patient Signature Section -->
       <div class="print-signature-section">
-        <h4>Patient's Consent</h4>
+        <h4>${t.patientConsent}</h4>
         <div class="print-signature-grid">
           <div class="print-signature-field">
-            <label>Patient's Name:</label>
+            <label>${t.patientName}</label>
             <span class="field-value">${formData.patientSignatureName || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Signature:</label>
+            <label>${t.signature}</label>
             <span class="field-value">${formData.patientSignature || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Date:</label>
+            <label>${t.date}</label>
             <span class="field-value">${formData.patientSignatureDate || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Time:</label>
+            <label>${t.time}</label>
             <span class="field-value">${formData.patientSignatureTime || ''}</span>
           </div>
         </div>
@@ -512,22 +622,22 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
       <!-- Employee Signature Section -->
       <div class="print-signature-section">
-        <h4>Hospital Employee's Verification</h4>
+        <h4>${t.employeeVerification}</h4>
         <div class="print-signature-grid">
           <div class="print-signature-field">
-            <label>Employee's Name:</label>
+            <label>${t.employeeName}</label>
             <span class="field-value">${formData.employeeName || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Signature:</label>
+            <label>${t.signature}</label>
             <span class="field-value">${formData.employeeSignature || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Date:</label>
+            <label>${t.date}</label>
             <span class="field-value">${formData.employeeSignatureDate || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Time:</label>
+            <label>${t.time}</label>
             <span class="field-value">${formData.employeeSignatureTime || ''}</span>
           </div>
         </div>
@@ -536,10 +646,10 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
       <!-- Unable to Give Consent Section -->
       ${formData.unableReason || formData.relativeName ? `
       <div class="print-signature-section">
-        <h4>If Patient Unable to Give Consent</h4>
+        <h4>${t.unableToConsent}</h4>
         ${formData.unableReason ? `
         <div style="margin-bottom: 10pt;">
-          <label style="font-weight: bold; font-size: 10pt; display: block; margin-bottom: 2pt;">Unable to give consent because:</label>
+          <label style="font-weight: bold; font-size: 10pt; display: block; margin-bottom: 2pt;">${t.unableReason}</label>
           <div style="border: 1px solid black; padding: 5pt; min-height: 30pt; background: white;">
             ${formData.unableReason}
           </div>
@@ -549,27 +659,25 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         ${formData.relativeName ? `
         <div style="margin-bottom: 10pt;">
           <p class="print-consent-text">
-            Therefore, I, <span class="field-value">${formData.relativeName || ''}</span>, 
-            (<span class="field-value">${formData.relationshipToPatient || ''}</span>) 
-            give consent on behalf of the patient.
+            ${relativeConsentText}
           </p>
         </div>
         
         <div class="print-signature-grid">
           <div class="print-signature-field">
-            <label>Patient's Relative/Witness Name:</label>
+            <label>${t.relativeWitness}</label>
             <span class="field-value">${formData.relativeName2 || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Signature:</label>
+            <label>${t.signature}</label>
             <span class="field-value">${formData.relativeSignature || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Date:</label>
+            <label>${t.date}</label>
             <span class="field-value">${formData.relativeSignatureDate || ''}</span>
           </div>
           <div class="print-signature-field">
-            <label>Time:</label>
+            <label>${t.time}</label>
             <span class="field-value">${formData.relativeSignatureTime || ''}</span>
           </div>
         </div>
@@ -853,39 +961,69 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
       <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[95vh] overflow-y-auto">
         {/* Action Buttons - Hidden during print */}
-        <div className="flex justify-end gap-2 p-4 border-b print-hide">
-          <button
-            onClick={handlePrint}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
-          >
-            <span>🖨️</span> Print Form
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Close
-          </button>
+        <div className="flex justify-between items-center p-4 border-b print-hide">
+          {/* Language Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Language:</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedLanguage('english')}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  selectedLanguage === 'english' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                English
+              </button>
+              <button
+                onClick={() => setSelectedLanguage('hindi')}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  selectedLanguage === 'hindi' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                हिंदी
+              </button>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+            >
+              <span>🖨️</span> {t.printForm}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              {t.close}
+            </button>
+          </div>
         </div>
 
         {/* Form Content */}
         <div id="consent-form-content" className="print-form-container">
           {/* Header Section */}
           <div className="bg-blue-600 text-white p-6 text-center print-header">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">VALANT HOSPITAL</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t.title}</h1>
             <p className="text-blue-100 text-sm sm:text-base mb-2">
-              A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000
+              {t.subtitle}
             </p>
-            <h2 className="text-xl sm:text-2xl font-semibold">General Consent</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold">{t.formTitle}</h2>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Patient Information Section */}
             <div className="bg-gray-50 p-4 rounded-lg print-section">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Patient Information</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">{t.patientInfo}</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print-patient-grid">
                 <div className="print-patient-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Name:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.patientName}</label>
                   <input
                     type="text"
                     name="patientName"
@@ -896,7 +1034,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-patient-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient ID:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.patientId}</label>
                   <input
                     type="text"
                     name="patientId"
@@ -907,7 +1045,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-patient-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">IPD No.:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.ipdNo}</label>
                   <input
                     type="text"
                     name="ipdNo"
@@ -922,7 +1060,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
             {/* Consent Points Section */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-800">Consent Declaration</h3>
+              <h3 className="text-lg font-semibold text-gray-800">{t.consentDeclaration}</h3>
 
               {/* Consent Point 1 */}
               <div className="bg-gray-50 p-4 rounded-lg print-consent-point">
@@ -930,40 +1068,44 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">1.</span>
                   <div className="flex-1 print-consent-text">
                     <p className="text-gray-800 mb-3">
-                      I, 
+                      {t.consentPoint1
+                        .replace('{name}', '')
+                        .split('{name}')[0]}
                       <input
                         type="text"
                         name="consentName1"
                         value={formData.consentName1}
                         onChange={handleInputChange}
-                        placeholder="Your Name/Patient's Name"
+                        placeholder={selectedLanguage === 'hindi' ? "आपका नाम/रोगी का नाम" : "Your Name/Patient's Name"}
                         className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[200px]"
-                      />, 
-                      of 
+                      />
+                      {selectedLanguage === 'hindi' ? ', निवासी ' : ', of '}
                       <input
                         type="text"
                         name="patientAddress"
                         value={formData.patientAddress}
                         onChange={handleInputChange}
-                        placeholder="Your Address"
+                        placeholder={selectedLanguage === 'hindi' ? "आपका पता" : "Your Address"}
                         className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[250px]"
-                      />, 
-                      give my consent for my own/the patient's admission to Valant Hospital, Udaipur, on 
+                      />
+                      {selectedLanguage === 'hindi' ? ', अपने/रोगी के वैलेंट हॉस्पिटल, उदयपुर में दिनांक ' : ', give my consent for my own/the patient\'s admission to Valant Hospital, Udaipur, on '}
                       <input
                         type="date"
                         name="admissionDate"
                         value={formData.admissionDate}
                         onChange={handleInputChange}
                         className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent"
-                      /> 
-                      at 
+                      />
+                      {selectedLanguage === 'hindi' ? ' को समय ' : ' at '}
                       <input
-                        type="time"
+                        type="text"
                         name="admissionTime"
                         value={formData.admissionTime}
                         onChange={handleInputChange}
-                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent"
-                      />.
+                        placeholder="12:00 PM"
+                        className="inline-block mx-1 px-2 py-1 border-b border-gray-400 focus:outline-none focus:border-blue-500 bg-transparent min-w-[80px]"
+                      />
+                      {selectedLanguage === 'hindi' ? ' पर भर्ती होने की सहमति देता/देती हूं।' : '.'}
                     </p>
                   </div>
                 </div>
@@ -974,13 +1116,11 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">2.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800 mb-3">I give my consent to Valant Hospital/Doctors/Staff for the following:</p>
+                    <p className="text-gray-800 mb-3">{t.consentPoint2}</p>
                     <ul className="list-disc list-inside text-gray-700 space-y-1 ml-4">
-                      <li>Medical Advice</li>
-                      <li>Performing all necessary medical examinations (with full confidentiality)</li>
-                      <li>Regular medical tests (physical, pathological, investigation, assessment, medication)</li>
-                      <li>Regular Radiology and Laboratory Tests</li>
-                      <li>Nursing Care and Medication</li>
+                      {t.consentList.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -990,7 +1130,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">3.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800">I have been thoroughly explained about the illness, its severity, and potential complications. I am fully satisfied with and agree to all decisions made by the doctors and staff of Valant Hospital.</p>
+                    <p className="text-gray-800">{t.consentPoint3}</p>
                   </div>
                 </div>
               </div>
@@ -999,7 +1139,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">4.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800">I have been informed that I/the patient may need to be admitted to the ICU due to my/the patient's condition. I have been informed about the potential expenses for treatment in the ICU. The doctors will keep me updated on the patient's condition from time to time.</p>
+                    <p className="text-gray-800">{t.consentPoint4}</p>
                   </div>
                 </div>
               </div>
@@ -1008,7 +1148,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">5.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800">I have been informed that depending on my/the patient's condition, an operation/blood transfusion may be necessary.</p>
+                    <p className="text-gray-800">{t.consentPoint5}</p>
                   </div>
                 </div>
               </div>
@@ -1017,7 +1157,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">6.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800">I give my consent for consultation/discussion with other doctors in the best interest of myself/the patient.</p>
+                    <p className="text-gray-800">{t.consentPoint6}</p>
                   </div>
                 </div>
               </div>
@@ -1026,7 +1166,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 <div className="flex items-start space-x-2">
                   <span className="text-blue-600 font-bold text-lg mt-1 print-consent-number">7.</span>
                   <div className="flex-1 print-consent-text">
-                    <p className="text-gray-800">I take responsibility for the payment of all hospital expenses incurred during my/the patient's treatment.</p>
+                    <p className="text-gray-800">{t.consentPoint7}</p>
                   </div>
                 </div>
               </div>
@@ -1034,15 +1174,15 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
             {/* Concluding Paragraph */}
             <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400 print-highlight">
-              <p className="text-gray-800 font-medium">I hereby affirm that I have read and understood the above consent form in my own language. I confirm that I am giving this consent willingly and without any pressure or coercion for my/the patient's treatment. All expenses/risks/responsibilities will be my/patient's.</p>
+              <p className="text-gray-800 font-medium">{t.finalDeclaration}</p>
             </div>
 
             {/* Patient Signature Section */}
             <div className="bg-blue-50 p-4 rounded-lg print-signature-section">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">Patient's Consent</h4>
+              <h4 className="text-md font-semibold text-gray-800 mb-4">{t.patientConsent}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Name:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.patientName}</label>
                   <input
                     type="text"
                     name="patientSignatureName"
@@ -1052,18 +1192,18 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.signature}</label>
                   <input
                     type="text"
                     name="patientSignature"
                     value={formData.patientSignature}
                     onChange={handleInputChange}
-                    placeholder="Sign here"
+                    placeholder={selectedLanguage === 'hindi' ? "यहां हस्ताक्षर करें" : "Sign here"}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.date}</label>
                   <input
                     type="date"
                     name="patientSignatureDate"
@@ -1073,12 +1213,13 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.time}</label>
                   <input
-                    type="time"
+                    type="text"
                     name="patientSignatureTime"
                     value={formData.patientSignatureTime}
                     onChange={handleInputChange}
+                    placeholder="12:00 PM"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1087,10 +1228,10 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
             {/* Employee Signature Section */}
             <div className="bg-green-50 p-4 rounded-lg print-signature-section">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">Hospital Employee's Verification</h4>
+              <h4 className="text-md font-semibold text-gray-800 mb-4">{t.employeeVerification}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee's Name:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.employeeName}</label>
                   <input
                     type="text"
                     name="employeeName"
@@ -1100,18 +1241,18 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.signature}</label>
                   <input
                     type="text"
                     name="employeeSignature"
                     value={formData.employeeSignature}
                     onChange={handleInputChange}
-                    placeholder="Sign here"
+                    placeholder={selectedLanguage === 'hindi' ? "यहां हस्ताक्षर करें" : "Sign here"}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.date}</label>
                   <input
                     type="date"
                     name="employeeSignatureDate"
@@ -1121,12 +1262,13 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.time}</label>
                   <input
-                    type="time"
+                    type="text"
                     name="employeeSignatureTime"
                     value={formData.employeeSignatureTime}
                     onChange={handleInputChange}
+                    placeholder="12:00 PM"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1135,9 +1277,9 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
             {/* Unable to Give Consent Section */}
             <div className="bg-red-50 p-4 rounded-lg print-signature-section">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">If Patient Unable to Give Consent</h4>
+              <h4 className="text-md font-semibold text-gray-800 mb-4">{t.unableToConsent}</h4>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Unable to give consent because:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t.unableReason}</label>
                 <textarea
                   name="unableReason"
                   value={formData.unableReason}
@@ -1174,7 +1316,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print-signature-grid">
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient's Relative/Witness Name:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.relativeWitness}</label>
                   <input
                     type="text"
                     name="relativeName2"
@@ -1184,18 +1326,18 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Signature:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.signature}</label>
                   <input
                     type="text"
                     name="relativeSignature"
                     value={formData.relativeSignature}
                     onChange={handleInputChange}
-                    placeholder="Sign here"
+                    placeholder={selectedLanguage === 'hindi' ? "यहां हस्ताक्षर करें" : "Sign here"}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.date}</label>
                   <input
                     type="date"
                     name="relativeSignatureDate"
@@ -1205,12 +1347,13 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                   />
                 </div>
                 <div className="print-signature-field">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Time:</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.time}</label>
                   <input
-                    type="time"
+                    type="text"
                     name="relativeSignatureTime"
                     value={formData.relativeSignatureTime}
                     onChange={handleInputChange}
+                    placeholder="12:00 PM"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1223,7 +1366,7 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
                 type="submit"
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-lg"
               >
-                Submit Consent Form
+                {t.submitForm}
               </button>
             </div>
           </form>

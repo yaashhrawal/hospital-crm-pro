@@ -26,6 +26,7 @@ import PhysiotherapyNotesForm from './PhysiotherapyNotesForm';
 import BloodTransfusionMonitoringForm from './BloodTransfusionMonitoringForm';
 import DischargePatientModal from './DischargePatientModal';
 import PatientAdmissionForm from './PatientAdmissionForm';
+import IPDConsentsSection from './IPDConsentsSection';
 import { storeIPDNumberForBed } from '../utils/ipdUtils';
 
 interface BedData {
@@ -67,6 +68,8 @@ interface BedData {
   physiotherapyNotesSubmitted?: boolean; // Track if Physiotherapy Notes was submitted
   bloodTransfusionData?: any; // Store Blood Transfusion Monitoring data
   bloodTransfusionSubmitted?: boolean; // Track if Blood Transfusion Monitoring was submitted
+  ipdConsentsData?: any; // Store IPD consents data
+  ipdConsentsSubmitted?: boolean; // Track if IPD consents was submitted
 }
 
 interface PatientSelectionModalProps {
@@ -377,6 +380,11 @@ const IPDBedManagement: React.FC = () => {
   
   // Surgical Record expansion state
   const [expandedSurgicalRecordBed, setExpandedSurgicalRecordBed] = useState<string | null>(null);
+  
+  // IPD Consents state
+  const [showIPDConsents, setShowIPDConsents] = useState(false);
+  const [selectedPatientForConsents, setSelectedPatientForConsents] = useState<PatientWithRelations | null>(null);
+  const [selectedBedForConsents, setSelectedBedForConsents] = useState<BedData | null>(null);
   
   // IPD Statistics state
   const [ipdStats, setIPDStats] = useState(() => getIPDStats());
@@ -965,6 +973,52 @@ const IPDBedManagement: React.FC = () => {
     setExpandedSurgicalRecordBed(expandedSurgicalRecordBed === bedId ? null : bedId);
   };
 
+  const handleShowIPDConsents = (bed: BedData) => {
+    if (bed.patient) {
+      // Get the latest bed data from current state to ensure we have updated consent data
+      const latestBed = beds.find(b => b.id === bed.id) || bed;
+      console.log('Opening IPD consents for bed:', latestBed);
+      console.log('Bed has consent data:', latestBed.ipdConsentsData);
+      
+      setSelectedPatientForConsents(bed.patient);
+      setSelectedBedForConsents(latestBed);
+      setShowIPDConsents(true);
+    }
+  };
+
+  const handleCloseIPDConsents = () => {
+    setShowIPDConsents(false);
+    setSelectedPatientForConsents(null);
+    setSelectedBedForConsents(null);
+  };
+
+  const handleIPDConsentsSubmit = (formId: string, data: any) => {
+    if (!selectedBedForConsents) return;
+
+    console.log('Saving IPD consent:', { formId, data, bedId: selectedBedForConsents.id });
+
+    // Save IPD consents data to the bed
+    setBeds(prevBeds =>
+      prevBeds.map(bed => {
+        if (bed.id === selectedBedForConsents.id) {
+          const newBed = {
+            ...bed,
+            ipdConsentsData: {
+              ...(bed.ipdConsentsData || {}),
+              [formId]: data
+            },
+            ipdConsentsSubmitted: true
+          };
+          console.log('Updated bed with consent data:', newBed);
+          return newBed;
+        }
+        return bed;
+      })
+    );
+
+    toast.success(`${formId.charAt(0).toUpperCase() + formId.slice(1)} consent form saved successfully!`);
+  };
+
   const handleShowPACRecord = (bed: BedData) => {
     if (bed.patient) {
       setSelectedPatientForPAC(bed.patient);
@@ -1466,8 +1520,8 @@ const IPDBedManagement: React.FC = () => {
   // Function to sync patient database with actual bed occupancy
   const syncPatientIPDStatus = async () => {
     try {
-      // Get all patients with IPD status = ADMITTED
-      const admittedPatients = await HospitalService.getAllPatients();
+      // Get all patients with IPD status = ADMITTED (using high limit to get all)
+      const admittedPatients = await HospitalService.getPatients(1000);
       const ipdPatients = admittedPatients.filter(p => p.ipd_status === 'ADMITTED');
       
       // Get all patients actually in beds
@@ -1498,6 +1552,43 @@ const IPDBedManagement: React.FC = () => {
     } catch (error) {
       console.error('❌ Failed to sync IPD patient status:', error);
       toast.error('Failed to sync patient IPD status');
+    }
+  };
+
+  // Function to clear all IPD entries from database (reset all patients to OPD)
+  const clearAllIPDEntries = async () => {
+    try {
+      // Get all patients with any IPD status
+      const allPatients = await HospitalService.getPatients(1000);
+      const ipdPatients = allPatients.filter(p => 
+        p.ipd_status === 'ADMITTED' || 
+        p.ipd_status === 'DISCHARGED' || 
+        p.ipd_bed_number
+      );
+      
+      if (ipdPatients.length === 0) {
+        toast.info('No IPD entries found in database');
+        return;
+      }
+
+      console.log(`🗑️ Clearing IPD entries for ${ipdPatients.length} patients...`);
+      
+      // Clear IPD status and bed number for all patients
+      const updatePromises = ipdPatients.map(patient => 
+        HospitalService.updatePatient(patient.id, {
+          ipd_status: null,
+          ipd_bed_number: null
+        })
+      );
+      
+      await Promise.all(updatePromises);
+      
+      toast.success(`Cleared IPD entries for ${ipdPatients.length} patients`);
+      console.log('✅ All IPD entries cleared from database');
+      
+    } catch (error) {
+      console.error('❌ Failed to clear IPD entries:', error);
+      toast.error('Failed to clear IPD entries from database');
     }
   };
 
@@ -1537,6 +1628,12 @@ const IPDBedManagement: React.FC = () => {
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
             >
               🔄 Sync IPD Status
+            </button>
+            <button
+              onClick={clearAllIPDEntries}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm"
+            >
+              🗑️ Clear IPD Entries
             </button>
             <button
               onClick={clearAllBedData}
@@ -2230,6 +2327,19 @@ const IPDBedManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* IPD Consents Section */}
+                <div className="border-t border-gray-200 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleShowIPDConsents(bed)}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded text-xs flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <span>📋</span>
+                      <span>IPD Consents</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2456,6 +2566,7 @@ const IPDBedManagement: React.FC = () => {
         <TatForm
           patientId={selectedPatientForTat.id}
           bedNumber={selectedBedForTat.number.toString()}
+          patient={selectedPatientForTat}
           onClose={() => {
             setShowTatForm(false);
             setSelectedPatientForTat(null);
@@ -2684,6 +2795,17 @@ const IPDBedManagement: React.FC = () => {
           console.log('Patient Admission Form submitted:', formData);
           toast.success('Patient admission form saved successfully!');
         }}
+      />
+
+      {/* IPD Consents Section Modal */}
+      <IPDConsentsSection
+        isOpen={showIPDConsents}
+        onClose={handleCloseIPDConsents}
+        patient={selectedPatientForConsents}
+        bedNumber={selectedBedForConsents?.number}
+        ipdNumber={selectedBedForConsents?.ipdNumber}
+        savedData={selectedBedForConsents?.ipdConsentsData}
+        onSubmit={handleIPDConsentsSubmit}
       />
     </div>
   );

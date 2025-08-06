@@ -63,10 +63,10 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
     patientPosition: savedData?.patientPosition || '',
     
     // Inducing Agent
-    propofol: savedData?.propofol || '',
-    thiopentone: savedData?.thiopentone || '',
-    etomidate: savedData?.etomidate || '',
-    ketamine: savedData?.ketamine || '',
+    propofol: savedData?.propofol || false,
+    thiopentone: savedData?.thiopentone || false,
+    etomidate: savedData?.etomidate || false,
+    ketamine: savedData?.ketamine || false,
     otherInducingAgent: savedData?.otherInducingAgent || '',
     
     // Muscle Relaxant
@@ -506,24 +506,24 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
               </tr>
               <tr>
                 <td colspan="2">7. INDUCING AGENT<br>
-                  Propofol: ${formData.propofol || ''} | Thiopentone: ${formData.thiopentone || ''} | Etomidate: ${formData.etomidate || ''}<br>
-                  Ketamine: ${formData.ketamine || ''} | Other: ${formData.otherInducingAgent || ''}
+                  ${formData.propofol ? '☑' : '☐'} Propofol | ${formData.thiopentone ? '☑' : '☐'} Thiopentone | ${formData.etomidate ? '☑' : '☐'} Etomidate<br>
+                  ${formData.ketamine ? '☑' : '☐'} Ketamine | Other: ${formData.otherInducingAgent || ''}
                 </td>
               </tr>
               <tr>
                 <td colspan="2">8. MUSCLE RELAXANT<br>
-                  Succinylcholine: ${formData.succinylcholine || ''} | Atracurium: ${formData.atracurium || ''}<br>
-                  Vecuronium: ${formData.vecuronium || ''} | Rocuronium: ${formData.rocuronium || ''} | Other: ${formData.otherMuscleRelaxant || ''}
+                  Succinylcholine: ${formData.succinylcholine ? formData.succinylcholine + ' mg' : ''} | Atracurium: ${formData.atracurium ? formData.atracurium + ' mg' : ''}<br>
+                  Vecuronium: ${formData.vecuronium ? formData.vecuronium + ' mg' : ''} | Rocuronium: ${formData.rocuronium ? formData.rocuronium + ' mg' : ''} | Other: ${formData.otherMuscleRelaxant || ''}
                 </td>
               </tr>
               <tr>
                 <td colspan="2">9. LARYNGOSCOPE REFLEX ATTENUATION<br>
-                  Lignocaine: ${formData.lignocaine || ''} | Fentanyl: ${formData.fentanylLaryngo || ''} | Other: ${formData.otherAttenuation || ''}
+                  Lignocaine: ${formData.lignocaine ? formData.lignocaine + ' mg' : ''} | Fentanyl: ${formData.fentanylLaryngo ? formData.fentanylLaryngo + ' mcg' : ''} | Other: ${formData.otherAttenuation || ''}
                 </td>
               </tr>
               <tr>
                 <td colspan="2">10. ET TUBE<br>
-                  Red Rubber: ${formData.redRubber || ''} | Portex: ${formData.portex || ''} | Cuff/Pain: ${formData.cuffPain || ''} | Size: ${formData.tubeSize || ''}
+                  Red Rubber: ${formData.redRubber || ''} | Portex: ${formData.portex || ''} | Cuff/Pain: ${formData.cuffPain || ''} | Size: ${formData.tubeSize ? formData.tubeSize + ' mm' : ''}
                 </td>
               </tr>
               <tr>
@@ -543,7 +543,7 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
               </tr>
               <tr>
                 <td colspan="2">15. REVERSAL<br>
-                  Neostigmine: ${formData.neostigmine || ''} | Atropine: ${formData.atropineReversal || ''} | Sugammadex: ${formData.sugammadex || ''} | Other: ${formData.otherReversal || ''}
+                  Neostigmine: ${formData.neostigmine ? formData.neostigmine + ' mg' : ''} | Atropine: ${formData.atropineReversal ? formData.atropineReversal + ' mg' : ''} | Sugammadex: ${formData.sugammadex ? formData.sugammadex + ' mg' : ''} | Other: ${formData.otherReversal || ''}
                 </td>
               </tr>
               <tr>
@@ -568,28 +568,28 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
             </thead>
             <tbody>
               <tr>
-                <td>PULSE</td>
-                <td>${formData.pulseT1 || ''}</td><td>${formData.pulseT2 || ''}</td><td>${formData.pulseT3 || ''}</td>
-                <td>${formData.pulseT4 || ''}</td><td>${formData.pulseT5 || ''}</td><td>${formData.pulseT6 || ''}</td>
-                <td>${formData.pulseT7 || ''}</td><td>${formData.pulseT8 || ''}</td>
+                <td>PULSE (bpm)</td>
+                <td>${formData.pulseT1 ? formData.pulseT1 + ' bpm' : ''}</td><td>${formData.pulseT2 ? formData.pulseT2 + ' bpm' : ''}</td><td>${formData.pulseT3 ? formData.pulseT3 + ' bpm' : ''}</td>
+                <td>${formData.pulseT4 ? formData.pulseT4 + ' bpm' : ''}</td><td>${formData.pulseT5 ? formData.pulseT5 + ' bpm' : ''}</td><td>${formData.pulseT6 ? formData.pulseT6 + ' bpm' : ''}</td>
+                <td>${formData.pulseT7 ? formData.pulseT7 + ' bpm' : ''}</td><td>${formData.pulseT8 ? formData.pulseT8 + ' bpm' : ''}</td>
               </tr>
               <tr>
-                <td>B.P.</td>
-                <td>${formData.bpT1 || ''}</td><td>${formData.bpT2 || ''}</td><td>${formData.bpT3 || ''}</td>
-                <td>${formData.bpT4 || ''}</td><td>${formData.bpT5 || ''}</td><td>${formData.bpT6 || ''}</td>
-                <td>${formData.bpT7 || ''}</td><td>${formData.bpT8 || ''}</td>
+                <td>B.P. (mmHg)</td>
+                <td>${formData.bpT1 ? formData.bpT1 + ' mmHg' : ''}</td><td>${formData.bpT2 ? formData.bpT2 + ' mmHg' : ''}</td><td>${formData.bpT3 ? formData.bpT3 + ' mmHg' : ''}</td>
+                <td>${formData.bpT4 ? formData.bpT4 + ' mmHg' : ''}</td><td>${formData.bpT5 ? formData.bpT5 + ' mmHg' : ''}</td><td>${formData.bpT6 ? formData.bpT6 + ' mmHg' : ''}</td>
+                <td>${formData.bpT7 ? formData.bpT7 + ' mmHg' : ''}</td><td>${formData.bpT8 ? formData.bpT8 + ' mmHg' : ''}</td>
               </tr>
               <tr>
-                <td>SPO2</td>
-                <td>${formData.spo2T1 || ''}</td><td>${formData.spo2T2 || ''}</td><td>${formData.spo2T3 || ''}</td>
-                <td>${formData.spo2T4 || ''}</td><td>${formData.spo2T5 || ''}</td><td>${formData.spo2T6 || ''}</td>
-                <td>${formData.spo2T7 || ''}</td><td>${formData.spo2T8 || ''}</td>
+                <td>SPO2 (%)</td>
+                <td>${formData.spo2T1 ? formData.spo2T1 + ' %' : ''}</td><td>${formData.spo2T2 ? formData.spo2T2 + ' %' : ''}</td><td>${formData.spo2T3 ? formData.spo2T3 + ' %' : ''}</td>
+                <td>${formData.spo2T4 ? formData.spo2T4 + ' %' : ''}</td><td>${formData.spo2T5 ? formData.spo2T5 + ' %' : ''}</td><td>${formData.spo2T6 ? formData.spo2T6 + ' %' : ''}</td>
+                <td>${formData.spo2T7 ? formData.spo2T7 + ' %' : ''}</td><td>${formData.spo2T8 ? formData.spo2T8 + ' %' : ''}</td>
               </tr>
               <tr>
-                <td>ETCO2</td>
-                <td>${formData.etco2T1 || ''}</td><td>${formData.etco2T2 || ''}</td><td>${formData.etco2T3 || ''}</td>
-                <td>${formData.etco2T4 || ''}</td><td>${formData.etco2T5 || ''}</td><td>${formData.etco2T6 || ''}</td>
-                <td>${formData.etco2T7 || ''}</td><td>${formData.etco2T8 || ''}</td>
+                <td>ETCO2 (mmHg)</td>
+                <td>${formData.etco2T1 ? formData.etco2T1 + ' mmHg' : ''}</td><td>${formData.etco2T2 ? formData.etco2T2 + ' mmHg' : ''}</td><td>${formData.etco2T3 ? formData.etco2T3 + ' mmHg' : ''}</td>
+                <td>${formData.etco2T4 ? formData.etco2T4 + ' mmHg' : ''}</td><td>${formData.etco2T5 ? formData.etco2T5 + ' mmHg' : ''}</td><td>${formData.etco2T6 ? formData.etco2T6 + ' mmHg' : ''}</td>
+                <td>${formData.etco2T7 ? formData.etco2T7 + ' mmHg' : ''}</td><td>${formData.etco2T8 ? formData.etco2T8 + ' mmHg' : ''}</td>
               </tr>
               <tr>
                 <td>CARDIAC RHYTHM</td>
@@ -598,28 +598,28 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
                 <td>${formData.cardiacRhythmT7 || ''}</td><td>${formData.cardiacRhythmT8 || ''}</td>
               </tr>
               <tr>
-                <td>CVP</td>
-                <td>${formData.cvpT1 || ''}</td><td>${formData.cvpT2 || ''}</td><td>${formData.cvpT3 || ''}</td>
-                <td>${formData.cvpT4 || ''}</td><td>${formData.cvpT5 || ''}</td><td>${formData.cvpT6 || ''}</td>
-                <td>${formData.cvpT7 || ''}</td><td>${formData.cvpT8 || ''}</td>
+                <td>CVP (cmH2O)</td>
+                <td>${formData.cvpT1 ? formData.cvpT1 + ' cmH2O' : ''}</td><td>${formData.cvpT2 ? formData.cvpT2 + ' cmH2O' : ''}</td><td>${formData.cvpT3 ? formData.cvpT3 + ' cmH2O' : ''}</td>
+                <td>${formData.cvpT4 ? formData.cvpT4 + ' cmH2O' : ''}</td><td>${formData.cvpT5 ? formData.cvpT5 + ' cmH2O' : ''}</td><td>${formData.cvpT6 ? formData.cvpT6 + ' cmH2O' : ''}</td>
+                <td>${formData.cvpT7 ? formData.cvpT7 + ' cmH2O' : ''}</td><td>${formData.cvpT8 ? formData.cvpT8 + ' cmH2O' : ''}</td>
               </tr>
               <tr>
-                <td>TEMPERATURE</td>
-                <td>${formData.temperatureT1 || ''}</td><td>${formData.temperatureT2 || ''}</td><td>${formData.temperatureT3 || ''}</td>
-                <td>${formData.temperatureT4 || ''}</td><td>${formData.temperatureT5 || ''}</td><td>${formData.temperatureT6 || ''}</td>
-                <td>${formData.temperatureT7 || ''}</td><td>${formData.temperatureT8 || ''}</td>
+                <td>TEMPERATURE (°F)</td>
+                <td>${formData.temperatureT1 ? formData.temperatureT1 + ' °F' : ''}</td><td>${formData.temperatureT2 ? formData.temperatureT2 + ' °F' : ''}</td><td>${formData.temperatureT3 ? formData.temperatureT3 + ' °F' : ''}</td>
+                <td>${formData.temperatureT4 ? formData.temperatureT4 + ' °F' : ''}</td><td>${formData.temperatureT5 ? formData.temperatureT5 + ' °F' : ''}</td><td>${formData.temperatureT6 ? formData.temperatureT6 + ' °F' : ''}</td>
+                <td>${formData.temperatureT7 ? formData.temperatureT7 + ' °F' : ''}</td><td>${formData.temperatureT8 ? formData.temperatureT8 + ' °F' : ''}</td>
               </tr>
               <tr>
-                <td>URINE OUTPUT</td>
-                <td>${formData.urineOutputT1 || ''}</td><td>${formData.urineOutputT2 || ''}</td><td>${formData.urineOutputT3 || ''}</td>
-                <td>${formData.urineOutputT4 || ''}</td><td>${formData.urineOutputT5 || ''}</td><td>${formData.urineOutputT6 || ''}</td>
-                <td>${formData.urineOutputT7 || ''}</td><td>${formData.urineOutputT8 || ''}</td>
+                <td>URINE OUTPUT (ml)</td>
+                <td>${formData.urineOutputT1 ? formData.urineOutputT1 + ' ml' : ''}</td><td>${formData.urineOutputT2 ? formData.urineOutputT2 + ' ml' : ''}</td><td>${formData.urineOutputT3 ? formData.urineOutputT3 + ' ml' : ''}</td>
+                <td>${formData.urineOutputT4 ? formData.urineOutputT4 + ' ml' : ''}</td><td>${formData.urineOutputT5 ? formData.urineOutputT5 + ' ml' : ''}</td><td>${formData.urineOutputT6 ? formData.urineOutputT6 + ' ml' : ''}</td>
+                <td>${formData.urineOutputT7 ? formData.urineOutputT7 + ' ml' : ''}</td><td>${formData.urineOutputT8 ? formData.urineOutputT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>RESPIRATORY RATE</td>
-                <td>${formData.respiratoryRateT1 || ''}</td><td>${formData.respiratoryRateT2 || ''}</td><td>${formData.respiratoryRateT3 || ''}</td>
-                <td>${formData.respiratoryRateT4 || ''}</td><td>${formData.respiratoryRateT5 || ''}</td><td>${formData.respiratoryRateT6 || ''}</td>
-                <td>${formData.respiratoryRateT7 || ''}</td><td>${formData.respiratoryRateT8 || ''}</td>
+                <td>RESPIRATORY RATE (/min)</td>
+                <td>${formData.respiratoryRateT1 ? formData.respiratoryRateT1 + ' /min' : ''}</td><td>${formData.respiratoryRateT2 ? formData.respiratoryRateT2 + ' /min' : ''}</td><td>${formData.respiratoryRateT3 ? formData.respiratoryRateT3 + ' /min' : ''}</td>
+                <td>${formData.respiratoryRateT4 ? formData.respiratoryRateT4 + ' /min' : ''}</td><td>${formData.respiratoryRateT5 ? formData.respiratoryRateT5 + ' /min' : ''}</td><td>${formData.respiratoryRateT6 ? formData.respiratoryRateT6 + ' /min' : ''}</td>
+                <td>${formData.respiratoryRateT7 ? formData.respiratoryRateT7 + ' /min' : ''}</td><td>${formData.respiratoryRateT8 ? formData.respiratoryRateT8 + ' /min' : ''}</td>
               </tr>
             </tbody>
           </table>
@@ -634,58 +634,58 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
             </thead>
             <tbody>
               <tr>
-                <td>DNS/D5%/NS</td>
-                <td>${formData.dnsT1 || ''}</td><td>${formData.dnsT2 || ''}</td><td>${formData.dnsT3 || ''}</td>
-                <td>${formData.dnsT4 || ''}</td><td>${formData.dnsT5 || ''}</td><td>${formData.dnsT6 || ''}</td>
-                <td>${formData.dnsT7 || ''}</td><td>${formData.dnsT8 || ''}</td>
+                <td>DNS/D5%/NS (ml)</td>
+                <td>${formData.dnsT1 ? formData.dnsT1 + ' ml' : ''}</td><td>${formData.dnsT2 ? formData.dnsT2 + ' ml' : ''}</td><td>${formData.dnsT3 ? formData.dnsT3 + ' ml' : ''}</td>
+                <td>${formData.dnsT4 ? formData.dnsT4 + ' ml' : ''}</td><td>${formData.dnsT5 ? formData.dnsT5 + ' ml' : ''}</td><td>${formData.dnsT6 ? formData.dnsT6 + ' ml' : ''}</td>
+                <td>${formData.dnsT7 ? formData.dnsT7 + ' ml' : ''}</td><td>${formData.dnsT8 ? formData.dnsT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>R.L.</td>
-                <td>${formData.rlT1 || ''}</td><td>${formData.rlT2 || ''}</td><td>${formData.rlT3 || ''}</td>
-                <td>${formData.rlT4 || ''}</td><td>${formData.rlT5 || ''}</td><td>${formData.rlT6 || ''}</td>
-                <td>${formData.rlT7 || ''}</td><td>${formData.rlT8 || ''}</td>
+                <td>R.L. (ml)</td>
+                <td>${formData.rlT1 ? formData.rlT1 + ' ml' : ''}</td><td>${formData.rlT2 ? formData.rlT2 + ' ml' : ''}</td><td>${formData.rlT3 ? formData.rlT3 + ' ml' : ''}</td>
+                <td>${formData.rlT4 ? formData.rlT4 + ' ml' : ''}</td><td>${formData.rlT5 ? formData.rlT5 + ' ml' : ''}</td><td>${formData.rlT6 ? formData.rlT6 + ' ml' : ''}</td>
+                <td>${formData.rlT7 ? formData.rlT7 + ' ml' : ''}</td><td>${formData.rlT8 ? formData.rlT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>ISOLYTE M/G/P</td>
-                <td>${formData.isolyteT1 || ''}</td><td>${formData.isolyteT2 || ''}</td><td>${formData.isolyteT3 || ''}</td>
-                <td>${formData.isolyteT4 || ''}</td><td>${formData.isolyteT5 || ''}</td><td>${formData.isolyteT6 || ''}</td>
-                <td>${formData.isolyteT7 || ''}</td><td>${formData.isolyteT8 || ''}</td>
+                <td>ISOLYTE M/G/P (ml)</td>
+                <td>${formData.isolyteT1 ? formData.isolyteT1 + ' ml' : ''}</td><td>${formData.isolyteT2 ? formData.isolyteT2 + ' ml' : ''}</td><td>${formData.isolyteT3 ? formData.isolyteT3 + ' ml' : ''}</td>
+                <td>${formData.isolyteT4 ? formData.isolyteT4 + ' ml' : ''}</td><td>${formData.isolyteT5 ? formData.isolyteT5 + ' ml' : ''}</td><td>${formData.isolyteT6 ? formData.isolyteT6 + ' ml' : ''}</td>
+                <td>${formData.isolyteT7 ? formData.isolyteT7 + ' ml' : ''}</td><td>${formData.isolyteT8 ? formData.isolyteT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>COLLOIDS</td>
-                <td>${formData.colloidsT1 || ''}</td><td>${formData.colloidsT2 || ''}</td><td>${formData.colloidsT3 || ''}</td>
-                <td>${formData.colloidsT4 || ''}</td><td>${formData.colloidsT5 || ''}</td><td>${formData.colloidsT6 || ''}</td>
-                <td>${formData.colloidsT7 || ''}</td><td>${formData.colloidsT8 || ''}</td>
+                <td>COLLOIDS (ml)</td>
+                <td>${formData.colloidsT1 ? formData.colloidsT1 + ' ml' : ''}</td><td>${formData.colloidsT2 ? formData.colloidsT2 + ' ml' : ''}</td><td>${formData.colloidsT3 ? formData.colloidsT3 + ' ml' : ''}</td>
+                <td>${formData.colloidsT4 ? formData.colloidsT4 + ' ml' : ''}</td><td>${formData.colloidsT5 ? formData.colloidsT5 + ' ml' : ''}</td><td>${formData.colloidsT6 ? formData.colloidsT6 + ' ml' : ''}</td>
+                <td>${formData.colloidsT7 ? formData.colloidsT7 + ' ml' : ''}</td><td>${formData.colloidsT8 ? formData.colloidsT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>B.T.</td>
-                <td>${formData.btT1 || ''}</td><td>${formData.btT2 || ''}</td><td>${formData.btT3 || ''}</td>
-                <td>${formData.btT4 || ''}</td><td>${formData.btT5 || ''}</td><td>${formData.btT6 || ''}</td>
-                <td>${formData.btT7 || ''}</td><td>${formData.btT8 || ''}</td>
+                <td>B.T. (ml)</td>
+                <td>${formData.btT1 ? formData.btT1 + ' ml' : ''}</td><td>${formData.btT2 ? formData.btT2 + ' ml' : ''}</td><td>${formData.btT3 ? formData.btT3 + ' ml' : ''}</td>
+                <td>${formData.btT4 ? formData.btT4 + ' ml' : ''}</td><td>${formData.btT5 ? formData.btT5 + ' ml' : ''}</td><td>${formData.btT6 ? formData.btT6 + ' ml' : ''}</td>
+                <td>${formData.btT7 ? formData.btT7 + ' ml' : ''}</td><td>${formData.btT8 ? formData.btT8 + ' ml' : ''}</td>
               </tr>
               <tr>
-                <td>MUSCLE RELAXANT</td>
-                <td>${formData.muscleRelaxantT1 || ''}</td><td>${formData.muscleRelaxantT2 || ''}</td><td>${formData.muscleRelaxantT3 || ''}</td>
-                <td>${formData.muscleRelaxantT4 || ''}</td><td>${formData.muscleRelaxantT5 || ''}</td><td>${formData.muscleRelaxantT6 || ''}</td>
-                <td>${formData.muscleRelaxantT7 || ''}</td><td>${formData.muscleRelaxantT8 || ''}</td>
+                <td>MUSCLE RELAXANT (mg)</td>
+                <td>${formData.muscleRelaxantT1 ? formData.muscleRelaxantT1 + ' mg' : ''}</td><td>${formData.muscleRelaxantT2 ? formData.muscleRelaxantT2 + ' mg' : ''}</td><td>${formData.muscleRelaxantT3 ? formData.muscleRelaxantT3 + ' mg' : ''}</td>
+                <td>${formData.muscleRelaxantT4 ? formData.muscleRelaxantT4 + ' mg' : ''}</td><td>${formData.muscleRelaxantT5 ? formData.muscleRelaxantT5 + ' mg' : ''}</td><td>${formData.muscleRelaxantT6 ? formData.muscleRelaxantT6 + ' mg' : ''}</td>
+                <td>${formData.muscleRelaxantT7 ? formData.muscleRelaxantT7 + ' mg' : ''}</td><td>${formData.muscleRelaxantT8 ? formData.muscleRelaxantT8 + ' mg' : ''}</td>
               </tr>
               <tr>
-                <td>FENTANYL</td>
-                <td>${formData.fentanylProgressT1 || ''}</td><td>${formData.fentanylProgressT2 || ''}</td><td>${formData.fentanylProgressT3 || ''}</td>
-                <td>${formData.fentanylProgressT4 || ''}</td><td>${formData.fentanylProgressT5 || ''}</td><td>${formData.fentanylProgressT6 || ''}</td>
-                <td>${formData.fentanylProgressT7 || ''}</td><td>${formData.fentanylProgressT8 || ''}</td>
+                <td>FENTANYL (mcg)</td>
+                <td>${formData.fentanylProgressT1 ? formData.fentanylProgressT1 + ' mcg' : ''}</td><td>${formData.fentanylProgressT2 ? formData.fentanylProgressT2 + ' mcg' : ''}</td><td>${formData.fentanylProgressT3 ? formData.fentanylProgressT3 + ' mcg' : ''}</td>
+                <td>${formData.fentanylProgressT4 ? formData.fentanylProgressT4 + ' mcg' : ''}</td><td>${formData.fentanylProgressT5 ? formData.fentanylProgressT5 + ' mcg' : ''}</td><td>${formData.fentanylProgressT6 ? formData.fentanylProgressT6 + ' mcg' : ''}</td>
+                <td>${formData.fentanylProgressT7 ? formData.fentanylProgressT7 + ' mcg' : ''}</td><td>${formData.fentanylProgressT8 ? formData.fentanylProgressT8 + ' mcg' : ''}</td>
               </tr>
               <tr>
-                <td>PROPOFOL</td>
-                <td>${formData.propofolProgressT1 || ''}</td><td>${formData.propofolProgressT2 || ''}</td><td>${formData.propofolProgressT3 || ''}</td>
-                <td>${formData.propofolProgressT4 || ''}</td><td>${formData.propofolProgressT5 || ''}</td><td>${formData.propofolProgressT6 || ''}</td>
-                <td>${formData.propofolProgressT7 || ''}</td><td>${formData.propofolProgressT8 || ''}</td>
+                <td>PROPOFOL (mg)</td>
+                <td>${formData.propofolProgressT1 ? formData.propofolProgressT1 + ' mg' : ''}</td><td>${formData.propofolProgressT2 ? formData.propofolProgressT2 + ' mg' : ''}</td><td>${formData.propofolProgressT3 ? formData.propofolProgressT3 + ' mg' : ''}</td>
+                <td>${formData.propofolProgressT4 ? formData.propofolProgressT4 + ' mg' : ''}</td><td>${formData.propofolProgressT5 ? formData.propofolProgressT5 + ' mg' : ''}</td><td>${formData.propofolProgressT6 ? formData.propofolProgressT6 + ' mg' : ''}</td>
+                <td>${formData.propofolProgressT7 ? formData.propofolProgressT7 + ' mg' : ''}</td><td>${formData.propofolProgressT8 ? formData.propofolProgressT8 + ' mg' : ''}</td>
               </tr>
               <tr>
-                <td>LOCAL ANAESTHESIA</td>
-                <td>${formData.localAnaesthesiaT1 || ''}</td><td>${formData.localAnaesthesiaT2 || ''}</td><td>${formData.localAnaesthesiaT3 || ''}</td>
-                <td>${formData.localAnaesthesiaT4 || ''}</td><td>${formData.localAnaesthesiaT5 || ''}</td><td>${formData.localAnaesthesiaT6 || ''}</td>
-                <td>${formData.localAnaesthesiaT7 || ''}</td><td>${formData.localAnaesthesiaT8 || ''}</td>
+                <td>LOCAL ANAESTHESIA (ml)</td>
+                <td>${formData.localAnaesthesiaT1 ? formData.localAnaesthesiaT1 + ' ml' : ''}</td><td>${formData.localAnaesthesiaT2 ? formData.localAnaesthesiaT2 + ' ml' : ''}</td><td>${formData.localAnaesthesiaT3 ? formData.localAnaesthesiaT3 + ' ml' : ''}</td>
+                <td>${formData.localAnaesthesiaT4 ? formData.localAnaesthesiaT4 + ' ml' : ''}</td><td>${formData.localAnaesthesiaT5 ? formData.localAnaesthesiaT5 + ' ml' : ''}</td><td>${formData.localAnaesthesiaT6 ? formData.localAnaesthesiaT6 + ' ml' : ''}</td>
+                <td>${formData.localAnaesthesiaT7 ? formData.localAnaesthesiaT7 + ' ml' : ''}</td><td>${formData.localAnaesthesiaT8 ? formData.localAnaesthesiaT8 + ' ml' : ''}</td>
               </tr>
             </tbody>
           </table>
@@ -1060,42 +1060,42 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
             <div className="mb-4">
               <h4 className="font-bold text-sm mb-2">7. INDUCING AGENT</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Propofol:</label>
+                <label className="flex items-center">
                   <input
-                    type="text"
-                    value={formData.propofol}
-                    onChange={(e) => handleInputChange('propofol', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                    type="checkbox"
+                    checked={formData.propofol}
+                    onChange={(e) => handleInputChange('propofol', e.target.checked)}
+                    className="mr-2"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Thiopentone:</label>
+                  <span className="text-xs">Propofol</span>
+                </label>
+                <label className="flex items-center">
                   <input
-                    type="text"
-                    value={formData.thiopentone}
-                    onChange={(e) => handleInputChange('thiopentone', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                    type="checkbox"
+                    checked={formData.thiopentone}
+                    onChange={(e) => handleInputChange('thiopentone', e.target.checked)}
+                    className="mr-2"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Etomidate:</label>
+                  <span className="text-xs">Thiopentone</span>
+                </label>
+                <label className="flex items-center">
                   <input
-                    type="text"
-                    value={formData.etomidate}
-                    onChange={(e) => handleInputChange('etomidate', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                    type="checkbox"
+                    checked={formData.etomidate}
+                    onChange={(e) => handleInputChange('etomidate', e.target.checked)}
+                    className="mr-2"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Ketamine:</label>
+                  <span className="text-xs">Etomidate</span>
+                </label>
+                <label className="flex items-center">
                   <input
-                    type="text"
-                    value={formData.ketamine}
-                    onChange={(e) => handleInputChange('ketamine', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                    type="checkbox"
+                    checked={formData.ketamine}
+                    onChange={(e) => handleInputChange('ketamine', e.target.checked)}
+                    className="mr-2"
                   />
-                </div>
+                  <span className="text-xs">Ketamine</span>
+                </label>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium mb-1">Other:</label>
                   <input

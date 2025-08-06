@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import toast from 'react-hot-toast';
 
@@ -55,11 +55,44 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
     }]
   );
 
-  const [totalIntake, setTotalIntake] = useState(savedData?.totalIntake || '');
-  const [totalOutput, setTotalOutput] = useState(savedData?.totalOutput || '');
-  const [balance, setBalance] = useState(savedData?.balance || '');
+  const [totalIntake, setTotalIntake] = useState(savedData?.totalIntake || '0');
+  const [totalOutput, setTotalOutput] = useState(savedData?.totalOutput || '0');
+  const [balance, setBalance] = useState(savedData?.balance || '0');
   const [previousDayBalance, setPreviousDayBalance] = useState(savedData?.previousDayBalance || '');
   const [remarks, setRemarks] = useState(savedData?.remarks || '');
+
+  // Calculate totals automatically
+  const calculateTotals = () => {
+    let intake = 0;
+    let output = 0;
+
+    intakeOutputEntries.forEach(entry => {
+      // Calculate intake from: oralAmount, iv01, iv02
+      const oralAmount = parseFloat(entry.oralAmount) || 0;
+      const iv01 = parseFloat(entry.iv01) || 0;
+      const iv02 = parseFloat(entry.iv02) || 0;
+      intake += oralAmount + iv01 + iv02;
+
+      // Calculate output from: rtAspiration, urine, vomit, drain1, drain2
+      const rtAspiration = parseFloat(entry.rtAspiration) || 0;
+      const urine = parseFloat(entry.urine) || 0;
+      const vomit = parseFloat(entry.vomit) || 0;
+      const drain1 = parseFloat(entry.drain1) || 0;
+      const drain2 = parseFloat(entry.drain2) || 0;
+      output += rtAspiration + urine + vomit + drain1 + drain2;
+    });
+
+    const calculatedBalance = intake - output;
+
+    setTotalIntake(intake.toString());
+    setTotalOutput(output.toString());
+    setBalance(calculatedBalance.toString());
+  };
+
+  // Recalculate totals whenever entries change
+  useEffect(() => {
+    calculateTotals();
+  }, [intakeOutputEntries]);
 
   const addIntakeOutputEntry = () => {
     const newEntry: IntakeOutputEntry = {
@@ -86,6 +119,13 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
     } else {
       toast.error('At least one intake/output entry must remain');
     }
+  };
+
+  // Helper function to update entry and trigger recalculation
+  const updateEntry = (index: number, field: keyof IntakeOutputEntry, value: string) => {
+    const updated = [...intakeOutputEntries];
+    updated[index] = { ...updated[index], [field]: value };
+    setIntakeOutputEntries(updated);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -167,15 +207,15 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
       </tr>
       <tr>
         <th>Oral/RT Feeding Type</th>
-        <th>Amount</th>
-        <th>IV-01</th>
-        <th>IV-02</th>
-        <th>RT Aspiration</th>
-        <th>Urine</th>
-        <th>Vomit</th>
-        <th>Stool (No. of times)</th>
-        <th>Drain-1</th>
-        <th>Drain-2</th>
+        <th>Amount<br>(ml)</th>
+        <th>IV-01<br>(ml)</th>
+        <th>IV-02<br>(ml)</th>
+        <th>RT Aspiration<br>(ml)</th>
+        <th>Urine<br>(ml)</th>
+        <th>Vomit<br>(ml)</th>
+        <th>Stool<br>(No. of times)</th>
+        <th>Drain-1<br>(ml)</th>
+        <th>Drain-2<br>(ml)</th>
       </tr>
     </thead>
     <tbody>
@@ -184,15 +224,15 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
           <td>${entry.date}</td>
           <td>${entry.time}</td>
           <td>${entry.oralFeeding}</td>
-          <td>${entry.oralAmount}</td>
-          <td>${entry.iv01}</td>
-          <td>${entry.iv02}</td>
-          <td>${entry.rtAspiration}</td>
-          <td>${entry.urine}</td>
-          <td>${entry.vomit}</td>
-          <td>${entry.stool}</td>
-          <td>${entry.drain1}</td>
-          <td>${entry.drain2}</td>
+          <td>${entry.oralAmount || ''}</td>
+          <td>${entry.iv01 || ''}</td>
+          <td>${entry.iv02 || ''}</td>
+          <td>${entry.rtAspiration || ''}</td>
+          <td>${entry.urine || ''}</td>
+          <td>${entry.vomit || ''}</td>
+          <td>${entry.stool || ''}</td>
+          <td>${entry.drain1 || ''}</td>
+          <td>${entry.drain2 || ''}</td>
         </tr>
       `).join('')}
     </tbody>
@@ -200,11 +240,11 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
 
   <div class="summary">
     <table class="summary-table">
-      <tr><th>Total Intake (ml)</th><td>${totalIntake}</td></tr>
-      <tr><th>Total Output (ml)</th><td>${totalOutput}</td></tr>
-      <tr><th>Balance (ml)</th><td>${balance}</td></tr>
-      <tr><th>Previous Day Balance (ml)</th><td>${previousDayBalance}</td></tr>
-      <tr><th>Remarks</th><td>${remarks}</td></tr>
+      <tr><th>Total Intake (ml)</th><td>${totalIntake || ''}</td></tr>
+      <tr><th>Total Output (ml)</th><td>${totalOutput || ''}</td></tr>
+      <tr><th>Balance (ml)</th><td>${balance || ''}</td></tr>
+      <tr><th>Previous Day Balance (ml)</th><td>${previousDayBalance || ''}</td></tr>
+      <tr><th>Remarks</th><td>${remarks || ''}</td></tr>
     </table>
   </div>
 </body>
@@ -278,7 +318,13 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800">Fluid Intake and Output Monitoring</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Fluid Intake and Output Monitoring</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    📊 Fields with chart icons automatically calculate totals. 
+                    <span className="text-blue-600">Blue = Intake</span>, <span className="text-red-600">Red = Output</span>
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={addIntakeOutputEntry}
@@ -302,15 +348,15 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
                     <th className="border border-gray-300 p-2"></th>
                     <th className="border border-gray-300 p-2"></th>
                     <th className="border border-gray-300 p-2 text-xs">Oral/RT Feeding Type</th>
-                    <th className="border border-gray-300 p-2 text-xs">Amount</th>
-                    <th className="border border-gray-300 p-2 text-xs">IV-01</th>
-                    <th className="border border-gray-300 p-2 text-xs">IV-02</th>
-                    <th className="border border-gray-300 p-2 text-xs">RT Aspiration</th>
-                    <th className="border border-gray-300 p-2 text-xs">Urine</th>
-                    <th className="border border-gray-300 p-2 text-xs">Vomit</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-blue-100">Amount (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-blue-100">IV-01 (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-blue-100">IV-02 (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-red-100">RT Aspiration (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-red-100">Urine (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-red-100">Vomit (ml) 📊</th>
                     <th className="border border-gray-300 p-2 text-xs">Stool (No. of times)</th>
-                    <th className="border border-gray-300 p-2 text-xs">Drain-1</th>
-                    <th className="border border-gray-300 p-2 text-xs">Drain-2</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-red-100">Drain-1 (ml) 📊</th>
+                    <th className="border border-gray-300 p-2 text-xs bg-red-100">Drain-2 (ml) 📊</th>
                     <th className="border border-gray-300 p-2"></th>
                   </tr>
                 </thead>
@@ -321,11 +367,7 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
                         <input
                           type="date"
                           value={entry.date}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, date: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'date', e.target.value)}
                           className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
@@ -333,11 +375,7 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
                         <input
                           type="time"
                           value={entry.time}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, time: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'time', e.target.value)}
                           className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
@@ -345,130 +383,90 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
                         <input
                           type="text"
                           value={entry.oralFeeding}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, oralFeeding: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'oralFeeding', e.target.value)}
                           placeholder="Type"
                           className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-blue-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.oralAmount}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, oralAmount: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'oralAmount', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-blue-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.iv01}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, iv01: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'iv01', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-blue-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.iv02}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, iv02: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'iv02', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-red-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.rtAspiration}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, rtAspiration: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'rtAspiration', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-red-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.urine}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, urine: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'urine', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-red-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.vomit}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, vomit: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'vomit', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-50"
                         />
                       </td>
                       <td className="border border-gray-300 p-2">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.stool}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, stool: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'stool', e.target.value)}
                           placeholder="Times"
                           className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-red-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.drain1}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, drain1: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'drain1', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-50"
                         />
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-2 bg-red-50">
                         <input
-                          type="text"
+                          type="number"
                           value={entry.drain2}
-                          onChange={(e) => {
-                            const updated = [...intakeOutputEntries];
-                            updated[index] = { ...entry, drain2: e.target.value };
-                            setIntakeOutputEntries(updated);
-                          }}
+                          onChange={(e) => updateEntry(index, 'drain2', e.target.value)}
                           placeholder="ml"
-                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-red-500 bg-red-50"
                         />
                       </td>
                       <td className="border border-gray-300 p-2 text-center">
@@ -493,30 +491,36 @@ const IntakeOutputForm: React.FC<IntakeOutputFormProps> = ({
               <h4 className="font-semibold text-gray-800 mb-3">Daily Summary</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Intake (ml)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Total Intake (ml) <span className="text-xs text-blue-600">(Auto-calculated)</span>
+                  </label>
                   <input
                     type="text"
                     value={totalIntake}
-                    onChange={(e) => setTotalIntake(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-blue-50 text-blue-900 font-semibold cursor-not-allowed"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Output (ml)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Total Output (ml) <span className="text-xs text-red-600">(Auto-calculated)</span>
+                  </label>
                   <input
                     type="text"
                     value={totalOutput}
-                    onChange={(e) => setTotalOutput(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-red-50 text-red-900 font-semibold cursor-not-allowed"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Balance (ml)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Balance (ml) <span className="text-xs text-green-600">(Auto-calculated)</span>
+                  </label>
                   <input
                     type="text"
                     value={balance}
-                    onChange={(e) => setBalance(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-green-50 text-green-900 font-semibold cursor-not-allowed"
                   />
                 </div>
                 <div>

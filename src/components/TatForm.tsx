@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import type { PatientWithRelations } from '../config/supabaseNew';
 
 interface TatFormData {
   // Patient Information
@@ -8,7 +9,7 @@ interface TatFormData {
   arrivalDateTime: string;
   ageSex: string;
   department: string;
-  uhidIpNo: string;
+  patientId: string;
   receivingStaff: string;
   historyGivenBy: 'patient' | 'relative' | '';
 
@@ -43,7 +44,6 @@ interface TatFormData {
     depressed: boolean;
     sleepy: boolean;
   };
-  provisionalDiagnosis: string;
 
   // Medical History
   historyOfAllergy: 'yes' | 'no' | '';
@@ -75,7 +75,8 @@ interface TatFormData {
     arterialLine: boolean;
     gastroJejunostomy: boolean;
     ivLine: boolean;
-    slab: boolean;
+    slab: 'yes' | 'no' | '';
+    slabAction: string; // "remove and inform the consultant" when slab is yes
     other: boolean;
   };
   pressureSore: 'yes' | 'no' | '';
@@ -86,8 +87,6 @@ interface TatFormData {
   sideRailingUp: 'yes' | 'no' | '';
   callBellWorking: 'yes' | 'no' | '';
 
-  // Major Surgical History
-  majorSurgicalHistory: string;
   pastMedicalHistory: string;
 
   // Vulnerable Assessment
@@ -148,19 +147,20 @@ interface TatFormData {
 interface TatFormProps {
   patientId?: string;
   bedNumber?: string;
+  patient?: PatientWithRelations; // Patient object with all details
   onClose: () => void;
   onSave?: (data: TatFormData) => void;
   savedData?: TatFormData; // Previously saved form data
 }
 
-const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave, savedData }) => {
+const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, patient, onClose, onSave, savedData }) => {
   const [formData, setFormData] = useState<TatFormData>({
     consultantName: savedData?.consultantName || '',
     patientName: savedData?.patientName || '',
     arrivalDateTime: savedData?.arrivalDateTime || new Date().toISOString().slice(0, 16),
     ageSex: savedData?.ageSex || '',
     department: savedData?.department || '',
-    uhidIpNo: savedData?.uhidIpNo || '',
+    patientId: savedData?.patientId || '',
     receivingStaff: savedData?.receivingStaff || '',
     historyGivenBy: savedData?.historyGivenBy || '',
     arrivalBy: {
@@ -193,7 +193,6 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
       depressed: savedData?.psychologicalStatus?.depressed || false,
       sleepy: savedData?.psychologicalStatus?.sleepy || false,
     },
-    provisionalDiagnosis: savedData?.provisionalDiagnosis || '',
     historyOfAllergy: savedData?.historyOfAllergy || '',
     allergyDescription: savedData?.allergyDescription || '',
     medicationsOnAdmission: savedData?.medicationsOnAdmission || '',
@@ -220,7 +219,8 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
       arterialLine: savedData?.onAdmission?.arterialLine || false,
       gastroJejunostomy: savedData?.onAdmission?.gastroJejunostomy || false,
       ivLine: savedData?.onAdmission?.ivLine || false,
-      slab: savedData?.onAdmission?.slab || false,
+      slab: savedData?.onAdmission?.slab || '',
+      slabAction: savedData?.onAdmission?.slabAction || '',
       other: savedData?.onAdmission?.other || false,
     },
     pressureSore: savedData?.pressureSore || '',
@@ -228,7 +228,6 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
     pressureSoreStage: savedData?.pressureSoreStage || '',
     sideRailingUp: savedData?.sideRailingUp || '',
     callBellWorking: savedData?.callBellWorking || '',
-    majorSurgicalHistory: savedData?.majorSurgicalHistory || '',
     pastMedicalHistory: savedData?.pastMedicalHistory || '',
     patientVulnerable: savedData?.patientVulnerable || '',
     vulnerableCategories: {
@@ -279,6 +278,33 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
   });
 
   const [loading, setLoading] = useState(false);
+
+  // Auto-populate patient data when component mounts and patient is available
+  useEffect(() => {
+    if (patient && !savedData) {
+      const now = new Date();
+      const currentDateTime = now.toISOString().slice(0, 16);
+      
+      // Get doctor name from patient data
+      let doctorName = '';
+      if (patient.assigned_doctor) {
+        doctorName = patient.assigned_doctor;
+      } else if (patient.assigned_doctors && patient.assigned_doctors.length > 0) {
+        const primaryDoctor = patient.assigned_doctors.find(doc => doc.isPrimary);
+        doctorName = primaryDoctor ? primaryDoctor.name : patient.assigned_doctors[0].name;
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        patientName: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+        ageSex: `${patient.age || ''} / ${patient.gender || ''}`,
+        department: patient.assigned_department || '',
+        patientId: patient.patient_id || '',
+        consultantName: doctorName,
+        arrivalDateTime: currentDateTime,
+      }));
+    }
+  }, [patient, savedData]);
 
   const handlePrint = () => {
     // Create a new window for printing
@@ -463,6 +489,16 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             font-size: 8px;
           }
           
+          .action-note {
+            font-size: 8px;
+            color: #d97706;
+            font-weight: bold;
+            margin-top: 2px;
+            padding: 2px 4px;
+            background-color: #fef3c7;
+            border-radius: 2px;
+          }
+          
           /* Page 1 Sections */
           .page-1 {
             min-height: 100vh;
@@ -532,8 +568,8 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
               <div class="field-value">${formData.department || '&nbsp;'}</div>
             </div>
             <div class="field">
-              <label>UHID/IP No:</label>
-              <div class="field-value">${formData.uhidIpNo || '&nbsp;'}</div>
+              <label>Patient Id:</label>
+              <div class="field-value">${formData.patientId || '&nbsp;'}</div>
             </div>
           </div>
           <div class="field">
@@ -582,11 +618,11 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
           <div class="grid">
             <div class="field">
               <label>Height (cm):</label>
-              <div class="field-value">${formData.height || '&nbsp;'}</div>
+              <div class="field-value">${formData.height ? formData.height + ' cm' : '&nbsp;'}</div>
             </div>
             <div class="field">
               <label>Weight (kg):</label>
-              <div class="field-value">${formData.weight || '&nbsp;'}</div>
+              <div class="field-value">${formData.weight ? formData.weight + ' kg' : '&nbsp;'}</div>
             </div>
             <div class="field">
               <label>Unable to stand due to:</label>
@@ -598,23 +634,23 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
             <div class="grid" style="grid-template-columns: repeat(5, 1fr);">
               <div class="field">
                 <label>Temp (°F):</label>
-                <div class="field-value">${formData.vitals.temp || '&nbsp;'}</div>
+                <div class="field-value">${formData.vitals.temp ? formData.vitals.temp + ' °F' : '&nbsp;'}</div>
               </div>
               <div class="field">
                 <label>Pulse (bpm):</label>
-                <div class="field-value">${formData.vitals.pulse || '&nbsp;'}</div>
+                <div class="field-value">${formData.vitals.pulse ? formData.vitals.pulse + ' bpm' : '&nbsp;'}</div>
               </div>
               <div class="field">
                 <label>BP (mmHg):</label>
-                <div class="field-value">${formData.vitals.bp || '&nbsp;'}</div>
+                <div class="field-value">${formData.vitals.bp ? formData.vitals.bp + ' mmHg' : '&nbsp;'}</div>
               </div>
               <div class="field">
                 <label>SpO2 (%):</label>
-                <div class="field-value">${formData.vitals.spo2 || '&nbsp;'}</div>
+                <div class="field-value">${formData.vitals.spo2 ? formData.vitals.spo2 + ' %' : '&nbsp;'}</div>
               </div>
               <div class="field">
                 <label>Resp (rpm):</label>
-                <div class="field-value">${formData.vitals.resp || '&nbsp;'}</div>
+                <div class="field-value">${formData.vitals.resp ? formData.vitals.resp + ' rpm' : '&nbsp;'}</div>
               </div>
             </div>
           </div>
@@ -772,7 +808,6 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                 arterialLine: 'Arterial Line',
                 gastroJejunostomy: 'Gastro Jejunostomy',
                 ivLine: 'IV Line',
-                slab: 'Slab',
                 other: 'Other'
               }).map(([key, label]) => `
                 <div class="checkbox-item">
@@ -780,6 +815,13 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                   <span>${label}</span>
                 </div>
               `).join('')}
+              
+              <!-- Special Slab handling -->
+              <div class="checkbox-item">
+                <span class="checkbox ${formData.onAdmission.slab === 'yes' ? 'checked' : ''}"></span>
+                <span>Slab: ${formData.onAdmission.slab === 'yes' ? 'Yes' : formData.onAdmission.slab === 'no' ? 'No' : 'Not Selected'}</span>
+                ${formData.onAdmission.slab === 'yes' ? '<div class="action-note">⚠️ Action: Remove and inform the consultant</div>' : ''}
+              </div>
             </div>
           </div>
           <div class="grid">
@@ -847,18 +889,12 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
           </div>
         </div>
 
-        <!-- Section 6: Major Surgical History -->
+        <!-- Section 6: Past Medical History -->
         <div class="section">
-          <h3>6. Major Surgical History</h3>
-          <div class="grid-2">
-            <div class="field">
-              <label>Major Surgical History:</label>
-              <div class="field-value" style="min-height: 40px;">${formData.majorSurgicalHistory || '&nbsp;'}</div>
-            </div>
-            <div class="field">
-              <label>Past Medical History:</label>
-              <div class="field-value" style="min-height: 40px;">${formData.pastMedicalHistory || '&nbsp;'}</div>
-            </div>
+          <h3>6. Past Medical History</h3>
+          <div class="field">
+            <label>Past Medical History:</label>
+            <div class="field-value" style="min-height: 40px;">${formData.pastMedicalHistory || '&nbsp;'}</div>
           </div>
         </div>
 
@@ -1150,11 +1186,11 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">UHID/IP No.</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient Id</label>
                   <input
                     type="text"
-                    value={formData.uhidIpNo}
-                    onChange={(e) => setFormData(prev => ({ ...prev, uhidIpNo: e.target.value }))}
+                    value={formData.patientId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, patientId: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1352,16 +1388,6 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                 </div>
               </div>
 
-              {/* Provisional Diagnosis */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Provisional diagnosis</label>
-                <textarea
-                  value={formData.provisionalDiagnosis}
-                  onChange={(e) => setFormData(prev => ({ ...prev, provisionalDiagnosis: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
             </div>
 
             {/* 3. Medical History */}
@@ -1616,7 +1642,6 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                     arterialLine: 'Arterial Line',
                     gastroJejunostomy: 'Gastro jejunostomy feed tube',
                     ivLine: 'I V line',
-                    slab: 'Slab',
                     other: 'Other'
                   }).map(([key, label]) => (
                     <label key={key} className="flex items-center">
@@ -1632,6 +1657,40 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
                       {label}
                     </label>
                   ))}
+                  
+                  {/* Special Slab handling with yes/no */}
+                  <div className="col-span-full mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Slab</label>
+                    <select
+                      value={formData.onAdmission.slab}
+                      onChange={(e) => {
+                        const value = e.target.value as 'yes' | 'no' | '';
+                        setFormData(prev => ({
+                          ...prev,
+                          onAdmission: { 
+                            ...prev.onAdmission, 
+                            slab: value,
+                            slabAction: value === 'yes' ? 'Remove and inform the consultant' : ''
+                          }
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                    
+                    {/* Show action when slab is yes */}
+                    {formData.onAdmission.slab === 'yes' && (
+                      <div className="mt-2 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
+                        <div className="flex items-center">
+                          <span className="text-yellow-800 font-medium">⚠️ Action Required:</span>
+                          <span className="ml-2 text-yellow-700">Remove and inform the consultant</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1762,28 +1821,17 @@ const TatForm: React.FC<TatFormProps> = ({ patientId, bedNumber, onClose, onSave
               </div>
             </div>
 
-            {/* 6. Major Surgical History */}
+            {/* 6. Past Medical History */}
             <div className="bg-indigo-50 p-6 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4 text-indigo-800">6. Major Surgical History</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Major surgical history</label>
-                  <textarea
-                    value={formData.majorSurgicalHistory}
-                    onChange={(e) => setFormData(prev => ({ ...prev, majorSurgicalHistory: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Past Medical history</label>
-                  <textarea
-                    value={formData.pastMedicalHistory}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pastMedicalHistory: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+              <h3 className="text-lg font-semibold mb-4 text-indigo-800">6. Past Medical History</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Past Medical history</label>
+                <textarea
+                  value={formData.pastMedicalHistory}
+                  onChange={(e) => setFormData(prev => ({ ...prev, pastMedicalHistory: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
             </div>
 

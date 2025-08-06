@@ -132,6 +132,29 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               color: #111827;
             }
 
+            .vitals-section {
+              margin-top: 8px;
+              margin-left: 16px;
+            }
+
+            .vitals-section > div {
+              margin-bottom: 6px;
+              font-size: 16px;
+              color: #374151;
+            }
+
+            .text-area {
+              margin-top: 8px;
+              margin-left: 16px;
+              min-height: 40px;
+              font-size: 16px;
+              color: #374151;
+              line-height: 1.4;
+              border-bottom: 1px solid #E5E7EB;
+              padding-bottom: 8px;
+              white-space: pre-wrap;
+            }
+
             @page {
               margin: 0;
               size: A3;
@@ -156,27 +179,39 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
 
             <div class="patient-details">
               <div>
-                <span class="label">Name:</span>
+                <span class="label">Patient Name:</span>
                 <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
               </div>
               <div>
-                <span class="label">Patient No:</span>
-                <span class="value">${patient.patient_id}</span>
+                <span class="label">Vitals</span>
+                <div class="vitals-section">
+                  <div>BP: ${patient.bp || '_____'}</div>
+                  <div>Pulse: ${patient.pulse || '_____'}</div>
+                  <div>Resp: ${patient.resp || '_____'}</div>
+                </div>
               </div>
               <div>
-                <span class="label">Department:</span>
-                <span class="value">${getDepartmentName()}</span>
+                <span class="label">Chief Complaints:</span>
+                <div class="text-area">${patient.chief_complaints || ''}</div>
+              </div>
+              <div>
+                <span class="label">History</span>
+                <div class="text-area">${patient.history || ''}</div>
+              </div>
+              <div>
+                <span class="label">Treatment Advice</span>
+                <div class="text-area">${patient.treatment_advice || ''}</div>
               </div>
             </div>
 
             <div class="right-details">
               <div>
-                <span class="label">Date:</span>
-                <span class="value">${getCurrentDate()}</span>
+                <span class="label">OPD No:</span>
+                <span class="value">${patient.patient_id || patient.opd_no || ''}</span>
               </div>
               <div>
-                <span class="label">Age/Sex:</span>
-                <span class="value">${patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / ${patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}</span>
+                <span class="label">Investigation</span>
+                <div class="text-area">${patient.investigation || ''}</div>
               </div>
             </div>
           </div>

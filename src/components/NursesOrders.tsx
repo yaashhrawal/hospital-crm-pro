@@ -390,6 +390,8 @@ const NursesOrders: React.FC<NursesOrdersProps> = ({
     th, td { border: 1px solid black; padding: 4pt; text-align: left; font-size: 8pt; }
     th { background: #f0f0f0; font-weight: bold; text-align: center; }
     .section-title { font-size: 12pt; font-weight: bold; margin: 15pt 0 8pt 0; page-break-after: avoid; }
+    .summary-section { margin: 10pt 0; }
+    .summary-table { width: 60%; }
   </style>
 </head>
 <body>
@@ -404,23 +406,170 @@ const NursesOrders: React.FC<NursesOrdersProps> = ({
   <table>
     <thead>
       <tr>
-        <th>Date</th><th>Time</th><th>Pulse</th><th>B.P. Syst</th><th>B.P. Diast</th>
-        <th>RESP</th><th>TEMP</th><th>SpO2</th><th>Pain Score</th><th>GCS</th><th>Sign</th>
+        <th>Date</th><th>Time</th><th>Pulse<br>(BPM)</th><th>B.P. Syst<br>(mmHg)</th><th>B.P. Diast<br>(mmHg)</th>
+        <th>RESP<br>(/min)</th><th>TEMP<br>(°F)</th><th>SpO2<br>(%)</th><th>Pain Score<br>(0-10)</th><th>GCS</th><th>Sign</th>
       </tr>
     </thead>
     <tbody>
       ${vitalEntries.map(entry => `
         <tr>
-          <td>${entry.date}</td><td>${entry.time}</td><td>${entry.pulse}</td>
-          <td>${entry.bpSyst}</td><td>${entry.bpDiast}</td><td>${entry.resp}</td>
-          <td>${entry.temp}</td><td>${entry.spo2}</td><td>${entry.painScore}</td>
-          <td>${entry.gcs}</td><td>${entry.sign}</td>
+          <td>${entry.date}</td><td>${entry.time}</td>
+          <td>${entry.pulse || ''}</td>
+          <td>${entry.bpSyst || ''}</td>
+          <td>${entry.bpDiast || ''}</td>
+          <td>${entry.resp || ''}</td>
+          <td>${entry.temp || ''}</td>
+          <td>${entry.spo2 || ''}</td>
+          <td>${entry.painScore || ''}</td>
+          <td>${entry.gcs || ''}</td><td>${entry.sign || ''}</td>
         </tr>
       `).join('')}
     </tbody>
   </table>
   
-  <!-- Add other sections similarly... -->
+  <div class="section-title">2. INTAKE AND OUTPUT RECORD</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Time</th><th>Oral/RT Feeding Type</th><th>Amount<br>(ml)</th>
+        <th>IV-01<br>(ml)</th><th>IV-02<br>(ml)</th><th>RT Aspiration<br>(ml)</th><th>Urine<br>(ml)</th>
+        <th>Vomit<br>(ml)</th><th>Stool<br>(times)</th><th>Drain-1<br>(ml)</th><th>Drain-2<br>(ml)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${intakeOutputEntries.map(entry => `
+        <tr>
+          <td>${entry.date}</td><td>${entry.time}</td><td>${entry.oralFeeding}</td>
+          <td>${entry.oralAmount || ''}</td>
+          <td>${entry.iv01 || ''}</td>
+          <td>${entry.iv02 || ''}</td>
+          <td>${entry.rtAspiration || ''}</td>
+          <td>${entry.urine || ''}</td>
+          <td>${entry.vomit || ''}</td>
+          <td>${entry.stool || ''}</td>
+          <td>${entry.drain1 || ''}</td>
+          <td>${entry.drain2 || ''}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  
+  <div class="summary-section">
+    <table class="summary-table">
+      <tr><th>Total Intake (ml)</th><td>${totalIntake || ''}</td></tr>
+      <tr><th>Total Output (ml)</th><td>${totalOutput || ''}</td></tr>
+      <tr><th>Balance (ml)</th><td>${balance || ''}</td></tr>
+      <tr><th>Previous Day Balance (ml)</th><td>${previousDayBalance || ''}</td></tr>
+      <tr><th>Remarks</th><td>${remarks || ''}</td></tr>
+    </table>
+  </div>
+
+  <div class="section-title">3. MEDICATION CHART</div>
+  <div style="margin-bottom: 10pt;">
+    <strong>Patient:</strong> ${medicationPatientInfo.patientName} | 
+    <strong>Age/Sex:</strong> ${medicationPatientInfo.ageSex} | 
+    <strong>Consultant:</strong> ${medicationPatientInfo.consultant}<br>
+    <strong>Date:</strong> ${medicationPatientInfo.date} | 
+    <strong>POD:</strong> ${medicationPatientInfo.pod} | 
+    <strong>Allergy:</strong> ${medicationPatientInfo.allergy}<br>
+    <strong>Diagnosis/Surgery:</strong> ${medicationPatientInfo.diagnosisSurgery}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>S.N.</th><th>Drug Name & Dose</th><th>Route</th>
+        <th>Morning Time</th><th>Morning Sign</th><th>Noon Time</th><th>Noon Sign</th>
+        <th>Evening Time</th><th>Evening Sign</th><th>Night Time</th><th>Night Sign</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${medicationEntries.map(entry => `
+        <tr>
+          <td>${entry.sn}</td><td>${entry.drugName}</td><td>${entry.route}</td>
+          <td>${entry.morningTime}</td><td>${entry.morningName}</td>
+          <td>${entry.noonTime}</td><td>${entry.noonName}</td>
+          <td>${entry.eveningTime}</td><td>${entry.eveningName}</td>
+          <td>${entry.nightTime}</td><td>${entry.nightName}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div class="section-title">4. DIABETIC FLOW CHART</div>
+  <div style="margin-bottom: 10pt;">
+    <strong>Patient:</strong> ${diabeticPatientInfo.patientName} | 
+    <strong>Age/Sex:</strong> ${diabeticPatientInfo.ageSex} | 
+    <strong>Department:</strong> ${diabeticPatientInfo.department}<br>
+    <strong>UHID:</strong> ${diabeticPatientInfo.uhid} | 
+    <strong>IP No:</strong> ${diabeticPatientInfo.ipNo} | 
+    <strong>Doctor:</strong> ${diabeticPatientInfo.doctor}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date & Time</th><th>Blood Sugar<br>(mg/dl)</th><th>Medication Name</th>
+        <th>Dose</th><th>Route</th><th>Sign</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${diabeticEntries.map(entry => `
+        <tr>
+          <td>${entry.dateTime}</td>
+          <td>${entry.bloodSugar || ''}</td>
+          <td>${entry.medicationName || ''}</td>
+          <td>${entry.medicationDose || ''}</td>
+          <td>${entry.route || ''}</td><td>${entry.sign || ''}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div class="section-title">5. NURSING CARE PLAN</div>
+  <div style="margin-bottom: 10pt;">
+    <strong>Patient:</strong> ${carePlanPatientInfo.patientName} | 
+    <strong>Age/Sex:</strong> ${carePlanPatientInfo.ageSex} | 
+    <strong>Department:</strong> ${carePlanPatientInfo.department}<br>
+    <strong>UHID:</strong> ${carePlanPatientInfo.uhid} | 
+    <strong>IP No:</strong> ${carePlanPatientInfo.ipNo} | 
+    <strong>Doctor:</strong> ${carePlanPatientInfo.doctor}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Assessment/Nursing Diagnosis</th><th>Goal/Expected Outcome</th>
+        <th>Planned Care</th><th>Evaluation</th><th>Date/Time</th><th>Name/Sign</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${carePlanEntries.map(entry => `
+        <tr>
+          <td>${entry.assessment}</td><td>${entry.goal}</td><td>${entry.plannedCare}</td>
+          <td>${entry.evaluation}</td><td>${entry.dateTime}</td><td>${entry.nameSign}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div class="section-title">6. NURSES NOTES</div>
+  <div style="margin-bottom: 15pt;">
+    <div style="margin-bottom: 10pt;">
+      <strong>Morning Notes:</strong><br>
+      <div style="border: 1px solid black; padding: 8pt; margin-top: 4pt; min-height: 60pt;">${nursesNotes.morningNotes}</div>
+      <div style="margin-top: 4pt;"><strong>Signature:</strong> ${nursesNotes.morningSign}</div>
+    </div>
+    
+    <div style="margin-bottom: 10pt;">
+      <strong>Evening Notes:</strong><br>
+      <div style="border: 1px solid black; padding: 8pt; margin-top: 4pt; min-height: 60pt;">${nursesNotes.eveningNotes}</div>
+      <div style="margin-top: 4pt;"><strong>Signature:</strong> ${nursesNotes.eveningSign}</div>
+    </div>
+    
+    <div style="margin-bottom: 10pt;">
+      <strong>Night Notes:</strong><br>
+      <div style="border: 1px solid black; padding: 8pt; margin-top: 4pt; min-height: 60pt;">${nursesNotes.nightNotes}</div>
+      <div style="margin-top: 4pt;"><strong>Signature:</strong> ${nursesNotes.nightSign}</div>
+    </div>
+  </div>
   
 </body>
 </html>`;
