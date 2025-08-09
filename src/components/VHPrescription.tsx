@@ -25,9 +25,15 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     console.log('📋 VH Current doctorDetails state:', doctorDetails);
     
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    const localDoctorInfo = getDoctorWithDegree(doctorName);
+    
+    // Prioritize database specialty over local degree if available
+    const degree = doctorDetails.specialty || localDoctorInfo.degree;
+    
     const result = {
-      ...getDoctorWithDegree(doctorName),
-      specialty: doctorDetails.specialty || '',
+      name: localDoctorInfo.name,
+      degree: degree,
+      specialty: '', // Don't show specialty separately since it's now the degree
       hospital_experience: doctorDetails.hospital_experience || ''
     };
     console.log('👨‍⚕️ VH FINAL getDoctorInfo result:', result);
