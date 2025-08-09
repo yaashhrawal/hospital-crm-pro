@@ -208,7 +208,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             <div class="doctor-details">
               <div class="doctor-name">${doctorInfo.name}</div>
               ${doctorInfo.degree ? `<div class="doctor-degree">${doctorInfo.degree}</div>` : ''}
-              ${doctorInfo.specialty ? `<div class="doctor-specialty">${doctorInfo.specialty}</div>` : ''}
+              ${doctorInfo.specialty && doctorInfo.specialty !== doctorInfo.degree ? `<div class="doctor-specialty">${doctorInfo.specialty}</div>` : ''}
               ${doctorInfo.hospital_experience ? `<div class="doctor-experience">${doctorInfo.hospital_experience}</div>` : ''}
             </div>
 
@@ -424,8 +424,8 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             )}
             
             
-            {/* Specialty - Below department */}
-            {getDoctorInfo().specialty && (
+            {/* Specialty - Below department (only show if different from degree) */}
+            {getDoctorInfo().specialty && getDoctorInfo().specialty !== getDoctorInfo().degree && (
               <div className="text-lg mt-1 font-bold text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
                 {getDoctorInfo().specialty}
               </div>
