@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { DashboardStats, PatientAdmissionWithRelations, TransactionWithRelations } from '../config/supabaseNew';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
-import MonthCalendar from './calendar/MonthCalendar';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -252,8 +251,8 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
       </div>
 
-      {/* Full Month Calendar */}
-      <MonthCalendar />
+      {/* Full Month Calendar - Temporarily disabled */}
+      {/* <MonthCalendar /> */}
 
       {/* Refresh Button */}
       <div className="mt-8 text-center">
