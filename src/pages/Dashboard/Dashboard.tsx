@@ -24,6 +24,10 @@ import { RealtimeIndicator } from '@/components/ui/RealtimeIndicator';
 import { LineChart } from '@/components/charts/LineChart';
 // import { BarChart } from '@/components/charts/BarChart';
 import { formatCurrency } from '@/utils';
+// import LiveCalendar from '../../components/calendar/LiveCalendar';
+// import TestCalendar from '../../components/calendar/TestCalendar';
+// import SimpleCalendar from '../../components/calendar/SimpleCalendar';
+import DebugCalendar from '../../components/DebugCalendar';
 import { dashboardService } from '../../services/dashboardService';
 import { useTodayAppointments, useAppointmentsRealtime } from '../../hooks/useAppointments';
 import { useRecentPatients, usePatientsRealtime } from '../../hooks/usePatients';
@@ -241,6 +245,9 @@ export const Dashboard: React.FC = () => {
           ))}
         </div>
       </Card>
+
+      {/* Live Calendar Section */}
+      <DebugCalendar />
 
       {/* Charts Section */}
       {chartData && (

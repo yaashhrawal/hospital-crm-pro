@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { DashboardStats, PatientAdmissionWithRelations, TransactionWithRelations } from '../config/supabaseNew';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
+import MonthCalendar from './calendar/MonthCalendar';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -161,6 +162,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
+
       {/* Statistics Grid */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
@@ -219,7 +221,7 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <button
           onClick={() => onNavigate?.('patient-entry')}
           className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
@@ -238,14 +240,6 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-sm text-gray-600">Manage admissions</div>
         </button>
 
-        <button
-          onClick={() => onNavigate?.('appointments')}
-          className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-        >
-          <div className="text-2xl mb-2">📅</div>
-          <div className="font-medium">Appointments</div>
-          <div className="text-sm text-gray-600">Schedule & manage</div>
-        </button>
 
         <button
           onClick={() => onNavigate?.('expenses')}
@@ -258,76 +252,8 @@ const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Admissions */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">Recent Admissions</h2>
-          </div>
-          <div className="p-6">
-            {recentAdmissions.length > 0 ? (
-              <div className="space-y-4">
-                {recentAdmissions.map((admission) => (
-                  <div key={admission.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">
-                        {admission.patient?.first_name} {admission.patient?.last_name}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Bed {admission.bed?.bed_number} • {admission.bed?.room_type}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">
-                        {formatCurrency(admission.bed?.daily_rate || 0)}/day
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(admission.admission_date).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">No recent admissions</p>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Transactions */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">Recent Transactions</h2>
-          </div>
-          <div className="p-6">
-            {recentTransactions.length > 0 ? (
-              <div className="space-y-4">
-                {recentTransactions.slice(0, 5).map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{transaction.description}</div>
-                      <div className="text-sm text-gray-600">
-                        {transaction.patient?.first_name} {transaction.patient?.last_name}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">
-                        {formatCurrency(transaction.amount)}
-                      </div>
-                      <div className={`text-xs px-2 py-1 rounded ${getStatusColor(transaction.status)}`}>
-                        {transaction.status}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">No recent transactions</p>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Full Month Calendar */}
+      <MonthCalendar />
 
       {/* Refresh Button */}
       <div className="mt-8 text-center">

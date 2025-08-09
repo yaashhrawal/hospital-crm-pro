@@ -6,7 +6,6 @@ import type { User } from './config/supabaseNew';
 // Import production components only
 import ComprehensivePatientList from './components/ComprehensivePatientList';
 import ErrorBoundary from './components/ErrorBoundary';
-import AppointmentManagement from './components/AppointmentManagement';
 import RealTimeDashboard from './components/RealTimeDashboard';
 import NewFlexiblePatientEntry from './components/NewFlexiblePatientEntry';
 import DailyExpenseTab from './components/DailyExpenseTab';
@@ -235,12 +234,6 @@ const App: React.FC = () => {
       name: '👥 Patient List', 
       component: ComprehensivePatientList,
       description: 'View and manage all registered patients' 
-    },
-    { 
-      id: 'appointments', 
-      name: '📅 Appointments', 
-      component: AppointmentManagement,
-      description: 'Schedule and manage patient appointments' 
     },
     { 
       id: 'ipd-beds', 
