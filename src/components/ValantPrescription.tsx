@@ -42,6 +42,16 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     
     return dept;
   };
+
+  const getTotalPaidAmount = () => {
+    if (!patient.transactions || patient.transactions.length === 0) {
+      return 0;
+    }
+    
+    return patient.transactions
+      .filter(transaction => transaction.status === 'COMPLETED')
+      .reduce((total, transaction) => total + transaction.amount, 0);
+  };
   
   const handlePrint = () => {
     // Calculate values before generating HTML
@@ -50,6 +60,7 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
     const currentDate = getCurrentDate();
     const ageText = patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A';
     const genderText = patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender;
+    const totalPaid = getTotalPaidAmount();
     
     const printContent = `
       <!DOCTYPE html>
@@ -230,6 +241,10 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               <div>
                 <span class="label">Department:</span>
                 <span class="value">${departmentName}</span>
+              </div>
+              <div>
+                <span class="label">Paid Amount:</span>
+                <span class="value">₹${totalPaid.toLocaleString()}</span>
               </div>
             </div>
 
@@ -465,6 +480,14 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
             <div className="flex items-center">
               <span className="w-32 text-lg font-bold text-gray-700">Department:</span>
               <span className="text-xl font-normal text-gray-900">{getDepartmentName()}</span>
+            </div>
+
+            {/* Paid Amount */}
+            <div className="flex items-center">
+              <span className="w-32 text-lg font-bold text-gray-700">Paid Amount:</span>
+              <span className="text-xl font-normal text-green-600 font-semibold">
+                ₹{getTotalPaidAmount().toLocaleString()}
+              </span>
             </div>
           </div>
 

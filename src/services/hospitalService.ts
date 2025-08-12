@@ -169,6 +169,29 @@ export class HospitalService {
     }
   }
   
+  // ==================== CONNECTION STATUS ====================
+  
+  static async getConnectionStatus(): Promise<boolean> {
+    try {
+      // Try to make a simple query to check if connection is working
+      const { error } = await supabase
+        .from('patients')
+        .select('id')
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Connection check failed:', error);
+        return false;
+      }
+      
+      console.log('✅ Connection to Supabase is active');
+      return true;
+    } catch (error: any) {
+      console.error('🚨 Connection check error:', error);
+      return false;
+    }
+  }
+  
   // ==================== PATIENT OPERATIONS ====================
   
   static async findExistingPatient(phone?: string, firstName?: string, lastName?: string): Promise<Patient | null> {
@@ -504,6 +527,7 @@ export class HospitalService {
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
         // Only count completed transactions (exclude cancelled)
+        // Calculate actual totalSpent for all patients (including ORTHO/DR. HEMANT)
         const totalSpent = transactions
           .filter((t: any) => t.status !== 'CANCELLED')
           .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
@@ -559,6 +583,7 @@ export class HospitalService {
           transactions:patient_transactions(*)
         `)
         .eq('hospital_id', HOSPITAL_ID)
+        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(limit);
       
@@ -611,6 +636,7 @@ export class HospitalService {
         const transactions = patient.transactions || [];
         const admissions = []; // Temporarily empty until patient_admissions is fixed
         // Only count completed transactions (exclude cancelled)
+        // Calculate actual totalSpent for all patients (including ORTHO/DR. HEMANT)
         const totalSpent = transactions
           .filter((t: any) => t.status !== 'CANCELLED')
           .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
@@ -964,7 +990,7 @@ export class HospitalService {
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID).neq('role', 'ADMIN'),
         supabase.from('beds').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID),
         supabase.from('future_appointments').select('*', { count: 'exact', head: true }).eq('appointment_date', today),
-        supabase.from('patient_transactions').select('amount').gte('created_at', todayStart).lt('created_at', todayEnd)
+        supabase.from('patient_transactions').select('amount, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)').gte('created_at', todayStart).lt('created_at', todayEnd)
       ]);
       
       const totalPatients = patientsResult.count || 0;
@@ -972,8 +998,12 @@ export class HospitalService {
       const totalBeds = bedsResult.count || 0;
       const todayAppointments = todayAppointmentsResult.count || 0;
       
-      // Calculate today's revenue (positive amounts only, exclude refunds/discounts)
+      // Calculate today's revenue (positive amounts only, exclude refunds/discounts and ORTHO/HMT patients)
       const todayRevenue = todayRevenueResult.data?.reduce((sum, t) => {
+        // Exclude transactions from patients with ORTHO department or DR. HEMANT doctor
+        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
+          return sum;
+        }
         const amount = t.amount || 0;
         return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
       }, 0) || 0;
@@ -990,10 +1020,14 @@ export class HospitalService {
       const monthlyStart = `${startOfMonth}T00:00:00.000Z`;
       const { data: monthlyTransactions } = await supabase
         .from('patient_transactions')
-        .select('amount')
+        .select('amount, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
         .gte('created_at', monthlyStart);
       
       const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => {
+        // Exclude transactions from patients with ORTHO department or DR. HEMANT doctor
+        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
+          return sum;
+        }
         const amount = t.amount || 0;
         return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
       }, 0) || 0;

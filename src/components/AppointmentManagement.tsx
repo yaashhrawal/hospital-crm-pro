@@ -99,6 +99,9 @@ const AppointmentManagement: React.FC = () => {
 
       setAppointments(appointments);
       
+      // Dispatch custom event for same-tab updates
+      window.dispatchEvent(new Event('appointmentUpdated'));
+      
       toast.success(`Appointment scheduled for ${data.patient_name} on ${new Date(data.appointment_date).toLocaleDateString('en-IN')}`);
       setShowNewAppointment(false);
       reset();
@@ -117,6 +120,10 @@ const AppointmentManagement: React.FC = () => {
     
     localStorage.setItem('hospital_appointments', JSON.stringify(updated));
     setAppointments(updated);
+    
+    // Dispatch custom event for same-tab updates
+    window.dispatchEvent(new Event('appointmentUpdated'));
+    
     toast.success(`Appointment status updated to ${newStatus}`);
   };
 
@@ -135,6 +142,10 @@ const AppointmentManagement: React.FC = () => {
       const updated = appointments.filter(apt => apt.id !== appointmentId);
       localStorage.setItem('hospital_appointments', JSON.stringify(updated));
       setAppointments(updated);
+      
+      // Dispatch custom event for same-tab updates
+      window.dispatchEvent(new Event('appointmentUpdated'));
+      
       toast.success('Appointment deleted successfully');
     } catch (error) {
       console.error('Error deleting appointment:', error);

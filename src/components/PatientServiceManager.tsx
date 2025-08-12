@@ -15,6 +15,7 @@ interface ServiceItem {
   category: 'LAB_TEST' | 'XRAY' | 'PROCEDURE' | 'MEDICINE' | 'SERVICE';
   price: number;
   quantity: number;
+  discount: number; // Discount percentage (0-100)
   notes?: string;
   paymentMode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'INSURANCE';
   transactionId?: string; // For existing services
@@ -70,12 +71,15 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     category: 'LAB_TEST',
     price: 0,
     quantity: 1,
+    discount: 0,
     paymentMode: 'CASH'
   });
   const [selectedCategory, setSelectedCategory] = useState<ServiceItem['category']>('LAB_TEST');
   const [isCustomService, setIsCustomService] = useState(false);
   const [loading, setLoading] = useState(false);
   const [existingTransactions, setExistingTransactions] = useState<PatientTransaction[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
 
   useEffect(() => {
     loadExistingServices();
@@ -101,6 +105,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         category: t.transaction_type as ServiceItem['category'],
         price: t.amount,
         quantity: 1,
+        discount: t.discount_percentage || 0,
         paymentMode: t.payment_mode as ServiceItem['paymentMode'],
         transactionId: t.id
       }));
@@ -125,7 +130,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         ...newService,
         name: selectedService.name,
         category: selectedService.category,
-        price: selectedService.defaultPrice
+        price: selectedService.defaultPrice,
+        discount: 0
       });
       setIsCustomService(false);
     }
@@ -138,12 +144,19 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     }
 
     try {
+      // Calculate final amount after discount
+      const originalAmount = newService.price * newService.quantity;
+      const discountAmount = originalAmount * (newService.discount / 100);
+      const finalAmount = originalAmount - discountAmount;
+      
       // Create transaction for the service
       const transactionData = {
         patient_id: patient.id,
         transaction_type: newService.category,
-        amount: newService.price * newService.quantity,
-        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
+        amount: finalAmount,
+        consultation_fee: newService.price * newService.quantity, // Store original amount
+        discount_percentage: newService.discount,
+        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.discount > 0 ? ` (${newService.discount}% off)` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
         payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const
       };
@@ -165,6 +178,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         category: selectedCategory,
         price: 0,
         quantity: 1,
+        discount: 0,
         paymentMode: 'CASH'
       });
       setIsCustomService(false);
@@ -175,6 +189,54 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
       console.error('Error adding service:', error);
       toast.error('Failed to add service');
     }
+  };
+
+  const handleEditService = (index: number) => {
+    const serviceToEdit = services[index];
+    setEditingIndex(index);
+    setEditingService({ ...serviceToEdit });
+  };
+
+  const handleUpdateService = async () => {
+    if (!editingService || editingIndex === null) return;
+    
+    try {
+      if (editingService.transactionId) {
+        // Calculate final amount after discount
+        const originalAmount = editingService.price * editingService.quantity;
+        const discountAmount = originalAmount * (editingService.discount / 100);
+        const finalAmount = originalAmount - discountAmount;
+        
+        // Update the transaction in database
+        await HospitalService.updateTransaction(editingService.transactionId, {
+          amount: finalAmount,
+          consultation_fee: originalAmount,
+          discount_percentage: editingService.discount,
+          description: `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}${editingService.discount > 0 ? ` (${editingService.discount}% off)` : ''}${editingService.notes ? ` - ${editingService.notes}` : ''}`,
+          payment_mode: editingService.paymentMode
+        });
+      }
+      
+      // Update local state
+      const updatedServices = [...services];
+      updatedServices[editingIndex] = editingService;
+      setServices(updatedServices);
+      
+      // Reset edit state
+      setEditingIndex(null);
+      setEditingService(null);
+      
+      toast.success('Service updated successfully');
+      onServicesUpdated?.();
+    } catch (error) {
+      console.error('Error updating service:', error);
+      toast.error('Failed to update service');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditingService(null);
   };
 
   const handleRemoveService = async (index: number) => {
@@ -199,7 +261,11 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
   };
 
   const calculateTotal = () => {
-    return services.reduce((total, service) => total + (service.price * service.quantity), 0);
+    return services.reduce((total, service) => {
+      const originalAmount = service.price * service.quantity;
+      const discountAmount = originalAmount * (service.discount / 100);
+      return total + (originalAmount - discountAmount);
+    }, 0);
   };
 
   return (
@@ -246,7 +312,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
               ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               {/* Service Selection/Input */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -324,6 +390,22 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                   min="1"
                 />
               </div>
+
+              {/* Discount */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Discount (%)
+                </label>
+                <input
+                  type="number"
+                  value={newService.discount || ''}
+                  onChange={(e) => setNewService({ ...newService, discount: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  min="0"
+                  max="100"
+                  placeholder="0"
+                />
+              </div>
             </div>
 
             {/* Payment Mode and Notes Row */}
@@ -358,7 +440,29 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex flex-col items-end">
+                {/* Amount Preview */}
+                {newService.price > 0 && (
+                  <div className="text-sm text-gray-600 mb-2 text-right">
+                    {(() => {
+                      const originalAmount = newService.price * newService.quantity;
+                      const discountAmount = originalAmount * (newService.discount / 100);
+                      const finalAmount = originalAmount - discountAmount;
+                      
+                      return (
+                        <>
+                          <div>Amount: ₹{originalAmount.toLocaleString()}</div>
+                          {newService.discount > 0 && (
+                            <>
+                              <div className="text-red-600">Discount: -₹{discountAmount.toLocaleString()}</div>
+                              <div className="font-bold text-green-600">Final: ₹{finalAmount.toLocaleString()}</div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
                 <button
                   onClick={handleAddService}
                   disabled={!newService.name || newService.price <= 0}
@@ -388,28 +492,170 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                 {services.map((service, index) => (
                   <div
                     key={service.transactionId || service.id || `service-${index}`}
-                    className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50"
+                    className="p-3 bg-white border rounded-lg hover:bg-gray-50"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-800">{service.name}</span>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                          {service.category.replace('_', ' ')}
-                        </span>
+                    {editingIndex === index ? (
+                      // Edit Mode
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Service Name</label>
+                            <input
+                              type="text"
+                              value={editingService?.name || ''}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, name: e.target.value} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₹)</label>
+                            <input
+                              type="number"
+                              value={editingService?.price || ''}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, price: Number(e.target.value) || 0} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              min="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Quantity</label>
+                            <input
+                              type="number"
+                              value={editingService?.quantity || 1}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, quantity: Math.max(1, Number(e.target.value) || 1)} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              min="1"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Discount (%)</label>
+                            <input
+                              type="number"
+                              value={editingService?.discount || ''}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, discount: Math.max(0, Math.min(100, Number(e.target.value) || 0))} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Payment Mode</label>
+                            <select
+                              value={editingService?.paymentMode || 'CASH'}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, paymentMode: e.target.value as ServiceItem['paymentMode']} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="CASH">Cash</option>
+                              <option value="CARD">Card</option>
+                              <option value="UPI">UPI</option>
+                              <option value="ONLINE">Online</option>
+                              <option value="BANK_TRANSFER">Bank Transfer</option>
+                              <option value="INSURANCE">Insurance</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+                            <input
+                              type="text"
+                              value={editingService?.notes || ''}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, notes: e.target.value} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Optional notes"
+                            />
+                          </div>
+                          <div className="flex items-end space-x-2">
+                            <button
+                              onClick={handleUpdateService}
+                              className="flex-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                            >
+                              ✓ Save
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="flex-1 px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                            >
+                              ✕ Cancel
+                            </button>
+                          </div>
+                        </div>
+                        {/* Amount Preview in Edit Mode */}
+                        {editingService && editingService.price > 0 && (
+                          <div className="text-sm text-right text-gray-600 border-t pt-2">
+                            {(() => {
+                              const originalAmount = editingService.price * editingService.quantity;
+                              const discountAmount = originalAmount * (editingService.discount / 100);
+                              const finalAmount = originalAmount - discountAmount;
+                              return (
+                                <>
+                                  <div>Amount: ₹{originalAmount.toLocaleString()}</div>
+                                  {editingService.discount > 0 && (
+                                    <>
+                                      <div className="text-red-600">Discount: -₹{discountAmount.toLocaleString()}</div>
+                                      <div className="font-bold text-green-600">Final: ₹{finalAmount.toLocaleString()}</div>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        ₹{service.price} × {service.quantity} = ₹{service.price * service.quantity}
-                        <span className="ml-2 text-gray-500">• {service.paymentMode}</span>
-                        {service.notes && <span className="ml-2 text-gray-500">• {service.notes}</span>}
+                    ) : (
+                      // Display Mode
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-gray-800">{service.name}</span>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              {service.category.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {(() => {
+                              const originalAmount = service.price * service.quantity;
+                              const discountAmount = originalAmount * (service.discount / 100);
+                              const finalAmount = originalAmount - discountAmount;
+                              
+                              return (
+                                <>
+                                  ₹{service.price} × {service.quantity} = ₹{originalAmount.toLocaleString()}
+                                  {service.discount > 0 && (
+                                    <>
+                                      <span className="ml-2 text-red-600 font-medium">
+                                        -{service.discount}% (₹{discountAmount.toLocaleString()})
+                                      </span>
+                                      <span className="ml-2 text-green-600 font-bold">
+                                        Final: ₹{finalAmount.toLocaleString()}
+                                      </span>
+                                    </>
+                                  )}
+                                  <span className="ml-2 text-gray-500">• {service.paymentMode}</span>
+                                  {service.notes && <span className="ml-2 text-gray-500">• {service.notes}</span>}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 ml-4">
+                          <button
+                            onClick={() => handleEditService(index)}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Edit service"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleRemoveService(index)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Remove service"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveService(index)}
-                      className="ml-4 text-red-600 hover:text-red-800 p-1"
-                      title="Remove service"
-                    >
-                      ✕
-                    </button>
+                    )}
                   </div>
                 ))}
               </div>

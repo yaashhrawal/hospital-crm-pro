@@ -4,10 +4,21 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
 import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
+import { 
+  User, 
+  Stethoscope, 
+  CreditCard, 
+  Calendar,
+  ChevronRight,
+  Check,
+  UserPlus,
+  Building2
+} from 'lucide-react';
 
 // Doctors and Departments data
 const DOCTORS_DATA = [
   { name: 'DR. HEMANT KHAJJA', department: 'ORTHOPAEDIC' },
+  { name: 'DR. HEMANT', department: 'ORTHO' },
   { name: 'DR. LALITA SUWALKA', department: 'DIETICIAN' },
   { name: 'DR. MILIND KIRIT AKHANI', department: 'GASTRO' },
   { name: 'DR MEETU BABLE', department: 'GYN.' },
@@ -77,8 +88,6 @@ const NewFlexiblePatientEntry: React.FC = () => {
     age: '',
     gender: 'MALE',
     address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
     blood_group: '',
     medical_history: '',
     allergies: '',
@@ -99,12 +108,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
     online_payment_method: 'UPI',
     // Appointment scheduling fields
     schedule_appointment: false,
-    appointment_mode: 'none', // 'none', 'new_patient', 'existing_patient'
+    appointment_mode: 'none',
     existing_patient_search: '',
-    selected_existing_patient: null,
+    selected_existing_patient: null as any,
     appointment_doctor_name: '',
     appointment_department: '',
-    appointment_date: '',
+    appointment_date: null as Date | null,
     appointment_time: '',
     appointment_type: '',
     appointment_duration: 30,
@@ -113,311 +122,220 @@ const NewFlexiblePatientEntry: React.FC = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
+  const [connectionStatus, setConnectionStatus] = useState('');
   const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
-  
-  // Existing patients management
-  const [existingPatients, setExistingPatients] = useState([]);
-  const [filteredExistingPatients, setFilteredExistingPatients] = useState([]);
-  
-  // Multiple doctors state
-  const [selectedDoctors, setSelectedDoctors] = useState<AssignedDoctor[]>([]);
+  const [selectedDoctors, setSelectedDoctors] = useState<any[]>([]);
   const [tempDepartment, setTempDepartment] = useState('');
   const [tempDoctor, setTempDoctor] = useState('');
-  const [tempFee, setTempFee] = useState<number>(0);
-  
-  // Custom department and doctor state
   const [showCustomDepartment, setShowCustomDepartment] = useState(false);
   const [showCustomDoctor, setShowCustomDoctor] = useState(false);
   const [customDepartment, setCustomDepartment] = useState('');
   const [customDoctor, setCustomDoctor] = useState('');
+  const [existingPatients, setExistingPatients] = useState<any[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<any[]>([]);
 
+  // Check connection status on mount
   useEffect(() => {
-    testConnection();
+    const checkConnection = async () => {
+      const status = await HospitalService.getConnectionStatus();
+      setConnectionStatus(status);
+    };
+    checkConnection();
+  }, []);
+
+  // Load existing patients for appointment search
+  useEffect(() => {
+    const loadExistingPatients = async () => {
+      try {
+        const patients = await HospitalService.getPatients(100);
+        setExistingPatients(patients || []);
+      } catch (error) {
+        console.error('Error loading existing patients:', error);
+      }
+    };
     loadExistingPatients();
   }, []);
 
-  // Load existing patients for appointment scheduling
-  const loadExistingPatients = async () => {
-    try {
-      console.log('📋 Loading existing patients...');
-      const patients = await HospitalService.getPatients();
-      setExistingPatients(patients || []);
-      setFilteredExistingPatients(patients || []);
-      console.log('✅ Loaded', patients?.length || 0, 'existing patients');
-    } catch (error) {
-      console.error('❌ Error loading existing patients:', error);
-      setExistingPatients([]);
-      setFilteredExistingPatients([]);
-    }
-  };
-
   // Filter existing patients based on search
   useEffect(() => {
-    if (!formData.existing_patient_search.trim()) {
-      setFilteredExistingPatients(existingPatients);
-    } else {
+    if (formData.existing_patient_search) {
       const searchTerm = formData.existing_patient_search.toLowerCase();
       const filtered = existingPatients.filter(patient => 
-        `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(searchTerm) ||
+        patient.first_name?.toLowerCase().includes(searchTerm) ||
+        patient.last_name?.toLowerCase().includes(searchTerm) ||
         patient.patient_id?.toLowerCase().includes(searchTerm) ||
         patient.phone?.includes(searchTerm)
       );
-      setFilteredExistingPatients(filtered);
+      setFilteredPatients(filtered);
+    } else {
+      setFilteredPatients([]);
     }
   }, [formData.existing_patient_search, existingPatients]);
 
-  // Filter doctors based on selected department
+  // Filter doctors when department changes
   useEffect(() => {
     if (formData.selected_department) {
-      const filtered = DOCTORS_DATA.filter(doc => doc.department === formData.selected_department);
+      const filtered = DOCTORS_DATA.filter(doc => 
+        doc.department === formData.selected_department
+      );
       setFilteredDoctors(filtered);
-      // Reset doctor selection if current doctor doesn't belong to selected department
-      if (formData.selected_doctor && !filtered.find(doc => doc.name === formData.selected_doctor)) {
-        setFormData(prev => ({ ...prev, selected_doctor: '' }));
-      }
     } else {
       setFilteredDoctors(DOCTORS_DATA);
     }
   }, [formData.selected_department]);
 
-  // Filter doctors for multiple selection based on temp department
-  React.useEffect(() => {
+  // Filter temp doctors for multiple selection
+  useEffect(() => {
     if (tempDepartment) {
-      const filtered = DOCTORS_DATA.filter(doc => doc.department === tempDepartment);
+      const filtered = DOCTORS_DATA.filter(doc => 
+        doc.department === tempDepartment
+      );
       setFilteredDoctors(filtered);
-      if (tempDoctor && !filtered.find(doc => doc.name === tempDoctor)) {
-        setTempDoctor('');
-      }
     } else {
       setFilteredDoctors(DOCTORS_DATA);
     }
   }, [tempDepartment]);
 
-  // Multiple doctors management functions
-  const addDoctor = () => {
-    if (!tempDoctor || !tempDepartment) {
-      toast.error('Please select both department and doctor');
-      return;
-    }
-
-    if (tempFee <= 0) {
-      toast.error('Please enter a valid consultation fee');
-      return;
-    }
-
-    // Check if doctor already selected
-    if (selectedDoctors.some(doc => doc.name === tempDoctor)) {
-      toast.error('This doctor is already selected');
-      return;
-    }
-
-    const newDoctor: AssignedDoctor = {
-      name: tempDoctor,
-      department: tempDepartment,
-      consultationFee: tempFee,
-      isPrimary: selectedDoctors.length === 0 // First doctor is primary
-    };
-
-    setSelectedDoctors(prev => [...prev, newDoctor]);
-    setTempDoctor('');
-    setTempDepartment('');
-    setTempFee(0);
-    toast.success(`${tempDoctor} added successfully with fee ₹${tempFee}`);
-  };
-
-  const removeDoctor = (doctorName: string) => {
-    setSelectedDoctors(prev => {
-      const updated = prev.filter(doc => doc.name !== doctorName);
-      // If we removed the primary doctor, make the first remaining doctor primary
-      if (updated.length > 0 && !updated.some(doc => doc.isPrimary)) {
-        updated[0].isPrimary = true;
-      }
-      return updated;
-    });
-  };
-
-  const setPrimaryDoctor = (doctorName: string) => {
-    setSelectedDoctors(prev => 
-      prev.map(doc => ({
-        ...doc,
-        isPrimary: doc.name === doctorName
-      }))
-    );
-  };
-
-  const testConnection = async () => {
-    try {
-      const result = await HospitalService.testConnection();
-      setConnectionStatus(result.success ? '🟢 Connected to Supabase' : `🔴 ${result.message}`);
-    } catch (error) {
-      setConnectionStatus('🔴 Connection failed');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
+  const handleSubmit = async (e: React.FormEvent, saveAsDraft: boolean = false) => {
     e.preventDefault();
-    
-    // Validate minimum required fields
-    if (!formData.full_name.trim()) {
-      toast.error('Full name is required');
-      return;
-    }
-
-    if (!saveAsDraft && !formData.phone.trim()) {
-      toast.error('Phone number is required for final save');
-      return;
-    }
-
-    // Date validation is now handled by DatePicker component
-
     setLoading(true);
 
     try {
-      console.log('🚀 Starting patient creation process...');
+      // Validate required fields
+      if (!formData.full_name) {
+        toast.error('Please enter patient full name');
+        setLoading(false);
+        return;
+      }
+
+      console.log('💾 Preparing patient data for submission...');
       
-      // Create patient data
+      // Prepare patient data - properly mapped to database schema
       const patientData: CreatePatientData = {
-        prefix: formData.prefix,
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
-        email: formData.email.trim() || undefined,
+        // Required fields
+        prefix: formData.prefix as 'Mr' | 'Mrs' | 'Ms' | 'Dr' | 'Prof',
+        first_name: formData.first_name || formData.full_name.split(' ')[0],
+        last_name: formData.last_name || formData.full_name.split(' ').slice(1).join(' ') || '',
+        gender: formData.gender as 'MALE' | 'FEMALE' | 'OTHER',
+        hospital_id: '550e8400-e29b-41d4-a716-446655440000', // Default hospital ID
+        
+        // Optional personal information
+        phone: formData.phone || '',
+        email: formData.email || undefined,
+        address: formData.address || '',
         date_of_birth: formData.date_of_birth || undefined,
-        date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : undefined,
-        age: formData.age.trim() || undefined,
-        gender: formData.gender || 'MALE',
-        address: formData.address.trim() || undefined,
-        emergency_contact_name: formData.emergency_contact_name.trim() || undefined,
-        emergency_contact_phone: formData.emergency_contact_phone.trim() || undefined,
+        age: formData.age || undefined,
+        
+        // Emergency contact (using patient info as fallback since UI removed these fields)
+        emergency_contact_name: formData.first_name + ' ' + formData.last_name,
+        emergency_contact_phone: formData.phone || '',
+        
+        // Medical information
         blood_group: formData.blood_group || undefined,
-        medical_history: formData.medical_history.trim() || undefined,
-        allergies: formData.allergies.trim() || undefined,
-        current_medications: formData.current_medications.trim() || undefined,
-        patient_tag: formData.patient_tag.trim() || undefined,
+        medical_history: formData.medical_history || undefined,
+        allergies: formData.allergies || undefined,
+        current_medications: formData.current_medications || undefined,
+        
         // Reference information
         has_reference: formData.has_reference === 'YES',
-        reference_details: formData.has_reference === 'YES' ? formData.reference_details.trim() || undefined : undefined,
-        // Doctor and Department assignment (backward compatibility + multiple doctors)
-        assigned_doctor: formData.consultation_mode === 'single' 
-          ? formData.selected_doctor || undefined 
-          : selectedDoctors.find(doc => doc.isPrimary)?.name || selectedDoctors[0]?.name || undefined,
-        assigned_department: formData.consultation_mode === 'single'
-          ? formData.selected_department || undefined
-          : selectedDoctors.find(doc => doc.isPrimary)?.department || selectedDoctors[0]?.department || undefined,
-        assigned_doctors: formData.consultation_mode === 'multiple' && selectedDoctors.length > 0 
-          ? selectedDoctors 
-          : undefined,
-        hospital_id: '550e8400-e29b-41d4-a716-446655440000'
+        reference_details: formData.has_reference === 'YES' ? formData.reference_details || undefined : undefined,
+        
+        // Notes and tags - combine patient_tag and reference if both exist
+        notes: [
+          formData.patient_tag,
+          formData.has_reference === 'YES' && formData.reference_details ? `REF: ${formData.reference_details}` : null
+        ].filter(Boolean).join(' | ') || undefined,
+        
+        // Date tracking - use local date to avoid timezone issues
+        date_of_entry: formData.date_of_entry ? 
+          `${formData.date_of_entry.getFullYear()}-${String(formData.date_of_entry.getMonth() + 1).padStart(2, '0')}-${String(formData.date_of_entry.getDate()).padStart(2, '0')}` : 
+          `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
+        
+        // Doctor assignment for backward compatibility
+        assigned_doctor: formData.consultation_mode === 'single' ? formData.selected_doctor || undefined : undefined,
+        assigned_department: formData.consultation_mode === 'single' ? formData.selected_department || undefined : undefined,
       };
 
       console.log('📤 Creating patient with data:', patientData);
       const newPatient = await HospitalService.createPatient(patientData);
+      console.log('✅ Patient created successfully:', newPatient);
+
+      // Handle doctors assignment based on consultation mode
+      let assignedDoctorsData: AssignedDoctor[] = [];
       
-      console.log('✅ Patient created:', newPatient);
-
-      // Create transactions if amounts specified
-      const transactions = [];
-
       if (formData.consultation_mode === 'single') {
-        // Single doctor consultation - original logic
-        const originalConsultationFee = formData.consultation_fee;
-        const discountAmount = originalConsultationFee * (formData.discount_percentage / 100);
-        const finalAmount = originalConsultationFee - discountAmount;
-
-        console.log('🧮 Single Doctor Billing calculation:');
-        console.log('- Original consultation fee:', originalConsultationFee);
-        console.log('- Discount percentage:', formData.discount_percentage + '%');
-        console.log('- Discount amount:', discountAmount);
-        console.log('- Final amount:', finalAmount);
-
-        if (originalConsultationFee > 0) {
-          transactions.push({
-            patient_id: newPatient.id,
-            transaction_type: 'CONSULTATION', 
-            description: `Consultation Fee${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''} | Original: ₹${originalConsultationFee} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
-            amount: finalAmount, // Store FINAL amount after discount
-            payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-            status: 'COMPLETED',
-            doctor_name: formData.selected_doctor || undefined
+        // Single doctor mode (backward compatibility)
+        if (formData.selected_doctor && formData.selected_department) {
+          assignedDoctorsData.push({
+            doctor_name: formData.selected_doctor,
+            department: formData.selected_department,
+            consultation_fee: formData.consultation_fee
           });
         }
       } else {
-        // Multiple doctors consultation - new logic
-        const totalOriginalFee = selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0);
-        const totalDiscountAmount = totalOriginalFee * (formData.discount_percentage / 100);
-        const totalFinalAmount = totalOriginalFee - totalDiscountAmount;
+        // Multiple doctors mode
+        assignedDoctorsData = selectedDoctors.map(doc => ({
+          doctor_name: doc.doctorName,
+          department: doc.department,
+          consultation_fee: doc.consultationFee || 0
+        }));
+      }
 
-        console.log('🧮 Multiple Doctors Billing calculation:');
-        console.log('- Total original consultation fees:', totalOriginalFee);
-        console.log('- Discount percentage:', formData.discount_percentage + '%');
-        console.log('- Total discount amount:', totalDiscountAmount);
-        console.log('- Total final amount:', totalFinalAmount);
+      // Create transactions for each assigned doctor
+      if (!saveAsDraft && assignedDoctorsData.length > 0) {
+        for (const doctor of assignedDoctorsData) {
+          const transactionData: CreateTransactionData = {
+            patient_id: newPatient.id,  // Use UUID id, not patient_id string
+            amount: doctor.consultation_fee || 0,
+            description: `Consultation with ${doctor.doctor_name} - ${doctor.department}`, // Add required description
+            discount_percentage: formData.discount_percentage,
+            discount_reason: formData.discount_reason || undefined,
+            payment_mode: formData.payment_mode as 'CASH' | 'ONLINE' | 'CARD' | 'UPI' | 'INSURANCE',
+            online_payment_method: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : undefined,
+            transaction_type: 'CONSULTATION',
+            doctor_name: doctor.doctor_name,
+            department: doctor.department,
+            status: 'COMPLETED',
+            billing_date: new Date().toISOString()
+          };
 
-        // Create separate transaction for each doctor
-        if (selectedDoctors.length > 0 && totalOriginalFee > 0) {
-          for (const doctor of selectedDoctors) {
-            const doctorFee = doctor.consultationFee || 0;
-            if (doctorFee > 0) {
-              // Calculate proportional discount for this doctor
-              const doctorDiscountAmount = (doctorFee / totalOriginalFee) * totalDiscountAmount;
-              const doctorFinalAmount = doctorFee - doctorDiscountAmount;
-
-              transactions.push({
-                patient_id: newPatient.id,
-                transaction_type: 'CONSULTATION',
-                description: `Consultation Fee - ${doctor.name} (${doctor.department}) | Original: ₹${doctorFee} | Discount: ${formData.discount_percentage}% (₹${doctorDiscountAmount.toFixed(2)}) | Net: ₹${doctorFinalAmount.toFixed(2)}${formData.discount_reason ? ` | Reason: ${formData.discount_reason}` : ''}`,
-                amount: doctorFinalAmount, // Store FINAL amount after proportional discount
-                payment_mode: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode,
-                status: 'COMPLETED',
-                doctor_name: doctor.name
-              });
-            }
-          }
+          console.log('💳 Creating transaction:', transactionData);
+          await HospitalService.createTransaction(transactionData);
         }
       }
 
-      // Create all transactions
-      for (const transactionData of transactions) {
-        console.log('💰 Creating transaction:', transactionData);
-        await HospitalService.createTransaction(transactionData as CreateTransactionData);
-      }
+      // Create assigned doctors records
+      // TODO: Implement assignDoctorsToPatient method in HospitalService
+      // if (!saveAsDraft && assignedDoctorsData.length > 0) {
+      //   await HospitalService.assignDoctorsToPatient(newPatient.id, assignedDoctorsData);  // Use UUID id here too
+      // }
 
-      // Handle appointment scheduling for all modes
-      if (formData.schedule_appointment || formData.appointment_mode === 'existing_patient') {
-        console.log('📅 Creating appointment...');
+      // Handle appointment scheduling if enabled
+      if (formData.schedule_appointment && formData.appointment_mode === 'new_patient' && 
+          formData.appointment_date && formData.appointment_time) {
         
-        // Validate appointment fields
-        if (!formData.appointment_date || !formData.appointment_time || !formData.appointment_type || 
-            !formData.appointment_doctor_name || !formData.appointment_department) {
-          toast.error('Please fill in all required appointment fields');
+        // Get doctor name and department from consultation settings
+        const appointmentDoctorName = formData.consultation_mode === 'single' 
+          ? formData.selected_doctor 
+          : (selectedDoctors.length > 0 ? selectedDoctors[0].doctorName : '');
+        
+        const appointmentDepartment = formData.consultation_mode === 'single'
+          ? formData.selected_department
+          : (selectedDoctors.length > 0 ? selectedDoctors[0].department : 'General');
+        
+        if (!appointmentDoctorName) {
+          toast.error('Please select a doctor above to schedule appointment');
           setLoading(false);
           return;
         }
-
-        // For existing patient appointments, validate patient selection
-        if (formData.appointment_mode === 'existing_patient' && !formData.selected_existing_patient) {
-          toast.error('Please select an existing patient for the appointment');
-          setLoading(false);
-          return;
-        }
-
-        // Determine patient information based on appointment mode
-        const appointmentPatientName = formData.appointment_mode === 'existing_patient' 
-          ? `${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name}`
-          : `${formData.first_name} ${formData.last_name || ''}`.trim();
-
-        const appointmentPatientId = formData.appointment_mode === 'existing_patient' 
-          ? formData.selected_existing_patient.patient_id 
-          : 'manual-' + Date.now();
-
+        
         const appointmentData = {
           id: Date.now().toString(),
-          patient_id: appointmentPatientId,
-          patient_name: appointmentPatientName,
-          doctor_name: formData.appointment_doctor_name,
-          department: formData.appointment_department,
-          appointment_date: formData.appointment_date,
+          patient_id: newPatient.patient_id,
+          patient_name: `${newPatient.first_name} ${newPatient.last_name}`,
+          doctor_name: appointmentDoctorName,
+          department: appointmentDepartment,
+          appointment_date: formData.appointment_date ? formData.appointment_date.toISOString().split('T')[0] : '',
           appointment_time: formData.appointment_time,
           appointment_type: formData.appointment_type as 'consultation' | 'follow-up' | 'procedure' | 'emergency',
           status: 'scheduled' as const,
@@ -428,30 +346,18 @@ const NewFlexiblePatientEntry: React.FC = () => {
         };
 
         try {
-          // Save appointment to localStorage (same as AppointmentManagement component)
           const existingAppointments = localStorage.getItem('hospital_appointments');
           const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
           appointments.push(appointmentData);
           localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
-
-          console.log('✅ Appointment scheduled:', appointmentData);
           
-          if (formData.appointment_mode === 'existing_patient') {
-            toast.success(`Appointment scheduled for existing patient ${appointmentPatientName} on ${formData.appointment_date} at ${formData.appointment_time}`);
-          } else {
-            toast.success(`Appointment scheduled for ${formData.appointment_date} at ${formData.appointment_time}`);
-          }
+          toast.success(`Appointment scheduled for ${formData.appointment_date ? formData.appointment_date.toLocaleDateString('en-IN') : 'selected date'} at ${formData.appointment_time}`);
         } catch (error) {
-          console.error('❌ Error scheduling appointment:', error);
-          if (formData.appointment_mode === 'existing_patient') {
-            toast.error('Failed to schedule appointment for existing patient');
-          } else {
-            toast.error('Patient created but appointment scheduling failed');
-          }
+          console.error('Error scheduling appointment:', error);
         }
       }
 
-      // Calculate total amount based on consultation mode
+      // Calculate total amount
       const totalAmount = formData.consultation_mode === 'single' 
         ? formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))
         : selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) - 
@@ -460,13 +366,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
       } else {
-        const doctorInfo = formData.consultation_mode === 'single' 
-          ? (formData.selected_doctor ? ` - ${formData.selected_doctor}` : '')
-          : (selectedDoctors.length > 0 ? ` - ${selectedDoctors.length} doctors assigned` : '');
-        const deptInfo = formData.consultation_mode === 'single'
-          ? (formData.selected_department ? ` (${formData.selected_department})` : '')
-          : '';
-        toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name}${doctorInfo}${deptInfo} - Total: ₹${totalAmount.toFixed(2)}`);
+        toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toFixed(2)}`);
       }
       
       // Reset form
@@ -478,12 +378,10 @@ const NewFlexiblePatientEntry: React.FC = () => {
         phone: '',
         email: '',
         date_of_birth: '',
-        date_of_entry: new Date(), // Reset to today
+        date_of_entry: new Date(),
         age: '',
         gender: 'MALE',
         address: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
         blood_group: '',
         medical_history: '',
         allergies: '',
@@ -491,25 +389,21 @@ const NewFlexiblePatientEntry: React.FC = () => {
         patient_tag: '',
         has_reference: 'NO',
         reference_details: '',
-        // Doctor and Department (single selection for backward compatibility)
         selected_department: '',
         selected_doctor: '',
-        // Multiple doctors selection
-        consultation_mode: 'single', // 'single' or 'multiple'
-        // Transaction data
+        consultation_mode: 'single',
         consultation_fee: 0,
         discount_percentage: 0,
         discount_reason: '',
         payment_mode: 'CASH',
         online_payment_method: 'UPI',
-        // Appointment scheduling fields
         schedule_appointment: false,
         appointment_mode: 'none',
         existing_patient_search: '',
         selected_existing_patient: null,
         appointment_doctor_name: '',
         appointment_department: '',
-        appointment_date: '',
+        appointment_date: null,
         appointment_time: '',
         appointment_type: '',
         appointment_duration: 30,
@@ -517,1100 +411,1423 @@ const NewFlexiblePatientEntry: React.FC = () => {
         appointment_notes: '',
       });
 
-      // Reset multiple doctors selection
       setSelectedDoctors([]);
       setTempDepartment('');
       setTempDoctor('');
-      
-      // Reset custom fields
       setShowCustomDepartment(false);
       setShowCustomDoctor(false);
       setCustomDepartment('');
       setCustomDoctor('');
 
     } catch (error: any) {
-      console.error('🚨 Patient creation failed:', error);
+      console.error('Patient creation failed:', error);
       toast.error(`Failed to save patient: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Separate handler for existing patient appointments
-  const handleSaveAppointmentOnly = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.selected_existing_patient) {
-      toast.error('Please select an existing patient for the appointment');
-      return;
-    }
-    
-    // Validate appointment fields
-    if (!formData.appointment_date || !formData.appointment_time || !formData.appointment_doctor_name) {
-      toast.error('Please fill all required appointment fields');
+  const addDoctorToList = () => {
+    if (!tempDepartment || !tempDoctor) {
+      toast.error('Please select both department and doctor');
       return;
     }
 
-    setLoading(true);
+    const consultationFee = parseInt(prompt('Enter consultation fee for this doctor:') || '500');
     
-    try {
-      console.log('📅 Creating appointment for existing patient...');
+    const newDoctor = {
+      id: Date.now().toString(),
+      department: tempDepartment,
+      doctorName: tempDoctor,
+      consultationFee: consultationFee
+    };
 
-      const appointmentData = {
-        id: Date.now().toString(),
-        patient_id: formData.selected_existing_patient.patient_id,
-        patient_name: `${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name}`,
-        doctor_name: formData.appointment_doctor_name,
-        department: formData.appointment_department || 'General',
-        appointment_date: formData.appointment_date,
-        appointment_time: formData.appointment_time,
-        appointment_type: formData.appointment_type || 'consultation',
-        status: 'scheduled',
-        estimated_duration: formData.appointment_duration || 30,
-        estimated_cost: formData.appointment_cost || 500,
-        notes: formData.appointment_notes || '',
-        created_at: new Date().toISOString(),
-      };
-
-      // Save appointment to localStorage
-      const existingAppointments = localStorage.getItem('hospital_appointments');
-      const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
-      appointments.push(appointmentData);
-      localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
-
-      console.log('✅ Appointment created successfully:', appointmentData);
-      toast.success(`Appointment scheduled for ${formData.selected_existing_patient.first_name} ${formData.selected_existing_patient.last_name} on ${new Date(formData.appointment_date).toLocaleDateString('en-IN')} at ${formData.appointment_time}`);
-
-      // Reset appointment fields only
-      setFormData({
-        ...formData,
-        appointment_mode: 'none',
-        existing_patient_search: '',
-        selected_existing_patient: null,
-        appointment_doctor_name: '',
-        appointment_department: '',
-        appointment_date: '',
-        appointment_time: '',
-        appointment_type: '',
-        appointment_duration: 30,
-        appointment_cost: 500,
-        appointment_notes: '',
-      });
-
-    } catch (error: any) {
-      console.error('❌ Error creating appointment:', error);
-      toast.error('Failed to schedule appointment');
-    } finally {
-      setLoading(false);
-    }
+    setSelectedDoctors([...selectedDoctors, newDoctor]);
+    setTempDepartment('');
+    setTempDoctor('');
+    toast.success(`Added ${tempDoctor} to consultation list`);
   };
 
-  const totalAmount = formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100));
+  const removeDoctorFromList = (doctorId: string) => {
+    setSelectedDoctors(selectedDoctors.filter(doc => doc.id !== doctorId));
+  };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">👤 New Flexible Patient Entry</h2>
-        <p className="text-gray-600 mt-1">Ultra-flexible patient registration with minimal required fields</p>
-        
-        {/* Connection Status */}
-        <div className="mt-4 p-2 bg-blue-50 rounded-lg">
-          <div className="text-sm text-gray-600">{connectionStatus}</div>
-        </div>
-      </div>
-      
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-        {/* Essential Information - All Fields */}
-        <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-          <h3 className="text-lg font-semibold text-green-800 mb-4">✅ Patient Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prefix <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.prefix}
-                onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              >
-                <option value="Mr">Mr</option>
-                <option value="Mrs">Mrs</option>
-                <option value="Ms">Ms</option>
-                <option value="Dr">Dr</option>
-                <option value="Prof">Prof</option>
-              </select>
-            </div>
+    <div className="min-h-screen" style={{ backgroundColor: '#F5F7FA', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+      {/* Modern DatePicker Styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .react-datepicker-modern {
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+          }
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.full_name}
-                onChange={(e) => {
-                  const fullName = e.target.value;
-                  // Split name for backend compatibility
-                  const nameParts = fullName.trim().split(' ');
-                  const firstName = nameParts[0] || '';
-                  const lastName = nameParts.slice(1).join(' ') || '';
-                  
-                  setFormData({ 
-                    ...formData, 
-                    full_name: fullName,
-                    first_name: firstName,
-                    last_name: lastName
-                  });
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter full name (e.g., John Doe)"
-                required
-              />
-            </div>
+          .react-datepicker-calendar-modern {
+            border: none !important;
+            border-radius: 12px !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
-              <input
-                type="text"
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter age (e.g., 25, 30 years, 6 months)"
-              />
-            </div>
+          .react-datepicker__header {
+            background-color: #0056B3 !important;
+            border-bottom: none !important;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 20px 0 !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Entry</label>
-              <DatePicker
-                selected={formData.date_of_entry}
-                onChange={(date: Date | null) => {
-                  if (date) {
-                    setFormData({ ...formData, date_of_entry: date });
-                  }
-                }}
-                dateFormat="dd-MM-yyyy"
-                maxDate={new Date()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholderText="DD-MM-YYYY"
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
-                calendarClassName="react-datepicker-custom"
-                wrapperClassName="w-full"
-              />
-            </div>
+          .react-datepicker__current-month {
+            color: white !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+            margin-bottom: 10px !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
+          .react-datepicker__day-names {
+            background-color: #0056B3 !important;
+            margin-bottom: 0 !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter phone number"
-              />
-            </div>
+          .react-datepicker__day-name {
+            color: white !important;
+            font-weight: 500 !important;
+            width: 2.5rem !important;
+            line-height: 2.5rem !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="patient@email.com"
-              />
-            </div>
+          .react-datepicker__day {
+            width: 2.5rem !important;
+            line-height: 2.5rem !important;
+            margin: 2px !important;
+            border-radius: 8px !important;
+            transition: all 0.2s ease !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+          }
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <textarea
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter full address"
-                rows={2}
-              />
-            </div>
+          .react-datepicker__day--today-custom {
+            background-color: #FEF3C7 !important;
+            color: #92400E !important;
+            font-weight: 600 !important;
+            border: 2px solid #F59E0B !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
-              <input
-                type="text"
-                value={formData.emergency_contact_name}
-                onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Emergency contact name"
-              />
-            </div>
+          .react-datepicker__day--weekend {
+            color: #EF4444 !important;
+            background-color: #FEF2F2 !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Phone</label>
-              <input
-                type="tel"
-                value={formData.emergency_contact_phone}
-                onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Emergency contact phone"
-              />
-            </div>
+          .react-datepicker__day--normal:hover {
+            background-color: #EBF5FF !important;
+            color: #0056B3 !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
-              <select
-                value={formData.blood_group}
-                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">Select Blood Group</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-              </select>
-            </div>
+          .react-datepicker__day--selected {
+            background-color: #0056B3 !important;
+            color: white !important;
+            font-weight: 600 !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
-              <select
-                value={formData.has_reference}
-                onChange={(e) => setFormData({ ...formData, has_reference: e.target.value, reference_details: e.target.value === 'NO' ? '' : formData.reference_details })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="NO">No</option>
-                <option value="YES">Yes</option>
-              </select>
-            </div>
+          .react-datepicker__day--selected:hover {
+            background-color: #004494 !important;
+          }
 
-            {formData.has_reference === 'YES' && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference Details</label>
-                <input
-                  type="text"
-                  value={formData.reference_details}
-                  onChange={(e) => setFormData({ ...formData, reference_details: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Enter reference details (doctor name, hospital, person, etc.)"
-                />
-              </div>
-            )}
+          .react-datepicker__day--outside-month {
+            color: #D1D5DB !important;
+          }
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
-              <textarea
-                value={formData.medical_history}
-                onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Previous medical conditions"
-                rows={2}
-              />
-            </div>
+          .react-datepicker__navigation {
+            top: 22px !important;
+            width: 0 !important;
+            height: 0 !important;
+            border: 6px solid transparent !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
-              <textarea
-                value={formData.allergies}
-                onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Known allergies"
-                rows={2}
-              />
-            </div>
+          .react-datepicker__navigation--previous {
+            border-right-color: white !important;
+            left: 20px !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Medications</label>
-              <textarea
-                value={formData.current_medications}
-                onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Current medicines"
-                rows={2}
-              />
-            </div>
+          .react-datepicker__navigation--next {
+            border-left-color: white !important;
+            right: 20px !important;
+          }
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
-              <input
-                type="text"
-                value={formData.patient_tag}
-                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp, etc.)"
-                list="new-flexible-patient-tags-suggestions"
-              />
-              <datalist id="new-flexible-patient-tags-suggestions">
-                <option value="Jain Community" />
-                <option value="Bohara Community" />
-                <option value="Corporate Camp" />
-                <option value="Medical Camp" />
-                <option value="School Camp" />
-                <option value="Senior Citizen" />
-                <option value="Insurance" />
-                <option value="Government Scheme" />
-                <option value="VIP" />
-                <option value="Regular" />
-              </datalist>
-              <div className="text-xs text-gray-500 mt-1">
-                💡 Start typing for suggestions or enter your own custom tag
-              </div>
-            </div>
-          </div>
+          .react-datepicker__navigation:hover {
+            opacity: 0.7 !important;
+          }
+
+          .react-datepicker__month-dropdown,
+          .react-datepicker__year-dropdown {
+            background-color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+            max-height: 200px !important;
+            overflow-y: auto !important;
+          }
+
+          .react-datepicker__month-option,
+          .react-datepicker__year-option {
+            padding: 8px 12px !important;
+            font-weight: 500 !important;
+            transition: all 0.2s ease !important;
+          }
+
+          .react-datepicker__month-option:hover,
+          .react-datepicker__year-option:hover {
+            background-color: #EBF5FF !important;
+            color: #0056B3 !important;
+          }
+
+          .react-datepicker__month-option--selected,
+          .react-datepicker__year-option--selected {
+            background-color: #0056B3 !important;
+            color: white !important;
+          }
+
+          .react-datepicker__today-button {
+            background-color: #0056B3 !important;
+            color: white !important;
+            border: none !important;
+            padding: 8px 16px !important;
+            margin: 10px !important;
+            border-radius: 6px !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+          }
+
+          .react-datepicker__today-button:hover {
+            background-color: #004494 !important;
+          }
+
+          .react-datepicker__triangle {
+            display: none !important;
+          }
+        `
+      }} />
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#0056B3', marginBottom: '8px' }}>
+            New Patient Entry
+          </h1>
+          <p style={{ color: '#999999', fontSize: '16px' }}>
+            Register new patients with comprehensive information
+          </p>
         </div>
 
-        {/* Doctor and Department Assignment */}
-        <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
-          <h3 className="text-lg font-semibold text-purple-800 mb-4">👩‍⚕️ Doctor & Department Assignment</h3>
-          
-          {/* Consultation Mode Toggle */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Consultation Mode</label>
-            <div className="flex space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="consultation_mode"
-                  value="single"
-                  checked={formData.consultation_mode === 'single'}
-                  onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
-                  className="mr-2"
-                />
-                <span className="text-sm">👨‍⚕️ Single Doctor</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="consultation_mode"
-                  value="multiple"
-                  checked={formData.consultation_mode === 'multiple'}
-                  onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
-                  className="mr-2"
-                />
-                <span className="text-sm">👨‍⚕️👩‍⚕️ Multiple Doctors</span>
-              </label>
-            </div>
-          </div>
-
-          {formData.consultation_mode === 'single' ? (
-            /* Single Doctor Selection */
+        <form onSubmit={(e) => handleSubmit(e, false)}>
+          {/* Two Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Patient Information */}
             <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                  <select
-                    value={formData.selected_department}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === 'ADD_CUSTOM') {
-                        setShowCustomDepartment(true);
-                        setFormData({ ...formData, selected_department: '' });
-                      } else {
-                        setShowCustomDepartment(false);
-                        setFormData({ ...formData, selected_department: value });
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select Department</option>
-                    {DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                    <option value="ADD_CUSTOM">➕ Add Custom Department</option>
-                  </select>
-                  
-                  {showCustomDepartment && (
-                    <div className="mt-2">
-                      <input
-                        type="text"
-                        value={customDepartment}
-                        onChange={(e) => {
-                          setCustomDepartment(e.target.value);
-                          setFormData({ ...formData, selected_department: e.target.value });
-                        }}
-                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter custom department name"
-                        autoFocus
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (customDepartment.trim()) {
-                              setShowCustomDepartment(false);
-                              toast.success(`Department "${customDepartment}" added successfully!`);
-                            }
-                          }}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                        >
-                          ✓ Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCustomDepartment(false);
-                            setCustomDepartment('');
-                            setFormData({ ...formData, selected_department: '' });
-                          }}
-                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
-                        >
-                          ✗ Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                <div className="flex items-center gap-2 mb-6">
+                  <User className="w-5 h-5" style={{ color: '#0056B3' }} />
+                  <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Patient Information</h2>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-                  <select
-                    value={formData.selected_doctor}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === 'ADD_CUSTOM') {
-                        setShowCustomDoctor(true);
-                        setFormData({ ...formData, selected_doctor: '' });
-                      } else {
-                        setShowCustomDoctor(false);
-                        setFormData({ ...formData, selected_doctor: value });
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={!formData.selected_department && !showCustomDepartment}
-                  >
-                    <option value="">Select Doctor</option>
-                    {filteredDoctors.map((doctor) => (
-                      <option key={doctor.name} value={doctor.name}>
-                        {doctor.name}
-                      </option>
-                    ))}
-                    <option value="ADD_CUSTOM">➕ Add Custom Doctor</option>
-                  </select>
-                  
-                  {showCustomDoctor && (
-                    <div className="mt-2">
-                      <input
-                        type="text"
-                        value={customDoctor}
-                        onChange={(e) => {
-                          setCustomDoctor(e.target.value);
-                          setFormData({ ...formData, selected_doctor: e.target.value });
-                        }}
-                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter custom doctor name (e.g., DR. JOHN SMITH)"
-                        autoFocus
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (customDoctor.trim()) {
-                              setShowCustomDoctor(false);
-                              toast.success(`Doctor "${customDoctor}" added successfully!`);
-                            }
-                          }}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                        >
-                          ✓ Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCustomDoctor(false);
-                            setCustomDoctor('');
-                            setFormData({ ...formData, selected_doctor: '' });
-                          }}
-                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
-                        >
-                          ✗ Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {formData.selected_department && (
-                <div className="mt-2 text-sm text-purple-600">
-                  💡 Department: <strong>{formData.selected_department}</strong>
-                  {formData.selected_doctor && (
-                    <span> • Doctor: <strong>{formData.selected_doctor}</strong></span>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Multiple Doctors Selection */
-            <div className="space-y-4">
-              {/* Add Doctor Form */}
-              <div className="bg-white p-4 rounded-lg border border-purple-200">
-                <h4 className="text-md font-semibold text-purple-700 mb-3">➕ Add Doctor</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+                {/* Name Fields */}
+                <div className="grid grid-cols-4 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Prefix <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
                     <select
-                      value={tempDepartment}
-                      onChange={(e) => setTempDepartment(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={formData.prefix}
+                      onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      required
                     >
-                      <option value="">Select Department</option>
-                      {DEPARTMENTS.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
+                      <option value="Mr">Mr</option>
+                      <option value="Mrs">Mrs</option>
+                      <option value="Ms">Ms</option>
+                      <option value="Dr">Dr</option>
+                      <option value="Prof">Prof</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-                    <select
-                      value={tempDoctor}
-                      onChange={(e) => setTempDoctor(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      disabled={!tempDepartment}
-                    >
-                      <option value="">Select Doctor</option>
-                      {filteredDoctors.map((doctor) => (
-                        <option key={doctor.name} value={doctor.name}>
-                          {doctor.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
+                  <div className="col-span-3">
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Full Name <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
                     <input
-                      type="number"
-                      value={tempFee || ''}
-                      onChange={(e) => setTempFee(Number(e.target.value) || 0)}
-                      placeholder="Enter fee"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      type="text"
+                      value={formData.full_name}
+                      onChange={(e) => {
+                        const fullName = e.target.value;
+                        const nameParts = fullName.trim().split(' ');
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.slice(1).join(' ') || '';
+                        
+                        setFormData({ 
+                          ...formData, 
+                          full_name: fullName,
+                          first_name: firstName,
+                          last_name: lastName
+                        });
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Enter full name"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      required
                     />
                   </div>
-                  <div className="flex items-end">
+                </div>
+
+                {/* Personal Details */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Age
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.age}
+                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="e.g., 25, 30 years"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Gender
+                    </label>
+                    <select
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    >
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="10-digit phone number"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="email@example.com"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                </div>
+
+                {/* Date Fields */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Date of Birth
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.date_of_birth}
+                      onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="DD-MM-YYYY"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Date of Entry
+                    </label>
+                    <DatePicker
+                      selected={formData.date_of_entry}
+                      onChange={(date: Date | null) => {
+                        if (date) {
+                          setFormData({ ...formData, date_of_entry: date });
+                        }
+                      }}
+                      dateFormat="dd-MM-yyyy"
+                      maxDate={new Date()}
+                      className="w-full"
+                      customInput={
+                        <input
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        />
+                      }
+                      placeholderText="DD-MM-YYYY"
+                      showMonthDropdown
+                      showYearDropdown
+                      dropdownMode="select"
+                    />
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="mb-4">
+                  <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                    Address
+                  </label>
+                  <textarea
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CCCCCC',
+                      fontSize: '16px',
+                      color: '#333333',
+                      outline: 'none',
+                      resize: 'vertical'
+                    }}
+                    rows={2}
+                    placeholder="Complete address"
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                  />
+                </div>
+
+                {/* Medical Information */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Blood Group
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.blood_group}
+                      onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="e.g., A+, B-, O+"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Patient Tag
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.patient_tag}
+                      onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
+                      list="patient-tags-suggestions"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp)"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                    <datalist id="patient-tags-suggestions">
+                      <option value="Jain Community" />
+                      <option value="Bohara Community" />
+                      <option value="Corporate Camp" />
+                      <option value="Medical Camp" />
+                      <option value="School Camp" />
+                      <option value="Senior Citizen" />
+                      <option value="Insurance" />
+                      <option value="Government Scheme" />
+                      <option value="VIP" />
+                      <option value="Regular" />
+                    </datalist>
+                    <div style={{ fontSize: '12px', color: '#999999', marginTop: '4px' }}>
+                      💡 Start typing for suggestions or enter your own custom tag
+                    </div>
+                  </div>
+                </div>
+
+                {/* Medical History */}
+                <div className="space-y-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Medical History
+                    </label>
+                    <textarea
+                      value={formData.medical_history}
+                      onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none',
+                        resize: 'vertical'
+                      }}
+                      rows={2}
+                      placeholder="Previous medical conditions"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Allergies
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.allergies}
+                      onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Known allergies"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Current Medications
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.current_medications}
+                      onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Current medicines"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                </div>
+
+                {/* Reference Section */}
+                <div className="mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                    Has Reference?
+                  </label>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="reference"
+                        value="NO"
+                        checked={formData.has_reference === 'NO'}
+                        onChange={(e) => setFormData({ ...formData, has_reference: e.target.value })}
+                        style={{ accentColor: '#0056B3' }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#333333' }}>No</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="reference"
+                        value="YES"
+                        checked={formData.has_reference === 'YES'}
+                        onChange={(e) => setFormData({ ...formData, has_reference: e.target.value })}
+                        style={{ accentColor: '#0056B3' }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#333333' }}>Yes</span>
+                    </label>
+                  </div>
+                  {formData.has_reference === 'YES' && (
+                    <input
+                      type="text"
+                      value={formData.reference_details}
+                      onChange={(e) => setFormData({ ...formData, reference_details: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Reference details (name, contact, etc.)"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Doctor, Payment, and Appointment */}
+            <div className="space-y-6">
+              {/* Doctor & Department Assignment */}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                <div className="flex items-center gap-2 mb-6">
+                  <Stethoscope className="w-5 h-5" style={{ color: '#0056B3' }} />
+                  <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Doctor & Department Assignment</h2>
+                </div>
+
+                {/* Consultation Mode Selection */}
+                <div className="mb-4">
+                  <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                    Consultation Mode
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="single"
+                        checked={formData.consultation_mode === 'single'}
+                        onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
+                        style={{ accentColor: '#0056B3' }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#333333' }}>Single Doctor</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="multiple"
+                        checked={formData.consultation_mode === 'multiple'}
+                        onChange={(e) => setFormData({ ...formData, consultation_mode: e.target.value })}
+                        style={{ accentColor: '#0056B3' }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#333333' }}>Multiple Doctors</span>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.consultation_mode === 'single' ? (
+                  // Single Doctor Mode
+                  <div className="space-y-4">
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Department
+                      </label>
+                      <select
+                        value={formData.selected_department}
+                        onChange={(e) => setFormData({ ...formData, selected_department: e.target.value, selected_doctor: '' })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none'
+                        }}
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      >
+                        <option value="">Select Department</option>
+                        {DEPARTMENTS.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Doctor
+                      </label>
+                      <select
+                        value={formData.selected_doctor}
+                        onChange={(e) => setFormData({ ...formData, selected_doctor: e.target.value })}
+                        disabled={!formData.selected_department}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          backgroundColor: formData.selected_department ? '#FFFFFF' : '#F5F5F5',
+                          outline: 'none',
+                          cursor: formData.selected_department ? 'pointer' : 'not-allowed'
+                        }}
+                        onFocus={(e) => formData.selected_department && (e.currentTarget.style.borderColor = '#0056B3')}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      >
+                        <option value="">Select Doctor</option>
+                        {filteredDoctors.map(doc => (
+                          <option key={doc.name} value={doc.name}>{doc.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  // Multiple Doctors Mode
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Department
+                        </label>
+                        <select
+                          value={tempDepartment}
+                          onChange={(e) => {
+                            setTempDepartment(e.target.value);
+                            setTempDoctor('');
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        >
+                          <option value="">Select Department</option>
+                          {DEPARTMENTS.map(dept => (
+                            <option key={dept} value={dept}>{dept}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Doctor
+                        </label>
+                        <select
+                          value={tempDoctor}
+                          onChange={(e) => setTempDoctor(e.target.value)}
+                          disabled={!tempDepartment}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: tempDepartment ? '#FFFFFF' : '#F5F5F5',
+                            outline: 'none',
+                            cursor: tempDepartment ? 'pointer' : 'not-allowed'
+                          }}
+                          onFocus={(e) => tempDepartment && (e.currentTarget.style.borderColor = '#0056B3')}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        >
+                          <option value="">Select Doctor</option>
+                          {filteredDoctors.map(doc => (
+                            <option key={doc.name} value={doc.name}>{doc.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={addDoctor}
-                      disabled={!tempDoctor || !tempDepartment || tempFee <= 0}
-                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={addDoctorToList}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        backgroundColor: '#0056B3',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#004494'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0056B3'}
                     >
-                      ➕ Add Doctor
+                      Add Doctor
                     </button>
-                  </div>
-                </div>
-              </div>
 
-              {/* Selected Doctors List */}
-              {selectedDoctors.length > 0 && (
-                <div className="bg-white p-4 rounded-lg border border-purple-200">
-                  <h4 className="text-md font-semibold text-purple-700 mb-3">
-                    👨‍⚕️ Selected Doctors ({selectedDoctors.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedDoctors.map((doctor, index) => (
-                      <div
-                        key={doctor.name}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${
-                          doctor.isPrimary ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-gray-800">{doctor.name}</span>
-                            {doctor.isPrimary && (
-                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                Primary
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-600">{doctor.department}</div>
-                          <div className="text-sm font-medium text-purple-600">
-                            💰 Fee: ₹{doctor.consultationFee || 0}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {!doctor.isPrimary && (
+                    {/* Selected Doctors List */}
+                    {selectedDoctors.length > 0 && (
+                      <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#F5F7FA', borderRadius: '8px' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#333333', marginBottom: '8px' }}>
+                          Selected Doctors ({selectedDoctors.length})
+                        </h4>
+                        {selectedDoctors.map((doc) => (
+                          <div key={doc.id} className="flex justify-between items-center mb-2" style={{ padding: '8px', backgroundColor: '#FFFFFF', borderRadius: '6px' }}>
+                            <span style={{ fontSize: '14px', color: '#333333' }}>
+                              {doc.doctorName} - {doc.department} (₹{doc.consultationFee})
+                            </span>
                             <button
                               type="button"
-                              onClick={() => setPrimaryDoctor(doctor.name)}
-                              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
-                              title="Set as primary doctor"
+                              onClick={() => removeDoctorFromList(doc.id)}
+                              style={{ color: '#EF4444', cursor: 'pointer', fontSize: '12px' }}
                             >
-                              Set Primary
+                              Remove
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removeDoctor(doctor.name)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                            title="Remove doctor"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-purple-200">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-gray-700">Total Consultation Fees:</span>
-                      <span className="text-lg font-bold text-purple-600">
-                        ₹{selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-purple-600">
-                      💡 <strong>Primary doctor</strong> will be used for prescriptions and primary consultation records.
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Payment Information */}
-        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">💰 Payment Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Fee (₹)</label>
-              <input
-                type="number"
-                value={formData.consultation_fee}
-                onChange={(e) => setFormData({ ...formData, consultation_fee: Number(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
-              <input
-                type="number"
-                value={formData.discount_percentage}
-                onChange={(e) => setFormData({ ...formData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                min="0"
-                max="100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
-              <select
-                value={formData.payment_mode}
-                onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="CASH">Cash</option>
-                <option value="ONLINE">Online</option>
-              </select>
-            </div>
-
-            {formData.payment_mode === 'ONLINE' && (
-              <div className="lg:col-span-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Online Payment Method</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="online_payment_method"
-                      value="UPI"
-                      checked={formData.online_payment_method === 'UPI'}
-                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
-                      className="mr-2"
-                    />
-                    UPI
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="online_payment_method"
-                      value="CARD"
-                      checked={formData.online_payment_method === 'CARD'}
-                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
-                      className="mr-2"
-                    />
-                    Card
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="online_payment_method"
-                      value="BANK_TRANSFER"
-                      checked={formData.online_payment_method === 'BANK_TRANSFER'}
-                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
-                      className="mr-2"
-                    />
-                    Cheque
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="online_payment_method"
-                      value="INSURANCE"
-                      checked={formData.online_payment_method === 'INSURANCE'}
-                      onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
-                      className="mr-2"
-                    />
-                    Insurance
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {formData.discount_percentage > 0 && (
-              <div className="lg:col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
-                <input
-                  type="text"
-                  value={formData.discount_reason}
-                  onChange={(e) => setFormData({ ...formData, discount_reason: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Reason for discount"
-                />
-              </div>
-            )}
-          </div>
-
-          {formData.consultation_fee > 0 && (
-            <div className="mt-4 p-3 bg-white rounded-lg border-2 border-green-300">
-              <div className="text-center">
-                {formData.discount_percentage > 0 && (
-                  <div className="text-sm text-gray-600 mb-1">
-                    Original: ₹{formData.consultation_fee.toLocaleString()} - Discount ({formData.discount_percentage}%): ₹{(formData.consultation_fee * (formData.discount_percentage / 100)).toFixed(2)}
+                    )}
                   </div>
                 )}
-                <span className="text-xl font-bold text-green-700">
-                  Total Amount: ₹{totalAmount.toFixed(2)}
-                </span>
-                <div className="text-sm text-gray-600 mt-1">
-                  Payment Method: {formData.payment_mode === 'ONLINE' ? formData.online_payment_method : formData.payment_mode}
-                </div>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* Comprehensive Appointment Management Section */}
-        <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-purple-800 mb-3">📅 Appointment Management</h3>
-            
-            {/* Appointment Mode Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="bg-white p-4 rounded-lg border border-purple-200">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="appointment_mode"
-                    value="none"
-                    checked={!formData.schedule_appointment}
-                    onChange={(e) => setFormData({ ...formData, schedule_appointment: false, appointment_mode: 'none' })}
-                    className="w-4 h-4 text-purple-600"
-                  />
+              {/* Payment Details */}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                <div className="flex items-center gap-2 mb-6">
+                  <CreditCard className="w-5 h-5" style={{ color: '#0056B3' }} />
+                  <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Payment Details</h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {formData.consultation_mode === 'single' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Consultation Fee (₹)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.consultation_fee}
+                        onChange={(e) => setFormData({ ...formData, consultation_fee: parseInt(e.target.value) || 0 })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          outline: 'none'
+                        }}
+                        placeholder="Enter fee"
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      />
+                    </div>
+                  )}
                   <div>
-                    <div className="font-medium text-purple-800">📝 Register Patient Only</div>
-                    <div className="text-xs text-purple-600">No appointment needed</div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.discount_percentage}
+                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="0-100"
+                      min="0"
+                      max="100"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
                   </div>
-                </label>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Payment Mode
+                    </label>
+                    <select
+                      value={formData.payment_mode}
+                      onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CARD">Card</option>
+                      <option value="UPI">UPI</option>
+                      <option value="INSURANCE">Insurance</option>
+                    </select>
+                  </div>
+                  {formData.payment_mode === 'ONLINE' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Online Method
+                      </label>
+                      <select
+                        value={formData.online_payment_method}
+                        onChange={(e) => setFormData({ ...formData, online_payment_method: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none'
+                        }}
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="NET_BANKING">Net Banking</option>
+                        <option value="DEBIT_CARD">Debit Card</option>
+                        <option value="CREDIT_CARD">Credit Card</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {formData.discount_percentage > 0 && (
+                  <div className="mt-4">
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Discount Reason
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.discount_reason}
+                      onChange={(e) => setFormData({ ...formData, discount_reason: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      placeholder="Reason for discount"
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    />
+                  </div>
+                )}
               </div>
-              
-              <div className="bg-white p-4 rounded-lg border border-purple-200">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="appointment_mode"
-                    value="new_patient"
-                    checked={formData.schedule_appointment && formData.appointment_mode === 'new_patient'}
-                    onChange={(e) => setFormData({ ...formData, schedule_appointment: true, appointment_mode: 'new_patient' })}
-                    className="w-4 h-4 text-purple-600"
-                  />
-                  <div>
-                    <div className="font-medium text-purple-800">👤 New Patient + Appointment</div>
-                    <div className="text-xs text-purple-600">Register & schedule appointment</div>
+
+              {/* Appointment Management */}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                <div className="flex items-center gap-2 mb-6">
+                  <Calendar className="w-5 h-5" style={{ color: '#0056B3' }} />
+                  <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Appointment Management</h2>
+                </div>
+
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.schedule_appointment}
+                      onChange={(e) => setFormData({ ...formData, schedule_appointment: e.target.checked })}
+                      style={{ accentColor: '#0056B3' }}
+                      className="w-5 h-5"
+                    />
+                    <span style={{ fontSize: '14px', color: '#333333', fontWeight: '500' }}>
+                      Schedule an appointment
+                    </span>
+                  </label>
+                </div>
+
+                {formData.schedule_appointment && (
+                  <div className="space-y-4">
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Appointment Mode
+                      </label>
+                      <select
+                        value={formData.appointment_mode}
+                        onChange={(e) => setFormData({ ...formData, appointment_mode: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none'
+                        }}
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                      >
+                        <option value="none">Select Mode</option>
+                        <option value="new_patient">For This New Patient</option>
+                        <option value="existing_patient">For Existing Patient</option>
+                      </select>
+                    </div>
+
+                    {formData.appointment_mode === 'existing_patient' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Search Existing Patient
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.existing_patient_search}
+                          onChange={(e) => setFormData({ ...formData, existing_patient_search: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            outline: 'none'
+                          }}
+                          placeholder="Search by name, ID, or phone"
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        />
+                        {filteredPatients.length > 0 && (
+                          <div style={{ marginTop: '8px', maxHeight: '150px', overflowY: 'auto', border: '1px solid #CCCCCC', borderRadius: '8px' }}>
+                            {filteredPatients.map((patient) => (
+                              <div
+                                key={patient.patient_id}
+                                onClick={() => {
+                                  setFormData({ 
+                                    ...formData, 
+                                    selected_existing_patient: patient,
+                                    existing_patient_search: `${patient.first_name} ${patient.last_name} (${patient.patient_id})`
+                                  });
+                                  setFilteredPatients([]);
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  cursor: 'pointer',
+                                  borderBottom: '1px solid #E5E7EB'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F5F7FA'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                              >
+                                <div style={{ fontSize: '14px', color: '#333333' }}>
+                                  {patient.first_name} {patient.last_name} - {patient.patient_id}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#999999' }}>
+                                  {patient.phone}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(formData.appointment_mode === 'new_patient' || formData.appointment_mode === 'existing_patient') && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                              Appointment Date
+                            </label>
+                            <DatePicker
+                              selected={formData.appointment_date}
+                              onChange={(date: Date | null) => {
+                                setFormData({ ...formData, appointment_date: date });
+                              }}
+                              dateFormat="dd-MM-yyyy"
+                              minDate={new Date()}
+                              maxDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year from now
+                              className="w-full"
+                              customInput={
+                                <input
+                                  style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #CCCCCC',
+                                    fontSize: '16px',
+                                    color: '#333333',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                  }}
+                                  onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                                  onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                                />
+                              }
+                              placeholderText="Select appointment date"
+                              showMonthDropdown
+                              showYearDropdown
+                              dropdownMode="select"
+                              todayButton="Today"
+                              popperClassName="react-datepicker-modern"
+                              calendarClassName="react-datepicker-calendar-modern"
+                              dayClassName={(date) => {
+                                const today = new Date();
+                                const isToday = date.toDateString() === today.toDateString();
+                                const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                                
+                                if (isToday) return 'react-datepicker__day--today-custom';
+                                if (isWeekend) return 'react-datepicker__day--weekend';
+                                return 'react-datepicker__day--normal';
+                              }}
+                              showPopperArrow={false}
+                              fixedHeight
+                              scrollableMonthDropdown
+                              scrollableYearDropdown
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                              Appointment Time
+                            </label>
+                            <input
+                              type="time"
+                              value={formData.appointment_time}
+                              onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                border: '1px solid #CCCCCC',
+                                fontSize: '16px',
+                                color: '#333333',
+                                outline: 'none'
+                              }}
+                              onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                              onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                            />
+                          </div>
+                        </div>
+
+                        {formData.appointment_mode === 'new_patient' ? (
+                          // For new patient - auto-populate from doctor/department selection above
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                                Doctor Name <span style={{ fontSize: '12px', color: '#0056B3' }}>(Auto from above selection)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.consultation_mode === 'single' ? formData.selected_doctor : ''}
+                                onChange={(e) => setFormData({ ...formData, appointment_doctor_name: e.target.value })}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #CCCCCC',
+                                  fontSize: '16px',
+                                  color: '#333333',
+                                  backgroundColor: formData.consultation_mode === 'single' && formData.selected_doctor ? '#F5F7FA' : '#FFFFFF',
+                                  outline: 'none'
+                                }}
+                                placeholder={formData.consultation_mode === 'single' 
+                                  ? (formData.selected_doctor || "Select doctor above first") 
+                                  : "Multiple doctors selected above"}
+                                readOnly={formData.consultation_mode === 'single' && formData.selected_doctor}
+                                onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                              />
+                              {formData.consultation_mode === 'multiple' && selectedDoctors.length > 0 && (
+                                <div style={{ fontSize: '12px', color: '#999999', marginTop: '4px' }}>
+                                  💡 Multiple doctors: {selectedDoctors.map(doc => doc.doctorName).join(', ')}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                                Department <span style={{ fontSize: '12px', color: '#0056B3' }}>(Auto from above)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.consultation_mode === 'single' ? formData.selected_department : ''}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #CCCCCC',
+                                  fontSize: '16px',
+                                  color: '#333333',
+                                  backgroundColor: '#F5F7FA',
+                                  outline: 'none'
+                                }}
+                                placeholder={formData.consultation_mode === 'single' 
+                                  ? (formData.selected_department || "Select department above first") 
+                                  : "Multiple departments"}
+                                readOnly
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          // For existing patient - manual entry
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                                Doctor Name
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.appointment_doctor_name}
+                                onChange={(e) => setFormData({ ...formData, appointment_doctor_name: e.target.value })}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #CCCCCC',
+                                  fontSize: '16px',
+                                  color: '#333333',
+                                  outline: 'none'
+                                }}
+                                placeholder="Doctor name"
+                                onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                                Department
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.appointment_department}
+                                onChange={(e) => setFormData({ ...formData, appointment_department: e.target.value })}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #CCCCCC',
+                                  fontSize: '16px',
+                                  color: '#333333',
+                                  outline: 'none'
+                                }}
+                                placeholder="Department name"
+                                onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                            Appointment Type
+                          </label>
+                          <select
+                            value={formData.appointment_type}
+                            onChange={(e) => setFormData({ ...formData, appointment_type: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid #CCCCCC',
+                              fontSize: '16px',
+                              color: '#333333',
+                              backgroundColor: '#FFFFFF',
+                              outline: 'none'
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                          >
+                            <option value="">Select Type</option>
+                            <option value="consultation">Consultation</option>
+                            <option value="follow-up">Follow-up</option>
+                            <option value="procedure">Procedure</option>
+                            <option value="emergency">Emergency</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                            Appointment Notes
+                          </label>
+                          <textarea
+                            value={formData.appointment_notes}
+                            onChange={(e) => setFormData({ ...formData, appointment_notes: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid #CCCCCC',
+                              fontSize: '16px',
+                              color: '#333333',
+                              outline: 'none',
+                              resize: 'vertical'
+                            }}
+                            rows={2}
+                            placeholder="Additional notes for appointment"
+                            onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
-                </label>
-              </div>
-              
-              <div className="bg-white p-4 rounded-lg border border-purple-200">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="appointment_mode"
-                    value="existing_patient"
-                    checked={formData.appointment_mode === 'existing_patient'}
-                    onChange={(e) => setFormData({ ...formData, schedule_appointment: false, appointment_mode: 'existing_patient' })}
-                    className="w-4 h-4 text-purple-600"
-                  />
-                  <div>
-                    <div className="font-medium text-purple-800">📅 Existing Patient Appointment</div>
-                    <div className="text-xs text-purple-600">Schedule for existing patient</div>
-                  </div>
-                </label>
+                )}
               </div>
             </div>
           </div>
 
-          {(formData.schedule_appointment || formData.appointment_mode === 'existing_patient') && (
-            <div className="space-y-4">
-              
-              {/* Existing Patient Search - Only for existing patient appointments */}
-              {formData.appointment_mode === 'existing_patient' && (
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">👤 Select Existing Patient</label>
-                  
-                  {/* Patient Search */}
-                  <div className="mb-4">
-                    <input
-                      type="text"
-                      placeholder="Search by name, Patient ID, or phone number..."
-                      value={formData.existing_patient_search}
-                      onChange={(e) => setFormData({ ...formData, existing_patient_search: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Patient Selection */}
-                  {formData.existing_patient_search.trim() && (
-                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md bg-white">
-                      {filteredExistingPatients.length > 0 ? (
-                        filteredExistingPatients.slice(0, 10).map((patient) => (
-                          <div
-                            key={patient.id}
-                            onClick={() => setFormData({ 
-                              ...formData, 
-                              selected_existing_patient: patient,
-                              existing_patient_search: `${patient.first_name} ${patient.last_name} (${patient.patient_id})`
-                            })}
-                            className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="font-medium text-gray-900">
-                              {patient.first_name} {patient.last_name}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              ID: {patient.patient_id} • {patient.phone} • {patient.age ? `Age: ${patient.age}` : ''}
-                            </div>
-                            {patient.patient_tag && (
-                              <div className="text-xs text-blue-600">Tag: {patient.patient_tag}</div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3 text-gray-500 text-center">No patients found</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Selected Patient Display */}
-                  {formData.selected_existing_patient && (
-                    <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-                      <div className="font-medium text-blue-900">
-                        Selected: {formData.selected_existing_patient.first_name} {formData.selected_existing_patient.last_name}
-                      </div>
-                      <div className="text-sm text-blue-700">
-                        ID: {formData.selected_existing_patient.patient_id} • Phone: {formData.selected_existing_patient.phone}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Doctor Information */}
-              <div className="bg-green-50 p-4 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 mb-3">Doctor Information</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor Name *</label>
-                    <input
-                      type="text"
-                      value={formData.appointment_doctor_name || ''}
-                      onChange={(e) => setFormData({ ...formData, appointment_doctor_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder="Enter doctor name"
-                      required={formData.schedule_appointment}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
-                    <input
-                      type="text"
-                      value={formData.appointment_department || ''}
-                      onChange={(e) => setFormData({ ...formData, appointment_department: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder="Enter department"
-                      required={formData.schedule_appointment}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Date *</label>
-                  <input
-                    type="date"
-                    value={formData.appointment_date || ''}
-                    onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required={formData.schedule_appointment}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Time *</label>
-                  <input
-                    type="time"
-                    value={formData.appointment_time || ''}
-                    onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required={formData.schedule_appointment}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Type *</label>
-                  <select
-                    value={formData.appointment_type || ''}
-                    onChange={(e) => setFormData({ ...formData, appointment_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required={formData.schedule_appointment}
-                  >
-                    <option value="">Select Type</option>
-                    <option value="consultation">👨‍⚕️ Consultation</option>
-                    <option value="follow-up">🔄 Follow-up</option>
-                    <option value="procedure">🏥 Procedure</option>
-                    <option value="emergency">🚨 Emergency</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-                  <input
-                    type="number"
-                    value={formData.appointment_duration || 30}
-                    onChange={(e) => setFormData({ ...formData, appointment_duration: parseInt(e.target.value) || 30 })}
-                    min={15}
-                    max={180}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.appointment_cost || 500}
-                    onChange={(e) => setFormData({ ...formData, appointment_cost: parseInt(e.target.value) || 500 })}
-                    min={0}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-
+          {/* Total Summary and Actions */}
+          <div className="mt-6" style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+            <div className="flex justify-between items-center mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Notes</label>
-                <textarea
-                  value={formData.appointment_notes || ''}
-                  onChange={(e) => setFormData({ ...formData, appointment_notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={2}
-                  placeholder="Special instructions or notes about the appointment"
-                />
+                <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#333333', marginBottom: '4px' }}>
+                  Registration Summary
+                </h3>
+                <p style={{ fontSize: '14px', color: '#999999' }}>
+                  {formData.consultation_mode === 'single' 
+                    ? `Consultation Fee: ₹${formData.consultation_fee || 0}`
+                    : `Multiple Doctors: ${selectedDoctors.length} selected`
+                  }
+                  {formData.discount_percentage > 0 && ` (${formData.discount_percentage}% discount)`}
+                </p>
               </div>
-
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <div className="text-sm text-purple-800">
-                  <strong>📅 Appointment Summary:</strong>
-                  {formData.appointment_date && formData.appointment_time && (
-                    <span className="ml-2">
-                      {new Date(formData.appointment_date).toLocaleDateString()} at {formData.appointment_time}
-                      {formData.appointment_type && ` - ${formData.appointment_type}`}
-                      {formData.appointment_cost && ` - ₹${formData.appointment_cost}`}
-                    </span>
-                  )}
-                </div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#0056B3' }}>
+                ₹{formData.consultation_mode === 'single' 
+                  ? (formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))).toFixed(2)
+                  : (selectedDoctors.reduce((total, doc) => total + (doc.consultationFee || 0), 0) - 
+                     (selectedDoctors.reduce((total, doc) => total + (doc.consultationFee || 0), 0) * (formData.discount_percentage / 100))).toFixed(2)
+                }
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
-          {formData.appointment_mode === 'existing_patient' ? (
-            // Buttons for existing patient appointments
-            <>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, appointment_mode: 'none', existing_patient_search: '', selected_existing_patient: null })}
-                disabled={loading}
-                className="bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
-              >
-                🚫 Cancel Appointment
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAppointmentOnly}
-                disabled={loading || !formData.selected_existing_patient || !formData.appointment_date || !formData.appointment_time || !formData.appointment_doctor_name}
-                className="bg-purple-600 text-white py-3 px-6 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
-              >
-                {loading ? 'Scheduling...' : '📅 Save Appointment'}
-              </button>
-            </>
-          ) : (
-            // Buttons for patient registration (with or without appointment)
-            <>
+            <div className="flex justify-end gap-4">
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
-                disabled={loading || !formData.first_name.trim()}
-                className="bg-gray-600 text-white py-3 px-6 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  backgroundColor: '#E0E0E0',
+                  color: '#333333',
+                  border: '1px solid #CCCCCC',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D0D0D0'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E0E0E0'}
               >
-                {loading ? 'Saving Draft...' : '📝 Save as Draft'}
+                Save as Draft
               </button>
               <button
                 type="submit"
-                disabled={loading || !formData.first_name.trim()}
-                className="bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                disabled={loading}
+                style={{
+                  padding: '12px 32px',
+                  borderRadius: '8px',
+                  backgroundColor: loading ? '#999999' : '#0056B3',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#004494')}
+                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#0056B3')}
               >
-                {loading ? 'Registering...' : formData.schedule_appointment && formData.appointment_mode === 'new_patient' ? '✅ Register Patient & Schedule Appointment' : '✅ Register Patient'}
+                {loading ? 'Registering...' : 'Register Patient'}
+                {!loading && <ChevronRight className="w-5 h-5" />}
               </button>
-            </>
-          )}
-        </div>
-      </form>
-
-      {/* Help Text */}
-      <div className="mt-6 p-4 bg-blue-100 rounded-lg">
-        <h4 className="font-semibold text-blue-800 mb-2">💡 Enhanced Patient Entry:</h4>
-        <ul className="text-blue-700 text-sm space-y-1">
-          <li>• <strong>Comprehensive Information:</strong> All patient details in one form</li>
-          <li>• <strong>Reference Tracking:</strong> Option to record patient referrals</li>
-          <li>• <strong>Flexible Payment:</strong> Cash and online payment options with sub-methods</li>
-          <li>• <strong>Appointment Scheduling:</strong> Optional appointment booking during patient registration</li>
-          <li>• <strong>Essential Details:</strong> Address and date of birth included by default</li>
-          <li>• <strong>Database Integration:</strong> Direct Supabase integration for reliable storage</li>
-        </ul>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

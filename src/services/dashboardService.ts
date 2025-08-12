@@ -89,21 +89,34 @@ class DashboardService {
           .eq('status', 'COMPLETED')
           .gte('scheduled_at', startOfMonth.toISOString()),
         
-        // Monthly revenue
-        supabase.from('bills').select('paid_amount')
+        // Monthly revenue (excluding ORTHO/HMT patients)
+        supabase.from('bills').select('paid_amount, patient:patients!bills_patient_id_fkey(assigned_department, assigned_doctor)')
           .eq('status', 'PAID')
           .gte('payment_date', startOfMonth.toISOString()),
         
-        // Last month revenue
-        supabase.from('bills').select('paid_amount')
+        // Last month revenue (excluding ORTHO/HMT patients)
+        supabase.from('bills').select('paid_amount, patient:patients!bills_patient_id_fkey(assigned_department, assigned_doctor)')
           .eq('status', 'PAID')
           .gte('payment_date', lastMonth.toISOString())
           .lt('payment_date', startOfMonth.toISOString()),
       ]);
 
-      // Calculate monthly revenue
-      const monthlyRevenue = monthlyRevenueResult.data?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
-      const lastMonthRevenue = lastMonthRevenueResult.data?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+      // Calculate monthly revenue (excluding ORTHO/HMT patients)
+      const monthlyRevenue = monthlyRevenueResult.data?.reduce((sum, bill) => {
+        // Exclude bills from patients with ORTHO department or DR. HEMANT doctor
+        if (bill.patient?.assigned_department === 'ORTHO' || bill.patient?.assigned_doctor === 'DR. HEMANT') {
+          return sum;
+        }
+        return sum + (bill.paid_amount || 0);
+      }, 0) || 0;
+      
+      const lastMonthRevenue = lastMonthRevenueResult.data?.reduce((sum, bill) => {
+        // Exclude bills from patients with ORTHO department or DR. HEMANT doctor
+        if (bill.patient?.assigned_department === 'ORTHO' || bill.patient?.assigned_doctor === 'DR. HEMANT') {
+          return sum;
+        }
+        return sum + (bill.paid_amount || 0);
+      }, 0) || 0;
 
       // Calculate growth rates
       const patientGrowthRate = (lastMonthPatients && currentMonthPatients) 
@@ -139,11 +152,19 @@ class DashboardService {
 
       const averageWaitTime = waitTimeCount > 0 ? totalWaitTime / waitTimeCount / (1000 * 60) : 0; // Convert to minutes
 
+      // Get bed statistics
+      const { count: totalBeds } = await supabase.from('beds').select('id', { count: 'exact', head: true });
+      const { count: availableBeds } = await supabase.from('beds').select('id', { count: 'exact', head: true }).in('status', ['vacant', 'AVAILABLE']);
+      const { count: occupiedBeds } = await supabase.from('beds').select('id', { count: 'exact', head: true }).in('status', ['occupied', 'OCCUPIED']);
+
       return {
         totalPatients: totalPatients || 0,
         totalDoctors: totalDoctors || 0,
         todayAppointments: todayAppointments || 0,
         pendingBills: pendingBills || 0,
+        totalBeds: totalBeds || 0,
+        availableBeds: availableBeds || 0,
+        occupiedBeds: occupiedBeds || 0,
         monthlyRevenue,
         todayRevenue: monthlyRevenue,
         todayExpenses: 0,

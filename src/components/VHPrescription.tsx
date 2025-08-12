@@ -51,6 +51,16 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     return dept;
   };
 
+  const getTotalPaidAmount = () => {
+    if (!patient.transactions || patient.transactions.length === 0) {
+      return 0;
+    }
+    
+    return patient.transactions
+      .filter(transaction => transaction.status === 'COMPLETED')
+      .reduce((total, transaction) => total + transaction.amount, 0);
+  };
+
   // Template path with fallback options
   const templatePaths = [
     '/vh-prescription-template.jpg',
@@ -179,6 +189,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     const currentDate = getCurrentDate();
     const ageText = patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A';
     const genderText = patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender;
+    const totalPaid = getTotalPaidAmount();
     
     const printContent = `
       <!DOCTYPE html>
@@ -350,6 +361,10 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
                 <span class="label">Department:</span>
                 <span class="value">${departmentName}</span>
               </div>
+              <div>
+                <span class="label">Paid Amount:</span>
+                <span class="value">₹${totalPaid.toLocaleString()}</span>
+              </div>
             </div>
 
             <div class="right-details">
@@ -497,6 +512,14 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             <div className="flex items-center">
               <span className="w-32 text-lg font-medium text-gray-700">Department:</span>
               <span className="text-xl text-gray-900">{getDepartmentName()}</span>
+            </div>
+
+            {/* Paid Amount */}
+            <div className="flex items-center">
+              <span className="w-32 text-lg font-medium text-gray-700">Paid Amount:</span>
+              <span className="text-xl font-semibold text-green-600">
+                ₹{getTotalPaidAmount().toLocaleString()}
+              </span>
             </div>
           </div>
 

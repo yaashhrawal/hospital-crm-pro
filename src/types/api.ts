@@ -10,6 +10,13 @@ export interface HospitalStats {
   todayAppointments: number;
   pendingBills: number;
   monthlyRevenue: number;
+  totalBeds: number;
+  availableBeds: number;
+  occupiedBeds: number;
+  patientGrowthRate: number;
+  appointmentCompletionRate: number;
+  averageWaitTime: number;
+  revenueGrowthRate: number;
   [key: string]: any;
 }
 

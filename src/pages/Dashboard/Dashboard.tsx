@@ -1,420 +1,368 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Users, 
   Calendar, 
-  Receipt, 
-  TrendingUp, 
-  Plus,
-  UserPlus,
-  CalendarPlus,
-  FileText,
-  Activity,
-  Heart,
-  Clock,
-  DollarSign
+  Bed,
+  IndianRupee,
+  TrendingDown,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { MetricCard } from '@/components/ui/MetricCard';
-import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Avatar } from '@/components/ui/Avatar';
-import { Badge } from '@/components/ui/Badge';
-import { RealtimeIndicator } from '@/components/ui/RealtimeIndicator';
-import { LineChart } from '@/components/charts/LineChart';
-// import { BarChart } from '@/components/charts/BarChart';
 import { formatCurrency } from '@/utils';
-// import LiveCalendar from '../../components/calendar/LiveCalendar';
-// import TestCalendar from '../../components/calendar/TestCalendar';
-// import SimpleCalendar from '../../components/calendar/SimpleCalendar';
-import DebugCalendar from '../../components/DebugCalendar';
 import { dashboardService } from '../../services/dashboardService';
-import { useTodayAppointments, useAppointmentsRealtime } from '../../hooks/useAppointments';
-import { useRecentPatients, usePatientsRealtime } from '../../hooks/usePatients';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAppointments } from '../../hooks/useAppointments';
 import { queryKeys } from '../../config/reactQuery';
 
 export const Dashboard: React.FC = () => {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const { user } = useAuth();
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [localStorageUpdate, setLocalStorageUpdate] = useState(0);
 
   // Fetch dashboard data
-  const { data: dashboardStats, isLoading: statsLoading } = useQuery({
+  const { data: dashboardStats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: queryKeys.dashboardStats,
     queryFn: () => dashboardService.getDashboardStats(),
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    refetchInterval: 5 * 60 * 1000,
   });
 
-  const { data: chartData, isLoading: chartLoading } = useQuery({
-    queryKey: queryKeys.chartData,
-    queryFn: () => dashboardService.getChartData(),
-    staleTime: 10 * 60 * 1000, // 10 minutes
+  // Fetch appointments data  
+  const { data: appointmentsData, isLoading: appointmentsLoading } = useAppointments({
+    filters: {
+      dateRange: {
+        start: new Date().toISOString(),
+        end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Next 30 days
+      },
+    },
+    limit: 100,
+    sortBy: 'scheduled_at',
+    sortOrder: 'asc',
   });
 
-  const { data: todayAppointments, isLoading: appointmentsLoading } = useTodayAppointments();
-  const { data: recentPatients, isLoading: patientsLoading } = useRecentPatients(5);
+  // Listen for localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setLocalStorageUpdate(prev => prev + 1);
+    };
 
-  // Enable real-time subscriptions for live data updates
-  useAppointmentsRealtime();
-  usePatientsRealtime();
-
-  // Create metrics from real data
-  const metrics = dashboardStats ? [
-    {
-      title: 'Total Patients',
-      value: dashboardStats.totalPatients.toLocaleString(),
-      change: { 
-        value: `${dashboardStats.patientGrowthRate > 0 ? '+' : ''}${dashboardStats.patientGrowthRate}%`, 
-        type: dashboardStats.patientGrowthRate >= 0 ? 'positive' as const : 'negative' as const 
-      },
-      icon: Users,
-      gradient: { from: '#667eea', to: '#764ba2' },
-    },
-    {
-      title: "Today's Appointments",
-      value: dashboardStats.todayAppointments.toString(),
-      change: { 
-        value: `${dashboardStats.appointmentCompletionRate.toFixed(1)}% completion`, 
-        type: 'positive' as const 
-      },
-      icon: Calendar,
-      gradient: { from: '#f093fb', to: '#f5576c' },
-    },
-    {
-      title: 'Pending Bills',
-      value: dashboardStats.pendingBills.toString(),
-      change: { value: 'Awaiting payment', type: 'neutral' as const },
-      icon: Receipt,
-      gradient: { from: '#4facfe', to: '#00f2fe' },
-    },
-    {
-      title: 'Monthly Revenue',
-      value: formatCurrency(dashboardStats.monthlyRevenue),
-      change: { 
-        value: `${dashboardStats.revenueGrowthRate > 0 ? '+' : ''}${dashboardStats.revenueGrowthRate.toFixed(1)}%`, 
-        type: dashboardStats.revenueGrowthRate >= 0 ? 'positive' as const : 'negative' as const 
-      },
-      icon: TrendingUp,
-      gradient: { from: '#43e97b', to: '#38f9d7' },
-    },
-  ] : [];
-
-  const quickActions = [
-    {
-      label: 'Add Patient',
-      icon: UserPlus,
-      color: 'bg-blue-500 hover:bg-blue-600',
-      action: () => console.log('Add patient'),
-    },
-    {
-      label: 'Schedule Appointment',
-      icon: CalendarPlus,
-      color: 'bg-green-500 hover:bg-green-600',
-      action: () => console.log('Schedule appointment'),
-    },
-    {
-      label: 'Generate Bill',
-      icon: FileText,
-      color: 'bg-purple-500 hover:bg-purple-600',
-      action: () => console.log('Generate bill'),
-    },
-    {
-      label: 'View Reports',
-      icon: Activity,
-      color: 'bg-orange-500 hover:bg-orange-600',
-      action: () => console.log('View reports'),
-    },
-  ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-        return <Badge variant="success">Confirmed</Badge>;
-      case 'in_progress':
-        return <Badge variant="info">In Progress</Badge>;
-      case 'scheduled':
-        return <Badge variant="warning">Scheduled</Badge>;
-      case 'completed':
-        return <Badge variant="success">Completed</Badge>;
-      case 'cancelled':
-        return <Badge variant="error">Cancelled</Badge>;
-      default:
-        return <Badge variant="neutral">{status}</Badge>;
-    }
-  };
-
-  const formatAppointmentTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    // Listen for storage events from other tabs/windows
+    window.addEventListener('storage', handleStorageChange);
     
-    if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-      return `${diffInMinutes} minutes ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours} hours ago`;
-    } else {
-      const diffInDays = Math.floor(diffInHours / 24);
-      return `${diffInDays} days ago`;
-    }
+    // Also listen for custom event for same-tab updates
+    window.addEventListener('appointmentUpdated', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('appointmentUpdated', handleStorageChange);
+    };
+  }, []);
+
+  // Handle refresh data
+  const handleRefreshData = async () => {
+    await refetchStats();
   };
+
+  // Calendar navigation
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newMonth = new Date(currentMonth);
+    if (direction === 'prev') {
+      newMonth.setMonth(newMonth.getMonth() - 1);
+    } else {
+      newMonth.setMonth(newMonth.getMonth() + 1);
+    }
+    setCurrentMonth(newMonth);
+  };
+
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 41); // 6 weeks
+    
+    for (let date = new Date(startDate); date < endDate; date.setDate(date.getDate() + 1)) {
+      days.push(new Date(date));
+    }
+    
+    return days;
+  };
+
+  // Filter appointments for selected date and next 7 days
+  const getUpcomingAppointments = () => {
+    // Combine appointments from both sources
+    const supabaseAppointments = appointmentsData?.data || [];
+    
+    // Get appointments from localStorage
+    let localAppointments = [];
+    try {
+      const storedAppointments = localStorage.getItem('hospital_appointments');
+      if (storedAppointments) {
+        const parsed = JSON.parse(storedAppointments);
+        // Transform localStorage appointments to match the expected format
+        localAppointments = parsed.map((apt: any) => ({
+          id: apt.id,
+          scheduled_at: `${apt.appointment_date}T${apt.appointment_time}:00`,
+          patient: {
+            first_name: apt.patient_name?.split(' ')[0] || '',
+            last_name: apt.patient_name?.split(' ').slice(1).join(' ') || '',
+          },
+          department: {
+            name: apt.department || 'General',
+          },
+          status: apt.status,
+          appointment_type: apt.appointment_type,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading localStorage appointments:', error);
+    }
+    
+    // Combine both sources
+    const allAppointments = [...supabaseAppointments, ...localAppointments];
+    
+    const startDate = new Date(selectedDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(selectedDate);
+    endDate.setDate(endDate.getDate() + 7);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return allAppointments.filter((appointment: any) => {
+      const appointmentDate = new Date(appointment.scheduled_at);
+      return appointmentDate >= startDate && appointmentDate <= endDate;
+    }).slice(0, 10); // Show maximum 10 appointments
+  };
+
+  const formatSelectedDateRange = () => {
+    const endDate = new Date(selectedDate);
+    endDate.setDate(endDate.getDate() + 7);
+    return `${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  };
+
+
+
 
   if (statsLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#007bff]"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Welcome back{user ? `, ${user.firstName}` : ''}! Here's what's happening at your hospital today.
-          </p>
-          <div className="flex items-center mt-2 text-sm text-gray-500">
-            <Clock className="h-4 w-4 mr-1" />
-            {currentTime.toLocaleString('en-IN', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </div>
-        </div>
-        
-        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <RealtimeIndicator />
-          <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
-            Quick Add
+      <div className="bg-[#F5F5F5] px-6 py-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-[#333333]">Hospital Dashboard</h1>
+          <Button 
+            onClick={handleRefreshData}
+            className="bg-[#007bff] hover:bg-[#0056b3] text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Data
           </Button>
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((metric, index) => (
-          <motion.div
-            key={metric.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <MetricCard {...metric} />
-          </motion.div>
-        ))}
-      </div>
+      {/* Summary Cards */}
+      <div className="px-6 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          {/* Total Patients Card */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-[#999999]">Total Patients</h3>
+              <Users className="h-5 w-5 text-[#007bff]" />
+            </div>
+            <div className="text-3xl font-bold text-[#333333] mb-1">
+              {dashboardStats?.totalPatients?.toLocaleString() || '0'}
+            </div>
+            <p className="text-xs text-[#999999]">Updated just now</p>
+          </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {quickActions.map((action, index) => (
-            <motion.button
-              key={action.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={action.action}
-              className={`${action.color} text-white p-4 rounded-lg transition-colors duration-200 flex flex-col items-center space-y-2`}
-            >
-              <action.icon className="h-6 w-6" />
-              <span className="text-sm font-medium">{action.label}</span>
-            </motion.button>
-          ))}
+          {/* Admissions Card */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-[#999999]">Admissions</h3>
+              <Calendar className="h-5 w-5 text-[#007bff]" />
+            </div>
+            <div className="text-3xl font-bold text-[#333333] mb-1">
+              {dashboardStats?.todayAppointments?.toString() || '0'}
+            </div>
+            <p className="text-xs text-[#999999]">Updated just now</p>
+          </div>
+
+          {/* Available Beds Card */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-[#999999]">Available Beds</h3>
+              <Bed className="h-5 w-5 text-[#007bff]" />
+            </div>
+            <div className="text-3xl font-bold text-[#333333] mb-1">
+              {dashboardStats?.availableBeds?.toString() || '0'}
+            </div>
+            <p className="text-xs text-[#999999]">Updated just now</p>
+          </div>
+
+          {/* Revenue Card */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-[#999999]">Revenue</h3>
+              <IndianRupee className="h-5 w-5 text-[#007bff]" />
+            </div>
+            <div className="text-3xl font-bold text-[#333333] mb-1">
+              {formatCurrency(dashboardStats?.monthlyRevenue || 0)}
+            </div>
+            <p className="text-xs text-[#999999]">Updated just now</p>
+          </div>
+
+          {/* Expenses Card */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-[#999999]">Expenses</h3>
+              <TrendingDown className="h-5 w-5 text-[#007bff]" />
+            </div>
+            <div className="text-3xl font-bold text-[#333333] mb-1">
+              {formatCurrency(dashboardStats?.todayExpenses || 0)}
+            </div>
+            <p className="text-xs text-[#999999]">Updated just now</p>
+          </div>
         </div>
-      </Card>
 
-      {/* Live Calendar Section */}
-      <DebugCalendar />
-
-      {/* Charts Section */}
-      {chartData && (
+        {/* Bottom Row - Calendar and Appointments */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Trends */}
-          <Card>
+          {/* Appointments Calendar */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[#333333] mb-1">Appointments Calendar</h3>
+            <p className="text-sm text-[#999999] mb-4">Select a date to view scheduled appointments</p>
+            
+            {/* Calendar Header */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Revenue Trends</h3>
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-gray-500">Last 6 months</span>
-              </div>
+              <button
+                onClick={() => navigateMonth('prev')}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronLeft className="h-5 w-5 text-[#333333]" />
+              </button>
+              <h4 className="text-lg font-semibold text-[#333333]">
+                {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </h4>
+              <button
+                onClick={() => navigateMonth('next')}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronRight className="h-5 w-5 text-[#333333]" />
+              </button>
             </div>
-            {chartLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <LineChart
-                data={chartData.revenueByMonth}
-                xDataKey="month"
-                lines={[
-                  { dataKey: 'revenue', name: 'Revenue (₹)', color: '#3b82f6' },
-                  { dataKey: 'count', name: 'Bills', color: '#10b981' },
-                ]}
-                height={300}
-              />
-            )}
-          </Card>
+            
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="p-2 text-center text-sm font-medium text-[#999999]">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-7 gap-1">
+              {generateCalendarDays().map((date, index) => {
+                const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+                const isToday = date.toDateString() === new Date().toDateString();
+                const isSelected = date.toDateString() === selectedDate.toDateString();
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedDate(date)}
+                    className={`
+                      p-2 text-sm rounded-lg transition-colors
+                      ${
+                        isCurrentMonth
+                          ? isToday
+                            ? 'bg-[#007bff] text-white font-bold'
+                            : isSelected
+                            ? 'bg-[#007bff] text-white'
+                            : 'text-[#333333] hover:bg-gray-100'
+                          : 'text-[#999999] hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Appointment Analytics */}
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Appointment Status</h3>
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-4 w-4 text-blue-500" />
-                <span className="text-sm text-gray-500">Overview</span>
-              </div>
-            </div>
-            {chartLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(chartData.appointmentsByStatus).map(([status, count]) => (
-                  <div key={status} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      {getStatusBadge(status)}
-                      <span className="text-sm font-medium text-gray-900 capitalize">
-                        {status.replace('_', ' ').toLowerCase()}
-                      </span>
+          {/* Upcoming Appointments */}
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[#333333] mb-1">Upcoming Appointments</h3>
+            <p className="text-sm text-[#999999] mb-4">
+              Showing appointments for {formatSelectedDateRange()}
+            </p>
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {appointmentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#007bff]"></div>
+                </div>
+              ) : (
+                (() => {
+                  const upcomingAppointments = getUpcomingAppointments();
+                  
+                  if (upcomingAppointments.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-[#999999]">
+                        <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No appointments for this date range.</p>
+                      </div>
+                    );
+                  }
+                  
+                  return upcomingAppointments.map((appointment: any) => (
+                    <div key={appointment.id} className="border-l-4 border-[#007bff] pl-4 py-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-[#333333]">
+                            {appointment.patient?.first_name} {appointment.patient?.last_name}
+                          </p>
+                          <p className="text-sm text-[#999999]">
+                            {appointment.department?.name || 'General'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-[#333333]">
+                            {new Date(appointment.scheduled_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </p>
+                          <p className="text-sm text-[#999999]">
+                            {new Date(appointment.scheduled_at).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-lg font-semibold text-gray-900">{count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                  ));
+                })()
+              )}
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Appointments */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Today's Appointments</h3>
-            <Button variant="secondary" size="sm">
-              View All
-            </Button>
-          </div>
-          <div className="space-y-4">
-            {appointmentsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : todayAppointments && todayAppointments.length > 0 ? (
-              todayAppointments.slice(0, 5).map((appointment, index) => (
-                <motion.div
-                  key={appointment.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150"
-                >
-                  <Avatar
-                    fallback={appointment.patient?.first_name?.charAt(0) || 'P'}
-                    size="md"
-                    className="bg-primary-100 text-primary-700"
-                  />
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {appointment.patient?.first_name} {appointment.patient?.last_name}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {formatAppointmentTime(appointment.scheduled_at)} - 
-                      Dr. {appointment.doctor?.first_name} {appointment.doctor?.last_name}
-                    </p>
-                    <p className="text-xs text-gray-400">{appointment.appointment_type}</p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    {getStatusBadge(appointment.status)}
-                  </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No appointments scheduled for today</p>
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Recent Patients */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">New Patients</h3>
-            <Button variant="secondary" size="sm">
-              View All
-            </Button>
-          </div>
-          <div className="space-y-4">
-            {patientsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : recentPatients && Array.isArray(recentPatients) && recentPatients.length > 0 ? (
-              recentPatients.map((patient: any, index: number) => (
-                <motion.div
-                  key={patient.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150"
-                >
-                  <Avatar
-                    fallback={patient.first_name.charAt(0)}
-                    size="md"
-                    className="bg-green-100 text-green-700"
-                  />
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {patient.first_name} {patient.last_name}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {patient.gender} - {patient.blood_group || 'Blood group not specified'}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {formatRelativeTime(patient.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Heart className="h-4 w-4 text-red-500" />
-                  </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No new patients registered</p>
-              </div>
-            )}
-          </div>
-        </Card>
       </div>
     </div>
   );
+
 };

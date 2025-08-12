@@ -318,7 +318,7 @@ class DataService {
     try {
       const { data, error } = await supabase
         .from('patient_transactions')
-        .select('*')
+        .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
         .eq('hospital_id', HOSPITAL_ID)
         .gte('created_at', date + 'T00:00:00.000Z')
         .lt('created_at', date + 'T23:59:59.999Z')
@@ -373,8 +373,10 @@ class DataService {
       const { data, error } = await supabase
         .from('daily_expenses')
         .select('*')
-        .eq('date', date)
-        .order('date', { ascending: false });
+        .eq('hospital_id', HOSPITAL_ID)
+        .gte('expense_date', date + 'T00:00:00.000Z')
+        .lte('expense_date', date + 'T23:59:59.999Z')
+        .order('expense_date', { ascending: false });
       if (error) {
         console.error('❌ Supabase expenses by date fetch error:', error);
         throw error;
@@ -400,11 +402,21 @@ class DataService {
       const transactions = await this.getTransactionsByDate(date);
       const expenses = await this.getExpensesByDate(date);
 
-      const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
+      // Exclude ORTHO/DR. HEMANT patients from revenue
+      const totalIncome = transactions.reduce((sum, t) => {
+        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
+          return sum;
+        }
+        return sum + t.amount;
+      }, 0);
       const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
       const netRevenue = totalIncome - totalExpenses;
 
       const transactionBreakdown = transactions.reduce((breakdown, t) => {
+        // Exclude ORTHO/DR. HEMANT patients from breakdown
+        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
+          return breakdown;
+        }
         breakdown[t.transaction_type] = (breakdown[t.transaction_type] || 0) + t.amount;
         return breakdown;
       }, {} as Record<string, number>);
