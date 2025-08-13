@@ -242,10 +242,6 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
                 <span class="label">Department:</span>
                 <span class="value">${departmentName}</span>
               </div>
-              <div>
-                <span class="label">Paid Amount:</span>
-                <span class="value">₹${totalPaid.toLocaleString()}</span>
-              </div>
             </div>
 
             <div class="right-details">
@@ -256,6 +252,10 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               <div>
                 <span class="label">Age/Sex:</span>
                 <span class="value">${ageText} / ${genderText}</span>
+              </div>
+              <div>
+                <span class="label">Paid Amount:</span>
+                <span class="value">₹${totalPaid.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -482,13 +482,6 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               <span className="text-xl font-normal text-gray-900">{getDepartmentName()}</span>
             </div>
 
-            {/* Paid Amount */}
-            <div className="flex items-center">
-              <span className="w-32 text-lg font-bold text-gray-700">Paid Amount:</span>
-              <span className="text-xl font-normal text-green-600 font-semibold">
-                ₹{getTotalPaidAmount().toLocaleString()}
-              </span>
-            </div>
           </div>
 
           {/* Date and Age/Sex - Right Side */}
@@ -504,6 +497,14 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
               <span className="text-lg font-bold text-gray-700 mr-2">Age/Sex:</span>
               <span className="text-xl font-normal text-gray-900">
                 {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
+              </span>
+            </div>
+
+            {/* Paid Amount */}
+            <div className="flex items-center justify-end">
+              <span className="text-lg font-bold text-gray-700 mr-2">Paid Amount:</span>
+              <span className="text-xl font-normal text-green-600 font-semibold">
+                ₹{getTotalPaidAmount().toLocaleString()}
               </span>
             </div>
           </div>
