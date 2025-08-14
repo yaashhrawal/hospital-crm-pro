@@ -17,6 +17,10 @@ interface LedgerEntry {
   payment_mode: 'CASH' | 'ONLINE';
   patient_name?: string;
   patient_id?: string;
+  patient_age?: string;
+  patient_gender?: string;
+  consultant_name?: string;
+  department?: string;
   patient_tag?: string;
   reference_id?: string;
   created_at: string;
@@ -57,7 +61,7 @@ const OperationsLedger: React.FC = () => {
           doctor_name,
           status,
           created_at,
-          patient:patients(id, patient_id, first_name, last_name, age, patient_tag)
+          patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
         `)
         .gte('created_at', `${dateFrom}T00:00:00`)
         .lte('created_at', `${dateTo}T23:59:59`)
@@ -97,36 +101,74 @@ const OperationsLedger: React.FC = () => {
             cleanDescription = cleanDescription.replace(/\s*\|\s*Original:.*?Net:\s*₹[\d,]+(?:\.\d{2})?/, '');
           }
           
+          // Extract consultant name and department
+          let consultantName = '';
+          let department = '';
+          
           // If it's a consultation, ensure proper doctor name format
           if (trans.transaction_type === 'consultation') {
             // Extract doctor name from description if present
             const doctorMatch = cleanDescription.match(/Consultation Fee - (.+?)(?:\s*-\s*Patient Age|$)/);
             if (doctorMatch) {
-              cleanDescription = `Consultation Fee - ${doctorMatch[1]}`;
+              consultantName = doctorMatch[1];
+              cleanDescription = `Consultation Fee - ${consultantName}`;
             } else if (trans.doctor_name) {
-              cleanDescription = `Consultation Fee - ${trans.doctor_name.toUpperCase()}`;
+              consultantName = trans.doctor_name.toUpperCase();
+              cleanDescription = `Consultation Fee - ${consultantName}`;
+            } else if (trans.patient?.assigned_doctor) {
+              consultantName = trans.patient.assigned_doctor;
+              cleanDescription = `Consultation Fee - ${consultantName}`;
             }
+          } else if (trans.patient?.assigned_doctor) {
+            consultantName = trans.patient.assigned_doctor;
           }
           
-          // Add patient age to description
+          // Get department from patient's assigned department
+          if (trans.patient?.assigned_department) {
+            department = trans.patient.assigned_department;
+          }
+          
+          // Add patient age to description (keep for backward compatibility)
           if (trans.patient?.age) {
             cleanDescription += ` - Patient Age: ${trans.patient.age} years`;
           }
           
+          // CRITICAL FIX: Use patient's date_of_entry for correct date display (same logic as dashboard)
+          let effectiveDate = new Date();
+          if (trans.patient?.date_of_entry && trans.patient.date_of_entry.trim() !== '') {
+            // Priority 1: Patient's date_of_entry (for backdated entries)
+            const dateStr = trans.patient.date_of_entry.includes('T') 
+              ? trans.patient.date_of_entry.split('T')[0] 
+              : trans.patient.date_of_entry;
+            effectiveDate = new Date(dateStr + 'T00:00:00');
+          } else {
+            // Priority 2: Transaction's created_at date (fallback)
+            effectiveDate = new Date(trans.created_at);
+          }
+          
+          // CRITICAL FIX: Identify refunds (negative amount transactions)
+          const isRefund = trans.amount < 0;
+          const entryType = isRefund ? 'REFUND' : 'REVENUE';
+          const displayAmount = Math.abs(trans.amount); // Always show positive amount for display
+          
           allEntries.push({
             id: trans.id,
-            date: new Date(trans.created_at).toLocaleDateString(),
-            time: new Date(trans.created_at).toLocaleTimeString(),
-            type: 'REVENUE',
-            category: trans.transaction_type,
+            date: effectiveDate.toLocaleDateString(),
+            time: effectiveDate.toLocaleTimeString(),
+            type: entryType,
+            category: isRefund ? 'REFUND' : trans.transaction_type,
             description: cleanDescription,
-            amount: trans.amount,
-            original_amount: originalAmount,
+            amount: displayAmount,
+            original_amount: Math.abs(originalAmount),
             discount_amount: discountAmount,
-            net_amount: netAmount,
+            net_amount: Math.abs(netAmount),
             payment_mode: trans.payment_mode || 'CASH',
             patient_name: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'Unknown',
             patient_id: trans.patient?.patient_id,
+            patient_age: trans.patient?.age || '',
+            patient_gender: trans.patient?.gender || '',
+            consultant_name: consultantName,
+            department: department,
             patient_tag: trans.patient?.patient_tag || '',
             reference_id: trans.id,
             created_at: trans.created_at
@@ -166,7 +208,7 @@ const OperationsLedger: React.FC = () => {
         .from('patient_refunds')
         .select(`
           *,
-          patient:patients(id, patient_id, first_name, last_name, patient_tag)
+          patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
         `)
         .gte('created_at', `${dateFrom}T00:00:00`)
         .lte('created_at', `${dateTo}T23:59:59`)
@@ -176,10 +218,23 @@ const OperationsLedger: React.FC = () => {
         console.error('Error loading refunds:', refundError);
       } else if (refunds) {
         refunds.forEach((refund: any) => {
+          // CRITICAL FIX: Use patient's date_of_entry for refunds too
+          let effectiveDate = new Date();
+          if (refund.patient?.date_of_entry && refund.patient.date_of_entry.trim() !== '') {
+            // Priority 1: Patient's date_of_entry (for backdated entries)
+            const dateStr = refund.patient.date_of_entry.includes('T') 
+              ? refund.patient.date_of_entry.split('T')[0] 
+              : refund.patient.date_of_entry;
+            effectiveDate = new Date(dateStr + 'T00:00:00');
+          } else {
+            // Priority 2: Refund's created_at date (fallback)
+            effectiveDate = new Date(refund.created_at);
+          }
+          
           allEntries.push({
             id: refund.id,
-            date: new Date(refund.created_at).toLocaleDateString(),
-            time: new Date(refund.created_at).toLocaleTimeString(),
+            date: effectiveDate.toLocaleDateString(),
+            time: effectiveDate.toLocaleTimeString(),
             type: 'REFUND',
             category: 'REFUND',
             description: refund.reason || 'Patient Refund',
@@ -187,6 +242,10 @@ const OperationsLedger: React.FC = () => {
             payment_mode: refund.payment_mode || 'CASH',
             patient_name: refund.patient ? `${refund.patient.first_name} ${refund.patient.last_name}` : 'Unknown',
             patient_id: refund.patient?.patient_id,
+            patient_age: refund.patient?.age || '',
+            patient_gender: refund.patient?.gender || '',
+            consultant_name: refund.patient?.assigned_doctor || '',
+            department: refund.patient?.assigned_department || '',
             patient_tag: refund.patient?.patient_tag || '',
             reference_id: refund.id,
             created_at: refund.created_at
@@ -312,11 +371,15 @@ const OperationsLedger: React.FC = () => {
         return {
           date: entry.date,
           time: entry.time,
+          patient_id: entry.patient_id || '',
+          patient_name: entry.patient_name || '',
+          age: entry.patient_age || '',
+          gender: entry.patient_gender || '',
+          consultant: entry.consultant_name || '',
+          department: entry.department || '',
           type: entry.type,
           category: entry.category,
           description: entry.description,
-          patient_name: entry.patient_name || '',
-          patient_id: entry.patient_id || '',
           patient_tag: entry.patient_tag || '',
           payment_mode: entry.payment_mode,
           original_amount: signedOriginalAmount,
@@ -329,12 +392,16 @@ const OperationsLedger: React.FC = () => {
         filename: `Operations_Ledger_${dateFrom}_to_${dateTo}`,
         headers: [
           'Date',
-          'Time', 
+          'Time',
+          'Patient ID',
+          'Patient Name',
+          'Age',
+          'Gender',
+          'Consultant',
+          'Department',
           'Type',
           'Category',
           'Description',
-          'Patient Name',
-          'Patient ID',
           'Patient Tag',
           'Payment Mode',
           'Original Amount',
@@ -526,13 +593,17 @@ const OperationsLedger: React.FC = () => {
             <table className="w-full" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '60px' }}>S.No</th>
-                  <th className="text-center p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Date</th>
-                  <th className="text-left p-4 font-semibold text-gray-700" style={{ width: '150px' }}>Patient Name</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Description</th>
-                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Amount (₹)</th>
-                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '100px' }}>Discount (₹)</th>
-                  <th className="text-right p-4 font-semibold text-gray-700" style={{ width: '120px' }}>Net Amount (₹)</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '50px' }}>S.No</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Date & Time</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Patient ID</th>
+                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '120px' }}>Patient Name</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Age & Gender</th>
+                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '100px' }}>Consultant</th>
+                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Department</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Type</th>
+                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Amount (₹)</th>
+                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '70px' }}>Discount (₹)</th>
+                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Net Revenue (₹)</th>
                 </tr>
               </thead>
               <tbody>
@@ -544,38 +615,52 @@ const OperationsLedger: React.FC = () => {
                   
                   return (
                     <tr key={entry.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
-                      <td className="p-4 text-center" style={{ width: '60px' }}>
+                      <td className="p-3 text-center text-sm" style={{ width: '50px' }}>
                         {index + 1}
                       </td>
-                      <td className="p-4 text-center" style={{ width: '100px' }}>
-                        {entry.date}
+                      <td className="p-3 text-center text-xs" style={{ width: '90px' }}>
+                        <div>{entry.date}</div>
+                        <div className="text-gray-500">{entry.time}</div>
                       </td>
-                      <td className="p-4" style={{ width: '150px' }}>
-                        <div className="text-sm font-medium">{entry.patient_name || 'N/A'}</div>
-                        {entry.patient_id && (
-                          <div className="text-xs text-gray-500">ID: {entry.patient_id}</div>
-                        )}
+                      <td className="p-3 text-center text-sm font-medium" style={{ width: '80px' }}>
+                        {entry.patient_id || 'N/A'}
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            entry.type === 'REVENUE' ? 'bg-green-100 text-green-800' : 
-                            entry.type === 'EXPENSE' ? 'bg-red-100 text-red-800' : 
-                            'bg-orange-100 text-orange-800'
-                          }`}>
-                            {entry.type === 'REVENUE' ? '💰' : entry.type === 'EXPENSE' ? '💸' : '↩️'} {entry.type}
-                          </span>
+                      <td className="p-3 text-sm" style={{ width: '120px' }}>
+                        <div className="font-medium truncate" title={entry.patient_name || 'N/A'}>
+                          {entry.patient_name || 'N/A'}
                         </div>
-                        <div className="text-sm mt-1">{entry.description}</div>
                       </td>
-                      <td className={`p-4 text-right ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-orange-600' : 'text-green-600'}`} style={{ width: '100px' }}>
-                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{originalAmount.toFixed(2)}
+                      <td className="p-3 text-center text-xs" style={{ width: '80px' }}>
+                        <div>{entry.patient_age || 'N/A'}</div>
+                        <div className="text-gray-500">{entry.patient_gender || 'N/A'}</div>
                       </td>
-                      <td className="p-4 text-right" style={{ width: '100px' }}>
-                        {discountAmount > 0 ? `₹${discountAmount.toFixed(2)}` : '-'}
+                      <td className="p-3 text-sm" style={{ width: '100px' }}>
+                        <div className="truncate" title={entry.consultant_name || 'N/A'}>
+                          {entry.consultant_name || 'N/A'}
+                        </div>
                       </td>
-                      <td className={`p-4 text-right font-medium ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-orange-600' : 'text-green-600'}`} style={{ width: '120px' }}>
-                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{netAmount.toFixed(2)}
+                      <td className="p-3 text-sm" style={{ width: '90px' }}>
+                        <div className="truncate" title={entry.department || 'N/A'}>
+                          {entry.department || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="p-3 text-center" style={{ width: '80px' }}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          entry.type === 'REVENUE' ? 'bg-green-100 text-green-800' : 
+                          entry.type === 'EXPENSE' ? 'bg-red-100 text-red-800' : 
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {entry.type === 'REVENUE' ? '💰' : entry.type === 'EXPENSE' ? '💸' : '↩️'} {entry.type}
+                        </span>
+                      </td>
+                      <td className={`p-3 text-right text-sm ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-yellow-600' : 'text-green-600'}`} style={{ width: '80px' }}>
+                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{originalAmount.toFixed(0)}
+                      </td>
+                      <td className="p-3 text-right text-sm" style={{ width: '70px' }}>
+                        {discountAmount > 0 ? `₹${discountAmount.toFixed(0)}` : '-'}
+                      </td>
+                      <td className={`p-3 text-right text-sm font-medium ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-yellow-600' : 'text-green-600'}`} style={{ width: '90px' }}>
+                        {entry.type === 'EXPENSE' || entry.type === 'REFUND' ? '-' : ''}₹{netAmount.toFixed(0)}
                       </td>
                     </tr>
                   );
