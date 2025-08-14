@@ -135,6 +135,8 @@ const OperationsLedger: React.FC = () => {
           
           // CRITICAL FIX: Use patient's date_of_entry for correct date display (same logic as dashboard)
           let effectiveDate = new Date();
+          let transactionDateTime = new Date(trans.created_at); // Always use transaction time for time display
+          
           if (trans.patient?.date_of_entry && trans.patient.date_of_entry.trim() !== '') {
             // Priority 1: Patient's date_of_entry (for backdated entries)
             const dateStr = trans.patient.date_of_entry.includes('T') 
@@ -146,6 +148,21 @@ const OperationsLedger: React.FC = () => {
             effectiveDate = new Date(trans.created_at);
           }
           
+          // CRITICAL FIX: Format date and time in IST 12-hour format
+          const istDate = effectiveDate.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          
+          const istTime = transactionDateTime.toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
           // CRITICAL FIX: Identify refunds (negative amount transactions)
           const isRefund = trans.amount < 0;
           const entryType = isRefund ? 'REFUND' : 'REVENUE';
@@ -153,8 +170,8 @@ const OperationsLedger: React.FC = () => {
           
           allEntries.push({
             id: trans.id,
-            date: effectiveDate.toLocaleDateString(),
-            time: effectiveDate.toLocaleTimeString(),
+            date: istDate,
+            time: istTime,
             type: entryType,
             category: isRefund ? 'REFUND' : trans.transaction_type,
             description: cleanDescription,
@@ -188,10 +205,28 @@ const OperationsLedger: React.FC = () => {
         console.error('Error loading expenses:', expError);
       } else if (expenses) {
         expenses.forEach((expense: any) => {
+          // CRITICAL FIX: Format expenses date and time in IST 12-hour format
+          const expenseDate = new Date(expense.expense_date);
+          const expenseDateTime = new Date(expense.created_at);
+          
+          const istDate = expenseDate.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          
+          const istTime = expenseDateTime.toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
           allEntries.push({
             id: expense.id,
-            date: new Date(expense.expense_date).toLocaleDateString(),
-            time: new Date(expense.created_at).toLocaleTimeString(),
+            date: istDate,
+            time: istTime,
             type: 'EXPENSE',
             category: expense.expense_category,
             description: expense.description,
@@ -220,6 +255,8 @@ const OperationsLedger: React.FC = () => {
         refunds.forEach((refund: any) => {
           // CRITICAL FIX: Use patient's date_of_entry for refunds too
           let effectiveDate = new Date();
+          let refundDateTime = new Date(refund.created_at); // Always use refund time for time display
+          
           if (refund.patient?.date_of_entry && refund.patient.date_of_entry.trim() !== '') {
             // Priority 1: Patient's date_of_entry (for backdated entries)
             const dateStr = refund.patient.date_of_entry.includes('T') 
@@ -231,10 +268,25 @@ const OperationsLedger: React.FC = () => {
             effectiveDate = new Date(refund.created_at);
           }
           
+          // CRITICAL FIX: Format date and time in IST 12-hour format
+          const istDate = effectiveDate.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          
+          const istTime = refundDateTime.toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
           allEntries.push({
             id: refund.id,
-            date: effectiveDate.toLocaleDateString(),
-            time: effectiveDate.toLocaleTimeString(),
+            date: istDate,
+            time: istTime,
             type: 'REFUND',
             category: 'REFUND',
             description: refund.reason || 'Patient Refund',

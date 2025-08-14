@@ -168,8 +168,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
             <div><span className="font-medium">ID:</span> {patient.patient_id}</div>
             <div><span className="font-medium">Phone:</span> {patient.phone || 'Not provided'}</div>
             <div><span className="font-medium">Email:</span> {patient.email || 'Not provided'}</div>
-            <div><span className="font-medium">Gender:</span> {patient.gender}</div>
-            <div><span className="font-medium">Blood Group:</span> {patient.blood_group || 'Not specified'}</div>
+            <div><span className="font-medium">Gender:</span> {patient.gender === 'MALE' ? 'Male (M)' : patient.gender === 'FEMALE' ? 'Female (F)' : patient.gender || 'Not specified'}</div>
             <div><span className="font-medium">Date of Birth:</span> {patient.date_of_birth || 'Not provided'}</div>
             {patient.patient_tag && (
               <div><span className="font-medium">Patient Tag:</span> 
@@ -910,7 +909,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           email: patient.email || '',
           gender: patient.gender || '',
           age: patient.age || '',
-          blood_group: patient.blood_group || '',
           address: patient.address || '',
           date_of_birth: patient.date_of_birth || '',
           medical_history: patient.medical_history || '',
@@ -935,7 +933,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           'Email',
           'Gender',
           'Age',
-          'Blood Group',
           'Address',
           'Date of Birth',
           'Medical History',
@@ -1212,7 +1209,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                   >
                     Last Visit {getSortIcon('date')}
                   </th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1231,7 +1227,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         </div>
                         <div className="text-sm text-gray-500">ID: {patient.patient_id}</div>
                         <div className="text-sm text-gray-500">
-                          {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
+                          {patient.age || 'N/A'} yrs • {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender || 'N/A'}
                           {patient.patient_tag && (
                             <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
                               {patient.patient_tag}
@@ -1243,6 +1239,11 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                             <div>
                               <span className="font-medium">
                                 👨‍⚕️ {patient.assigned_doctors.find(d => d.isPrimary)?.name || patient.assigned_doctors[0]?.name}
+                                {patient.assigned_department && (
+                                  <span className="ml-2 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                    {patient.assigned_department}
+                                  </span>
+                                )}
                               </span>
                               {patient.assigned_doctors.length > 1 && (
                                 <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
@@ -1251,17 +1252,126 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                               )}
                             </div>
                           ) : patient.assigned_doctor ? (
-                            <span className="font-medium">👨‍⚕️ {patient.assigned_doctor}</span>
+                            <span className="font-medium">
+                              👨‍⚕️ {patient.assigned_doctor}
+                              {patient.assigned_department && (
+                                <span className="ml-2 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                  {patient.assigned_department}
+                                </span>
+                              )}
+                            </span>
                           ) : (
                             <span className="text-gray-400">No doctor assigned</span>
                           )}
+                        </div>
+                        
+                        {/* Action Buttons - Moved Below Details */}
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {/* 1. Prescription */}
+                          <div className="relative inline-block">
+                            <select
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const selectedTemplate = e.target.value;
+                                if (selectedTemplate === 'valant') {
+                                  handlePrescription(patient, 'valant');
+                                } else if (selectedTemplate === 'vh') {
+                                  handlePrescription(patient, 'vh');
+                                }
+                                e.target.value = ''; // Reset selection
+                              }}
+                              className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                              title="Generate Prescription"
+                            >
+                              <option value="">📝 Presc.</option>
+                              <option value="valant">Valant Template</option>
+                              <option value="vh">V+H Template</option>
+                            </select>
+                          </div>
+                          
+                          {/* 2. Services */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleManageServices(patient);
+                            }}
+                            className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            title="Manage Medical Services"
+                          >
+                            🔬 Services
+                          </button>
+                          
+                          {/* 3. Edit */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPatient(patient);
+                            }}
+                            className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            title="Edit Patient Details"
+                          >
+                            ✏️ Edit
+                          </button>
+                          
+                          {/* 4. IPD (renamed from Shift to IPD) */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShiftToIPD(patient);
+                            }}
+                            className="bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            title="Shift Patient to IPD"
+                            disabled={patient.ipd_status === 'ADMITTED'}
+                          >
+                            🏥 IPD
+                          </button>
+                          
+                          {/* 5. History */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePatientClick(patient);
+                            }}
+                            className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            title="View Patient History"
+                          >
+                            📋 History
+                          </button>
+                          
+                          {/* 6. Receipt */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewReceipt(patient);
+                            }}
+                            className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            title="View Receipt"
+                          >
+                            🧾 Receipt
+                          </button>
+                          
+                          {/* 7. Delete */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
+                            }}
+                            className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            title="Delete patient permanently"
+                            disabled={loading}
+                          >
+                            🗑️ Delete
+                          </button>
                         </div>
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="text-sm">
                         <div>{patient.phone || 'No phone'}</div>
-                        <div className="text-gray-500">{patient.email || 'No email'}</div>
+                        {patient.email && (
+                          <div className="text-gray-500">{patient.email}</div>
+                        )}
                       </div>
                     </td>
                     <td className="p-4">
@@ -1356,118 +1466,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         
                         return 'Never';
                       })()}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex space-x-2">
-                        {/* 1. Prescription */}
-                        <div className="relative inline-block">
-                          <select
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              const selectedTemplate = e.target.value;
-                              if (selectedTemplate === 'valant') {
-                                handlePrescription(patient, 'valant');
-                              } else if (selectedTemplate === 'vh') {
-                                handlePrescription(patient, 'vh');
-                              }
-                              e.target.value = ''; // Reset selection
-                            }}
-                            className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
-                            title="Generate Prescription"
-                          >
-                            <option value="">📝 Prescription</option>
-                            <option value="valant">Valant Template</option>
-                            <option value="vh">V+H Template</option>
-                          </select>
-                        </div>
-                        
-                        {/* 2. Services */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleManageServices(patient);
-                          }}
-                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          title="Manage Medical Services"
-                        >
-                          🔬 Services
-                        </button>
-                        
-                        {/* 3. Edit */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditPatient(patient);
-                          }}
-                          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                          title="Edit Patient Details"
-                        >
-                          ✏️ Edit
-                        </button>
-                        
-                        {/* 4. Shift to IPD */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleShiftToIPD(patient);
-                          }}
-                          className="bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                          title="Shift Patient to IPD"
-                          disabled={patient.ipd_status === 'ADMITTED'}
-                        >
-                          🏥 Shift to IPD
-                        </button>
-                        
-                        {/* 5. History */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePatientClick(patient);
-                          }}
-                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          title="View Patient History"
-                        >
-                          📋 History
-                        </button>
-                        
-                        {/* 6. Visit Again */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVisitAgain(patient);
-                          }}
-                          className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          title="New Visit for Existing Patient"
-                        >
-                          🔄 Visit Again
-                        </button>
-                        
-                        {/* 7. Receipt */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewReceipt(patient);
-                          }}
-                          className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          title="View Receipt"
-                        >
-                          🧾 Receipt
-                        </button>
-                        
-                        {/* 8. Delete */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
-                          }}
-                          className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                          title="Delete patient permanently"
-                          disabled={loading}
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))}
