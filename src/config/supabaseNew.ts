@@ -152,6 +152,7 @@ export interface PatientTransaction {
   notes?: string;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   hospital_id: string;
+  transaction_date?: string;
   created_at: string;
   created_by: string;
 }

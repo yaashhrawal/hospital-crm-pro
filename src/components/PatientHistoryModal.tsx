@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import dataService from '../services/dataService';
 import type { Patient, PatientTransaction } from '../types/index';
+import { getPatientTransactionDate, formatDateForDisplay, getPatientEntryDate } from '../utils/dateUtils';
 
 interface PatientHistoryModalProps {
   patient: Patient;
@@ -62,8 +63,35 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
       
       // Process visit history
       const visitMap = new Map<string, PatientTransaction[]>();
-      transactions.forEach(transaction => {
-        const date = transaction.created_at?.split('T')[0] || new Date().toISOString().split('T')[0];
+      
+      // Debug logging
+      console.log('🔍 Patient History Debug:', {
+        patientId: patient.id,
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        patientDateOfEntry: patient.date_of_entry,
+        transactionCount: transactions.length,
+        firstTransaction: transactions[0]
+      });
+      
+      transactions.forEach((transaction, index) => {
+        // Use utility function to get consistent date
+        const date = getPatientTransactionDate(transaction, patient);
+        
+        // Debug each transaction
+        if (index < 3) {
+          console.log(`🔍 Transaction ${index + 1}:`, {
+            id: transaction.id,
+            type: transaction.transaction_type,
+            amount: transaction.amount,
+            transaction_date: transaction.transaction_date,
+            created_at: transaction.created_at,
+            finalDate: date,
+            formattedDate: formatDateForDisplay(date),
+            patientDateOfEntry: patient.date_of_entry,
+            source: patient.date_of_entry ? 'PATIENT_ENTRY_DATE' : (transaction.transaction_date ? 'TRANSACTION_DATE' : 'CREATED_AT')
+          });
+        }
+        
         if (!visitMap.has(date)) {
           visitMap.set(date, []);
         }

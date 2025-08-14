@@ -209,12 +209,41 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 <tbody>
                   {transactions.map((transaction, index) => (
                     <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="p-2">{new Date(transaction.created_at).toLocaleDateString('en-IN', { 
-                        timeZone: 'Asia/Kolkata',
-                        day: '2-digit',
-                        month: '2-digit', 
-                        year: 'numeric'
-                      })}</td>
+                      <td className="p-2">{(() => {
+                        // FIXED: Use the SAME logic as Last Visit section - patient.date_of_entry first
+                        const patient = transaction.patient;
+                        let displayDate = null;
+                        
+                        if (patient?.date_of_entry && patient.date_of_entry.trim() !== '') {
+                          displayDate = patient.date_of_entry;
+                        } else if (transaction.transaction_date) {
+                          displayDate = transaction.transaction_date;
+                        } else {
+                          displayDate = transaction.created_at;
+                        }
+                        
+                        try {
+                          if (typeof displayDate === 'string' && displayDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                            const [year, month, day] = displayDate.split('-').map(Number);
+                            const date = new Date(year, month - 1, day);
+                            return date.toLocaleDateString('en-IN', { 
+                              timeZone: 'Asia/Kolkata',
+                              day: '2-digit',
+                              month: '2-digit', 
+                              year: 'numeric'
+                            });
+                          } else {
+                            return new Date(displayDate).toLocaleDateString('en-IN', { 
+                              timeZone: 'Asia/Kolkata',
+                              day: '2-digit',
+                              month: '2-digit', 
+                              year: 'numeric'
+                            });
+                          }
+                        } catch {
+                          return 'Invalid Date';
+                        }
+                      })()}</td>
                       <td className="p-2">
                         <span className={`px-2 py-1 rounded text-xs ${
                           transaction.transaction_type === 'CONSULTATION' ? 'bg-blue-100 text-blue-800' :

@@ -38,40 +38,52 @@ export class HospitalService {
       
       console.log('✅ Auth user found:', user.email);
       
-      // Get user profile from users table
-      const { data: userProfile, error: profileError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_id', user.id)
-        .single();
+      // Try to get user profile from users table
+      let userProfile: any = null;
+      let profileError: any = null;
       
-      if (profileError) {
-        console.log('ℹ️ No profile found in users table, creating one...');
-        
-        // If no profile exists, create one automatically
-        try {
-          return await this.createUserProfile(user);
-        } catch (createError: any) {
-          console.error('❌ Failed to create profile:', createError);
+      try {
+        const result = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', user.id);
           
-          // If users table doesn't exist or other errors, return a minimal user object
-          console.log('🔄 Returning minimal user object for auth user');
-          return {
-            id: user.id,
-            auth_id: user.id,
-            email: user.email || '',
-            first_name: user.email?.split('@')[0] || 'User',
-            last_name: '',
-            role: 'STAFF',
-            phone: '',
-            specialization: '',
-            consultation_fee: 0,
-            department: 'General',
-            hospital_id: HOSPITAL_ID,
-            is_active: true,
-            created_at: new Date().toISOString()
-          } as User;
+        if (result.error) {
+          profileError = result.error;
+          console.log('⚠️ Users table query error:', result.error);
+        } else if (result.data && result.data.length > 0) {
+          userProfile = result.data[0];
+          console.log('✅ User profile found:', userProfile);
+        } else {
+          console.log('ℹ️ No profile found in users table');
+          profileError = { message: 'No profile found' };
         }
+      } catch (queryError: any) {
+        console.log('⚠️ Users table access error:', queryError);
+        profileError = queryError;
+      }
+      
+      if (profileError || !userProfile) {
+        console.log('🔄 Using fallback user profile creation...');
+        
+        // Return a minimal user object without trying to create in database
+        // This handles cases where users table doesn't exist or has permission issues
+        return {
+          id: user.id,
+          auth_id: user.id,
+          email: user.email || '',
+          first_name: user.email?.split('@')[0] || 'User',
+          last_name: '',
+          role: 'STAFF' as const,
+          phone: '',
+          specialization: '',
+          consultation_fee: 0,
+          department: 'General',
+          hospital_id: HOSPITAL_ID,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as User;
       }
       
       console.log('✅ User profile found:', userProfile);
@@ -84,55 +96,84 @@ export class HospitalService {
   }
   
   static async createUserProfile(authUser: any): Promise<User> {
-    console.log('👤 Creating user profile for:', authUser.email);
+    console.log('👤 Attempting user profile creation/retrieval for:', authUser.email);
     
-    const userData = {
+    // Create fallback user object in case of database issues
+    const fallbackUser = {
+      id: authUser.id,
       auth_id: authUser.id,
-      email: authUser.email,
-      first_name: authUser.user_metadata?.first_name || authUser.email.split('@')[0],
-      last_name: authUser.user_metadata?.last_name || '',
-      role: 'STAFF', // Default role for all users
-      phone: authUser.user_metadata?.phone || '',
+      email: authUser.email || '',
+      first_name: authUser.email?.split('@')[0] || 'User',
+      last_name: '',
+      role: 'STAFF' as const,
+      phone: '',
       specialization: '',
       consultation_fee: 0,
       department: 'General',
       hospital_id: HOSPITAL_ID,
-      is_active: true
-    };
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as User;
     
-    // Try to create user profile, but handle duplicate key errors gracefully
-    const { data, error } = await supabase
-      .from('users')
-      .insert([userData])
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('❌ Failed to create user profile:', error);
-      
-      // If it's a duplicate key error, try to fetch existing profile
-      if (error.code === '23505') { // PostgreSQL unique violation
-        console.log('🔄 User profile already exists, fetching existing profile...');
-        const { data: existingUser, error: fetchError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('auth_id', authUser.id)
-          .single();
+    try {
+      // First, try to find existing user by email
+      const { data: existingUsers, error: searchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', authUser.email);
         
-        if (fetchError) {
-          console.error('❌ Failed to fetch existing user profile:', fetchError);
-          throw fetchError;
-        }
-        
-        console.log('✅ Found existing user profile:', existingUser);
-        return existingUser as User;
+      if (!searchError && existingUsers && existingUsers.length > 0) {
+        console.log('✅ Found existing user profile by email');
+        return existingUsers[0] as User;
       }
       
-      throw error;
+      // If no existing user, try to create new one
+      const userData = {
+        auth_id: authUser.id,
+        email: authUser.email,
+        first_name: authUser.user_metadata?.first_name || authUser.email.split('@')[0],
+        last_name: authUser.user_metadata?.last_name || '',
+        role: 'STAFF',
+        phone: authUser.user_metadata?.phone || '',
+        specialization: '',
+        consultation_fee: 0,
+        department: 'General',
+        hospital_id: HOSPITAL_ID,
+        is_active: true
+      };
+      
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert([userData])
+        .select();
+      
+      if (!createError && newUser && newUser.length > 0) {
+        console.log('✅ Successfully created new user profile');
+        return newUser[0] as User;
+      }
+      
+      // Handle creation errors
+      if (createError?.code === '23505') {
+        console.log('🔄 Duplicate key detected, attempting to fetch existing user...');
+        const { data: duplicateUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', authUser.email);
+          
+        if (duplicateUser && duplicateUser.length > 0) {
+          console.log('✅ Retrieved existing user after duplicate key error');
+          return duplicateUser[0] as User;
+        }
+      }
+      
+      console.log('⚠️ Database operations failed, using fallback user profile');
+      return fallbackUser;
+      
+    } catch (error: any) {
+      console.log('⚠️ User profile database error, using fallback:', error.message);
+      return fallbackUser;
     }
-    
-    console.log('✅ User profile created:', data);
-    return data as User;
   }
   
   static async signIn(email: string, password: string): Promise<{ user: User | null; error: any }> {
@@ -815,8 +856,16 @@ export class HospitalService {
         doctor_id: data.doctor_id || null,
         doctor_name: data.doctor_name || null,
         status: data.status || 'COMPLETED',
-        transaction_reference: data.transaction_reference || null
+        transaction_reference: data.transaction_reference || null,
+        hospital_id: HOSPITAL_ID // Fix: Add hospital_id to make transaction visible in dashboard
       };
+      
+      console.log('🔍 TRANSACTION CREATION DEBUG:', {
+        transactionData,
+        HOSPITAL_ID,
+        inputData: data,
+        todayDate: new Date().toISOString().split('T')[0]
+      });
       
       const { data: transaction, error } = await supabase
         .from('patient_transactions')
@@ -830,6 +879,34 @@ export class HospitalService {
       }
       
       console.log('✅ Transaction created:', transaction);
+      
+      // 🔍 VERIFY: Check if transaction was actually inserted with correct data
+      const verifyQuery = await supabase
+        .from('patient_transactions')
+        .select(`
+          id,
+          amount,
+          transaction_type,
+          description,
+          status,
+          created_at,
+          transaction_date,
+          hospital_id,
+          patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry)
+        `)
+        .eq('id', transaction.id)
+        .single();
+        
+      console.log('🔍 TRANSACTION VERIFICATION:', {
+        insertedTransaction: transaction,
+        verificationQuery: verifyQuery.data,
+        verificationError: verifyQuery.error,
+        hospitalIdMatch: verifyQuery.data?.hospital_id === HOSPITAL_ID,
+        patientHospitalId: verifyQuery.data?.patient?.hospital_id,
+        todayDate: new Date().toISOString().split('T')[0],
+        transactionCreatedDate: verifyQuery.data?.created_at?.split('T')[0]
+      });
+      
       return transaction as PatientTransaction;
       
     } catch (error: any) {
@@ -855,6 +932,31 @@ export class HospitalService {
       
     } catch (error: any) {
       console.error('🚨 getTransactionsByPatient error:', error);
+      throw error;
+    }
+  }
+
+  static async updateTransaction(transactionId: string, updateData: Partial<PatientTransaction>): Promise<PatientTransaction> {
+    try {
+      console.log(`🔄 Updating transaction ${transactionId}:`, updateData);
+      
+      const { data: transaction, error } = await supabase
+        .from('patient_transactions')
+        .update(updateData)
+        .eq('id', transactionId)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Update transaction error:', error);
+        throw new Error(`Failed to update transaction: ${error.message}`);
+      }
+      
+      console.log('✅ Transaction updated successfully');
+      return transaction as PatientTransaction;
+      
+    } catch (error: any) {
+      console.error('🚨 updateTransaction error:', error);
       throw error;
     }
   }
@@ -972,81 +1074,664 @@ export class HospitalService {
   
   static async getDashboardStats(): Promise<DashboardStats> {
     try {
-      console.log('📊 Getting dashboard stats...');
+      console.log('📊 Getting dashboard stats using transaction-based revenue calculation...');
       
-      const today = new Date().toISOString().split('T')[0];
-      const todayStart = `${today}T00:00:00.000Z`;
-      const todayEnd = `${today}T23:59:59.999Z`;
+      // Use local date to ensure correct timezone handling
+      const localToday = new Date();
+      const today = localToday.toISOString().split('T')[0];
+      
+      console.log('🗓️ Date for revenue calculation:', {
+        localDate: localToday.toLocaleString(),
+        todayDate: today
+      });
       
       // Get counts in parallel
       const [
         patientsResult,
+        todayPatientsResult,
         doctorsResult,
         bedsResult,
-        todayAppointmentsResult,
-        todayRevenueResult
+        todayAppointmentsResult
       ] = await Promise.all([
+        // Total patients (for default dashboard view)
         supabase.from('patients').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID),
+        // Today's patients (for revenue card context)
+        supabase.from('patients')
+          .select('*', { count: 'exact', head: true })
+          .eq('hospital_id', HOSPITAL_ID)
+          .or(`date_of_entry.eq.${today},created_at.gte.${today}T00:00:00,created_at.lt.${today}T23:59:59`),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID).neq('role', 'ADMIN'),
         supabase.from('beds').select('*', { count: 'exact', head: true }).eq('hospital_id', HOSPITAL_ID),
-        supabase.from('future_appointments').select('*', { count: 'exact', head: true }).eq('appointment_date', today),
-        supabase.from('patient_transactions').select('amount, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)').gte('created_at', todayStart).lt('created_at', todayEnd)
+        supabase.from('future_appointments').select('*', { count: 'exact', head: true }).eq('appointment_date', today)
       ]);
       
       const totalPatients = patientsResult.count || 0;
+      const todayPatients = todayPatientsResult.count || 0;
       const totalDoctors = doctorsResult.count || 0;
       const totalBeds = bedsResult.count || 0;
       const todayAppointments = todayAppointmentsResult.count || 0;
       
-      // Calculate today's revenue (positive amounts only, exclude refunds/discounts and ORTHO/HMT patients)
-      const todayRevenue = todayRevenueResult.data?.reduce((sum, t) => {
-        // Exclude transactions from patients with ORTHO department or DR. HEMANT doctor
-        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
-          return sum;
-        }
-        const amount = t.amount || 0;
-        return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
-      }, 0) || 0;
+      console.log('📋 Getting transactions for today\'s revenue calculation...');
       
-      console.log('💰 Today\'s revenue calculation:', {
-        todayStart,
-        todayEnd,
-        transactionCount: todayRevenueResult.data?.length || 0,
-        todayRevenue
+      // Get ALL transactions to check service dates AND recent patients
+      const [transactionsResult, recentPatientsResult] = await Promise.all([
+        supabase
+          .from('patient_transactions')
+          .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor, date_of_entry)')
+          .eq('status', 'COMPLETED')
+          .order('transaction_date', { ascending: false }),
+        
+        // Get recent patients for details section
+        supabase
+          .from('patients')
+          .select('*')
+          .eq('hospital_id', HOSPITAL_ID)
+          .order('created_at', { ascending: false })
+          .limit(10)
+      ]);
+      
+      const allTransactions = transactionsResult.data;
+      const transError = transactionsResult.error;
+      const recentPatients = recentPatientsResult.data || [];
+      
+      if (transError) {
+        console.error('❌ Error fetching transactions:', transError);
+      }
+      
+      // 🔍 WHITE-BOX DEBUGGING: Analyze raw data
+      console.log('🔍 WHITE-BOX DEBUG - Raw Transaction Data:', {
+        totalTransactions: allTransactions?.length || 0,
+        sampleTransactions: allTransactions?.slice(0, 5).map(t => ({
+          id: t.id,
+          amount: t.amount,
+          transaction_date: t.transaction_date,
+          transaction_date_type: typeof t.transaction_date,
+          created_at: t.created_at,
+          patient_id: t.patient_id,
+          patient_dept: t.patient?.assigned_department,
+          patient_doctor: t.patient?.assigned_doctor
+        })) || [],
+        todayTarget: today
       });
       
-      // Calculate monthly revenue
-      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-      const monthlyStart = `${startOfMonth}T00:00:00.000Z`;
-      const { data: monthlyTransactions } = await supabase
-        .from('patient_transactions')
-        .select('amount, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
-        .gte('created_at', monthlyStart);
+      // Note: todayRevenue calculation is now handled in periodBreakdown.today.revenue below
+      console.log('💰 Using period breakdown for today\'s revenue calculation...');
       
-      const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => {
-        // Exclude transactions from patients with ORTHO department or DR. HEMANT doctor
-        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
-          return sum;
+      // Calculate period breakdown for always-available period data
+      const periodBreakdown = {
+        today: { revenue: 0, transactions: [], count: 0 },
+        thisWeek: { revenue: 0, transactions: [], count: 0 },
+        thisMonth: { revenue: 0, transactions: [], count: 0 }
+      };
+      
+      // Calculate date boundaries for periods
+      const todayDate = today; // YYYY-MM-DD string
+      
+      // This week: last 7 days including today
+      const weekStartDate = new Date();
+      weekStartDate.setDate(weekStartDate.getDate() - 6); // 7 days including today
+      const weekStartStr = weekStartDate.toISOString().split('T')[0];
+      
+      // This month: current month
+      const monthStartStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const monthEndStr = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      console.log('📅 Period Date Ranges:', {
+        today: todayDate,
+        weekStart: weekStartStr,
+        monthStart: monthStartStr,
+        monthEnd: monthEndStr
+      });
+      
+      // Process transactions for period breakdown
+      if (allTransactions) {
+        allTransactions.forEach((transaction, index) => {
+          // Skip ORTHO/DR. HEMANT patients
+          if (transaction.patient?.assigned_department === 'ORTHO' || 
+              transaction.patient?.assigned_doctor === 'DR. HEMANT') {
+            return;
+          }
+          
+          // 🔍 WHITE-BOX: Bulletproof date processing
+          const rawTransactionDate = transaction.transaction_date;
+          const rawCreatedAt = transaction.created_at;
+          
+          // CRITICAL FIX: Use patient.date_of_entry as priority (like ComprehensivePatientList)
+          let transactionDateStr;
+          if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
+            // Priority 1: Patient's date_of_entry (for backdated entries)
+            transactionDateStr = transaction.patient.date_of_entry.includes('T') 
+              ? transaction.patient.date_of_entry.split('T')[0] 
+              : transaction.patient.date_of_entry;
+          } else if (transaction.transaction_date && transaction.transaction_date.trim() !== '') {
+            // Priority 2: Transaction's transaction_date
+            transactionDateStr = transaction.transaction_date.includes('T') 
+              ? transaction.transaction_date.split('T')[0] 
+              : transaction.transaction_date;
+          } else {
+            // Priority 3: Transaction's created_at date
+            transactionDateStr = transaction.created_at.split('T')[0];
+          }
+          
+          const enhancedTransaction = {
+            ...transaction,
+            patientName: `${transaction.patient?.first_name || ''} ${transaction.patient?.last_name || ''}`.trim(),
+            displayDate: transactionDateStr
+          };
+          
+          // 🔍 WHITE-BOX: Debug EVERY transaction date processing
+          if (index < 10) {
+            console.log(`🔍 WHITE-BOX Transaction ${index}:`, {
+              id: transaction.id,
+              amount: transaction.amount,
+              patientName: `${transaction.patient?.first_name} ${transaction.patient?.last_name}`,
+              patientDateOfEntry: transaction.patient?.date_of_entry,
+              rawTransactionDate,
+              rawCreatedAt,
+              processedDateStr: transactionDateStr,
+              dateSourceUsed: transaction.patient?.date_of_entry ? 'PATIENT_ENTRY_DATE' : 
+                             (transaction.transaction_date ? 'TRANSACTION_DATE' : 'CREATED_AT'),
+              todayDate,
+              weekStartStr,
+              monthStartStr,
+              dateComparisons: {
+                isToday: transactionDateStr === todayDate,
+                isThisWeek: transactionDateStr >= weekStartStr && transactionDateStr <= todayDate,
+                isThisMonth: transactionDateStr >= monthStartStr && transactionDateStr <= monthEndStr
+              }
+            });
+          }
+          
+          // Today - exact date match
+          if (transactionDateStr === todayDate) {
+            periodBreakdown.today.revenue += transaction.amount || 0;
+            periodBreakdown.today.transactions.push(enhancedTransaction);
+            periodBreakdown.today.count++;
+          }
+          
+          // This Week - last 7 days including today
+          if (transactionDateStr >= weekStartStr && transactionDateStr <= todayDate) {
+            periodBreakdown.thisWeek.revenue += transaction.amount || 0;
+            if (periodBreakdown.thisWeek.transactions.length < 20) {
+              periodBreakdown.thisWeek.transactions.push(enhancedTransaction);
+            }
+            periodBreakdown.thisWeek.count++;
+          }
+          
+          // This Month - current month
+          if (transactionDateStr >= monthStartStr && transactionDateStr <= monthEndStr) {
+            periodBreakdown.thisMonth.revenue += transaction.amount || 0;
+            if (periodBreakdown.thisMonth.transactions.length < 50) {
+              periodBreakdown.thisMonth.transactions.push(enhancedTransaction);
+            }
+            periodBreakdown.thisMonth.count++;
+          }
+        });
+      }
+      
+      console.log('📊 Period breakdown calculated:', {
+        today: `₹${periodBreakdown.today.revenue} (${periodBreakdown.today.count} records)`,
+        thisWeek: `₹${periodBreakdown.thisWeek.revenue} (${periodBreakdown.thisWeek.count} records)`,
+        thisMonth: `₹${periodBreakdown.thisMonth.revenue} (${periodBreakdown.thisMonth.count} records)`
+      });
+      
+      // 🔍 WHITE-BOX: Final return value analysis
+      const finalTodayRevenue = periodBreakdown.today.revenue;
+      console.log('🔍 WHITE-BOX FINAL RETURN VALUES:', {
+        todayRevenueReturned: finalTodayRevenue,
+        periodBreakdownToday: periodBreakdown.today,
+        willShowInDashboard: {
+          mainRevenueCard: finalTodayRevenue,
+          breakdownToday: periodBreakdown.today.revenue,
+          breakdownThisWeek: periodBreakdown.thisWeek.revenue,
+          breakdownThisMonth: periodBreakdown.thisMonth.revenue
         }
-        const amount = t.amount || 0;
-        return sum + (amount > 0 ? amount : 0); // Only count positive amounts as revenue
-      }, 0) || 0;
+      });
+      
+      console.log('🔍 Dashboard Stats Debug:', {
+        totalPatients,
+        todayPatients,
+        todayRevenue: periodBreakdown.today.revenue,
+        periodBreakdownToday: periodBreakdown.today.count,
+        timestamp: new Date().toLocaleTimeString(),
+        todayDate: today
+      });
+      
+      // Debug sample transactions from today
+      const todayTransactions = allTransactions?.filter(t => {
+        const tDate = t.transaction_date 
+          ? (t.transaction_date.includes('T') ? t.transaction_date.split('T')[0] : t.transaction_date)
+          : t.created_at.split('T')[0];
+        return tDate === today;
+      }) || [];
+      
+      console.log('📊 Today\'s Transactions Sample:', {
+        todayDate: today,
+        count: todayTransactions.length,
+        sampleTransactions: todayTransactions.slice(0, 3).map(t => ({
+          id: t.id,
+          amount: t.amount,
+          transaction_date: t.transaction_date,
+          created_at: t.created_at,
+          patient: t.patient?.first_name + ' ' + t.patient?.last_name
+        }))
+      });
+      
+      // Calculate monthly revenue using transaction-based approach
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      console.log('📋 Calculating monthly revenue from transactions...', { startOfMonth, endOfMonth });
+      
+      // Calculate monthly revenue from all transactions
+      let monthlyRevenue = 0;
+      if (allTransactions) {
+        allTransactions.forEach(transaction => {
+          // Use transaction_date if available, otherwise fall back to created_at
+          let transactionDate = transaction.transaction_date 
+            ? (transaction.transaction_date.includes('T') ? transaction.transaction_date.split('T')[0] : transaction.transaction_date)
+            : transaction.created_at.split('T')[0];
+          
+          // Only include transactions for current month
+          if (transactionDate >= startOfMonth && transactionDate <= endOfMonth) {
+            // Exclude ORTHO/DR. HEMANT patients
+            if (transaction.patient?.assigned_department === 'ORTHO' || 
+                transaction.patient?.assigned_doctor === 'DR. HEMANT') {
+              // Skip excluded patients
+            } else {
+              monthlyRevenue += transaction.amount || 0;
+            }
+          }
+        });
+      }
+      
+      console.log('💰 Monthly revenue calculation (transaction-based):', {
+        startOfMonth,
+        endOfMonth,
+        finalMonthlyRevenue: monthlyRevenue
+      });
       
       return {
         totalPatients,
         totalDoctors,
         totalBeds,
         occupiedBeds: 0, // TODO: Calculate from admissions
-        todayRevenue,
+        todayRevenue: periodBreakdown.today.revenue, // Use exact today's revenue from period breakdown
         monthlyRevenue,
         todayAppointments,
         pendingAdmissions: 0, // TODO: Calculate from admissions
         patientGrowthRate: 0, // TODO: Calculate growth rate
-        revenueGrowthRate: 0 // TODO: Calculate growth rate
+        revenueGrowthRate: 0, // TODO: Calculate growth rate
+        
+        // Add detailed breakdown with period data
+        details: {
+          revenue: {
+            total: periodBreakdown.today.revenue, // Use exact today's revenue
+            byType: {}, // Could be enhanced later
+            byPaymentMode: {}, // Could be enhanced later
+            byDepartment: {}, // Could be enhanced later
+            topTransactions: [], // Could be enhanced later
+            periodBreakdown
+          },
+          patients: {
+            total: totalPatients,
+            recentPatients: recentPatients
+          },
+          appointments: {
+            total: todayAppointments,
+            recentAppointments: []
+          },
+          expenses: {
+            total: 0,
+            byCategory: {},
+            topExpenses: []
+          },
+          beds: {
+            total: totalBeds,
+            available: totalBeds, // Simplified
+            occupied: 0,
+            bedsList: []
+          }
+        }
       };
       
     } catch (error: any) {
       console.error('🚨 getDashboardStats error:', error);
+      throw error;
+    }
+  }
+  
+  static async getDashboardStatsWithDateRange(startDate: string, endDate: string): Promise<any> {
+    try {
+      console.log('📊 Getting dashboard stats with date range...');
+      console.log('📅 Date range:', { startDate, endDate });
+      
+      // Parse dates
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      
+      // Get counts in parallel
+      const [
+        patientsResult,
+        patientsData,
+        doctorsResult,
+        bedsResult,
+        bedsData,
+        appointmentsResult,
+        appointmentsData
+      ] = await Promise.all([
+        // Patients count in date range
+        supabase.from('patients')
+          .select('*', { count: 'exact', head: true })
+          .eq('hospital_id', HOSPITAL_ID)
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString()),
+        
+        // Patients details in date range
+        supabase.from('patients')
+          .select('*')
+          .eq('hospital_id', HOSPITAL_ID)
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(10),
+        
+        // Total doctors (not filtered by date)
+        supabase.from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('hospital_id', HOSPITAL_ID)
+          .neq('role', 'ADMIN'),
+        
+        // Total beds (not filtered by date)
+        supabase.from('beds')
+          .select('*', { count: 'exact', head: true })
+          .eq('hospital_id', HOSPITAL_ID),
+        
+        // Beds details
+        supabase.from('beds')
+          .select('*')
+          .eq('hospital_id', HOSPITAL_ID),
+        
+        // Appointments count in date range
+        supabase.from('future_appointments')
+          .select('*', { count: 'exact', head: true })
+          .gte('appointment_date', start.toISOString().split('T')[0])
+          .lte('appointment_date', end.toISOString().split('T')[0]),
+        
+        // Appointments details in date range
+        supabase.from('future_appointments')
+          .select('*, patient:patients!future_appointments_patient_id_fkey(*), doctor:users!future_appointments_doctor_id_fkey(*)')
+          .gte('appointment_date', start.toISOString().split('T')[0])
+          .lte('appointment_date', end.toISOString().split('T')[0])
+          .order('appointment_date', { ascending: false })
+          .limit(10)
+      ]);
+      
+      const totalPatients = patientsResult.count || 0;
+      const totalDoctors = doctorsResult.count || 0;
+      const totalBeds = bedsResult.count || 0;
+      const todayAppointments = appointmentsResult.count || 0;
+      
+      // Calculate bed statistics
+      const availableBeds = bedsData.data?.filter(bed => bed.status === 'AVAILABLE').length || 0;
+      const occupiedBeds = bedsData.data?.filter(bed => bed.status === 'OCCUPIED').length || 0;
+      
+      console.log('📋 Getting transactions for date range revenue calculation...');
+      console.log('📋 Query parameters:', {
+        status: 'COMPLETED',
+        start: start.toISOString(),
+        end: end.toISOString()
+      });
+      
+      // Get transactions in date range with details - using transaction_date for correct filtering
+      const { data: allTransactions, error: transError } = await supabase
+        .from('patient_transactions')
+        .select('*, patient:patients!patient_transactions_patient_id_fkey(first_name, last_name, assigned_department, assigned_doctor)')
+        .eq('hospital_id', HOSPITAL_ID)
+        .eq('status', 'COMPLETED')
+        .gte('transaction_date', start.toISOString().split('T')[0])
+        .lte('transaction_date', end.toISOString().split('T')[0])
+        .order('transaction_date', { ascending: false });
+      
+      if (transError) {
+        console.error('❌ Error fetching transactions:', transError);
+      } else {
+        console.log('✅ Transactions fetched:', allTransactions?.length || 0, 'records');
+        console.log('📋 Sample transaction:', allTransactions?.[0]);
+      }
+      
+      // Calculate revenue breakdown by type and time periods
+      let totalRevenue = 0;
+      let filteredRevenue = 0;
+      const revenueByType: Record<string, number> = {};
+      const revenueByPaymentMode: Record<string, number> = {};
+      const revenueByDepartment: Record<string, number> = {};
+      const topTransactions: any[] = [];
+      
+      // Time period breakdowns - calculate based on the selected date range
+      const currentDate = new Date();
+      const today = new Date(currentDate);
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      // This week: last 7 days from current date
+      const weekStart = new Date(currentDate);
+      weekStart.setDate(currentDate.getDate() - 7);
+      weekStart.setHours(0, 0, 0, 0);
+      
+      // This month: current month
+      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      
+      console.log('📅 Period calculations:', {
+        today: today.toISOString(),
+        todayEnd: todayEnd.toISOString(),
+        weekStart: weekStart.toISOString(),
+        monthStart: monthStart.toISOString(),
+        monthEnd: monthEnd.toISOString(),
+        filterStart: start.toISOString(),
+        filterEnd: end.toISOString()
+      });
+      
+      const periodBreakdown = {
+        today: { revenue: 0, transactions: [], count: 0 },
+        thisWeek: { revenue: 0, transactions: [], count: 0 },
+        thisMonth: { revenue: 0, transactions: [], count: 0 }
+      };
+      
+      if (allTransactions) {
+        console.log('📋 Processing', allTransactions.length, 'transactions for period breakdown');
+        allTransactions.forEach((transaction, index) => {
+          // Total revenue (all transactions)
+          totalRevenue += transaction.amount || 0;
+          
+          // Use transaction_date if available, otherwise fall back to created_at
+          const transactionDateStr = transaction.transaction_date 
+            ? (transaction.transaction_date.includes('T') ? transaction.transaction_date.split('T')[0] : transaction.transaction_date)
+            : transaction.created_at.split('T')[0];
+          const transactionDate = new Date(transactionDateStr + 'T00:00:00.000Z');
+          
+          // Debug first few transactions
+          if (index < 3) {
+            console.log(`Transaction ${index}:`, {
+              id: transaction.id,
+              created_at: transaction.created_at,
+              transaction_date: transaction.transaction_date,
+              used_date: transactionDateStr,
+              parsed_date: transactionDate.toISOString(),
+              amount: transaction.amount,
+              patient_dept: transaction.patient?.assigned_department,
+              patient_doctor: transaction.patient?.assigned_doctor
+            });
+          }
+          
+          // Filtered revenue (excluding ORTHO/DR. HEMANT)
+          if (transaction.patient?.assigned_department !== 'ORTHO' && 
+              transaction.patient?.assigned_doctor !== 'DR. HEMANT') {
+            filteredRevenue += transaction.amount || 0;
+            
+            // Revenue by transaction type
+            const type = transaction.transaction_type || 'OTHER';
+            revenueByType[type] = (revenueByType[type] || 0) + transaction.amount;
+            
+            // Revenue by payment mode
+            const mode = transaction.payment_mode || 'CASH';
+            revenueByPaymentMode[mode] = (revenueByPaymentMode[mode] || 0) + transaction.amount;
+            
+            // Revenue by department
+            const dept = transaction.department || 'GENERAL';
+            revenueByDepartment[dept] = (revenueByDepartment[dept] || 0) + transaction.amount;
+            
+            // Enhanced transaction object
+            const enhancedTransaction = {
+              ...transaction,
+              patientName: `${transaction.patient?.first_name || ''} ${transaction.patient?.last_name || ''}`.trim()
+            };
+            
+            // Categorize by time periods (must also be within selected date range)
+            // Debug period matching for first transaction
+            if (index === 0) {
+              console.log('🕒 Period matching for first transaction:', {
+                transactionDate: transactionDate.toISOString(),
+                today: today.toISOString(),
+                todayEnd: todayEnd.toISOString(),
+                weekStart: weekStart.toISOString(),
+                monthStart: monthStart.toISOString(),
+                monthEnd: monthEnd.toISOString(),
+                filterStart: start.toISOString(),
+                filterEnd: end.toISOString(),
+                matchesToday: (transactionDate >= today && transactionDate <= todayEnd && transactionDate >= start && transactionDate <= end),
+                matchesWeek: (transactionDate >= weekStart && transactionDate <= end && transactionDate >= start),
+                matchesMonth: (transactionDate >= monthStart && transactionDate <= monthEnd && transactionDate >= start && transactionDate <= end)
+              });
+            }
+            
+            // Today: transactions from today that are also within the selected range
+            if (transactionDate >= today && transactionDate <= todayEnd && 
+                transactionDate >= start && transactionDate <= end) {
+              periodBreakdown.today.revenue += transaction.amount || 0;
+              periodBreakdown.today.transactions.push(enhancedTransaction);
+              periodBreakdown.today.count++;
+              if (index < 3) console.log('✅ Added to TODAY:', transaction.id, transaction.amount);
+            }
+            
+            // This Week: transactions from last 7 days that are also within the selected range
+            if (transactionDate >= weekStart && transactionDate <= end &&
+                transactionDate >= start) {
+              periodBreakdown.thisWeek.revenue += transaction.amount || 0;
+              if (periodBreakdown.thisWeek.transactions.length < 20) {
+                periodBreakdown.thisWeek.transactions.push(enhancedTransaction);
+              }
+              periodBreakdown.thisWeek.count++;
+              if (index < 3) console.log('✅ Added to WEEK:', transaction.id, transaction.amount);
+            }
+            
+            // This Month: transactions from current month that are also within the selected range
+            if (transactionDate >= monthStart && transactionDate <= monthEnd &&
+                transactionDate >= start && transactionDate <= end) {
+              periodBreakdown.thisMonth.revenue += transaction.amount || 0;
+              if (periodBreakdown.thisMonth.transactions.length < 50) {
+                periodBreakdown.thisMonth.transactions.push(enhancedTransaction);
+              }
+              periodBreakdown.thisMonth.count++;
+              if (index < 3) console.log('✅ Added to MONTH:', transaction.id, transaction.amount);
+            }
+            
+            // Keep top 10 transactions overall
+            if (topTransactions.length < 10) {
+              topTransactions.push(enhancedTransaction);
+            }
+          }
+        });
+      }
+      
+      console.log('💰 Date range revenue calculation:', {
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        totalRevenue,
+        filteredRevenue,
+        periodBreakdown: {
+          today: `₹${periodBreakdown.today.revenue} (${periodBreakdown.today.count} records)`,
+          thisWeek: `₹${periodBreakdown.thisWeek.revenue} (${periodBreakdown.thisWeek.count} records)`,
+          thisMonth: `₹${periodBreakdown.thisMonth.revenue} (${periodBreakdown.thisMonth.count} records)`
+        }
+      });
+      
+      // Get daily expenses for the date range with details
+      const { data: expensesData } = await supabase
+        .from('daily_expenses')
+        .select('*')
+        .gte('expense_date', start.toISOString().split('T')[0])
+        .lte('expense_date', end.toISOString().split('T')[0])
+        .order('expense_date', { ascending: false });
+      
+      const totalExpenses = expensesData?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
+      
+      // Calculate expense breakdown by category
+      const expensesByCategory: Record<string, number> = {};
+      const topExpenses: any[] = [];
+      
+      expensesData?.forEach(expense => {
+        const category = expense.expense_category || 'OTHER';
+        expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+        
+        if (topExpenses.length < 10) {
+          topExpenses.push(expense);
+        }
+      });
+      
+      return {
+        // Basic stats
+        totalPatients,
+        totalDoctors,
+        totalBeds,
+        occupiedBeds,
+        todayRevenue: filteredRevenue,
+        monthlyRevenue: filteredRevenue,
+        todayExpenses: totalExpenses,
+        todayAppointments,
+        pendingAdmissions: 0,
+        patientGrowthRate: 0,
+        revenueGrowthRate: 0,
+        availableBeds,
+        
+        // Detailed breakdowns
+        details: {
+          revenue: {
+            total: filteredRevenue,
+            byType: revenueByType,
+            byPaymentMode: revenueByPaymentMode,
+            byDepartment: revenueByDepartment,
+            topTransactions,
+            periodBreakdown
+          },
+          patients: {
+            total: totalPatients,
+            recentPatients: patientsData.data || []
+          },
+          appointments: {
+            total: todayAppointments,
+            recentAppointments: appointmentsData.data || []
+          },
+          expenses: {
+            total: totalExpenses,
+            byCategory: expensesByCategory,
+            topExpenses
+          },
+          beds: {
+            total: totalBeds,
+            available: availableBeds,
+            occupied: occupiedBeds,
+            bedsList: bedsData.data || []
+          }
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('🚨 getDashboardStatsWithDateRange error:', error);
       throw error;
     }
   }

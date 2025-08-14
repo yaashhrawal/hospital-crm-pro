@@ -284,10 +284,24 @@ const NewFlexiblePatientEntry: React.FC = () => {
       // Create transactions for each assigned doctor
       if (!saveAsDraft && assignedDoctorsData.length > 0) {
         for (const doctor of assignedDoctorsData) {
+          // Calculate discounted amount
+          const originalAmount = doctor.consultation_fee || 0;
+          const discountAmount = originalAmount * (formData.discount_percentage / 100);
+          const finalAmount = originalAmount - discountAmount;
+          
+          // Build description with discount info if applicable
+          let description = `Consultation with ${doctor.doctor_name} - ${doctor.department}`;
+          if (formData.discount_percentage > 0) {
+            description += ` | Original: ₹${originalAmount} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}`;
+            if (formData.discount_reason) {
+              description += ` | Reason: ${formData.discount_reason}`;
+            }
+          }
+          
           const transactionData: CreateTransactionData = {
             patient_id: newPatient.id,  // Use UUID id, not patient_id string
-            amount: doctor.consultation_fee || 0,
-            description: `Consultation with ${doctor.doctor_name} - ${doctor.department}`, // Add required description
+            amount: finalAmount, // Use discounted amount
+            description: description,
             discount_percentage: formData.discount_percentage,
             discount_reason: formData.discount_reason || undefined,
             payment_mode: formData.payment_mode as 'CASH' | 'ONLINE' | 'CARD' | 'UPI' | 'INSURANCE',
@@ -350,6 +364,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
           const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
           appointments.push(appointmentData);
           localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+          
+          // Dispatch event to notify Dashboard of the new appointment
+          window.dispatchEvent(new Event('appointmentUpdated'));
           
           toast.success(`Appointment scheduled for ${formData.appointment_date ? formData.appointment_date.toLocaleDateString('en-IN') : 'selected date'} at ${formData.appointment_time}`);
         } catch (error) {

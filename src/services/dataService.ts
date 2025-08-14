@@ -253,12 +253,27 @@ class DataService {
   }
 
   // Transaction Management - Direct Supabase Integration
-  async createTransaction(transactionData: Omit<PatientTransaction, 'id' | 'created_at'>): Promise<PatientTransaction> {
+  async createTransaction(transactionData: Omit<PatientTransaction, 'id'>): Promise<PatientTransaction> {
     console.log('📡 Creating transaction directly in Supabase:', transactionData);
     try {
+      // Prepare data for insertion
+      const dataToInsert = { ...transactionData };
+      
+      // If transaction_date is not provided but created_at is, use created_at as transaction_date
+      if (!dataToInsert.transaction_date && dataToInsert.created_at) {
+        dataToInsert.transaction_date = dataToInsert.created_at;
+      }
+      
+      // Remove created_at to let database auto-generate it
+      if (dataToInsert.created_at) {
+        delete dataToInsert.created_at;
+      }
+      
+      console.log('📊 Transaction data to insert:', dataToInsert);
+      
       const { data, error } = await supabase
         .from('patient_transactions')
-        .insert([transactionData])
+        .insert([dataToInsert])
         .select()
         .single();
       if (error) {
@@ -320,14 +335,13 @@ class DataService {
         .from('patient_transactions')
         .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
         .eq('hospital_id', HOSPITAL_ID)
-        .gte('created_at', date + 'T00:00:00.000Z')
-        .lt('created_at', date + 'T23:59:59.999Z')
+        .eq('transaction_date', date)
         .order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Supabase transactions by date fetch error:', error);
         throw error;
       }
-      console.log('✅ Transactions by date fetched successfully from Supabase:', data?.length || 0, 'records');
+      console.log('✅ Transactions by date fetched successfully from Supabase:', data?.length || 0, 'records for date:', date);
       return data || [];
     } catch (error) {
       console.error('🚨 Transactions by date fetch failed:', error);

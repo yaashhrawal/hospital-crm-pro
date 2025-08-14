@@ -17,7 +17,7 @@ import {
 import HospitalService from '../services/hospitalService';
 import BillingService, { type BillingSummary, type RecentBill } from '../services/billingService';
 import OPDBillingModule from './billing/OPDBillingModule';
-import IPDBillingModule from './billing/IPDBillingModule';
+import NewIPDBillingModule from './billing/NewIPDBillingModule';
 import CombinedBillingModule from './billing/CombinedBillingModule';
 
 // Using interfaces from BillingService
@@ -511,7 +511,7 @@ const BillingSection: React.FC = () => {
       {activeTab === 'opd' && <OPDBillingModule />}
 
       {/* IPD Billing Module */}
-      {activeTab === 'ipd' && <IPDBillingModule />}
+      {activeTab === 'ipd' && <NewIPDBillingModule />}
 
       {/* Combined Billing Module */}
       {activeTab === 'combined' && <CombinedBillingModule />}

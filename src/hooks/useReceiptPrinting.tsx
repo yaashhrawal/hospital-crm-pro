@@ -362,8 +362,7 @@ export const useReceiptPrinting = () => {
       const { data: transactions, error } = await supabase
         .from('patient_transactions')
         .select('*')
-        .gte('created_at', `${date}T00:00:00`)
-        .lte('created_at', `${date}T23:59:59`)
+        .eq('transaction_date', date)
         .eq('status', 'COMPLETED')
         .order('created_at', { ascending: true });
 

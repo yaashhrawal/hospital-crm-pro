@@ -282,7 +282,30 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           .eq('patient.hospital_id', HOSPITAL_ID);
 
         // Get ALL transactions - we'll filter in JavaScript to match hospitalService.ts logic
-        const { data: allRevenueData } = await revenueQuery;
+        const { data: allRevenueData, error: revenueQueryError } = await revenueQuery;
+        
+        // 🚨 CRITICAL DEBUG: Log the raw database query results
+        console.log('🔍 RAW DATABASE QUERY RESULTS:', {
+          queryError: revenueQueryError,
+          totalTransactions: allRevenueData?.length || 0,
+          sampleTransactions: allRevenueData?.slice(0, 5).map(t => ({
+            id: t.id,
+            amount: t.amount,
+            type: t.transaction_type,
+            description: t.description,
+            status: t.status,
+            created_at: t.created_at,
+            transaction_date: t.transaction_date,
+            patient: {
+              id: t.patient?.id,
+              name: `${t.patient?.first_name} ${t.patient?.last_name}`,
+              hospital_id: t.patient?.hospital_id,
+              date_of_entry: t.patient?.date_of_entry,
+              assigned_department: t.patient?.assigned_department,
+              assigned_doctor: t.patient?.assigned_doctor
+            }
+          })) || []
+        });
         
         // 🔍 CRITICAL FIX: Apply JavaScript filtering with same priority logic as hospitalService.ts
         let revenueData = allRevenueData || [];
@@ -299,20 +322,20 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           const endDateStr = dateRange.end.toISOString().split('T')[0];
           
           revenueData = revenueData?.filter(transaction => {
-            // Use same priority logic as hospitalService.ts
+            // 🔍 FIXED PRIORITY: For services, prioritize transaction date over patient registration date
             let effectiveDateStr;
-            if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
-              // Priority 1: Patient's date_of_entry (for backdated entries)
-              effectiveDateStr = transaction.patient.date_of_entry.includes('T') 
-                ? transaction.patient.date_of_entry.split('T')[0] 
-                : transaction.patient.date_of_entry;
-            } else if (transaction.transaction_date && transaction.transaction_date.trim() !== '') {
-              // Priority 2: Transaction's transaction_date
+            if (transaction.transaction_date && transaction.transaction_date.trim() !== '') {
+              // Priority 1: Transaction's transaction_date (when the service was actually provided)
               effectiveDateStr = transaction.transaction_date.includes('T') 
                 ? transaction.transaction_date.split('T')[0] 
                 : transaction.transaction_date;
+            } else if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
+              // Priority 2: Patient's date_of_entry (for backdated patient registrations)
+              effectiveDateStr = transaction.patient.date_of_entry.includes('T') 
+                ? transaction.patient.date_of_entry.split('T')[0] 
+                : transaction.patient.date_of_entry;
             } else {
-              // Priority 3: Transaction's created_at date
+              // Priority 3: Transaction's created_at date (fallback)
               effectiveDateStr = transaction.created_at.split('T')[0];
             }
             
@@ -324,6 +347,48 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         const excludedCount = (allRevenueData?.length || 0) - (allRevenueData?.filter(t => 
           !(t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT')
         )?.length || 0);
+        
+        // 🔍 DEBUG: Check for today's transactions specifically
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todaysTransactions = revenueData?.filter(transaction => {
+          let effectiveDateStr;
+          // 🔍 FIXED PRIORITY: For services, prioritize transaction date over patient registration date
+          if (transaction.transaction_date && transaction.transaction_date.trim() !== '') {
+            effectiveDateStr = transaction.transaction_date.includes('T') 
+              ? transaction.transaction_date.split('T')[0] 
+              : transaction.transaction_date;
+          } else if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
+            effectiveDateStr = transaction.patient.date_of_entry.includes('T') 
+              ? transaction.patient.date_of_entry.split('T')[0] 
+              : transaction.patient.date_of_entry;
+          } else {
+            effectiveDateStr = transaction.created_at.split('T')[0];
+          }
+          return effectiveDateStr === todayStr;
+        }) || [];
+        
+        console.log('🚨 TODAY REVENUE TRANSACTIONS DEBUG:', {
+          todayStr,
+          currentDateFilter: dateFilter,
+          todaysTransactionCount: todaysTransactions.length,
+          todaysTransactionAmount: todaysTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+          todaysTransactions: todaysTransactions.map(t => ({
+            id: t.id,
+            amount: t.amount,
+            type: t.transaction_type,
+            description: t.description,
+            status: t.status,
+            patient: `${t.patient?.first_name} ${t.patient?.last_name}`,
+            patientId: t.patient?.id,
+            createdAt: t.created_at,
+            transactionDate: t.transaction_date,
+            effectiveDate: t.patient?.date_of_entry && t.patient.date_of_entry.trim() !== '' 
+              ? (t.patient.date_of_entry.includes('T') ? t.patient.date_of_entry.split('T')[0] : t.patient.date_of_entry)
+              : (t.transaction_date && t.transaction_date.trim() !== '' 
+                ? (t.transaction_date.includes('T') ? t.transaction_date.split('T')[0] : t.transaction_date)
+                : t.created_at.split('T')[0])
+          }))
+        });
         
         console.log('💰 Dashboard Revenue Debug (FIXED):', {
           filter: dateFilter,
@@ -758,21 +823,45 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       
       // Count revenue for today (same logic as breakdown)
       const allRevenue = operationsData?.revenue || [];
-      totalRevenue = allRevenue.filter((r: any) => {
+      const todaysRevenue = allRevenue.filter((r: any) => {
         let effectiveDateStr;
-        if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
-          effectiveDateStr = r.patient.date_of_entry.includes('T') 
-            ? r.patient.date_of_entry.split('T')[0] 
-            : r.patient.date_of_entry;
-        } else if (r.transaction_date && r.transaction_date.trim() !== '') {
+        // 🔍 FIXED PRIORITY: For services, prioritize transaction date over patient registration date
+        if (r.transaction_date && r.transaction_date.trim() !== '') {
           effectiveDateStr = r.transaction_date.includes('T') 
             ? r.transaction_date.split('T')[0] 
             : r.transaction_date;
+        } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+          effectiveDateStr = r.patient.date_of_entry.includes('T') 
+            ? r.patient.date_of_entry.split('T')[0] 
+            : r.patient.date_of_entry;
         } else {
           effectiveDateStr = r.created_at.split('T')[0];
         }
         return effectiveDateStr === todayStr;
-      }).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      });
+      
+      totalRevenue = todaysRevenue.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      
+      // 🔍 DEBUG: Log today's revenue calculation
+      console.log('💰 TODAY REVENUE CARD DEBUG:', {
+        todayStr,
+        allRevenueCount: allRevenue.length,
+        todaysRevenueCount: todaysRevenue.length,
+        todaysRevenueAmount: totalRevenue,
+        todaysRevenueTransactions: todaysRevenue.map(r => ({
+          id: r.id,
+          amount: r.amount,
+          description: r.description,
+          type: r.transaction_type,
+          patient: `${r.patient?.first_name} ${r.patient?.last_name}`,
+          effectiveDate: r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '' 
+            ? (r.patient.date_of_entry.includes('T') ? r.patient.date_of_entry.split('T')[0] : r.patient.date_of_entry)
+            : (r.transaction_date && r.transaction_date.trim() !== '' 
+              ? (r.transaction_date.includes('T') ? r.transaction_date.split('T')[0] : r.transaction_date)
+              : r.created_at.split('T')[0]),
+          createdAt: r.created_at
+        }))
+      });
       
       console.log('🏠 Dashboard Home Consistency Fix:', {
         filter: dateFilter,

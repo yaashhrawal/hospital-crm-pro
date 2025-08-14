@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPD Final Bill - Hospital Management System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .card-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .header-section {
+            background-color: #e0e0e0;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #d0d0d0;
+        }
+
+        .patient-info, .payer-info {
+            flex: 1;
+        }
+
+        .info-line {
+            font-size: 13px;
+            margin: 4px 0;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .info-line strong {
+            color: #000;
+            font-weight: 600;
+        }
+
+        .green-text {
+            color: #008000;
+            font-weight: bold;
+        }
+
+        .red-text {
+            color: #ff0000;
+            font-weight: bold;
+        }
+
+        .info-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            font-size: 10px;
+            margin-left: 5px;
+            cursor: help;
+        }
+
+        .controls-section {
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #495057;
+            white-space: nowrap;
+        }
+
+        .control-group select,
+        .control-group input[type="date"] {
+            padding: 6px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+        }
+
+        .btn-blue {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-blue:hover {
+            background-color: #0056b3;
+        }
+
+        .table-container {
+            padding: 0 30px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        thead {
+            background-color: #f8f9fa;
+        }
+
+        th {
+            padding: 12px 8px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 8px;
+            font-size: 13px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: middle;
+        }
+
+        td input[type="number"] {
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid #ced4da;
+            border-radius: 3px;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        td input[type="number"]:focus {
+            outline: none;
+            border-color: #80bdff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+
+        .summary-section {
+            display: flex;
+            padding: 30px;
+            gap: 40px;
+            background-color: #f8f9fa;
+            margin-top: 20px;
+        }
+
+        .payment-status {
+            flex: 1;
+        }
+
+        .status-item {
+            margin-bottom: 20px;
+        }
+
+        .status-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .status-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #212529;
+        }
+
+        .status-item.disabled {
+            opacity: 0.5;
+        }
+
+        .final-bill-totals {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .total-row:last-child {
+            border-bottom: none;
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 2px solid #dee2e6;
+        }
+
+        .total-label {
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .total-value {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .total-payable {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-payable .label {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .total-payable .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .footer-actions {
+            padding: 20px 30px;
+            text-align: right;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-print:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .btn-blue, .btn-print {
+                display: none;
+            }
+            .main-container {
+                box-shadow: none;
+            }
+        }
+
+        .quantity-col {
+            width: 60px;
+            text-align: center;
+        }
+
+        td input.quantity-input {
+            width: 50px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Title -->
+        <div class="card-title">
+            Final Bill
+        </div>
+
+        <!-- Header Section -->
+        <div class="header-section">
+            <div class="patient-info">
+                <div class="info-line"><strong>YOGESH, 1 M, M</strong></div>
+                <div class="info-line">WARD NAME: <strong>EMERGENCY</strong></div>
+                <div class="info-line">BED NO: <strong>ER-6</strong></div>
+                <div class="info-line">UHIID: <strong>Y12</strong></div>
+                <div class="info-line">IPD NO: <strong>Y-1561</strong></div>
+                <div class="info-line">REF. DR: <strong>CHETANYA DABI</strong></div>
+                <div class="info-line">ADMITTING DR: <strong>DR. YOGESH BALAR</strong></div>
+            </div>
+            <div class="payer-info">
+                <div class="info-line">PAYER NAME: <strong>TATA AIG HEALTH INSURANCE</strong></div>
+                <div class="info-line">DOA: <strong>08/08/2025 02:51 PM</strong></div>
+                <div class="info-line">TOTAL DEP: <strong class="green-text">₹0.00</strong> <span class="info-icon">i</span></div>
+                <div class="info-line">TOTAL DUE: <strong class="red-text">₹0.00</strong> <span class="info-icon">i</span></div>
+                <div class="info-line"><strong>Dr. Yogesh Balar</strong> <span class="info-icon">i</span></div>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls-section">
+            <div class="control-group">
+                <label for="ward-category">Ward Category:</label>
+                <select id="ward-category">
+                    <option>General Ward</option>
+                    <option>Private Room</option>
+                    <option>ICU</option>
+                    <option selected>Emergency</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="billing-date">Billing Date:</label>
+                <input type="date" id="billing-date" value="2025-08-08">
+            </div>
+            <button class="btn-blue">Change Charges</button>
+            <button class="btn-blue">Add Pharmacy Bill</button>
+            <button class="btn-blue">View Pharmacy Bill</button>
+        </div>
+
+        <!-- Billing Table -->
+        <div class="table-container">
+            <table id="billing-table">
+                <thead>
+                    <tr>
+                        <th>SERVICE TYPE</th>
+                        <th>PARTICULARS</th>
+                        <th>EMERGENCY</th>
+                        <th>DOCTOR</th>
+                        <th>DATE</th>
+                        <th>QTY</th>
+                        <th>UNIT PRICE</th>
+                        <th>DISCOUNT</th>
+                        <th>TAXES</th>
+                        <th>TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Room Charge</td>
+                        <td>Room Charge</td>
+                        <td>Yes</td>
+                        <td>Dr. Yogesh</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>Nursing Charge</td>
+                        <td>Nursing Charge</td>
+                        <td>Yes</td>
+                        <td>Dr. Yogesh</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>TOTAL KNEE REPLACEMENT</td>
+                        <td>TOTAL KNEE REPLACEMENT</td>
+                        <td>No</td>
+                        <td>Dr. Balar</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>Admission Fee</td>
+                        <td>Admission Fee</td>
+                        <td>Yes</td>
+                        <td>Dr. Yogesh</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>Visit Charge</td>
+                        <td>room charge</td>
+                        <td>Yes</td>
+                        <td>Dr. Yogesh</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>Pathology</td>
+                        <td>CBC MP</td>
+                        <td>Yes</td>
+                        <td>Lab</td>
+                        <td>08/08/2025</td>
+                        <td><input type="number" class="quantity-input" value="1" min="1"></td>
+                        <td><input type="number" class="unit-price" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="discount" placeholder="0.00" step="0.01"></td>
+                        <td><input type="number" class="taxes" placeholder="0.00" step="0.01" readonly></td>
+                        <td><input type="number" class="total" placeholder="0.00" step="0.01" readonly></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="summary-section">
+            <div class="payment-status">
+                <div class="status-item">
+                    <div class="status-label">TOTAL BILL</div>
+                    <div class="status-value" id="total-bill">₹0.00</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">PAID AMOUNT</div>
+                    <div class="status-value" id="paid-amount">₹0.00</div>
+                </div>
+                <div class="status-item disabled">
+                    <div class="status-label">REFUND</div>
+                    <div class="status-value" id="refund">₹0.00</div>
+                </div>
+            </div>
+
+            <div class="final-bill-totals">
+                <div class="total-row">
+                    <span class="total-label">NET PAYABLE</span>
+                    <span class="total-value" id="net-payable">₹0.00</span>
+                </div>
+                <div class="total-row">
+                    <span class="total-label">DISCOUNT / SERVICE WISE (<span id="service-discount">₹0.00</span>) + ADDITIONAL (<span id="additional-discount">₹0.00</span>)</span>
+                    <span class="total-value" id="total-discount">₹0.00</span>
+                </div>
+                <div class="total-row">
+                    <span class="total-label">TAXES / SERVICE WISE (<span id="service-tax">₹0.00</span>) + ADDITIONAL (<span id="additional-tax">₹0.00</span>)</span>
+                    <span class="total-value" id="total-tax">₹0.00</span>
+                </div>
+                <div class="total-payable">
+                    <span class="label">TOTAL PAYABLE</span>
+                    <span class="value" id="total-payable">₹0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="footer-actions">
+            <button class="btn-print" onclick="window.print()">Print Bill</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize calculations
+        document.addEventListener('DOMContentLoaded', function() {
+            const table = document.getElementById('billing-table');
+            const tbody = table.querySelector('tbody');
+            
+            // Add event listeners to all input fields
+            tbody.addEventListener('input', function(e) {
+                if (e.target.classList.contains('quantity-input') || 
+                    e.target.classList.contains('unit-price') || 
+                    e.target.classList.contains('discount')) {
+                    
+                    const row = e.target.closest('tr');
+                    calculateRowTotal(row);
+                    updateSummary();
+                }
+            });
+
+            // Calculate row total
+            function calculateRowTotal(row) {
+                const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+                const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+                const discount = parseFloat(row.querySelector('.discount').value) || 0;
+                
+                // Calculate subtotal
+                const subtotal = quantity * unitPrice;
+                
+                // Calculate total after discount
+                const discountAmount = (subtotal * discount) / 100;
+                const afterDiscount = subtotal - discountAmount;
+                
+                // Calculate tax (18% GST on amount after discount)
+                const tax = afterDiscount * 0.18;
+                const total = afterDiscount + tax;
+                
+                // Update fields
+                row.querySelector('.taxes').value = tax.toFixed(2);
+                row.querySelector('.total').value = total.toFixed(2);
+            }
+
+            // Update summary totals
+            function updateSummary() {
+                const rows = tbody.querySelectorAll('tr');
+                let totalBill = 0;
+                let totalDiscount = 0;
+                let totalTax = 0;
+                let netPayable = 0;
+
+                rows.forEach(row => {
+                    const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+                    const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+                    const discount = parseFloat(row.querySelector('.discount').value) || 0;
+                    const tax = parseFloat(row.querySelector('.taxes').value) || 0;
+                    const total = parseFloat(row.querySelector('.total').value) || 0;
+                    
+                    const subtotal = quantity * unitPrice;
+                    const discountAmount = (subtotal * discount) / 100;
+                    
+                    netPayable += subtotal;
+                    totalDiscount += discountAmount;
+                    totalTax += tax;
+                    totalBill += total;
+                });
+
+                // Update display
+                document.getElementById('total-bill').textContent = '₹' + totalBill.toFixed(2);
+                document.getElementById('paid-amount').textContent = '₹' + totalBill.toFixed(2);
+                document.getElementById('net-payable').textContent = '₹' + netPayable.toFixed(2);
+                document.getElementById('service-discount').textContent = '₹' + totalDiscount.toFixed(2);
+                document.getElementById('total-discount').textContent = '₹' + totalDiscount.toFixed(2);
+                document.getElementById('service-tax').textContent = '₹' + totalTax.toFixed(2);
+                document.getElementById('total-tax').textContent = '₹' + totalTax.toFixed(2);
+                document.getElementById('total-payable').textContent = '₹' + totalBill.toFixed(2);
+                
+                // Update total due (assuming it's unpaid)
+                const totalDueElement = document.querySelector('.red-text');
+                if (totalDueElement) {
+                    totalDueElement.textContent = '₹' + totalBill.toFixed(2);
+                }
+            }
+
+            // Set today's date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('billing-date').value = today;
+            
+            // Initial calculation
+            updateSummary();
+        });
+    </script>
+</body>
+</html>

@@ -23,6 +23,7 @@ const patientEntrySchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
   last_name: z.string().min(2, 'Last name must be at least 2 characters'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
+  date_of_entry: z.string().min(1, 'Entry date is required'),
   gender: z.enum(['M', 'F', 'OTHER']),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
@@ -72,6 +73,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
     defaultValues: {
       gender: 'M',
       prefix: 'Mr',
+      date_of_entry: new Date().toISOString().split('T')[0],
       entry_fee: 100,
       entry_payment_mode: 'cash',
       consultation_payment_mode: 'cash',
@@ -130,6 +132,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         first_name: data.first_name,
         last_name: data.last_name,
         date_of_birth: data.date_of_birth,
+        date_of_entry: data.date_of_entry,
         gender: data.gender,
         phone: data.phone,
         email: data.email || undefined,
@@ -151,23 +154,27 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
       // Create Entry Fee Transaction
       await dataService.createTransaction({
         patient_id: newPatient.id,
-        transaction_type: 'entry_fee',
+        transaction_type: 'ENTRY_FEE',
         amount: data.entry_fee,
-        payment_mode: data.entry_payment_mode,
+        payment_mode: data.entry_payment_mode.toUpperCase(),
         doctor_id: data.selected_doctor,
         department: data.selected_department,
         description: 'Hospital Entry Fee',
+        created_at: data.date_of_entry,
+        transaction_date: data.date_of_entry,
       });
 
       // Create Consultation Fee Transaction
       await dataService.createTransaction({
         patient_id: newPatient.id,
-        transaction_type: 'consultation',
+        transaction_type: 'CONSULTATION',
         amount: data.consultation_fee,
-        payment_mode: data.consultation_payment_mode,
+        payment_mode: data.consultation_payment_mode.toUpperCase(),
         doctor_id: data.selected_doctor,
         department: data.selected_department,
         description: `Consultation with Dr. ${doctors.find(d => d.id === data.selected_doctor)?.name}`,
+        created_at: data.date_of_entry,
+        transaction_date: data.date_of_entry,
       });
 
       // Handle Admission if required
@@ -178,7 +185,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
           room_type: data.room_type,
           department: data.selected_department,
           daily_rate: data.daily_rate,
-          admission_date: new Date().toISOString().split('T')[0],
+          admission_date: data.date_of_entry,
           status: 'active',
           total_amount: data.daily_rate,
         });
@@ -186,12 +193,14 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         // Create admission fee transaction
         await dataService.createTransaction({
           patient_id: newPatient.id,
-          transaction_type: 'admission',
+          transaction_type: 'ADMISSION_FEE',
           amount: data.daily_rate,
-          payment_mode: data.consultation_payment_mode,
+          payment_mode: data.consultation_payment_mode.toUpperCase(),
           doctor_id: data.selected_doctor,
           department: data.selected_department,
           description: `Admission - ${data.room_type} room, Bed ${data.bed_number}`,
+          created_at: data.date_of_entry,
+          transaction_date: data.date_of_entry,
         });
       }
 
@@ -450,6 +459,52 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                       <option value="F">Female</option>
                       <option value="OTHER">Other</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Entry Date Field */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Entry Date * (for backdate entries)
+                    </label>
+                    <input
+                      {...register('date_of_entry')}
+                      type="date"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                    />
+                    {errors.date_of_entry && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.date_of_entry.message}</p>}
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Blood Group (Optional)
+                    </label>
+                    <input
+                      {...register('blood_group')}
+                      type="text"
+                      placeholder="e.g., A+, B-, O+"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                    />
                   </div>
                 </div>
 
