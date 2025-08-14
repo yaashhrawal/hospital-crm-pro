@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { 
@@ -27,10 +27,32 @@ interface Props {
   onNavigate?: (tab: string) => void;
 }
 
+interface ServiceBreakdownItem {
+  service: string;
+  count: number;
+  amount: number;
+  percentage: string;
+}
+
 interface CardBreakdown {
-  today: { count: number; data: any[] };
-  thisWeek: { count: number; data: any[] };
-  thisMonth: { count: number; data: any[] };
+  today: { 
+    count: number; 
+    data: any[];
+    serviceBreakdown?: { [key: string]: { count: number; amount: number; transactions: any[] } };
+    topServices?: ServiceBreakdownItem[];
+  };
+  thisWeek: { 
+    count: number; 
+    data: any[];
+    serviceBreakdown?: { [key: string]: { count: number; amount: number; transactions: any[] } };
+    topServices?: ServiceBreakdownItem[];
+  };
+  thisMonth: { 
+    count: number; 
+    data: any[];
+    serviceBreakdown?: { [key: string]: { count: number; amount: number; transactions: any[] } };
+    topServices?: ServiceBreakdownItem[];
+  };
 }
 
 export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
@@ -128,33 +150,96 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     }
   };
 
-  // Fetch patients data - use same method as patient list with date filtering
-  const { data: patientsData, refetch: refetchPatients } = useQuery({
-    queryKey: ['patients', dateFilter, customStartDate, customEndDate],
+  // Fetch ALL patients data without date filtering (we'll filter in getCardData for consistency)
+  const { data: allPatientsData, refetch: refetchPatients } = useQuery({
+    queryKey: ['all-patients'],
     queryFn: async () => {
       try {
-        // Use same method as patient list to get consistent count
+        // Get ALL patients without any date filtering
         const allPatients = await HospitalService.getPatients(1000);
-        
-        // Apply date filtering if not 'all'
-        if (dateFilter !== 'all') {
-          const dateRange = getDateRange();
-          if (dateRange) {
-            return allPatients.filter(patient => {
-              const patientDate = new Date(patient.created_at);
-              return patientDate >= dateRange.start && patientDate <= dateRange.end;
-            });
-          }
-        }
-        
+        console.log('📋 Fetched all patients for dashboard:', allPatients?.length || 0);
         return allPatients || [];
       } catch (error) {
-        console.warn('Could not fetch patients:', error);
+        console.warn('Could not fetch all patients:', error);
         return [];
       }
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Filter patients based on current filter for display purposes only
+  const patientsData = React.useMemo(() => {
+    if (dateFilter === 'all') {
+      return allPatientsData || [];
+    }
+    
+    // Apply date filtering if not 'all' - use same priority logic as transactions
+    const dateRange = getDateRange();
+    if (dateRange) {
+      const startDateStr = dateRange.start.toISOString().split('T')[0];
+      const endDateStr = dateRange.end.toISOString().split('T')[0];
+      
+      const filteredPatients = allPatientsData.filter(patient => {
+        // 🔍 CRITICAL FIX: Use same priority logic as transactions
+        let effectiveDateStr;
+        if (patient.date_of_entry && patient.date_of_entry.trim() !== '') {
+          // Priority 1: Patient's date_of_entry (for backdated entries)
+          effectiveDateStr = patient.date_of_entry.includes('T') 
+            ? patient.date_of_entry.split('T')[0] 
+            : patient.date_of_entry;
+        } else {
+          // Priority 2: Patient's created_at date
+          effectiveDateStr = patient.created_at.split('T')[0];
+        }
+        
+        return effectiveDateStr >= startDateStr && effectiveDateStr <= endDateStr;
+      });
+      
+      // Enhanced debug patient filtering
+      console.log('👥 Dashboard Patients Debug (ENHANCED):', {
+        filter: dateFilter,
+        dateRange: {
+          start: dateRange.start.toISOString(),
+          end: dateRange.end.toISOString(),
+          startDateStr,
+          endDateStr
+        },
+        allPatientCount: allPatientsData?.length || 0,
+        filteredPatientCount: filteredPatients?.length || 0,
+        
+        // Show ALL patients with their effective dates for debugging
+        allPatientsWithDates: allPatientsData?.slice(0, 10).map(p => {
+          const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+            ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+            : p.created_at.split('T')[0];
+          return {
+            id: p.id,
+            name: `${p.first_name} ${p.last_name}`,
+            dateOfEntry: p.date_of_entry,
+            createdAt: p.created_at.split('T')[0],
+            effectiveDate,
+            matchesFilter: effectiveDate >= startDateStr && effectiveDate <= endDateStr,
+            exactToday: effectiveDate === endDateStr
+          };
+        }) || [],
+        
+        // Show filtered patients
+        filteredPatients: filteredPatients?.map(p => ({
+          id: p.id,
+          name: `${p.first_name} ${p.last_name}`,
+          dateOfEntry: p.date_of_entry,
+          createdAt: p.created_at.split('T')[0],
+          effectiveDate: p.date_of_entry && p.date_of_entry.trim() !== '' 
+            ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+            : p.created_at.split('T')[0]
+        })) || []
+      });
+      
+      return filteredPatients;
+    }
+    
+    return allPatientsData || [];
+  }, [allPatientsData, dateFilter, customStartDate, customEndDate]);
 
   // Fetch beds data
   const { data: bedsData, refetch: refetchBeds } = useQuery({
@@ -190,35 +275,96 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             description,
             status,
             created_at,
-            patient:patients!inner(id, patient_id, first_name, last_name, hospital_id)
+            transaction_date,
+            patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry, assigned_department, assigned_doctor)
           `)
           .eq('status', 'COMPLETED')
           .eq('patient.hospital_id', HOSPITAL_ID);
 
-        // Apply date filtering for revenue if not 'all'
+        // Get ALL transactions - we'll filter in JavaScript to match hospitalService.ts logic
+        const { data: allRevenueData } = await revenueQuery;
+        
+        // 🔍 CRITICAL FIX: Apply JavaScript filtering with same priority logic as hospitalService.ts
+        let revenueData = allRevenueData || [];
+        
+        // 🚫 EXCLUDE DR. HEMANT & ORTHO patients from revenue calculations
+        revenueData = revenueData?.filter(transaction => {
+          const patient = transaction.patient;
+          const isExcluded = patient?.assigned_department === 'ORTHO' || patient?.assigned_doctor === 'DR. HEMANT';
+          return !isExcluded;
+        }) || [];
+        
         if (dateRange) {
-          revenueQuery = revenueQuery
-            .gte('created_at', dateRange.start.toISOString())
-            .lte('created_at', dateRange.end.toISOString());
+          const startDateStr = dateRange.start.toISOString().split('T')[0];
+          const endDateStr = dateRange.end.toISOString().split('T')[0];
+          
+          revenueData = revenueData?.filter(transaction => {
+            // Use same priority logic as hospitalService.ts
+            let effectiveDateStr;
+            if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
+              // Priority 1: Patient's date_of_entry (for backdated entries)
+              effectiveDateStr = transaction.patient.date_of_entry.includes('T') 
+                ? transaction.patient.date_of_entry.split('T')[0] 
+                : transaction.patient.date_of_entry;
+            } else if (transaction.transaction_date && transaction.transaction_date.trim() !== '') {
+              // Priority 2: Transaction's transaction_date
+              effectiveDateStr = transaction.transaction_date.includes('T') 
+                ? transaction.transaction_date.split('T')[0] 
+                : transaction.transaction_date;
+            } else {
+              // Priority 3: Transaction's created_at date
+              effectiveDateStr = transaction.created_at.split('T')[0];
+            }
+            
+            return effectiveDateStr >= startDateStr && effectiveDateStr <= endDateStr;
+          }) || [];
         }
-
-        const { data: revenueData } = await revenueQuery;
         
         // Debug revenue calculation
-        console.log('💰 Dashboard Revenue Debug:', {
+        const excludedCount = (allRevenueData?.length || 0) - (allRevenueData?.filter(t => 
+          !(t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT')
+        )?.length || 0);
+        
+        console.log('💰 Dashboard Revenue Debug (FIXED):', {
           filter: dateFilter,
           dateRange: dateRange ? {
             start: dateRange.start.toISOString(),
             end: dateRange.end.toISOString()
           } : 'No date filter (all)',
-          transactionCount: revenueData?.length || 0,
+          allTransactionCount: allRevenueData?.length || 0,
+          excludedORTHO_HEMANT: excludedCount,
+          afterExclusionCount: (allRevenueData?.length || 0) - excludedCount,
+          finalFilteredCount: revenueData?.length || 0,
           totalRevenue: revenueData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-          sampleTransactions: revenueData?.slice(0, 3).map(t => ({
-            id: t.id,
-            amount: t.amount,
-            created_at: t.created_at,
-            type: t.transaction_type
-          }))
+          sampleFilteredTransactions: revenueData?.slice(0, 3).map(t => {
+            // Show the effective date being used
+            let effectiveDateStr;
+            if (t.patient?.date_of_entry && t.patient.date_of_entry.trim() !== '') {
+              effectiveDateStr = t.patient.date_of_entry.includes('T') 
+                ? t.patient.date_of_entry.split('T')[0] 
+                : t.patient.date_of_entry;
+            } else if (t.transaction_date && t.transaction_date.trim() !== '') {
+              effectiveDateStr = t.transaction_date.includes('T') 
+                ? t.transaction_date.split('T')[0] 
+                : t.transaction_date;
+            } else {
+              effectiveDateStr = t.created_at.split('T')[0];
+            }
+            
+            return {
+              id: t.id,
+              amount: t.amount,
+              effectiveDate: effectiveDateStr,
+              patientName: `${t.patient?.first_name} ${t.patient?.last_name}`,
+              patientDept: t.patient?.assigned_department,
+              patientDoctor: t.patient?.assigned_doctor,
+              patientDateOfEntry: t.patient?.date_of_entry,
+              transactionDate: t.transaction_date,
+              createdAt: t.created_at.split('T')[0],
+              type: t.transaction_type,
+              excludedFromRevenue: t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT'
+            };
+          })
         });
 
         // Build expenses query with date filtering
@@ -237,33 +383,44 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         const { data: expenseData } = await expenseQuery;
         
         // ADDED: Query refunds to match operations ledger calculation
-        let refundQuery = supabase
-          .from('patient_refunds')
-          .select(`
-            *,
-            patient:patients!inner(id, patient_id, first_name, last_name, hospital_id)
-          `)
-          .eq('patient.hospital_id', HOSPITAL_ID);
+        let refunds: any[] = [];
         
-        // Apply date filtering for refunds if not 'all'
-        if (dateRange) {
-          refundQuery = refundQuery
-            .gte('created_at', dateRange.start.toISOString())
-            .lte('created_at', dateRange.end.toISOString());
+        try {
+          let refundQuery = supabase
+            .from('patient_refunds')
+            .select(`*`)
+            .eq('hospital_id', HOSPITAL_ID);
+          
+          // Apply date filtering for refunds if not 'all'
+          if (dateRange) {
+            refundQuery = refundQuery
+              .gte('transaction_date', dateRange.start.toISOString().split('T')[0])
+              .lte('transaction_date', dateRange.end.toISOString().split('T')[0]);
+          }
+          
+          const { data: refundData, error: refundError } = await refundQuery;
+          
+          if (refundError) {
+            console.warn('⚠️ Patient refunds table not accessible:', refundError.message);
+            refunds = []; // Use empty array as fallback
+          } else {
+            refunds = refundData || [];
+          }
+        } catch (error) {
+          console.warn('⚠️ Refunds query failed, using empty array');
+          refunds = [];
         }
-        
-        const { data: refundData } = await refundQuery;
         
         console.log('↩️ Dashboard Refunds Debug:', {
           filter: dateFilter,
-          refundCount: refundData?.length || 0,
-          totalRefunds: refundData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
+          refundCount: refunds?.length || 0,
+          totalRefunds: refunds?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
         });
 
         return {
           revenue: revenueData || [],
           expenses: expenseData || [],
-          refunds: refundData || [],
+          refunds: refunds || [],
         };
       } catch (error) {
         console.warn('Could not fetch operations data:', error);
@@ -580,9 +737,57 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     }
   };
 
-  // Calculate card data from linked sources with date filtering
+  // Calculate card data using same logic as breakdown for consistency
   const getCardData = () => {
-    const totalPatients = patientsData?.length || 0;
+    // CONSISTENCY FIX: Use same filtering logic as breakdown
+    let totalPatients = 0;
+    let totalRevenue = 0;
+    
+    if (dateFilter === 'today') {
+      // For 'today' filter, count actual today's patients using same logic as breakdown
+      const todayStr = formatDateString(new Date());
+      
+      // Count patients for today (same logic as breakdown)
+      const allPatients = allPatientsData || []; // Use all patients data, not pre-filtered
+      totalPatients = allPatients.filter((p: any) => {
+        const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
+          ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+          : p.created_at.split('T')[0];
+        return effectiveDateStr === todayStr;
+      }).length;
+      
+      // Count revenue for today (same logic as breakdown)
+      const allRevenue = operationsData?.revenue || [];
+      totalRevenue = allRevenue.filter((r: any) => {
+        let effectiveDateStr;
+        if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+          effectiveDateStr = r.patient.date_of_entry.includes('T') 
+            ? r.patient.date_of_entry.split('T')[0] 
+            : r.patient.date_of_entry;
+        } else if (r.transaction_date && r.transaction_date.trim() !== '') {
+          effectiveDateStr = r.transaction_date.includes('T') 
+            ? r.transaction_date.split('T')[0] 
+            : r.transaction_date;
+        } else {
+          effectiveDateStr = r.created_at.split('T')[0];
+        }
+        return effectiveDateStr === todayStr;
+      }).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      
+      console.log('🏠 Dashboard Home Consistency Fix:', {
+        filter: dateFilter,
+        todayStr,
+        calculatedPatients: totalPatients,
+        calculatedRevenue: totalRevenue,
+        originalPatientsDataLength: patientsData?.length || 0,
+        originalRevenueTotal: (operationsData?.revenue || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
+      });
+    } else {
+      // For other filters, use the existing filtered data
+      totalPatients = patientsData?.length || 0;
+      totalRevenue = operationsData?.revenue.reduce((sum: number, transaction: any) => 
+        sum + (transaction.amount || 0), 0) || 0;
+    }
     
     // Filter beds based on admission dates for admissions card
     let filteredAdmissions = 0;
@@ -610,9 +815,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       bed.status === 'vacant' || bed.status === 'AVAILABLE'
     ).length || 0;
     
-    // Revenue, expenses and refunds are already filtered by the query based on date filter
-    const totalRevenue = operationsData?.revenue.reduce((sum: number, transaction: any) => 
-      sum + (transaction.amount || 0), 0) || 0;
+    // Expenses and refunds use existing filtered data
     const totalExpenses = operationsData?.expenses.reduce((sum: number, expense: any) => 
       sum + (expense.amount || 0), 0) || 0;
     const totalRefunds = operationsData?.refunds?.reduce((sum: number, refund: any) => 
@@ -652,7 +855,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     
     try {
       const now = new Date();
-      const today = new Date(now.setHours(0, 0, 0, 0));
+      // CRITICAL FIX: Don't mutate the original date object
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -664,12 +869,50 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
       switch (cardType) {
         case 'patients':
-          const todayPatients = patientsData?.filter((p: any) => 
-            new Date(p.created_at) >= today) || [];
-          const weekPatients = patientsData?.filter((p: any) => 
-            new Date(p.created_at) >= weekStart) || [];
-          const monthPatients = patientsData?.filter((p: any) => 
-            new Date(p.created_at) >= monthStart) || [];
+          // CONSISTENCY FIX: Use same data source as main dashboard for consistency
+          console.log('👥 Patient Card Click: Using same filtered data as main dashboard for consistency...');
+          
+          const currentFilteredPatients = patientsData || [];
+          
+          // For proper breakdown, we need ALL patient data to calculate Today/Week/Month
+          const allPatientsForBreakdown = await HospitalService.getPatients(1000);
+          
+          // Use consistent date formatting
+          const todayStr = formatDateString(new Date());
+          const weekStartDate = new Date();
+          weekStartDate.setDate(weekStartDate.getDate() - 7);
+          const weekStartStr = formatDateString(weekStartDate);
+          const monthStartDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          const monthStartStr = formatDateString(monthStartDate);
+          
+          console.log('📅 Patient Card Date Calculations:', {
+            currentFilter: dateFilter,
+            todayStr,
+            weekStartStr,
+            monthStartStr,
+            currentFilteredCount: currentFilteredPatients.length
+          });
+          
+          const todayPatients = allPatientsForBreakdown?.filter((p: any) => {
+            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+              : p.created_at.split('T')[0];
+            return effectiveDateStr === todayStr;
+          }) || [];
+          
+          const weekPatients = allPatientsForBreakdown?.filter((p: any) => {
+            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+              : p.created_at.split('T')[0];
+            return effectiveDateStr >= weekStartStr && effectiveDateStr <= todayStr;
+          }) || [];
+          
+          const monthPatients = allPatientsForBreakdown?.filter((p: any) => {
+            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
+              : p.created_at.split('T')[0];
+            return effectiveDateStr >= monthStartStr && effectiveDateStr <= todayStr;
+          }) || [];
           
           breakdown = {
             today: { count: todayPatients.length, data: todayPatients },
@@ -707,36 +950,256 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           break;
 
         case 'revenue':
-          const todayRevenue = operationsData?.revenue.filter((r: any) => 
-            r.created_at && new Date(r.created_at) >= today) || [];
-          const weekRevenue = operationsData?.revenue.filter((r: any) => 
-            r.created_at && new Date(r.created_at) >= weekStart) || [];
-          const monthRevenue = operationsData?.revenue.filter((r: any) => 
-            r.created_at && new Date(r.created_at) >= monthStart) || [];
+          // CONSISTENCY FIX: Use same data source as main dashboard for consistency
+          console.log('💰 Revenue Card Click: Using same filtered data as main dashboard for consistency...');
+          
+          // Use the same pre-filtered revenue data that the main dashboard uses
+          const currentFilteredRevenue = operationsData?.revenue || [];
+          
+          // For proper breakdown, we need ALL revenue data to calculate Today/Week/Month
+          let allRevenueData: any[] = [];
+          const allTransactionData = await supabase
+            .from('patient_transactions')
+            .select(`
+              id,
+              amount,
+              payment_mode,
+              transaction_type,
+              description,
+              status,
+              created_at,
+              transaction_date,
+              patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry, assigned_department, assigned_doctor)
+            `)
+            .eq('status', 'COMPLETED')
+            .eq('patient.hospital_id', HOSPITAL_ID);
+          
+          if (allTransactionData.error) {
+            console.error('❌ Error fetching all transaction data:', allTransactionData.error);
+            // Use current filtered data as fallback for all periods
+            allRevenueData = currentFilteredRevenue;
+          } else {
+            // Apply exclusions (DR. HEMANT & ORTHO) - same as main dashboard
+            allRevenueData = (allTransactionData.data || []).filter(transaction => {
+              const patient = transaction.patient;
+              const isExcluded = patient?.assigned_department === 'ORTHO' || patient?.assigned_doctor === 'DR. HEMANT';
+              return !isExcluded;
+            });
+            
+            console.log('💰 Revenue Card Data Analysis:', {
+              currentFilteredCount: currentFilteredRevenue.length,
+              currentFilteredAmount: currentFilteredRevenue.reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
+              allTransactionsCount: allTransactionData.data?.length || 0,
+              afterExclusionsCount: allRevenueData.length,
+              excludedCount: (allTransactionData.data?.length || 0) - allRevenueData.length
+            });
+          }
+          
+          // Use consistent date formatting (formatDateString like main dashboard)
+          const revenueTodayStr = formatDateString(new Date());
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          const revenueWeekStr = formatDateString(weekAgo);
+          const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          const revenueMonthStr = formatDateString(monthStart);
+          
+          console.log('📅 Revenue Card Date Setup:', {
+            todayStr: revenueTodayStr,
+            weekStr: revenueWeekStr,
+            monthStr: revenueMonthStr
+          });
+
+          const todayRevenue = allRevenueData?.filter((r: any) => {
+            // Use same date priority logic as main revenue calculation
+            let effectiveDateStr;
+            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDateStr = r.patient.date_of_entry.includes('T') 
+                ? r.patient.date_of_entry.split('T')[0] 
+                : r.patient.date_of_entry;
+            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDateStr = r.transaction_date.includes('T') 
+                ? r.transaction_date.split('T')[0] 
+                : r.transaction_date;
+            } else {
+              effectiveDateStr = r.created_at.split('T')[0];
+            }
+            return effectiveDateStr === revenueTodayStr;
+          }) || [];
+          
+          const weekRevenue = allRevenueData?.filter((r: any) => {
+            let effectiveDateStr;
+            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDateStr = r.patient.date_of_entry.includes('T') 
+                ? r.patient.date_of_entry.split('T')[0] 
+                : r.patient.date_of_entry;
+            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDateStr = r.transaction_date.includes('T') 
+                ? r.transaction_date.split('T')[0] 
+                : r.transaction_date;
+            } else {
+              effectiveDateStr = r.created_at.split('T')[0];
+            }
+            return effectiveDateStr >= revenueWeekStr && effectiveDateStr <= revenueTodayStr;
+          }) || [];
+          
+          const monthRevenue = allRevenueData?.filter((r: any) => {
+            let effectiveDateStr;
+            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDateStr = r.patient.date_of_entry.includes('T') 
+                ? r.patient.date_of_entry.split('T')[0] 
+                : r.patient.date_of_entry;
+            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDateStr = r.transaction_date.includes('T') 
+                ? r.transaction_date.split('T')[0] 
+                : r.transaction_date;
+            } else {
+              effectiveDateStr = r.created_at.split('T')[0];
+            }
+            return effectiveDateStr >= revenueMonthStr && effectiveDateStr <= revenueTodayStr;
+          }) || [];
+
+          // Debug revenue breakdown results
+          const todayRevenueAmount = todayRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+          const weekRevenueAmount = weekRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+          const monthRevenueAmount = monthRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+          
+          // Calculate service/transaction type breakdown for revenue analysis
+          const getServiceBreakdown = (transactions: any[]) => {
+            const serviceBreakdown: { [key: string]: { count: number; amount: number; transactions: any[] } } = {};
+            
+            transactions.forEach(t => {
+              const serviceType = t.transaction_type || 'Other';
+              if (!serviceBreakdown[serviceType]) {
+                serviceBreakdown[serviceType] = { count: 0, amount: 0, transactions: [] };
+              }
+              serviceBreakdown[serviceType].count++;
+              serviceBreakdown[serviceType].amount += t.amount || 0;
+              serviceBreakdown[serviceType].transactions.push(t);
+            });
+            
+            return serviceBreakdown;
+          };
+
+          const todayServiceBreakdown = getServiceBreakdown(todayRevenue);
+          const weekServiceBreakdown = getServiceBreakdown(weekRevenue);
+          const monthServiceBreakdown = getServiceBreakdown(monthRevenue);
+
+          console.log('🔍 Revenue Card Breakdown Results (WITH SERVICES):', {
+            dateComparisons: {
+              todayTarget: revenueTodayStr,
+              weekTarget: `${revenueWeekStr} to ${revenueTodayStr}`,
+              monthTarget: `${revenueMonthStr} to ${revenueTodayStr}`
+            },
+            counts: {
+              todayTransactions: todayRevenue.length,
+              weekTransactions: weekRevenue.length,  
+              monthTransactions: monthRevenue.length
+            },
+            amounts: {
+              todayAmount: todayRevenueAmount,
+              weekAmount: weekRevenueAmount,
+              monthAmount: monthRevenueAmount
+            },
+            serviceBreakdowns: {
+              today: Object.entries(todayServiceBreakdown).map(([service, data]) => ({
+                service,
+                count: data.count,
+                amount: data.amount,
+                percentage: todayRevenueAmount > 0 ? ((data.amount / todayRevenueAmount) * 100).toFixed(1) + '%' : '0%'
+              })).sort((a, b) => b.amount - a.amount),
+              week: Object.entries(weekServiceBreakdown).map(([service, data]) => ({
+                service,
+                count: data.count,
+                amount: data.amount,
+                percentage: weekRevenueAmount > 0 ? ((data.amount / weekRevenueAmount) * 100).toFixed(1) + '%' : '0%'
+              })).sort((a, b) => b.amount - a.amount),
+              month: Object.entries(monthServiceBreakdown).map(([service, data]) => ({
+                service,
+                count: data.count,
+                amount: data.amount,
+                percentage: monthRevenueAmount > 0 ? ((data.amount / monthRevenueAmount) * 100).toFixed(1) + '%' : '0%'
+              })).sort((a, b) => b.amount - a.amount)
+            },
+            sampleTodayTransactions: todayRevenue.slice(0, 3).map(r => ({
+              id: r.id,
+              amount: r.amount,
+              service: r.transaction_type,
+              patientName: `${r.patient?.first_name} ${r.patient?.last_name}`,
+              effectiveDate: r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '' 
+                ? (r.patient.date_of_entry.includes('T') ? r.patient.date_of_entry.split('T')[0] : r.patient.date_of_entry)
+                : r.transaction_date && r.transaction_date.trim() !== ''
+                ? (r.transaction_date.includes('T') ? r.transaction_date.split('T')[0] : r.transaction_date) 
+                : r.created_at.split('T')[0],
+              dept: r.patient?.assigned_department,
+              doctor: r.patient?.assigned_doctor
+            })),
+            // Check for problematic dates
+            august13Revenue: todayRevenue.filter(r => {
+              const effectiveDate = r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '' 
+                ? (r.patient.date_of_entry.includes('T') ? r.patient.date_of_entry.split('T')[0] : r.patient.date_of_entry)
+                : r.transaction_date && r.transaction_date.trim() !== ''
+                ? (r.transaction_date.includes('T') ? r.transaction_date.split('T')[0] : r.transaction_date) 
+                : r.created_at.split('T')[0];
+              return effectiveDate === '2025-08-13';
+            }).length
+          });
 
           breakdown = {
             today: { 
-              count: todayRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0), 
-              data: todayRevenue 
+              count: todayRevenueAmount, 
+              data: todayRevenue,
+              serviceBreakdown: todayServiceBreakdown,
+              topServices: Object.entries(todayServiceBreakdown)
+                .map(([service, data]) => ({
+                  service,
+                  count: data.count,
+                  amount: data.amount,
+                  percentage: todayRevenueAmount > 0 ? Math.max(0, ((data.amount / todayRevenueAmount) * 100)).toFixed(1) : '0'
+                }))
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 5) // Top 5 services
             },
             thisWeek: { 
-              count: weekRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0), 
-              data: weekRevenue 
+              count: weekRevenueAmount, 
+              data: weekRevenue,
+              serviceBreakdown: weekServiceBreakdown,
+              topServices: Object.entries(weekServiceBreakdown)
+                .map(([service, data]) => ({
+                  service,
+                  count: data.count,
+                  amount: data.amount,
+                  percentage: weekRevenueAmount > 0 ? ((data.amount / weekRevenueAmount) * 100).toFixed(1) : '0'
+                }))
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 5) // Top 5 services
             },
             thisMonth: { 
-              count: monthRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0), 
-              data: monthRevenue 
+              count: monthRevenueAmount, 
+              data: monthRevenue,
+              serviceBreakdown: monthServiceBreakdown,
+              topServices: Object.entries(monthServiceBreakdown)
+                .map(([service, data]) => ({
+                  service,
+                  count: data.count,
+                  amount: data.amount,
+                  percentage: monthRevenueAmount > 0 ? ((data.amount / monthRevenueAmount) * 100).toFixed(1) : '0'
+                }))
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 5) // Top 5 services
             },
           };
           break;
 
         case 'expenses':
+          // Define local date variables for expenses case to avoid scope issues
+          const expenseMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          
           const todayExpenses = operationsData?.expenses.filter((e: any) => 
             e.expense_date && new Date(e.expense_date) >= today) || [];
           const weekExpenses = operationsData?.expenses.filter((e: any) => 
             e.expense_date && new Date(e.expense_date) >= weekStart) || [];
           const monthExpenses = operationsData?.expenses.filter((e: any) => 
-            e.expense_date && new Date(e.expense_date) >= monthStart) || [];
+            e.expense_date && new Date(e.expense_date) >= expenseMonthStart) || [];
 
           breakdown = {
             today: { 
@@ -1292,6 +1755,50 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                     <p className="text-xs text-[#999999]">{cardBreakdown.thisMonth.data.length} records</p>
                   </div>
                 </div>
+
+                {/* Service Revenue Breakdown (only for revenue card) */}
+                {selectedCard === 'revenue' && cardBreakdown.today.topServices && cardBreakdown.today.topServices.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#333333] mb-3">
+                      Revenue by Service (Today)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        {cardBreakdown.today.topServices.map((service, index) => (
+                          <div key={index} className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                            <div>
+                              <p className="font-medium text-[#333333]">{service.service}</p>
+                              <p className="text-xs text-[#666666]">{service.count} transaction{service.count !== 1 ? 's' : ''}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#007bff]">{formatCurrency(service.amount)}</p>
+                              <p className="text-xs text-[#666666]">{service.percentage}%</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Service breakdown chart visual */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-[#666666] mb-3">Service Distribution</h4>
+                        <div className="space-y-2">
+                          {cardBreakdown.today.topServices.slice(0, 5).map((service, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <div className="text-xs text-[#666666] w-20 truncate">{service.service}</div>
+                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${service.percentage}%` }}
+                                ></div>
+                              </div>
+                              <div className="text-xs text-[#666666] w-12 text-right">{service.percentage}%</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Recent Data */}
                 <div>
