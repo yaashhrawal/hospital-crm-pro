@@ -2,6 +2,32 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import { exportToExcel, formatCurrency, formatDateTime } from '../utils/excelExport';
+import ModernDatePicker from './ui/ModernDatePicker';
+
+// Function to convert UTC database time to actual local system time
+const formatLocalTime = (dateTime: Date | string): string => {
+  try {
+    const validDateTime = dateTime instanceof Date ? dateTime : new Date(dateTime);
+    
+    if (isNaN(validDateTime.getTime())) {
+      return 'Invalid Time';
+    }
+    
+    // Manual conversion: UTC time + local timezone offset
+    const utcTime = validDateTime.getTime();
+    const localTimezoneOffset = new Date().getTimezoneOffset() * 60 * 1000; // Convert minutes to milliseconds
+    const localTime = new Date(utcTime - localTimezoneOffset); // Subtract because getTimezoneOffset returns negative for positive timezones
+    
+    return localTime.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Time formatting error:', error);
+    return 'Time Error';
+  }
+};
 
 interface LedgerEntry {
   id: string;
@@ -29,11 +55,7 @@ interface LedgerEntry {
 const OperationsLedger: React.FC = () => {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30); // Start from 30 days ago
-    return date.toISOString().split('T')[0];
-  });
+  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]); // Default to today
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [filterPaymentMode, setFilterPaymentMode] = useState<'all' | 'CASH' | 'ONLINE'>('all');
   const [filterType, setFilterType] = useState<'all' | 'REVENUE' | 'EXPENSE' | 'REFUND'>('all');
@@ -46,10 +68,16 @@ const OperationsLedger: React.FC = () => {
 
   const loadLedgerEntries = async () => {
     setLoading(true);
+    
+    // 🔄 CRITICAL: Clear any cached data
+    console.log('🔄 Reloading operations ledger with fresh data...');
+    console.log('📅 Date range for query:', { dateFrom, dateTo });
+    
     try {
       const allEntries: LedgerEntry[] = [];
       
-      // Load patient transactions (revenue)
+      // CRITICAL FIX: Load patient transactions with flexible date filtering
+      // Many transactions may have NULL transaction_date, so we need a more inclusive query
       const { data: transactions, error: transError } = await supabase
         .from('patient_transactions')
         .select(`
@@ -57,21 +85,31 @@ const OperationsLedger: React.FC = () => {
           amount,
           payment_mode,
           transaction_type,
+          transaction_date,
           description,
           doctor_name,
           status,
           created_at,
           patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
         `)
-        .gte('transaction_date', dateFrom)
-        .lte('transaction_date', dateTo)
         .eq('status', 'COMPLETED')
         .order('created_at', { ascending: false });
 
       if (transError) {
         console.error('Error loading transactions:', transError);
       } else if (transactions) {
+        console.log(`📊 Retrieved ${transactions.length} transactions, now filtering by date range ${dateFrom} to ${dateTo}`);
+        
         transactions.forEach((trans: any) => {
+          // FILTER: Skip only DR HEMANT with ORTHO department (not DR HEMANT KHAJJA with ORTHOPAEDIC)
+          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase() || '';
+          const filterDepartment = trans.patient?.assigned_department?.toUpperCase() || '';
+          
+          // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
+          if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
+            return; // Skip this specific combination
+          }
+          
           let cleanDescription = trans.description || `${trans.transaction_type} Payment`;
           let originalAmount = trans.amount;
           let discountAmount = 0;
@@ -133,35 +171,80 @@ const OperationsLedger: React.FC = () => {
             cleanDescription += ` - Patient Age: ${trans.patient.age} years`;
           }
           
-          // CRITICAL FIX: Use patient's date_of_entry for correct date display (same logic as dashboard)
+          // CRITICAL FIX: Always prioritize transaction_date (this is the service date selected by user)
           let effectiveDate = new Date();
-          let transactionDateTime = new Date(trans.created_at); // Always use transaction time for time display
+          let effectiveDateStr = '';
+          let transactionDateTime = new Date(trans.created_at); // Use created_at for time display
           
-          if (trans.patient?.date_of_entry && trans.patient.date_of_entry.trim() !== '') {
-            // Priority 1: Patient's date_of_entry (for backdated entries)
-            const dateStr = trans.patient.date_of_entry.includes('T') 
+          // Debug logging for date issues
+          console.log('📅 OPERATIONS DATE DEBUG:', {
+            transaction_id: trans.id,
+            transaction_date: trans.transaction_date,
+            transaction_date_type: typeof trans.transaction_date,
+            patient_date_of_entry: trans.patient?.date_of_entry,
+            created_at: trans.created_at,
+            description: trans.description?.substring(0, 50),
+            patient_name: `${trans.patient?.first_name} ${trans.patient?.last_name}`
+          });
+          
+          if (trans.transaction_date && trans.transaction_date.trim() !== '') {
+            // PRIORITY 1: Use transaction_date (this is the service date selected by user in PatientServiceManager)
+            effectiveDateStr = trans.transaction_date.includes('T') 
+              ? trans.transaction_date.split('T')[0] 
+              : trans.transaction_date;
+            // 🔥 CRITICAL FIX: Parse date correctly to avoid month/day swapping
+            const dateParts = effectiveDateStr.split('-'); // ['2025', '08', '14']
+            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])); // Month is 0-based
+            console.log('✅ Using transaction_date:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
+          } else if (trans.patient?.date_of_entry && trans.patient.date_of_entry.trim() !== '') {
+            // PRIORITY 2: Fallback to patient's date_of_entry
+            effectiveDateStr = trans.patient.date_of_entry.includes('T') 
               ? trans.patient.date_of_entry.split('T')[0] 
               : trans.patient.date_of_entry;
-            effectiveDate = new Date(dateStr + 'T00:00:00');
+            // 🔥 CRITICAL FIX: Parse date correctly to avoid month/day swapping
+            const dateParts = effectiveDateStr.split('-'); // ['2025', '08', '14']
+            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])); // Month is 0-based
+            console.log('⚠️ Falling back to patient date_of_entry:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
           } else {
-            // Priority 2: Transaction's created_at date (fallback)
+            // PRIORITY 3: Final fallback to created_at
             effectiveDate = new Date(trans.created_at);
+            effectiveDateStr = trans.created_at.split('T')[0];
+            console.log('⚠️ Falling back to created_at:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
           }
           
-          // CRITICAL FIX: Format date and time in IST 12-hour format
-          const istDate = effectiveDate.toLocaleDateString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            day: '2-digit',
-            month: '2-digit', 
-            year: 'numeric'
+          // CLIENT-SIDE DATE FILTERING: Now check if this transaction falls within the selected date range
+          if (effectiveDateStr < dateFrom || effectiveDateStr > dateTo) {
+            console.log(`❌ Transaction ${trans.id} outside date range: ${effectiveDateStr} not in ${dateFrom}-${dateTo}`);
+            return; // Skip this transaction
+          }
+          
+          console.log(`✅ Transaction ${trans.id} within date range: ${effectiveDateStr} in ${dateFrom}-${dateTo}`);
+          
+          // 🔍 DEBUG DATE FORMATTING ISSUE
+          console.log('🔍 DATE FORMATTING DEBUG:', {
+            transaction_id: trans.id,
+            effectiveDateStr: effectiveDateStr,
+            effectiveDate: effectiveDate.toISOString(),
+            effectiveDateLocal: effectiveDate.toString(),
+            willFormat: 'DD/MM/YYYY using en-IN locale'
           });
           
-          const istTime = transactionDateTime.toLocaleTimeString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
+          // 🔥 CRITICAL FIX: Format date manually to avoid locale issues
+          const day = effectiveDate.getDate().toString().padStart(2, '0');
+          const month = (effectiveDate.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-based
+          const year = effectiveDate.getFullYear();
+          const istDate = `${day}/${month}/${year}`;
+          
+          // 🔍 DEBUG FORMATTED DATE
+          console.log('🔍 FORMATTED DATE RESULT:', {
+            transaction_id: trans.id,
+            originalStr: effectiveDateStr,
+            formattedDate: istDate,
+            expectedFormat: 'DD/MM/YYYY'
           });
+          
+          // Convert UTC database time to local time
+          const localTime = formatLocalTime(transactionDateTime);
           
           // CRITICAL FIX: Identify refunds (negative amount transactions)
           const isRefund = trans.amount < 0;
@@ -171,7 +254,7 @@ const OperationsLedger: React.FC = () => {
           allEntries.push({
             id: trans.id,
             date: istDate,
-            time: istTime,
+            time: localTime,
             type: entryType,
             category: isRefund ? 'REFUND' : trans.transaction_type,
             description: cleanDescription,
@@ -216,17 +299,13 @@ const OperationsLedger: React.FC = () => {
             year: 'numeric'
           });
           
-          const istTime = expenseDateTime.toLocaleTimeString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          });
+          // Convert UTC database time to local time
+          const localTime = formatLocalTime(expenseDateTime);
           
           allEntries.push({
             id: expense.id,
             date: istDate,
-            time: istTime,
+            time: localTime,
             type: 'EXPENSE',
             category: expense.expense_category,
             description: expense.description,
@@ -289,17 +368,13 @@ const OperationsLedger: React.FC = () => {
             year: 'numeric'
           });
           
-          const istTime = refundDateTime.toLocaleTimeString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          });
+          // Convert UTC database time to local time
+          const localTime = formatLocalTime(refundDateTime);
           
           allEntries.push({
             id: refund.id,
             date: istDate,
-            time: istTime,
+            time: localTime,
             type: 'REFUND',
             category: 'REFUND',
             description: refund.reason || 'Patient Refund',
@@ -518,26 +593,91 @@ const OperationsLedger: React.FC = () => {
         <p className="text-gray-600">Complete financial transaction history with revenue and expenses</p>
       </div>
 
+      {/* Quick Date Filters */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 mb-4">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium text-gray-700 mr-2">📅 Quick Filters:</span>
+          <button
+            onClick={() => {
+              const today = new Date().toISOString().split('T')[0];
+              setDateFrom(today);
+              setDateTo(today);
+            }}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => {
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              const dateStr = yesterday.toISOString().split('T')[0];
+              setDateFrom(dateStr);
+              setDateTo(dateStr);
+            }}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          >
+            Yesterday
+          </button>
+          <button
+            onClick={() => {
+              const today = new Date();
+              const lastWeek = new Date();
+              lastWeek.setDate(today.getDate() - 7);
+              setDateFrom(lastWeek.toISOString().split('T')[0]);
+              setDateTo(today.toISOString().split('T')[0]);
+            }}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          >
+            Last 7 Days
+          </button>
+          <button
+            onClick={() => {
+              const today = new Date();
+              const lastMonth = new Date();
+              lastMonth.setDate(today.getDate() - 30);
+              setDateFrom(lastMonth.toISOString().split('T')[0]);
+              setDateTo(today.toISOString().split('T')[0]);
+            }}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          >
+            Last 30 Days
+          </button>
+          <button
+            onClick={() => {
+              const today = new Date();
+              const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+              setDateFrom(firstDay.toISOString().split('T')[0]);
+              setDateTo(today.toISOString().split('T')[0]);
+            }}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          >
+            This Month
+          </button>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-            <input
-              type="date"
+            <ModernDatePicker
+              label="From Date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={setDateFrom}
+              placeholder="Select start date"
+              className="w-full"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-            <input
-              type="date"
+            <ModernDatePicker
+              label="To Date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={setDateTo}
+              placeholder="Select end date"
+              className="w-full"
+              minDate={dateFrom} // Ensure "to" date is not before "from" date
             />
           </div>
 

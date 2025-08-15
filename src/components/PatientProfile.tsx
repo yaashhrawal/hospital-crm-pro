@@ -117,7 +117,7 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patientId, onClose }) =
   };
 
   const scheduleAppointment = () => {
-    toast.info('Appointment scheduling feature coming soon!');
+    toast('Appointment scheduling feature coming soon!', { icon: 'ℹ️' });
   };
 
 

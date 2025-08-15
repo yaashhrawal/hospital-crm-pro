@@ -312,7 +312,11 @@ const OPDBillingModule: React.FC = () => {
       type: 'CONSULTATION',
       receiptNumber: bill.billId,
       date: new Date(bill.billDate).toLocaleDateString('en-IN'),
-      time: new Date(bill.billDate).toLocaleTimeString('en-IN'),
+      time: new Date(bill.billDate).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
       
       hospital: {
         name: 'VALANT HOSPITAL',
@@ -476,7 +480,11 @@ const OPDBillingModule: React.FC = () => {
 
   const generateOPDBillPrint = (bill: OPDBill): string => {
     const currentDate = new Date().toLocaleDateString('en-IN');
-    const currentTime = new Date().toLocaleTimeString('en-IN');
+    const currentTime = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
     
     return `
       <!DOCTYPE html>

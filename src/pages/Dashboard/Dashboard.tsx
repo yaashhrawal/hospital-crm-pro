@@ -179,6 +179,11 @@ export const Dashboard: React.FC = () => {
 
   // Filter appointments for selected date and next 7 days
   const getUpcomingAppointments = () => {
+    // Debug: Log the appointments data structure
+    console.log('Appointments Data from API:', appointmentsData);
+    console.log('Appointments Data type:', typeof appointmentsData);
+    console.log('Has data property?:', appointmentsData?.data);
+    
     // Combine appointments from both sources
     const supabaseAppointments = appointmentsData?.data || [];
     
@@ -188,6 +193,7 @@ export const Dashboard: React.FC = () => {
       const storedAppointments = localStorage.getItem('hospital_appointments');
       if (storedAppointments) {
         const parsed = JSON.parse(storedAppointments);
+        console.log('LocalStorage appointments:', parsed);
         // Transform localStorage appointments to match the expected format
         localAppointments = parsed.map((apt: any) => ({
           id: apt.id,
@@ -209,6 +215,7 @@ export const Dashboard: React.FC = () => {
     
     // Combine both sources
     const allAppointments = [...supabaseAppointments, ...localAppointments];
+    console.log('Combined appointments:', allAppointments);
     
     const startDate = new Date(selectedDate);
     startDate.setHours(0, 0, 0, 0);
@@ -993,37 +1000,6 @@ export const Dashboard: React.FC = () => {
               <div className="mt-4 pt-4 border-t">
                 <p className="text-sm font-medium text-[#333333] mb-3">Revenue Breakdown</p>
                 
-                {/* Debug Info */}
-                <div className="mb-2 p-2 bg-yellow-100 rounded text-xs">
-                  <strong>🐛 SIMPLE DEBUG:</strong><br/>
-                  Dashboard data exists: {dashboardStats ? '✅ YES' : '❌ NO'}<br/>
-                  {dashboardStats && (
-                    <>
-                      Revenue value: ₹{dashboardStats.monthlyRevenue || 0}<br/>
-                      Has details: {dashboardStats.details ? '✅ YES' : '❌ NO'}<br/>
-                      {dashboardStats.details && (
-                        <>
-                          Has revenue details: {dashboardStats.details.revenue ? '✅ YES' : '❌ NO'}<br/>
-                          {dashboardStats.details.revenue && (
-                            <>
-                              Has periodBreakdown: {dashboardStats.details.revenue.periodBreakdown ? '✅ YES' : '❌ NO'}<br/>
-                              {dashboardStats.details.revenue.periodBreakdown && (
-                                <>
-                                  <div className="mt-2 p-2 bg-green-100 rounded">
-                                    <strong>✅ PERIOD BREAKDOWN FOUND!</strong><br/>
-                                    Today: ₹{dashboardStats.details.revenue.periodBreakdown.today?.revenue || 0} ({dashboardStats.details.revenue.periodBreakdown.today?.count || 0} transactions)<br/>
-                                    This Week: ₹{dashboardStats.details.revenue.periodBreakdown.thisWeek?.revenue || 0} ({dashboardStats.details.revenue.periodBreakdown.thisWeek?.count || 0} transactions)<br/>
-                                    This Month: ₹{dashboardStats.details.revenue.periodBreakdown.thisMonth?.revenue || 0} ({dashboardStats.details.revenue.periodBreakdown.thisMonth?.count || 0} transactions)
-                                  </div>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
                 
                 {/* Period Cards inside Revenue Card */}
                 {!dashboardStats?.details?.revenue?.periodBreakdown && (
@@ -1468,6 +1444,55 @@ export const Dashboard: React.FC = () => {
               Showing appointments for {formatSelectedDateRange()}
             </p>
             
+              <button 
+                onClick={() => {
+                  // Create test appointments
+                  const today = new Date();
+                  const tomorrow = new Date(today);
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  
+                  const testAppointments = [
+                    {
+                      id: 'test-' + Date.now(),
+                      patient_id: 'patient-1',
+                      patient_name: 'John Doe',
+                      doctor_name: 'Dr. Smith',
+                      department: 'Cardiology',
+                      appointment_date: today.toISOString().split('T')[0],
+                      appointment_time: '10:00',
+                      appointment_type: 'consultation',
+                      status: 'scheduled',
+                      estimated_duration: 30,
+                      estimated_cost: 500,
+                      notes: 'Regular checkup',
+                      created_at: new Date().toISOString()
+                    },
+                    {
+                      id: 'test-' + (Date.now() + 1),
+                      patient_id: 'patient-2',
+                      patient_name: 'Jane Smith',
+                      doctor_name: 'Dr. Johnson',
+                      department: 'Orthopedics',
+                      appointment_date: tomorrow.toISOString().split('T')[0],
+                      appointment_time: '14:30',
+                      appointment_type: 'follow-up',
+                      status: 'confirmed',
+                      estimated_duration: 45,
+                      estimated_cost: 350,
+                      notes: 'Post-surgery follow-up',
+                      created_at: new Date().toISOString()
+                    }
+                  ];
+                  
+                  localStorage.setItem('hospital_appointments', JSON.stringify(testAppointments));
+                  window.location.reload();
+                }}
+                className="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Create Test Appointments & Reload
+              </button>
+            </div>
+            
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {appointmentsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1477,11 +1502,16 @@ export const Dashboard: React.FC = () => {
                 (() => {
                   const upcomingAppointments = getUpcomingAppointments();
                   
+                  console.log('=== APPOINTMENTS DISPLAY DEBUG ===');
+                  console.log('Upcoming appointments count:', upcomingAppointments.length);
+                  console.log('Upcoming appointments:', upcomingAppointments);
+                  
                   if (upcomingAppointments.length === 0) {
                     return (
                       <div className="text-center py-8 text-[#999999]">
                         <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         <p>No appointments for this date range.</p>
+                        <p className="text-xs mt-2">Check console for debug info</p>
                       </div>
                     );
                   }

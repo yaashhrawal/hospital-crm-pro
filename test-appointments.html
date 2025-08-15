@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Appointments Display</title>
+    <script>
+        // Create test appointments in localStorage
+        function createTestAppointments() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const nextWeek = new Date(today);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            
+            const testAppointments = [
+                {
+                    id: 'test-1',
+                    patient_id: 'patient-1',
+                    patient_name: 'John Doe',
+                    doctor_name: 'Dr. Smith',
+                    department: 'Cardiology',
+                    appointment_date: today.toISOString().split('T')[0],
+                    appointment_time: '10:00',
+                    appointment_type: 'consultation',
+                    status: 'scheduled',
+                    estimated_duration: 30,
+                    estimated_cost: 500,
+                    notes: 'Regular checkup',
+                    created_at: new Date().toISOString()
+                },
+                {
+                    id: 'test-2',
+                    patient_id: 'patient-2',
+                    patient_name: 'Jane Smith',
+                    doctor_name: 'Dr. Johnson',
+                    department: 'Orthopedics',
+                    appointment_date: tomorrow.toISOString().split('T')[0],
+                    appointment_time: '14:30',
+                    appointment_type: 'follow-up',
+                    status: 'confirmed',
+                    estimated_duration: 45,
+                    estimated_cost: 350,
+                    notes: 'Post-surgery follow-up',
+                    created_at: new Date().toISOString()
+                },
+                {
+                    id: 'test-3',
+                    patient_id: 'patient-3',
+                    patient_name: 'Robert Brown',
+                    doctor_name: 'Dr. Williams',
+                    department: 'General Medicine',
+                    appointment_date: nextWeek.toISOString().split('T')[0],
+                    appointment_time: '09:00',
+                    appointment_type: 'procedure',
+                    status: 'scheduled',
+                    estimated_duration: 60,
+                    estimated_cost: 1000,
+                    notes: 'Minor procedure',
+                    created_at: new Date().toISOString()
+                }
+            ];
+            
+            localStorage.setItem('hospital_appointments', JSON.stringify(testAppointments));
+            document.getElementById('status').innerHTML = `
+                <div style="color: green;">
+                    ✅ Test appointments created successfully!<br>
+                    Created ${testAppointments.length} test appointments:<br>
+                    - Today: ${testAppointments.filter(a => a.appointment_date === today.toISOString().split('T')[0]).length}<br>
+                    - Tomorrow: ${testAppointments.filter(a => a.appointment_date === tomorrow.toISOString().split('T')[0]).length}<br>
+                    - Next Week: ${testAppointments.filter(a => a.appointment_date === nextWeek.toISOString().split('T')[0]).length}
+                </div>
+            `;
+            
+            // Display the appointments
+            displayAppointments();
+        }
+        
+        function displayAppointments() {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            const displayDiv = document.getElementById('appointments-display');
+            
+            if (appointments.length === 0) {
+                displayDiv.innerHTML = '<p>No appointments found in localStorage</p>';
+                return;
+            }
+            
+            let html = '<h3>Current Appointments in localStorage:</h3>';
+            html += '<table border="1" cellpadding="5" cellspacing="0" style="width: 100%;">';
+            html += '<tr><th>Patient</th><th>Doctor</th><th>Department</th><th>Date</th><th>Time</th><th>Type</th><th>Status</th></tr>';
+            
+            appointments.forEach(apt => {
+                html += `<tr>
+                    <td>${apt.patient_name}</td>
+                    <td>${apt.doctor_name}</td>
+                    <td>${apt.department}</td>
+                    <td>${apt.appointment_date}</td>
+                    <td>${apt.appointment_time}</td>
+                    <td>${apt.appointment_type}</td>
+                    <td>${apt.status}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            displayDiv.innerHTML = html;
+        }
+        
+        function clearAppointments() {
+            localStorage.removeItem('hospital_appointments');
+            document.getElementById('status').innerHTML = '<div style="color: orange;">⚠️ All appointments cleared from localStorage</div>';
+            displayAppointments();
+        }
+        
+        // Load appointments on page load
+        window.onload = displayAppointments;
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f0f0f0;
+        }
+        table {
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        th {
+            background: #007bff;
+            color: white;
+        }
+        td, th {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Appointments for Hospital CRM Dashboard</h1>
+    
+    <div>
+        <button onclick="createTestAppointments()">Create Test Appointments</button>
+        <button onclick="clearAppointments()">Clear All Appointments</button>
+        <button onclick="displayAppointments()">Refresh Display</button>
+        <button onclick="window.open('http://localhost:3000', '_blank')">Open App Dashboard</button>
+    </div>
+    
+    <div id="status"></div>
+    
+    <div id="appointments-display"></div>
+    
+    <hr>
+    
+    <h3>Instructions:</h3>
+    <ol>
+        <li>Click "Create Test Appointments" to add sample appointments to localStorage</li>
+        <li>Click "Open App Dashboard" to view the main application</li>
+        <li>Navigate to the Dashboard to see if appointments are displayed</li>
+        <li>Use "Clear All Appointments" if you want to reset</li>
+    </ol>
+    
+    <p><strong>Note:</strong> After creating test appointments, refresh the main app dashboard to see them displayed in the "Upcoming Appointments" section.</p>
+</body>
+</html>

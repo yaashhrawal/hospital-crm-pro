@@ -118,7 +118,7 @@ const TransactionTypeTester: React.FC = () => {
         
       if (error) {
         console.log('Cannot query constraint directly, will test manually');
-        toast.info('Testing transaction types manually...');
+        toast('Testing transaction types manually...', { icon: 'ℹ️' });
         return;
       }
       

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test: Final Appointment-Patient Workflow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #0056B3; }
+        h2 { color: #333; border-bottom: 2px solid #0056B3; padding-bottom: 10px; }
+        button {
+            background: #0056B3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #004494; }
+        button.success { background: #28a745; }
+        button.danger { background: #dc3545; }
+        button.warning { background: #ffc107; color: #333; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .info { color: blue; font-weight: bold; }
+        .workflow-box {
+            background: #f8f9fa;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .workflow-box h3 {
+            margin-top: 0;
+            color: #28a745;
+        }
+        .step {
+            background: #e8f4fd;
+            border-left: 4px solid #0056B3;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .step-completed {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th { background: #0056B3; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏥 Final Appointment-Patient Workflow Test</h1>
+    
+    <div class="workflow-box">
+        <h3>📋 Complete Workflow</h3>
+        <div class="step">
+            <strong>Step 1:</strong> Create Patient + Schedule Appointment
+            <br>→ Patient is <span class="error">HIDDEN</span> from patient list
+            <br>→ Appointment appears on <span class="info">DASHBOARD</span>
+        </div>
+        <div class="step">
+            <strong>Step 2:</strong> Confirm Appointment on Dashboard
+            <br>→ Appointment <span class="error">DISAPPEARS</span> from dashboard
+            <br>→ Patient becomes <span class="success">VISIBLE</span> in patient list
+        </div>
+        <div class="step">
+            <strong>Alternative:</strong> Cancel Appointment
+            <br>→ Appointment <span class="error">DISAPPEARS</span> from dashboard
+            <br>→ Patient gets <span class="error">DELETED</span> from database
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>🧪 Test the Complete Workflow</h2>
+        
+        <h3>Step 1: Create Patient with Appointment</h3>
+        <button onclick="createPatientWithAppointment()">➕ Create Test Patient + Appointment</button>
+        
+        <h3>Step 2: Manage Appointment</h3>
+        <button class="success" onclick="confirmLatestAppointment()">✅ Confirm Latest Appointment</button>
+        <button class="danger" onclick="cancelLatestAppointment()">❌ Cancel Latest Appointment</button>
+        
+        <h3>Reset Test</h3>
+        <button class="warning" onclick="clearAllData()">🗑️ Clear All Test Data</button>
+    </div>
+    
+    <div class="container">
+        <h2>📊 Current Status</h2>
+        <button onclick="checkCurrentStatus()">🔍 Refresh Status</button>
+        <div id="status-display"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📅 Dashboard Appointments (Pending Only)</h2>
+        <div id="appointments-display"></div>
+    </div>
+    
+    <div class="container">
+        <h2>👥 Patient List Simulation</h2>
+        <div id="patient-list-display"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🐛 Debug Log</h2>
+        <button onclick="clearDebugLog()">🗑️ Clear Log</button>
+        <pre id="debug-console"></pre>
+    </div>
+
+    <script>
+        let debugLog = [];
+        let lastCreatedAppointment = null;
+        let simulatedPatients = []; // Simulate patient database
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-console').textContent = debugLog.join('\n');
+            console.log(logEntry);
+        }
+        
+        function clearDebugLog() {
+            debugLog = [];
+            document.getElementById('debug-console').textContent = '';
+        }
+        
+        function createPatientWithAppointment() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const patientName = 'Test Patient ' + Math.floor(Math.random() * 1000);
+            const patientUUID = 'uuid-' + Date.now();
+            
+            // Create simulated patient in "database"
+            const simulatedPatient = {
+                id: patientUUID,
+                patient_id: 'PAT' + Date.now(),
+                first_name: patientName.split(' ')[0],
+                last_name: patientName.split(' ').slice(1).join(' '),
+                phone: '9999999999',
+                created_at: new Date().toISOString()
+            };
+            
+            simulatedPatients.push(simulatedPatient);
+            
+            // Create appointment
+            const testAppointment = {
+                id: Date.now().toString(),
+                patient_id: simulatedPatient.patient_id,
+                patient_uuid: patientUUID,
+                patient_name: patientName,
+                doctor_name: 'Dr. Test Doctor',
+                department: 'Cardiology',
+                appointment_date: tomorrow.toISOString().split('T')[0],
+                appointment_time: '10:30',
+                scheduled_at: `${tomorrow.toISOString().split('T')[0]}T10:30:00`,
+                appointment_type: 'consultation',
+                status: 'scheduled',
+                estimated_duration: 30,
+                estimated_cost: 500,
+                notes: 'Test appointment',
+                created_at: new Date().toISOString(),
+                requires_confirmation: true
+            };
+            
+            // Save to localStorage
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            appointments.push(testAppointment);
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            
+            lastCreatedAppointment = testAppointment;
+            
+            log(`✅ Created patient: ${patientName}`, 'success');
+            log(`📅 Created appointment for ${testAppointment.appointment_date} ${testAppointment.appointment_time}`, 'info');
+            log(`👻 Patient should be HIDDEN from patient list`, 'warning');
+            log(`📋 Appointment should appear on DASHBOARD`, 'info');
+            
+            // Dispatch event
+            window.dispatchEvent(new Event('appointmentUpdated'));
+            
+            updateDisplays();
+        }
+        
+        function confirmLatestAppointment() {
+            if (!lastCreatedAppointment) {
+                log('❌ No appointment to confirm. Create one first.', 'error');
+                return;
+            }
+            
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const appointmentIndex = appointments.findIndex(apt => apt.id === lastCreatedAppointment.id);
+                
+                if (appointmentIndex !== -1) {
+                    const appointment = appointments[appointmentIndex];
+                    
+                    // Remove appointment from localStorage (confirmed appointments don't stay on dashboard)
+                    appointments.splice(appointmentIndex, 1);
+                    localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+                    
+                    log(`✅ Appointment CONFIRMED for ${appointment.patient_name}`, 'success');
+                    log(`🗑️ Appointment REMOVED from dashboard`, 'warning');
+                    log(`👁️ Patient should now be VISIBLE in patient list`, 'success');
+                    
+                    lastCreatedAppointment = null;
+                    
+                    // Dispatch event
+                    window.dispatchEvent(new Event('appointmentUpdated'));
+                    
+                    updateDisplays();
+                } else {
+                    log('❌ Appointment not found in localStorage', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error confirming appointment: ${error.message}`, 'error');
+            }
+        }
+        
+        function cancelLatestAppointment() {
+            if (!lastCreatedAppointment) {
+                log('❌ No appointment to cancel. Create one first.', 'error');
+                return;
+            }
+            
+            if (!confirm(`Cancel appointment for ${lastCreatedAppointment.patient_name}?\\n\\nThis will DELETE the patient from the database.`)) {
+                return;
+            }
+            
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const appointmentIndex = appointments.findIndex(apt => apt.id === lastCreatedAppointment.id);
+                
+                if (appointmentIndex !== -1) {
+                    const cancelledAppointment = appointments[appointmentIndex];
+                    
+                    // Remove appointment
+                    appointments.splice(appointmentIndex, 1);
+                    localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+                    
+                    // Remove patient from simulated database
+                    simulatedPatients = simulatedPatients.filter(p => p.id !== cancelledAppointment.patient_uuid);
+                    
+                    log(`🗑️ Appointment CANCELLED for ${cancelledAppointment.patient_name}`, 'warning');
+                    log(`💀 Patient DELETED from database`, 'error');
+                    log(`📋 Appointment REMOVED from dashboard`, 'warning');
+                    
+                    lastCreatedAppointment = null;
+                    
+                    // Dispatch event
+                    window.dispatchEvent(new Event('appointmentUpdated'));
+                    
+                    updateDisplays();
+                } else {
+                    log('❌ Appointment not found in localStorage', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error cancelling appointment: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearAllData() {
+            localStorage.removeItem('hospital_appointments');
+            simulatedPatients = [];
+            lastCreatedAppointment = null;
+            
+            log('🗑️ Cleared all test data', 'warning');
+            log('🔄 Reset complete - ready for new test', 'info');
+            
+            updateDisplays();
+        }
+        
+        function checkCurrentStatus() {
+            updateDisplays();
+        }
+        
+        function updateDisplays() {
+            updateStatusDisplay();
+            updateAppointmentsDisplay();
+            updatePatientListDisplay();
+        }
+        
+        function updateStatusDisplay() {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            const statusDiv = document.getElementById('status-display');
+            
+            let html = '<h3>📊 Current Status Summary:</h3>';
+            html += `<p><strong>Total Patients in Database:</strong> ${simulatedPatients.length}</p>`;
+            html += `<p><strong>Pending Appointments on Dashboard:</strong> ${appointments.length}</p>`;
+            
+            const patientsWithPendingAppts = simulatedPatients.filter(patient => {
+                return appointments.some(apt => apt.patient_uuid === patient.id);
+            });
+            
+            const visiblePatients = simulatedPatients.length - patientsWithPendingAppts.length;
+            
+            html += `<p><strong>Patients Hidden from Patient List:</strong> ${patientsWithPendingAppts.length}</p>`;
+            html += `<p><strong>Patients Visible in Patient List:</strong> ${visiblePatients}</p>`;
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        function updateAppointmentsDisplay() {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            const appointmentsDiv = document.getElementById('appointments-display');
+            
+            if (appointments.length === 0) {
+                appointmentsDiv.innerHTML = '<p class="info">No pending appointments on dashboard</p>';
+                return;
+            }
+            
+            let html = '<h3>Appointments Currently on Dashboard:</h3>';
+            html += '<table>';
+            html += '<tr><th>Patient Name</th><th>Date/Time</th><th>Status</th><th>Action</th></tr>';
+            
+            appointments.forEach(apt => {
+                html += `<tr>
+                    <td>${apt.patient_name}</td>
+                    <td>${apt.appointment_date} ${apt.appointment_time}</td>
+                    <td>${apt.status}</td>
+                    <td><span class="warning">Pending Confirmation</span></td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            appointmentsDiv.innerHTML = html;
+        }
+        
+        function updatePatientListDisplay() {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            const patientListDiv = document.getElementById('patient-list-display');
+            
+            if (simulatedPatients.length === 0) {
+                patientListDiv.innerHTML = '<p class="info">No patients in database</p>';
+                return;
+            }
+            
+            let html = '<h3>Simulated Patient List (What would be visible):</h3>';
+            html += '<table>';
+            html += '<tr><th>Patient Name</th><th>Phone</th><th>Visibility Status</th><th>Reason</th></tr>';
+            
+            simulatedPatients.forEach(patient => {
+                const hasPendingAppointment = appointments.some(apt => 
+                    apt.patient_uuid === patient.id && apt.status === 'scheduled'
+                );
+                
+                const visibility = hasPendingAppointment ? 'HIDDEN' : 'VISIBLE';
+                const reason = hasPendingAppointment ? 'Has pending appointment' : 'No pending appointments';
+                const statusClass = hasPendingAppointment ? 'error' : 'success';
+                
+                html += `<tr>
+                    <td>${patient.first_name} ${patient.last_name}</td>
+                    <td>${patient.phone}</td>
+                    <td class="${statusClass}">${visibility}</td>
+                    <td>${reason}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            patientListDiv.innerHTML = html;
+        }
+        
+        // Initialize
+        window.onload = () => {
+            log('🧪 Final appointment-patient workflow test loaded', 'info');
+            log('📋 Workflow: Create → Hidden → Confirm → Visible & Dashboard Clear', 'info');
+            updateDisplays();
+        };
+    </script>
+</body>
+</html>

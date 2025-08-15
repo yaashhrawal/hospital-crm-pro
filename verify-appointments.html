@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Appointments Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #0056B3; }
+        h2 { color: #333; border-bottom: 2px solid #0056B3; padding-bottom: 10px; }
+        button {
+            background: #0056B3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #004494; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th { background: #0056B3; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-scheduled { background: #e3f2fd; color: #1976d2; }
+        .status-confirmed { background: #e8f5e9; color: #388e3c; }
+        .status-cancelled { background: #ffebee; color: #c62828; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏥 Hospital CRM - Appointments Integration Verifier</h1>
+    
+    <div class="container">
+        <h2>📋 Current Appointments in localStorage</h2>
+        <button onclick="loadAppointments()">🔄 Refresh List</button>
+        <button onclick="clearAllAppointments()">🗑️ Clear All</button>
+        <button onclick="createTestAppointmentFromPatientEntry()">➕ Simulate Patient Entry Appointment</button>
+        <div id="appointments-list"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🔍 Appointment Structure Validator</h2>
+        <div id="structure-check"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📊 Dashboard Compatibility Check</h2>
+        <div id="compatibility-check"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🐛 Debug Console</h2>
+        <pre id="debug-console"></pre>
+    </div>
+
+    <script>
+        let debugLog = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-console').textContent = debugLog.join('\n');
+            console.log(logEntry);
+        }
+        
+        function loadAppointments() {
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                log(`Loaded ${appointments.length} appointments from localStorage`);
+                
+                const listDiv = document.getElementById('appointments-list');
+                
+                if (appointments.length === 0) {
+                    listDiv.innerHTML = '<p class="warning">No appointments found in localStorage</p>';
+                    checkStructure([]);
+                    return;
+                }
+                
+                let html = '<table>';
+                html += '<tr><th>ID</th><th>Patient</th><th>Doctor</th><th>Department</th><th>Date/Time</th><th>scheduled_at</th><th>Status</th><th>Actions</th></tr>';
+                
+                appointments.forEach((apt, index) => {
+                    const scheduledAt = apt.scheduled_at || 'MISSING';
+                    const dateTime = apt.appointment_date && apt.appointment_time 
+                        ? `${apt.appointment_date} ${apt.appointment_time}` 
+                        : 'N/A';
+                    
+                    html += `<tr>
+                        <td>${apt.id}</td>
+                        <td>${apt.patient_name || 'Unknown'}</td>
+                        <td>${apt.doctor_name || 'N/A'}</td>
+                        <td>${apt.department || 'General'}</td>
+                        <td>${dateTime}</td>
+                        <td class="${scheduledAt === 'MISSING' ? 'error' : 'success'}">${scheduledAt}</td>
+                        <td><span class="status-badge status-${apt.status || 'scheduled'}">${apt.status || 'scheduled'}</span></td>
+                        <td>
+                            <button onclick="deleteAppointment(${index})">Delete</button>
+                            <button onclick="fixAppointment(${index})">Fix</button>
+                        </td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                listDiv.innerHTML = html;
+                
+                checkStructure(appointments);
+            } catch (error) {
+                log('Error loading appointments: ' + error.message, 'error');
+                document.getElementById('appointments-list').innerHTML = '<p class="error">Error loading appointments</p>';
+            }
+        }
+        
+        function checkStructure(appointments) {
+            const checkDiv = document.getElementById('structure-check');
+            let html = '<h3>Structure Analysis:</h3>';
+            
+            if (appointments.length === 0) {
+                html += '<p class="warning">No appointments to analyze</p>';
+                checkDiv.innerHTML = html;
+                return;
+            }
+            
+            const requiredFields = ['id', 'patient_name', 'scheduled_at'];
+            const optionalFields = ['doctor_name', 'department', 'status', 'appointment_date', 'appointment_time'];
+            
+            appointments.forEach((apt, index) => {
+                html += `<div style="margin: 10px 0; padding: 10px; background: #f9f9f9; border-radius: 5px;">`;
+                html += `<strong>Appointment ${index + 1} (ID: ${apt.id}):</strong><br>`;
+                
+                // Check required fields
+                requiredFields.forEach(field => {
+                    if (apt[field]) {
+                        html += `<span class="success">✓ ${field}: ${apt[field]}</span><br>`;
+                    } else {
+                        html += `<span class="error">✗ ${field}: MISSING</span><br>`;
+                    }
+                });
+                
+                // Check optional fields
+                optionalFields.forEach(field => {
+                    if (apt[field]) {
+                        html += `<span style="color: #666;">• ${field}: ${apt[field]}</span><br>`;
+                    }
+                });
+                
+                html += '</div>';
+            });
+            
+            checkDiv.innerHTML = html;
+            checkDashboardCompatibility(appointments);
+        }
+        
+        function checkDashboardCompatibility(appointments) {
+            const checkDiv = document.getElementById('compatibility-check');
+            let html = '<h3>Dashboard Compatibility:</h3>';
+            
+            const today = new Date();
+            const nextWeek = new Date();
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            
+            const upcomingAppointments = appointments.filter(apt => {
+                if (!apt.scheduled_at) return false;
+                
+                try {
+                    const aptDate = new Date(apt.scheduled_at);
+                    return aptDate >= today && aptDate <= nextWeek;
+                } catch {
+                    return false;
+                }
+            });
+            
+            html += `<p>Total appointments: ${appointments.length}</p>`;
+            html += `<p>Appointments with valid scheduled_at: ${appointments.filter(a => a.scheduled_at).length}</p>`;
+            html += `<p>Upcoming appointments (next 7 days): ${upcomingAppointments.length}</p>`;
+            
+            if (upcomingAppointments.length > 0) {
+                html += '<p class="success">✓ Dashboard should display these appointments</p>';
+            } else {
+                html += '<p class="warning">⚠ No upcoming appointments found for dashboard display</p>';
+            }
+            
+            checkDiv.innerHTML = html;
+        }
+        
+        function deleteAppointment(index) {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            appointments.splice(index, 1);
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            log(`Deleted appointment at index ${index}`);
+            loadAppointments();
+        }
+        
+        function fixAppointment(index) {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            const apt = appointments[index];
+            
+            // Fix missing scheduled_at field
+            if (!apt.scheduled_at && apt.appointment_date && apt.appointment_time) {
+                apt.scheduled_at = `${apt.appointment_date}T${apt.appointment_time}:00`;
+                log(`Fixed scheduled_at for appointment ${apt.id}`, 'success');
+            }
+            
+            // Ensure status is set
+            if (!apt.status) {
+                apt.status = 'scheduled';
+                log(`Added missing status for appointment ${apt.id}`, 'success');
+            }
+            
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            loadAppointments();
+        }
+        
+        function clearAllAppointments() {
+            if (confirm('Are you sure you want to clear all appointments?')) {
+                localStorage.removeItem('hospital_appointments');
+                log('Cleared all appointments', 'warning');
+                loadAppointments();
+            }
+        }
+        
+        function createTestAppointmentFromPatientEntry() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const testAppointment = {
+                id: Date.now().toString(),
+                patient_id: 'PAT' + Date.now(),
+                patient_name: 'Test Patient ' + Math.floor(Math.random() * 100),
+                doctor_name: 'Dr. Test Doctor',
+                department: 'Cardiology',
+                appointment_date: tomorrow.toISOString().split('T')[0],
+                appointment_time: '10:30',
+                // This is the critical field that was missing before!
+                scheduled_at: `${tomorrow.toISOString().split('T')[0]}T10:30:00`,
+                appointment_type: 'consultation',
+                status: 'scheduled',
+                estimated_duration: 30,
+                estimated_cost: 500,
+                notes: 'Created from patient entry simulation',
+                created_at: new Date().toISOString()
+            };
+            
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            appointments.push(testAppointment);
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            
+            // Dispatch event like the patient entry does
+            window.dispatchEvent(new Event('appointmentUpdated'));
+            
+            log(`Created test appointment with ID: ${testAppointment.id}`, 'success');
+            log(`scheduled_at: ${testAppointment.scheduled_at}`, 'info');
+            
+            loadAppointments();
+        }
+        
+        // Load appointments on page load
+        window.onload = () => {
+            log('Page loaded, checking appointments...', 'info');
+            loadAppointments();
+        };
+    </script>
+</body>
+</html>

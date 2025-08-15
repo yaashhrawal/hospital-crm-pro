@@ -82,16 +82,37 @@ const DailyOperationsView: React.FC = () => {
         const patientAdmission = admissions.find(a => a.patient_id === patientId);
         const totalPaid = patientTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-        // Create timeline
+        // Create timeline with consistent IST 12-hour time formatting
         const timeline = patientTransactions
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map(transaction => ({
-            time: format(new Date(transaction.created_at), 'HH:mm'),
-            type: transaction.transaction_type as 'entry' | 'consultation' | 'service' | 'admission',
-            description: transaction.description,
-            amount: transaction.amount,
-            payment_mode: transaction.payment_mode,
-          }));
+          .map(transaction => {
+            // Convert UTC database time to actual local time
+            let formattedTime;
+            try {
+              const transactionDateTime = new Date(transaction.created_at);
+              // Manual timezone conversion
+              const utcTime = transactionDateTime.getTime();
+              const localTimezoneOffset = new Date().getTimezoneOffset() * 60 * 1000;
+              const localTime = new Date(utcTime - localTimezoneOffset);
+              
+              formattedTime = localTime.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+            } catch (timeError) {
+              // Fallback to date-fns format if formatting fails
+              formattedTime = format(new Date(transaction.created_at), 'hh:mm a');
+            }
+            
+            return {
+              time: formattedTime,
+              type: transaction.transaction_type as 'entry' | 'consultation' | 'service' | 'admission',
+              description: transaction.description,
+              amount: transaction.amount,
+              payment_mode: transaction.payment_mode,
+            };
+          });
 
         // Determine status
         let status: 'active' | 'discharged' | 'outpatient' = 'outpatient';

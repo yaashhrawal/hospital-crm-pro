@@ -53,7 +53,11 @@ const BillingReceipt: React.FC<BillingReceiptProps> = ({ bill, onClose }) => {
     type: 'PAYMENT',
     receiptNumber: `BILL-${bill.patientId.slice(-6).toUpperCase()}-${Date.now()}`,
     date: new Date().toLocaleDateString('en-IN'),
-    time: new Date().toLocaleTimeString('en-IN'),
+    time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
     
     hospital: {
       name: 'VALANT HOSPITAL',

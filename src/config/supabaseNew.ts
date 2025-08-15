@@ -293,6 +293,7 @@ export interface CreateTransactionData {
   department?: string;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   transaction_reference?: string;
+  transaction_date?: string; // FIX: Add transaction_date field for proper date filtering
 }
 
 // CREATE APPOINTMENT DATA TYPE

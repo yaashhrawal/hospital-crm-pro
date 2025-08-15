@@ -67,7 +67,7 @@ const QuickConstraintFinder: React.FC = () => {
         if (data && data.length > 0) {
           toast.success(`Found existing transaction type: ${data[0].transaction_type}`);
         } else {
-          toast.info('Table is empty, need to test transaction types');
+          toast('Table is empty, need to test transaction types', { icon: 'ℹ️' });
         }
       }
     } catch (error: any) {

@@ -405,7 +405,11 @@ const IPDBillingModule: React.FC = () => {
       type: 'DISCHARGE',
       receiptNumber: bill.billId,
       date: new Date().toLocaleDateString('en-IN'),
-      time: new Date().toLocaleTimeString('en-IN'),
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
       
       hospital: {
         name: 'VALANT HOSPITAL',
@@ -555,7 +559,11 @@ const IPDBillingModule: React.FC = () => {
 
   const generateIPDBillPrint = (bill: IPDBill): string => {
     const currentDate = new Date().toLocaleDateString('en-IN');
-    const currentTime = new Date().toLocaleTimeString('en-IN');
+    const currentTime = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
     const stayDuration = calculateDays(bill.admissionDate, bill.dischargeDate);
     
     return `

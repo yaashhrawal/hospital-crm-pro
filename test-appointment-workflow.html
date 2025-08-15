@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Appointment-Patient Workflow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #0056B3; }
+        h2 { color: #333; border-bottom: 2px solid #0056B3; padding-bottom: 10px; }
+        button {
+            background: #0056B3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #004494; }
+        button.success { background: #28a745; }
+        button.danger { background: #dc3545; }
+        button.warning { background: #ffc107; color: #333; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .info { color: blue; font-weight: bold; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th { background: #0056B3; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .workflow-step {
+            background: #f8f9fa;
+            border-left: 4px solid #0056B3;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .step-completed {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+        .step-pending {
+            border-left-color: #ffc107;
+            background: #fffcf0;
+        }
+        .step-error {
+            border-left-color: #dc3545;
+            background: #fff8f8;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏥 Hospital CRM - Appointment-Patient Workflow Tester</h1>
+    
+    <div class="container">
+        <h2>🧪 Test Workflow</h2>
+        <p>This tool simulates the complete workflow where patients are only shown in the patient list after their appointment is confirmed.</p>
+        
+        <div class="workflow-step">
+            <h3>Step 1: Create Patient with Appointment (Pending State)</h3>
+            <p>Creates a patient that will be hidden until appointment is confirmed</p>
+            <button onclick="createPatientWithAppointment()">➕ Create Test Patient with Appointment</button>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>Step 2: View Current Status</h3>
+            <button onclick="checkCurrentStatus()">🔍 Check Appointments & Patient Status</button>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>Step 3: Confirm or Cancel Appointment</h3>
+            <p>Confirm → Patient becomes visible | Cancel → Patient gets deleted</p>
+            <button class="success" onclick="confirmLatestAppointment()">✅ Confirm Latest Appointment</button>
+            <button class="danger" onclick="cancelLatestAppointment()">❌ Cancel Latest Appointment</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 Current Appointments</h2>
+        <button onclick="loadAppointments()">🔄 Refresh</button>
+        <div id="appointments-status"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🐛 Debug Console</h2>
+        <button onclick="clearDebugLog()">🗑️ Clear Log</button>
+        <pre id="debug-console"></pre>
+    </div>
+
+    <script>
+        let debugLog = [];
+        let lastCreatedAppointment = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-console').textContent = debugLog.join('\n');
+            console.log(logEntry);
+        }
+        
+        function clearDebugLog() {
+            debugLog = [];
+            document.getElementById('debug-console').textContent = '';
+        }
+        
+        function createPatientWithAppointment() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            // Simulate the appointment structure that NewFlexiblePatientEntry creates
+            const testAppointment = {
+                id: Date.now().toString(),
+                patient_id: 'PAT' + Date.now(),
+                patient_uuid: 'uuid-' + Date.now(), // Simulate database UUID
+                patient_name: 'Test Patient ' + Math.floor(Math.random() * 1000),
+                doctor_name: 'Dr. Test Doctor',
+                department: 'Cardiology',
+                appointment_date: tomorrow.toISOString().split('T')[0],
+                appointment_time: '10:30',
+                scheduled_at: `${tomorrow.toISOString().split('T')[0]}T10:30:00`,
+                appointment_type: 'consultation',
+                status: 'scheduled',
+                estimated_duration: 30,
+                estimated_cost: 500,
+                notes: 'Created from workflow test',
+                created_at: new Date().toISOString(),
+                requires_confirmation: true // This is the key flag
+            };
+            
+            // Save to localStorage
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            appointments.push(testAppointment);
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            
+            // Store reference to latest appointment
+            lastCreatedAppointment = testAppointment;
+            
+            // Dispatch event
+            window.dispatchEvent(new Event('appointmentUpdated'));
+            
+            log(`✅ Created test appointment for ${testAppointment.patient_name}`, 'success');
+            log(`📋 Appointment ID: ${testAppointment.id}`, 'info');
+            log(`👤 Patient UUID: ${testAppointment.patient_uuid}`, 'info');
+            log(`🔒 Requires confirmation: ${testAppointment.requires_confirmation}`, 'warning');
+            log(`📝 In real workflow, patient would have PENDING_APPOINTMENT_CONFIRMATION in notes`, 'info');
+            
+            loadAppointments();
+        }
+        
+        function confirmLatestAppointment() {
+            if (!lastCreatedAppointment) {
+                log('❌ No appointment to confirm. Create one first.', 'error');
+                return;
+            }
+            
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const appointmentIndex = appointments.findIndex(apt => apt.id === lastCreatedAppointment.id);
+                
+                if (appointmentIndex !== -1) {
+                    appointments[appointmentIndex].status = 'confirmed';
+                    appointments[appointmentIndex].confirmed_at = new Date().toISOString();
+                    appointments[appointmentIndex].requires_confirmation = false;
+                    localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+                    
+                    log(`✅ Appointment confirmed for ${lastCreatedAppointment.patient_name}`, 'success');
+                    log(`📝 In real workflow, patient PENDING_APPOINTMENT_CONFIRMATION flag would be removed`, 'info');
+                    log(`👤 Patient would now be visible in patient list`, 'success');
+                    
+                    loadAppointments();
+                    
+                    // Dispatch event
+                    window.dispatchEvent(new Event('appointmentUpdated'));
+                } else {
+                    log('❌ Appointment not found in localStorage', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error confirming appointment: ${error.message}`, 'error');
+            }
+        }
+        
+        function cancelLatestAppointment() {
+            if (!lastCreatedAppointment) {
+                log('❌ No appointment to cancel. Create one first.', 'error');
+                return;
+            }
+            
+            if (!confirm(`Cancel appointment for ${lastCreatedAppointment.patient_name}?\\n\\nIn the real workflow, this will DELETE the patient from the database.`)) {
+                return;
+            }
+            
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const appointmentIndex = appointments.findIndex(apt => apt.id === lastCreatedAppointment.id);
+                
+                if (appointmentIndex !== -1) {
+                    const cancelledAppointment = appointments[appointmentIndex];
+                    appointments.splice(appointmentIndex, 1);
+                    localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+                    
+                    log(`🗑️ Appointment cancelled for ${cancelledAppointment.patient_name}`, 'warning');
+                    log(`💀 In real workflow, patient would be DELETED from database`, 'error');
+                    log(`📝 Patient UUID ${cancelledAppointment.patient_uuid} would be removed`, 'error');
+                    
+                    lastCreatedAppointment = null;
+                    loadAppointments();
+                    
+                    // Dispatch event
+                    window.dispatchEvent(new Event('appointmentUpdated'));
+                } else {
+                    log('❌ Appointment not found in localStorage', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error cancelling appointment: ${error.message}`, 'error');
+            }
+        }
+        
+        function checkCurrentStatus() {
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            
+            log(`📊 Current Status Summary:`, 'info');
+            log(`📅 Total appointments: ${appointments.length}`, 'info');
+            
+            const pendingAppointments = appointments.filter(apt => apt.requires_confirmation);
+            const confirmedAppointments = appointments.filter(apt => apt.status === 'confirmed');
+            const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' && !apt.requires_confirmation);
+            
+            log(`⏳ Pending confirmation: ${pendingAppointments.length}`, 'warning');
+            log(`✅ Confirmed: ${confirmedAppointments.length}`, 'success');
+            log(`📋 Scheduled (no confirmation needed): ${scheduledAppointments.length}`, 'info');
+            
+            if (pendingAppointments.length > 0) {
+                log(`📝 Patients hidden from patient list:`, 'warning');
+                pendingAppointments.forEach(apt => {
+                    log(`   - ${apt.patient_name} (UUID: ${apt.patient_uuid})`, 'warning');
+                });
+            }
+            
+            if (confirmedAppointments.length > 0) {
+                log(`👥 Patients visible in patient list:`, 'success');
+                confirmedAppointments.forEach(apt => {
+                    log(`   - ${apt.patient_name} (UUID: ${apt.patient_uuid})`, 'success');
+                });
+            }
+        }
+        
+        function loadAppointments() {
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const statusDiv = document.getElementById('appointments-status');
+                
+                if (appointments.length === 0) {
+                    statusDiv.innerHTML = '<p class="warning">No appointments found</p>';
+                    return;
+                }
+                
+                let html = '<table>';
+                html += '<tr><th>Patient</th><th>Date/Time</th><th>Status</th><th>Requires Confirmation</th><th>Patient State</th></tr>';
+                
+                appointments.forEach(apt => {
+                    const requiresConfirmation = apt.requires_confirmation ? 'YES' : 'NO';
+                    const patientState = apt.requires_confirmation ? 'HIDDEN' : 'VISIBLE';
+                    const statusClass = apt.status === 'confirmed' ? 'success' : apt.requires_confirmation ? 'warning' : 'info';
+                    const patientStateClass = apt.requires_confirmation ? 'error' : 'success';
+                    
+                    html += `<tr>
+                        <td>${apt.patient_name}</td>
+                        <td>${apt.appointment_date} ${apt.appointment_time}</td>
+                        <td class="${statusClass}">${apt.status}</td>
+                        <td class="${apt.requires_confirmation ? 'warning' : 'success'}">${requiresConfirmation}</td>
+                        <td class="${patientStateClass}">${patientState}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                statusDiv.innerHTML = html;
+                
+            } catch (error) {
+                log('Error loading appointments: ' + error.message, 'error');
+            }
+        }
+        
+        // Load appointments on page load
+        window.onload = () => {
+            log('🧪 Appointment-Patient Workflow Tester loaded', 'info');
+            log('📝 This tool simulates the workflow where:', 'info');
+            log('   1. Patients with appointments start in PENDING state (hidden)', 'info');
+            log('   2. Confirming appointment makes patient VISIBLE', 'info');
+            log('   3. Cancelling appointment DELETES patient', 'info');
+            loadAppointments();
+        };
+    </script>
+</body>
+</html>

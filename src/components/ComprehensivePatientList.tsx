@@ -14,6 +14,9 @@ import PatientServiceManager from './PatientServiceManager';
 import VisitAgainModal from './VisitAgainModal';
 import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
+import { createRoot } from 'react-dom/client';
+import ReceiptTemplate from './receipts/ReceiptTemplate';
+import type { ReceiptData } from './receipts/ReceiptTemplate';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -25,12 +28,160 @@ interface PatientHistoryModalProps {
 const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose, onPatientUpdated }) => {
   const { printServiceReceipt } = useReceiptPrinting();
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   
   if (!isOpen) return null;
 
   const totalSpent = patient.totalSpent || 0;
   const visitCount = patient.visitCount || 0;
   const transactions = patient.transactions || [];
+
+  // Handle individual transaction selection
+  const handleTransactionSelect = (transactionId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTransactions);
+    if (checked) {
+      newSelected.add(transactionId);
+    } else {
+      newSelected.delete(transactionId);
+    }
+    setSelectedTransactions(newSelected);
+    
+    // Update select all state
+    setSelectAll(newSelected.size === transactions.length);
+  };
+
+  // Handle select all transactions
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allTransactionIds = transactions.map(t => t.id);
+      setSelectedTransactions(new Set(allTransactionIds));
+    } else {
+      setSelectedTransactions(new Set());
+    }
+    setSelectAll(checked);
+  };
+
+  // Print receipts for selected transactions using the same format as existing receipts
+  const printSelectedReceipts = () => {
+    const selectedTransactionsData = transactions.filter(t => selectedTransactions.has(t.id));
+    
+    if (selectedTransactionsData.length === 0) {
+      toast.error('Please select at least one transaction to print');
+      return;
+    }
+
+    // Create a combined receipt for all selected transactions
+    const generateReceiptNumber = (type: string): string => {
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const typeCode = type.substring(0, 3).toUpperCase();
+      return `${typeCode}${timestamp}${random}`;
+    };
+
+    // Default hospital information (same as useReceiptPrinting)
+    const DEFAULT_HOSPITAL_INFO = {
+      name: 'Healthcare Management System',
+      address: 'Medical Center, Healthcare District, City - 400001', 
+      phone: '+91 98765 43210',
+      email: 'info@healthcarecms.com',
+      registration: 'MH/HC/2024/001',
+      gst: '27ABCDE1234F1Z5'
+    };
+
+    // Prepare receipt data with all selected transactions
+    const receiptData = {
+      type: 'SERVICE' as const,
+      receiptNumber: generateReceiptNumber('MULTI'),
+      date: new Date().toLocaleDateString('en-IN'),
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit', 
+        hour12: true
+      }),
+      hospital: DEFAULT_HOSPITAL_INFO,
+      patient: {
+        id: patient.patient_id || 'N/A',
+        name: `${patient.first_name} ${patient.last_name}`,
+        age: patient.age,
+        gender: patient.gender,
+        phone: patient.phone,
+        address: patient.address,
+        bloodGroup: patient.blood_group
+      },
+      charges: selectedTransactionsData.map(transaction => ({
+        description: `${transaction.description || transaction.transaction_type} (${new Date(transaction.created_at).toLocaleDateString('en-IN')})`,
+        amount: transaction.amount,
+        quantity: 1
+      })),
+      payments: selectedTransactionsData.map(transaction => ({
+        mode: transaction.payment_mode || 'CASH',
+        amount: transaction.amount,
+        reference: transaction.id
+      })),
+      totals: {
+        subtotal: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
+        discount: 0,
+        insurance: 0,
+        netAmount: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
+        amountPaid: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
+        balance: 0
+      },
+      staff: {
+        processedBy: 'System User'
+      },
+      notes: `Combined receipt for ${selectedTransactionsData.length} selected transactions. Please keep this receipt for future reference.`,
+      isOriginal: true
+    };
+
+    // Create and show the combined receipt using the same modal system
+    const printCombinedReceipt = (data: ReceiptData) => {
+      // Create modal container
+      const modalContainer = document.createElement('div');
+      modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+      document.body.appendChild(modalContainer);
+      
+      const root = createRoot(modalContainer);
+      
+      const handlePrint = () => {
+        window.print();
+      };
+      
+      const handleClose = () => {
+        root.unmount();
+        document.body.removeChild(modalContainer);
+      };
+
+      // Render modal with receipt (same as useReceiptPrinting)
+      root.render(
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+          {/* Print and Close buttons */}
+          <div className="flex justify-end gap-2 p-4 border-b print:hidden">
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+            >
+              <span>🖨️</span> Print Receipt
+            </button>
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Close
+            </button>
+          </div>
+
+          {/* Receipt Content */}
+          <div className="p-8 print:p-6" id="receipt-content">
+            <ReceiptTemplate data={data} />
+          </div>
+        </div>
+      );
+    };
+
+    printCombinedReceipt(receiptData);
+    toast.success(`Generated combined receipt for ${selectedTransactionsData.length} transactions`);
+  };
 
   const handleDeleteTransaction = async (transactionId: string, description: string, amount: number) => {
     if (!confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\nAmount: ₹${amount.toLocaleString()}\n\nThis will mark the transaction as cancelled and cannot be undone.`)) {
@@ -191,12 +342,45 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
         {/* Transaction History */}
         <div>
-          <h3 className="text-lg font-semibold mb-3">Transaction History ({transactions.length})</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Transaction History ({transactions.length})</h3>
+            
+            {/* Bulk Actions */}
+            {transactions.length > 0 && (
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  Select All ({transactions.length})
+                </label>
+                
+                {selectedTransactions.size > 0 && (
+                  <>
+                    <span className="text-sm text-blue-600 font-medium">
+                      {selectedTransactions.size} selected
+                    </span>
+                    <button
+                      onClick={printSelectedReceipts}
+                      className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    >
+                      🖨️ Print Receipts
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          
           {transactions.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
+                    <th className="text-left p-2 w-8">✓</th>
                     <th className="text-left p-2">Date</th>
                     <th className="text-left p-2">Type</th>
                     <th className="text-left p-2">Description</th>
@@ -209,6 +393,20 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 <tbody>
                   {transactions.map((transaction, index) => (
                     <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTransactions.has(transaction.id)}
+                          onChange={(e) => handleTransactionSelect(transaction.id, e.target.checked)}
+                          className="w-4 h-4"
+                          style={{ 
+                            minWidth: '16px', 
+                            minHeight: '16px',
+                            accentColor: '#2563eb',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      </td>
                       <td className="p-2">{(() => {
                         // FIXED: Use the SAME logic as Last Visit section - patient.date_of_entry first
                         const patient = transaction.patient;
@@ -444,6 +642,32 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         patientsData = await HospitalService.getPatients(1000);
       }
       
+      // Filter out patients who have PENDING appointments (not confirmed/completed ones)
+      patientsData = patientsData.filter(patient => {
+        // Check localStorage appointments for this patient
+        try {
+          const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+          const hasPendingAppointment = appointments.some((apt: any) => {
+            // Match by patient name or patient_id or patient_uuid
+            const patientName = `${patient.first_name} ${patient.last_name}`;
+            const isPatientMatch = apt.patient_name === patientName || 
+                                   apt.patient_id === patient.patient_id || 
+                                   apt.patient_uuid === patient.id;
+            
+            // Only hide if patient matches AND appointment is still pending (not confirmed/completed)
+            return isPatientMatch && (apt.status === 'scheduled' || !apt.status);
+          });
+          
+          if (hasPendingAppointment) {
+            console.log(`👤 Hiding patient ${patient.first_name} ${patient.last_name} - has PENDING appointment`);
+            return false; // Hide this patient
+          }
+        } catch (error) {
+          console.error('Error checking appointments for patient:', error);
+        }
+        
+        return true; // Show this patient (no pending appointments)
+      });
       
       // Debug: Check if backend or frontend filtering was used
       if (dateRange === 'today' || dateRange === 'custom') {

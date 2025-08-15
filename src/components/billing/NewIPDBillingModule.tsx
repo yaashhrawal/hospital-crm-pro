@@ -630,7 +630,15 @@ const NewIPDBillingModule: React.FC = () => {
               )}
             </div>
             <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              DOA: <strong>{selectedPatient ? new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleDateString('en-GB') + ' ' + new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleTimeString('en-GB', { hour12: true }) : new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour12: true })}</strong>
+              DOA: <strong>{selectedPatient ? new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleDateString('en-GB') + ' ' + new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              }) : new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              })}</strong>
             </div>
             <div style={{ fontSize: '13px', margin: '4px 0' }}>
               TOTAL DEP: <strong style={{ color: '#008000' }}>₹{advancePayments.toFixed(2)}</strong>

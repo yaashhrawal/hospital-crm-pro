@@ -524,7 +524,11 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           patient_name: apt.patient_name,
           doctor_name: apt.doctor_name,
           department: apt.department,
-          scheduled_at: `${apt.appointment_date}T${apt.appointment_time}`,
+          // Handle both formats: if scheduled_at exists use it, otherwise combine date and time
+          scheduled_at: apt.scheduled_at || 
+            (apt.appointment_date && apt.appointment_time 
+              ? `${apt.appointment_date}T${apt.appointment_time}:00` 
+              : new Date().toISOString()),
           appointment_type: apt.appointment_type,
           status: apt.status,
           notes: apt.notes,
@@ -556,7 +560,11 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           patient_name: apt.patient_name,
           doctor_name: apt.doctor_name,
           department: apt.department,
-          scheduled_at: `${apt.appointment_date}T${apt.appointment_time}`,
+          // Handle both formats: if scheduled_at exists use it, otherwise combine date and time
+          scheduled_at: apt.scheduled_at || 
+            (apt.appointment_date && apt.appointment_time 
+              ? `${apt.appointment_date}T${apt.appointment_time}:00` 
+              : new Date().toISOString()),
           appointment_type: apt.appointment_type,
           status: apt.status,
           notes: apt.notes,
@@ -614,13 +622,24 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         const appointmentIndex = appointments.findIndex((apt: any) => apt.id === appointmentId);
         
         if (appointmentIndex !== -1) {
-          // Update the appointment status in localStorage
-          appointments[appointmentIndex].status = 'confirmed';
-          appointments[appointmentIndex].confirmed_at = new Date().toISOString();
+          const appointment = appointments[appointmentIndex];
+          
+          // Remove the appointment from localStorage completely (confirmed appointments don't stay on dashboard)
+          appointments.splice(appointmentIndex, 1);
           localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
           
-          toast.success('Appointment confirmed successfully!');
+          // Log the confirmation for audit purposes
+          console.log('✅ Appointment confirmed and removed from dashboard:', {
+            id: appointment.id,
+            patient: appointment.patient_name,
+            date: appointment.appointment_date,
+            time: appointment.appointment_time,
+            confirmed_at: new Date().toISOString()
+          });
+          
+          toast.success(`Appointment confirmed for ${appointment.patient_name}! Patient is now visible in patient list.`);
           refetchAppointments();
+          refetchPatients(); // Refresh patient list to show the now-visible patient
           return;
         }
       }
@@ -653,8 +672,24 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         if (appointmentIndex !== -1) {
           const cancelledAppointment = appointments[appointmentIndex];
           
-          // Try to find and potentially delete the associated patient
-          await handlePatientDeletionForCancelledAppointment(cancelledAppointment.patient_name);
+          // If appointment has patient_uuid, delete the patient directly
+          if (cancelledAppointment.patient_uuid) {
+            try {
+              await HospitalService.deletePatient(cancelledAppointment.patient_uuid);
+              console.log('🗑️ Patient deleted due to appointment cancellation:', {
+                patient_name: cancelledAppointment.patient_name,
+                patient_uuid: cancelledAppointment.patient_uuid
+              });
+              toast.success(`Appointment cancelled and patient ${cancelledAppointment.patient_name} removed from database`);
+            } catch (patientError) {
+              console.error('Error deleting patient:', patientError);
+              // Fallback to old method if UUID deletion fails
+              await handlePatientDeletionForCancelledAppointment(cancelledAppointment.patient_name);
+            }
+          } else {
+            // Fallback to old method for appointments without patient_uuid
+            await handlePatientDeletionForCancelledAppointment(cancelledAppointment.patient_name);
+          }
           
           // Remove the appointment from localStorage completely
           appointments.splice(appointmentIndex, 1);
@@ -669,7 +704,6 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             cancelled_at: new Date().toISOString()
           });
           
-          toast.success('Appointment cancelled and removed from list');
           refetchAppointments();
           // Also refresh patient data in case a patient was deleted
           refetchPatients();
@@ -717,7 +751,10 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       
       if (matchingPatients.length === 0) {
         console.log('🔍 No matching patient found for:', patientName);
-        toast.info(`No patient found with name: ${patientName}`);
+        toast(`No patient found with name: ${patientName}`, {
+          icon: 'ℹ️',
+          duration: 3000,
+        });
         return;
       }
       
@@ -794,7 +831,10 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         if (hasAdmissions) reason.push('has admissions');
         if (!isRecentlyCreated) reason.push('not recently created');
         
-        toast.info(`Patient ${patientName} kept (${reason.join(', ')})`);
+        toast(`Patient ${patientName} kept (${reason.join(', ')})`, {
+          icon: 'ℹ️',
+          duration: 3000,
+        });
       }
     } catch (error) {
       console.error('❌ Error checking/deleting patient for cancelled appointment:', error);
@@ -1679,6 +1719,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
               Showing appointments for {formatSelectedDateRange()}
             </p>
             
+            
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {appointmentsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1688,11 +1729,17 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                 (() => {
                   const upcomingAppointments = getUpcomingAppointments();
                   
+                  console.log('📅 EnhancedDashboard - Appointments Debug:');
+                  console.log('- Raw appointmentsData:', appointmentsData);
+                  console.log('- Filtered upcoming appointments:', upcomingAppointments);
+                  console.log('- Count:', upcomingAppointments.length);
+                  
                   if (upcomingAppointments.length === 0) {
                     return (
                       <div className="text-center py-8 text-[#999999]">
                         <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         <p>No appointments for this date range.</p>
+                        <p className="text-xs mt-2">Total available: {appointmentsData?.data?.length || 0}</p>
                       </div>
                     );
                   }
@@ -1730,7 +1777,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                             })}
                           </p>
                           <p className="text-sm text-[#999999]">
-                            {new Date(appointment.scheduled_at).toLocaleTimeString('en-US', {
+                            {new Date(appointment.scheduled_at).toLocaleTimeString([], {
                               hour: '2-digit',
                               minute: '2-digit',
                               hour12: true

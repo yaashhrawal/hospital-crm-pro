@@ -133,6 +133,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const [customDoctor, setCustomDoctor] = useState('');
   const [existingPatients, setExistingPatients] = useState<any[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<any[]>([]);
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [selectedExistingPatient, setSelectedExistingPatient] = useState<any>(null);
+  const [isNewVisit, setIsNewVisit] = useState(false);
 
   // Check connection status on mount
   useEffect(() => {
@@ -143,14 +146,140 @@ const NewFlexiblePatientEntry: React.FC = () => {
     checkConnection();
   }, []);
 
+  // Function to handle patient search and auto-fill
+  const handlePatientNameChange = (name: string) => {
+    setFormData({ ...formData, full_name: name });
+    
+    if (name.length >= 1) { // Reduced from 2 to 1 for better search experience
+      const searchTerm = name.toLowerCase().trim();
+      const filtered = existingPatients.filter(patient => {
+        const firstName = patient.first_name?.toLowerCase() || '';
+        const lastName = patient.last_name?.toLowerCase() || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        const patientId = patient.patient_id?.toLowerCase() || '';
+        const phone = patient.phone || '';
+        
+        return firstName.includes(searchTerm) ||
+               lastName.includes(searchTerm) ||
+               fullName.includes(searchTerm) ||
+               patientId.includes(searchTerm) ||
+               phone.includes(searchTerm) ||
+               firstName.startsWith(searchTerm) ||
+               lastName.startsWith(searchTerm) ||
+               fullName.startsWith(searchTerm);
+      });
+      
+      // Sort filtered results by relevance (exact matches first, then starts with, then contains)
+      filtered.sort((a, b) => {
+        const aFullName = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase().trim();
+        const bFullName = `${b.first_name || ''} ${b.last_name || ''}`.toLowerCase().trim();
+        
+        const aFirstName = a.first_name?.toLowerCase() || '';
+        const bFirstName = b.first_name?.toLowerCase() || '';
+        
+        // Exact matches first
+        if (aFullName === searchTerm && bFullName !== searchTerm) return -1;
+        if (bFullName === searchTerm && aFullName !== searchTerm) return 1;
+        
+        // Starts with first name
+        if (aFirstName.startsWith(searchTerm) && !bFirstName.startsWith(searchTerm)) return -1;
+        if (bFirstName.startsWith(searchTerm) && !aFirstName.startsWith(searchTerm)) return 1;
+        
+        // Starts with full name
+        if (aFullName.startsWith(searchTerm) && !bFullName.startsWith(searchTerm)) return -1;
+        if (bFullName.startsWith(searchTerm) && !aFullName.startsWith(searchTerm)) return 1;
+        
+        // Alphabetical order for the rest
+        return aFullName.localeCompare(bFullName);
+      });
+      
+      setFilteredPatients(filtered);
+      setShowPatientDropdown(filtered.length > 0);
+    } else {
+      setFilteredPatients([]);
+      setShowPatientDropdown(false);
+    }
+  };
+
+  // Function to auto-fill patient details
+  const selectExistingPatient = (patient: any) => {
+    console.log('🔍 selectExistingPatient called with:', patient);
+    
+    setSelectedExistingPatient(patient);
+    setIsNewVisit(true);
+    setShowPatientDropdown(false);
+    
+    // Auto-fill all patient details
+    const newFormData = {
+      ...formData,
+      prefix: patient.prefix || 'Mr',
+      full_name: `${patient.first_name} ${patient.last_name}`,
+      first_name: patient.first_name,
+      last_name: patient.last_name,
+      phone: patient.phone || '',
+      email: patient.email || '',
+      date_of_birth: patient.date_of_birth || '',
+      age: patient.age || '',
+      gender: patient.gender || 'MALE',
+      address: patient.address || '',
+      blood_group: patient.blood_group || '',
+      medical_history: patient.medical_history || '',
+      allergies: patient.allergies || '',
+      current_medications: patient.current_medications || '',
+      patient_tag: patient.patient_tag || '',
+      has_reference: patient.has_reference || 'NO',
+      reference_details: patient.reference_details || '',
+      // Keep current date of entry as the new visit date
+      date_of_entry: new Date()
+    };
+    
+    console.log('📝 Setting new form data:', newFormData);
+    setFormData(newFormData);
+    
+    toast.success(`Auto-filled details for ${patient.first_name} ${patient.last_name} - This will be counted as a new visit`);
+  };
+
+  // Function to clear patient selection and start fresh
+  const clearPatientSelection = () => {
+    setSelectedExistingPatient(null);
+    setIsNewVisit(false);
+    setShowPatientDropdown(false);
+    setFilteredPatients([]);
+    
+    setFormData({
+      ...formData,
+      prefix: 'Mr',
+      full_name: '',
+      first_name: '',
+      last_name: '',
+      phone: '',
+      email: '',
+      date_of_birth: '',
+      age: '',
+      gender: 'MALE',
+      address: '',
+      blood_group: '',
+      medical_history: '',
+      allergies: '',
+      current_medications: '',
+      patient_tag: '',
+      has_reference: 'NO',
+      reference_details: ''
+    });
+    
+    toast.success('Cleared form for new patient entry');
+  };
+
   // Load existing patients for appointment search
   useEffect(() => {
     const loadExistingPatients = async () => {
       try {
-        const patients = await HospitalService.getPatients(100);
+        console.log('🔍 Loading existing patients for search...');
+        const patients = await HospitalService.getPatients(1000); // Increased from 100 to 1000
+        console.log('✅ Loaded patients for search:', patients?.length || 0);
         setExistingPatients(patients || []);
       } catch (error) {
-        console.error('Error loading existing patients:', error);
+        console.error('❌ Error loading existing patients:', error);
       }
     };
     loadExistingPatients();
@@ -210,8 +339,38 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
       console.log('💾 Preparing patient data for submission...');
       
-      // Prepare patient data - properly mapped to database schema
-      const patientData: CreatePatientData = {
+      let newPatient: any;
+      
+      // Check if this is a new visit for an existing patient
+      if (isNewVisit && selectedExistingPatient) {
+        console.log('🔄 Processing new visit for existing patient:', selectedExistingPatient.patient_id);
+        
+        // Update existing patient's date_of_entry to new visit date
+        const updateData = {
+          date_of_entry: formData.date_of_entry.toISOString().split('T')[0] // Format as YYYY-MM-DD
+        };
+        
+        try {
+          const updatedPatient = await HospitalService.updatePatient(selectedExistingPatient.id, updateData);
+          if (updatedPatient) {
+            newPatient = { ...selectedExistingPatient, ...updateData };
+            console.log('✅ Updated patient date_of_entry for new visit');
+            toast.success(`New visit recorded for ${selectedExistingPatient.first_name} ${selectedExistingPatient.last_name}`);
+          } else {
+            throw new Error('Failed to update patient for new visit');
+          }
+        } catch (error) {
+          console.error('❌ Error updating patient for new visit:', error);
+          toast.error('Failed to record new visit. Please try again.');
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Create new patient
+        console.log('👤 Creating new patient...');
+        
+        // Prepare patient data - properly mapped to database schema
+        const patientData: CreatePatientData = {
         // Required fields
         prefix: formData.prefix as 'Mr' | 'Mrs' | 'Ms' | 'Dr' | 'Prof',
         first_name: formData.first_name || formData.full_name.split(' ')[0],
@@ -256,9 +415,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
         assigned_department: formData.consultation_mode === 'single' ? formData.selected_department || undefined : undefined,
       };
 
-      console.log('📤 Creating patient with data:', patientData);
-      const newPatient = await HospitalService.createPatient(patientData);
-      console.log('✅ Patient created successfully:', newPatient);
+      // Note: Patient will be hidden from patient list automatically if they have an appointment
+
+        console.log('📤 Creating patient with data:', patientData);
+        newPatient = await HospitalService.createPatient(patientData);
+        console.log('✅ Patient created successfully:', newPatient);
+      }
 
       // Handle doctors assignment based on consultation mode
       let assignedDoctorsData: AssignedDoctor[] = [];
@@ -310,7 +472,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
             doctor_name: doctor.doctor_name,
             department: doctor.department,
             status: 'COMPLETED',
-            billing_date: new Date().toISOString()
+            transaction_date: formData.date_of_entry || new Date().toISOString().split('T')[0] // FIX: Use patient's date_of_entry as transaction_date
           };
 
           console.log('💳 Creating transaction:', transactionData);
@@ -346,17 +508,23 @@ const NewFlexiblePatientEntry: React.FC = () => {
         const appointmentData = {
           id: Date.now().toString(),
           patient_id: newPatient.patient_id,
+          patient_uuid: newPatient.id, // Add UUID for database operations
           patient_name: `${newPatient.first_name} ${newPatient.last_name}`,
           doctor_name: appointmentDoctorName,
           department: appointmentDepartment,
           appointment_date: formData.appointment_date ? formData.appointment_date.toISOString().split('T')[0] : '',
           appointment_time: formData.appointment_time,
+          // Add scheduled_at field that dashboard expects
+          scheduled_at: formData.appointment_date && formData.appointment_time 
+            ? `${formData.appointment_date.toISOString().split('T')[0]}T${formData.appointment_time}:00`
+            : new Date().toISOString(),
           appointment_type: formData.appointment_type as 'consultation' | 'follow-up' | 'procedure' | 'emergency',
           status: 'scheduled' as const,
           estimated_duration: formData.appointment_duration || 30,
           estimated_cost: formData.appointment_cost || 500,
           notes: formData.appointment_notes || '',
           created_at: new Date().toISOString(),
+          requires_confirmation: true, // Flag to indicate this needs confirmation
         };
 
         try {
@@ -364,6 +532,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
           const appointments = existingAppointments ? JSON.parse(existingAppointments) : [];
           appointments.push(appointmentData);
           localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+          
+          console.log('📅 New appointment created:', appointmentData);
+          console.log('📅 Total appointments in localStorage:', appointments.length);
           
           // Dispatch event to notify Dashboard of the new appointment
           window.dispatchEvent(new Event('appointmentUpdated'));
@@ -386,7 +557,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
         toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toFixed(2)}`);
       }
       
-      // Reset form
+      // Reset form and states
+      setSelectedExistingPatient(null);
+      setIsNewVisit(false);
+      setShowPatientDropdown(false);
+      setFilteredPatients([]);
+      
       setFormData({
         prefix: 'Mr',
         full_name: '',
@@ -680,36 +856,152 @@ const NewFlexiblePatientEntry: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
                       Full Name <span style={{ color: '#EF4444' }}>*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={formData.full_name}
-                      onChange={(e) => {
-                        const fullName = e.target.value;
-                        const nameParts = fullName.trim().split(' ');
-                        const firstName = nameParts[0] || '';
-                        const lastName = nameParts.slice(1).join(' ') || '';
-                        
-                        setFormData({ 
-                          ...formData, 
-                          full_name: fullName,
-                          first_name: firstName,
-                          last_name: lastName
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #CCCCCC',
-                        fontSize: '16px',
-                        color: '#333333',
-                        outline: 'none'
-                      }}
-                      placeholder="Enter full name"
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
-                      required
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        value={formData.full_name}
+                        onChange={(e) => {
+                          const fullName = e.target.value;
+                          handlePatientNameChange(fullName);
+                          
+                          // Update first_name and last_name for new patients
+                          if (!selectedExistingPatient) {
+                            const nameParts = fullName.trim().split(' ');
+                            const firstName = nameParts[0] || '';
+                            const lastName = nameParts.slice(1).join(' ') || '';
+                            
+                            setFormData({ 
+                              ...formData, 
+                              full_name: fullName,
+                              first_name: firstName,
+                              last_name: lastName
+                            });
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CCCCCC',
+                          fontSize: '16px',
+                          color: '#333333',
+                          outline: 'none'
+                        }}
+                        placeholder="Start typing patient name to search existing patients..."
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#CCCCCC';
+                          // Hide dropdown with delay to allow click
+                          setTimeout(() => setShowPatientDropdown(false), 300);
+                        }}
+                        required
+                      />
+                      
+                      {/* Patient Search Dropdown */}
+                      {showPatientDropdown && filteredPatients.length > 0 && (
+                        <div 
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid #CCCCCC',
+                            borderTop: 'none',
+                            borderRadius: '0 0 8px 8px',
+                            maxHeight: '350px',
+                            overflowY: 'auto',
+                            zIndex: 1000,
+                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                          }}
+                          onMouseDown={(e) => e.preventDefault()} // Prevent input blur
+                        >
+                          {filteredPatients.slice(0, 15).map((patient, index) => (
+                            <div
+                              key={patient.id || index}
+                              style={{
+                                padding: '12px 16px',
+                                borderBottom: index < filteredPatients.slice(0, 15).length - 1 ? '1px solid #F0F0F0' : 'none',
+                                cursor: 'pointer',
+                                backgroundColor: '#FFFFFF',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onClick={() => {
+                                console.log('Patient selected:', patient);
+                                selectExistingPatient(patient);
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8F9FA'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                            >
+                              <div style={{ fontSize: '14px', fontWeight: '500', color: '#333333' }}>
+                                {patient.first_name} {patient.last_name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#666666' }}>
+                                ID: {patient.patient_id} | Phone: {patient.phone}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#999999' }}>
+                                Last visit: {patient.date_of_entry ? new Date(patient.date_of_entry).toLocaleDateString() : 'N/A'}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Show more results indicator */}
+                          {filteredPatients.length > 15 && (
+                            <div
+                              style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#F8F9FA',
+                                borderTop: '1px solid #E9ECEF',
+                                fontSize: '12px',
+                                color: '#6C757D',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Showing 15 of {filteredPatients.length} results. Type more to narrow down search.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* New Visit Indicator */}
+                      {isNewVisit && selectedExistingPatient && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '8px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontWeight: '500'
+                        }}>
+                          NEW VISIT
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Clear/New Patient Button */}
+                    {isNewVisit && selectedExistingPatient && (
+                      <div style={{ marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={clearPatientSelection}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Clear & Enter New Patient
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

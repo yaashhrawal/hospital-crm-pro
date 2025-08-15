@@ -844,7 +844,12 @@ export class HospitalService {
   // ==================== TRANSACTION OPERATIONS ====================
   
   static async createTransaction(data: CreateTransactionData): Promise<PatientTransaction> {
-    console.log('💰 Creating transaction:', data);
+    console.log('💰 Creating transaction with date (HospitalService):', {
+      input_transaction_date: data.transaction_date,
+      input_transaction_date_type: typeof data.transaction_date,
+      jsDateParsed: data.transaction_date ? new Date(data.transaction_date) : null,
+      full_data: data
+    });
     
     try {
       const transactionData = {
@@ -857,11 +862,13 @@ export class HospitalService {
         doctor_name: data.doctor_name || null,
         status: data.status || 'COMPLETED',
         transaction_reference: data.transaction_reference || null,
+        transaction_date: data.transaction_date || new Date().toISOString().split('T')[0], // FIX: Include transaction_date
         hospital_id: HOSPITAL_ID // Fix: Add hospital_id to make transaction visible in dashboard
       };
       
       console.log('🔍 TRANSACTION CREATION DEBUG:', {
         transactionData,
+        transaction_date_being_saved: transactionData.transaction_date,
         HOSPITAL_ID,
         inputData: data,
         todayDate: new Date().toISOString().split('T')[0]

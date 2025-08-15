@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { PatientService } from '../services/patientService';
+import { appointmentService } from '../services/appointmentService';
+import { supabase } from '../config/supabase';
 
 interface Appointment {
   id: string;
@@ -57,8 +59,46 @@ const AppointmentManagement: React.FC = () => {
     }
   }, [watchedAppointmentType, setValue]);
 
-  const loadAppointments = () => {
+  const loadAppointments = async () => {
     try {
+      setLoading(true);
+      
+      // Try to load from Supabase first
+      try {
+        const response = await appointmentService.getAppointments({
+          limit: 100,
+          sortBy: 'scheduled_at',
+          sortOrder: 'desc'
+        });
+        
+        if (response && response.data) {
+          // Transform Supabase appointments to local format
+          const supabaseAppointments = response.data.map((apt: any) => ({
+            id: apt.id,
+            patient_id: apt.patient_id,
+            patient_name: `${apt.patient?.first_name || ''} ${apt.patient?.last_name || ''}`.trim(),
+            doctor_name: `${apt.doctor?.first_name || ''} ${apt.doctor?.last_name || ''}`.trim() || 'Unknown Doctor',
+            department: apt.department?.name || 'General',
+            appointment_date: apt.scheduled_at ? apt.scheduled_at.split('T')[0] : '',
+            appointment_time: apt.scheduled_at ? new Date(apt.scheduled_at).toTimeString().slice(0, 5) : '',
+            appointment_type: apt.appointment_type?.toLowerCase() || 'consultation',
+            status: apt.status?.toLowerCase() || 'scheduled',
+            estimated_duration: apt.duration || 30,
+            estimated_cost: 500, // Default cost
+            notes: apt.notes || '',
+            created_at: apt.created_at,
+          }));
+          
+          // Also save to localStorage for offline access
+          localStorage.setItem('hospital_appointments', JSON.stringify(supabaseAppointments));
+          setAppointments(supabaseAppointments);
+          return;
+        }
+      } catch (supabaseError) {
+        console.log('Could not fetch from Supabase, falling back to localStorage:', supabaseError);
+      }
+      
+      // Fallback to localStorage if Supabase fails
       const existingAppointments = localStorage.getItem('hospital_appointments');
       if (existingAppointments) {
         setAppointments(JSON.parse(existingAppointments));
@@ -68,6 +108,8 @@ const AppointmentManagement: React.FC = () => {
     } catch (error) {
       console.error('Error loading appointments:', error);
       setAppointments([]);
+    } finally {
+      setLoading(false);
     }
   };
 

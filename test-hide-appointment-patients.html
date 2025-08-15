@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test: Hide All Patients with Appointments</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #0056B3; }
+        h2 { color: #333; border-bottom: 2px solid #0056B3; padding-bottom: 10px; }
+        button {
+            background: #0056B3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #004494; }
+        button.danger { background: #dc3545; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .info { color: blue; font-weight: bold; }
+        .rule-box {
+            background: #e8f4fd;
+            border: 2px solid #0056B3;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .rule-box h3 {
+            margin-top: 0;
+            color: #0056B3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th { background: #0056B3; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏥 Test: Hide ALL Patients with Appointments</h1>
+    
+    <div class="rule-box">
+        <h3>📋 New Rule</h3>
+        <p><strong>ANY patient who has a scheduled appointment will be HIDDEN from the patient list</strong></p>
+        <ul>
+            <li>✅ No more pending flags needed</li>
+            <li>✅ Simple rule: Has appointment = Hidden from patient list</li>
+            <li>✅ Confirming appointment does NOT make patient visible</li>
+            <li>✅ Only deleting appointment makes patient visible again</li>
+        </ul>
+    </div>
+    
+    <div class="container">
+        <h2>🧪 Test Scenario</h2>
+        <button onclick="createTestPatientWithAppointment()">➕ Create Patient with Appointment</button>
+        <button onclick="createTestPatientWithoutAppointment()">➕ Create Patient WITHOUT Appointment</button>
+        <button class="danger" onclick="clearAllAppointments()">🗑️ Clear All Appointments</button>
+        
+        <div id="test-results"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📊 Current Status</h2>
+        <button onclick="checkCurrentStatus()">🔍 Check Status</button>
+        <div id="status-display"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🐛 Debug Log</h2>
+        <button onclick="clearDebugLog()">🗑️ Clear Log</button>
+        <pre id="debug-console"></pre>
+    </div>
+
+    <script>
+        let debugLog = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-console').textContent = debugLog.join('\n');
+            console.log(logEntry);
+        }
+        
+        function clearDebugLog() {
+            debugLog = [];
+            document.getElementById('debug-console').textContent = '';
+        }
+        
+        function createTestPatientWithAppointment() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const patientName = 'Test Patient WITH Appointment ' + Math.floor(Math.random() * 1000);
+            
+            const testAppointment = {
+                id: Date.now().toString(),
+                patient_id: 'PAT' + Date.now(),
+                patient_uuid: 'uuid-' + Date.now(),
+                patient_name: patientName,
+                doctor_name: 'Dr. Test Doctor',
+                department: 'Cardiology',
+                appointment_date: tomorrow.toISOString().split('T')[0],
+                appointment_time: '10:30',
+                scheduled_at: `${tomorrow.toISOString().split('T')[0]}T10:30:00`,
+                appointment_type: 'consultation',
+                status: 'scheduled',
+                estimated_duration: 30,
+                estimated_cost: 500,
+                notes: 'Test appointment',
+                created_at: new Date().toISOString(),
+                requires_confirmation: true
+            };
+            
+            // Save to localStorage
+            const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+            appointments.push(testAppointment);
+            localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
+            
+            log(`✅ Created patient: ${patientName}`, 'success');
+            log(`📅 WITH appointment scheduled for ${testAppointment.appointment_date}`, 'info');
+            log(`👻 This patient should be HIDDEN from patient list`, 'warning');
+            
+            // Dispatch event
+            window.dispatchEvent(new Event('appointmentUpdated'));
+            
+            checkCurrentStatus();
+        }
+        
+        function createTestPatientWithoutAppointment() {
+            const patientName = 'Test Patient NO Appointment ' + Math.floor(Math.random() * 1000);
+            
+            log(`✅ Simulated creating patient: ${patientName}`, 'success');
+            log(`📋 WITHOUT any appointments`, 'info');
+            log(`👁️ This patient should be VISIBLE in patient list`, 'success');
+            
+            checkCurrentStatus();
+        }
+        
+        function clearAllAppointments() {
+            localStorage.removeItem('hospital_appointments');
+            log('🗑️ Cleared all appointments', 'warning');
+            log('👁️ Now ALL patients should be visible in patient list', 'success');
+            
+            // Dispatch event
+            window.dispatchEvent(new Event('appointmentUpdated'));
+            
+            checkCurrentStatus();
+        }
+        
+        function checkCurrentStatus() {
+            try {
+                const appointments = JSON.parse(localStorage.getItem('hospital_appointments') || '[]');
+                const statusDiv = document.getElementById('status-display');
+                
+                let html = '<h3>📊 Current Status:</h3>';
+                html += `<p><strong>Total Appointments:</strong> ${appointments.length}</p>`;
+                
+                if (appointments.length === 0) {
+                    html += '<p class="success">✅ No appointments = ALL patients visible in patient list</p>';
+                } else {
+                    html += '<p class="warning">⚠️ Patients with appointments will be HIDDEN:</p>';
+                    html += '<table>';
+                    html += '<tr><th>Patient Name</th><th>Appointment Date</th><th>Status</th><th>Patient List Status</th></tr>';
+                    
+                    appointments.forEach(apt => {
+                        html += `<tr>
+                            <td>${apt.patient_name}</td>
+                            <td>${apt.appointment_date} ${apt.appointment_time}</td>
+                            <td>${apt.status}</td>
+                            <td class="error">HIDDEN</td>
+                        </tr>`;
+                    });
+                    
+                    html += '</table>';
+                }
+                
+                statusDiv.innerHTML = html;
+                
+                log(`📊 Status check: ${appointments.length} appointments found`, 'info');
+                if (appointments.length > 0) {
+                    log(`👻 ${appointments.length} patients should be hidden from patient list`, 'warning');
+                } else {
+                    log(`👁️ All patients should be visible in patient list`, 'success');
+                }
+                
+            } catch (error) {
+                log(`❌ Error checking status: ${error.message}`, 'error');
+            }
+        }
+        
+        // Initialize
+        window.onload = () => {
+            log('🧪 Patient hiding test tool loaded', 'info');
+            log('📋 Rule: ANY patient with appointment = HIDDEN from patient list', 'info');
+            checkCurrentStatus();
+        };
+    </script>
+</body>
+</html>

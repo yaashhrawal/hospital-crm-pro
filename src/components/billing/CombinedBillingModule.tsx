@@ -465,7 +465,11 @@ const CombinedBillingModule: React.FC = () => {
 
   const generateSummaryPrintContent = (bills: CombinedBill[]): string => {
     const currentDate = new Date().toLocaleDateString('en-IN');
-    const currentTime = new Date().toLocaleTimeString('en-IN');
+    const currentTime = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
     
     const totalRevenue = bills.reduce((sum, bill) => sum + bill.grandTotal, 0);
     const totalOPDRevenue = bills.reduce((sum, bill) => sum + bill.totalOPDAmount, 0);

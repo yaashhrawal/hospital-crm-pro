@@ -196,9 +196,19 @@ const App: React.FC = () => {
   });
   const [googleDriveUser, setGoogleDriveUser] = useState<{ email: string; name: string } | null>(null);
 
-  // Auto-hide navigation after 3 seconds of inactivity
+  // Auto-hide navigation after 3 seconds of inactivity (only if enabled in settings)
   useEffect(() => {
     if (!isLoggedIn) return;
+    
+    // If auto-hide is disabled, always show navigation
+    if (!settings.autoHideNav) {
+      setIsNavVisible(true);
+      if (navHideTimer) {
+        clearTimeout(navHideTimer);
+        setNavHideTimer(null);
+      }
+      return;
+    }
     
     let timer: NodeJS.Timeout | null = null;
     
@@ -212,7 +222,7 @@ const App: React.FC = () => {
       setNavHideTimer(timer);
     };
 
-    // Start the timer initially
+    // Start the timer initially only if auto-hide is enabled
     startHideTimer();
 
     // Cleanup timer on unmount
@@ -224,19 +234,23 @@ const App: React.FC = () => {
         clearTimeout(navHideTimer);
       }
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, settings.autoHideNav]);
 
-  // Handle mouse enter - show navigation
+  // Handle mouse enter - show navigation (only if auto-hide is enabled)
   const handleNavMouseEnter = () => {
-    setIsNavVisible(true);
-    if (navHideTimer) {
-      clearTimeout(navHideTimer);
-      setNavHideTimer(null);
+    if (settings.autoHideNav) {
+      setIsNavVisible(true);
+      if (navHideTimer) {
+        clearTimeout(navHideTimer);
+        setNavHideTimer(null);
+      }
     }
   };
 
-  // Handle mouse leave - start hide timer
+  // Handle mouse leave - start hide timer (only if auto-hide is enabled)
   const handleNavMouseLeave = () => {
+    if (!settings.autoHideNav) return; // Don't hide if auto-hide is disabled
+    
     if (navHideTimer) {
       clearTimeout(navHideTimer);
     }
@@ -1161,7 +1175,7 @@ const App: React.FC = () => {
           {/* All Navigation Tabs in Single Row */}
           <div 
             className={`transition-all duration-500 ease-in-out transform ${
-              isNavVisible 
+              (isNavVisible || !settings.autoHideNav) 
                 ? 'translate-y-0 opacity-100 max-h-20' 
                 : '-translate-y-full opacity-0 max-h-0 overflow-hidden'
             }`}
@@ -1193,14 +1207,16 @@ const App: React.FC = () => {
             </nav>
           </div>
 
-          {/* Minimal Hover Trigger Area - Only visible when navigation is hidden */}
-          <div 
-            className={`transition-all duration-300 ${
-              isNavVisible ? 'h-0 opacity-0' : 'h-2 opacity-0 hover:bg-gray-100'
-            }`}
-          >
-            {/* Invisible hover area to trigger navigation */}
-          </div>
+          {/* Minimal Hover Trigger Area - Only visible when navigation is hidden AND auto-hide is enabled */}
+          {settings.autoHideNav && (
+            <div 
+              className={`transition-all duration-300 ${
+                isNavVisible ? 'h-0 opacity-0' : 'h-2 opacity-0 hover:bg-gray-100'
+              }`}
+            >
+              {/* Invisible hover area to trigger navigation */}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1455,7 +1471,16 @@ const App: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-medium text-gray-900">Auto-hide Navigation</h4>
-                        <p className="text-sm text-gray-600">Hide navigation tabs after inactivity</p>
+                        <p className="text-sm text-gray-600">
+                          Hide navigation tabs after inactivity 
+                          <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                            settings.autoHideNav 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {settings.autoHideNav ? 'ENABLED' : 'DISABLED'}
+                          </span>
+                        </p>
                       </div>
                       <button
                         onClick={() => handleSettingChange('autoHideNav', !settings.autoHideNav)}
