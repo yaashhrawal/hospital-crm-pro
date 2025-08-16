@@ -72,6 +72,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     // Doctor and Department
     selected_department: patient.assigned_department || '',
     selected_doctor: patient.assigned_doctor || '',
+    custom_doctor_name: '',
+    custom_department_name: '',
   });
 
   // Payment form data
@@ -160,8 +162,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         reference_details: formData.has_reference === 'YES' ? formData.reference_details || undefined : undefined,
         patient_tag: formData.patient_tag || undefined,
         date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : undefined,
-        assigned_doctor: formData.selected_doctor || undefined,
-        assigned_department: formData.selected_department || undefined,
+        assigned_doctor: formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor || undefined,
+        assigned_department: formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department || undefined,
       };
 
       console.log('Updating patient with data:', updateData);
@@ -187,8 +189,21 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       return;
     }
 
-    if (!formData.selected_doctor && !formData.selected_department) {
+    const finalDoctorName = formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor;
+    const finalDepartmentName = formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department;
+    
+    if (!finalDoctorName && !finalDepartmentName) {
       toast.error('Please select a doctor or department');
+      return;
+    }
+    
+    if (formData.selected_doctor === 'CUSTOM' && !formData.custom_doctor_name) {
+      toast.error('Please enter custom doctor name');
+      return;
+    }
+    
+    if (formData.selected_department === 'CUSTOM' && !formData.custom_department_name) {
+      toast.error('Please enter custom department name');
       return;
     }
 
@@ -208,7 +223,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
           paymentData.transaction_type === 'XRAY' ? 'X-Ray' :
           paymentData.transaction_type === 'MEDICINE' ? 'Medicine' :
           paymentData.transaction_type === 'PROCEDURE' ? 'Procedure' :
-          'Service'}${formData.selected_doctor ? ` - ${formData.selected_doctor}` : ''}${formData.selected_department ? ` (${formData.selected_department})` : ''}${
+          'Service'}${finalDoctorName ? ` - ${finalDoctorName}` : ''}${finalDepartmentName ? ` (${finalDepartmentName})` : ''}${
           paymentData.discount_percentage > 0 ? 
           ` | Original: ₹${originalConsultationFee} | Discount: ${paymentData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}${paymentData.discount_reason ? ` | Reason: ${paymentData.discount_reason}` : ''}` :
           ` | Amount: ₹${finalAmount.toFixed(2)}`
@@ -223,8 +238,8 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             description: transactionDescription,
             amount: finalAmount,
             payment_mode: paymentData.payment_mode === 'ONLINE' ? paymentData.online_payment_method : paymentData.payment_mode,
-            doctor_name: formData.selected_doctor,
-            department: formData.selected_department,
+            doctor_name: finalDoctorName,
+            department: finalDepartmentName,
             updated_at: new Date().toISOString()
           })
           .eq('id', selectedPaymentId);
@@ -242,7 +257,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
           amount: finalAmount,
           payment_mode: paymentData.payment_mode === 'ONLINE' ? paymentData.online_payment_method : paymentData.payment_mode,
           status: 'COMPLETED' as any,
-          doctor_name: formData.selected_doctor,
+          doctor_name: finalDoctorName,
           hospital_id: '550e8400-e29b-41d4-a716-446655440000',
           created_by: 'system'
         };
@@ -868,7 +883,31 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                       {DEPARTMENTS.map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
                       ))}
+                      <option value="CUSTOM">Custom Department</option>
                     </select>
+                    
+                    {/* Custom Department Input */}
+                    {formData.selected_department === 'CUSTOM' && (
+                      <div style={{ marginTop: '8px' }}>
+                        <input
+                          value={formData.custom_department_name}
+                          onChange={(e) => setFormData({ ...formData, custom_department_name: e.target.value })}
+                          placeholder="Enter custom department name"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
@@ -896,7 +935,31 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                       {filteredDoctors.map(doc => (
                         <option key={doc.name} value={doc.name}>{doc.name}</option>
                       ))}
+                      <option value="CUSTOM">Custom Doctor</option>
                     </select>
+                    
+                    {/* Custom Doctor Input */}
+                    {formData.selected_doctor === 'CUSTOM' && (
+                      <div style={{ marginTop: '8px' }}>
+                        <input
+                          value={formData.custom_doctor_name}
+                          onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
+                          placeholder="Enter custom doctor name"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

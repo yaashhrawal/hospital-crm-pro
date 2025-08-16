@@ -37,6 +37,8 @@ const patientEntrySchema = z.object({
   // Hospital workflow fields
   selected_doctor: z.string().min(1, 'Please select a doctor'),
   selected_department: z.string().min(1, 'Please select a department'),
+  custom_doctor_name: z.string().optional(),
+  custom_department_name: z.string().optional(),
   entry_fee: z.number().min(50, 'Entry fee must be at least ₹50').max(500, 'Entry fee cannot exceed ₹500'),
   consultation_fee: z.number().min(300, 'Consultation fee must be at least ₹300'),
   entry_payment_mode: z.enum(['cash', 'online', 'card', 'upi', 'insurance']),
@@ -86,6 +88,8 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
   const watchedDepartment = watch('selected_department');
   const watchedDoctor = watch('selected_doctor');
   const watchedAdmission = watch('admission_required');
+  const customDoctorName = watch('custom_doctor_name');
+  const customDepartmentName = watch('custom_department_name');
 
   // Load doctors and departments
   useEffect(() => {
@@ -126,6 +130,11 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
   const onSubmit = async (data: any) => {
     setLoading(true);
     try {
+      // Determine final doctor and department names
+      const finalDoctorName = data.selected_doctor === 'CUSTOM' ? data.custom_doctor_name : 
+                             doctors.find(d => d.id === data.selected_doctor)?.name || data.selected_doctor;
+      const finalDepartmentName = data.selected_department === 'CUSTOM' ? data.custom_department_name : data.selected_department;
+
       // Create Patient with dummy emergency contact info (since it's removed from UI)
       const patientData = {
         prefix: data.prefix,
@@ -145,6 +154,8 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         blood_group: data.blood_group,
         patient_tag: data.patient_tag,
         notes: data.notes,
+        assigned_doctor: finalDoctorName,
+        assigned_department: finalDepartmentName,
         is_active: true,
       };
 
@@ -157,8 +168,8 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         transaction_type: 'ENTRY_FEE',
         amount: data.entry_fee,
         payment_mode: data.entry_payment_mode.toUpperCase(),
-        doctor_id: data.selected_doctor,
-        department: data.selected_department,
+        doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
+        department: finalDepartmentName,
         description: 'Hospital Entry Fee',
         created_at: data.date_of_entry,
         transaction_date: data.date_of_entry,
@@ -170,9 +181,9 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         transaction_type: 'CONSULTATION',
         amount: data.consultation_fee,
         payment_mode: data.consultation_payment_mode.toUpperCase(),
-        doctor_id: data.selected_doctor,
-        department: data.selected_department,
-        description: `Consultation with Dr. ${doctors.find(d => d.id === data.selected_doctor)?.name}`,
+        doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
+        department: finalDepartmentName,
+        description: `Consultation with Dr. ${finalDoctorName}`,
         created_at: data.date_of_entry,
         transaction_date: data.date_of_entry,
       });
@@ -183,7 +194,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
           patient_id: newPatient.id,
           bed_number: data.bed_number,
           room_type: data.room_type,
-          department: data.selected_department,
+          department: finalDepartmentName,
           daily_rate: data.daily_rate,
           admission_date: data.date_of_entry,
           status: 'active',
@@ -196,8 +207,8 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
           transaction_type: 'ADMISSION_FEE',
           amount: data.daily_rate,
           payment_mode: data.consultation_payment_mode.toUpperCase(),
-          doctor_id: data.selected_doctor,
-          department: data.selected_department,
+          doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
+          department: finalDepartmentName,
           description: `Admission - ${data.room_type} room, Bed ${data.bed_number}`,
           created_at: data.date_of_entry,
           transaction_date: data.date_of_entry,
@@ -258,8 +269,8 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                 <div className="space-y-2">
                   <p style={{ color: '#333333' }}><strong>Patient ID:</strong> {patientCreated.patient_id}</p>
                   <p style={{ color: '#333333' }}><strong>Name:</strong> {patientCreated.first_name} {patientCreated.last_name}</p>
-                  <p style={{ color: '#333333' }}><strong>Department:</strong> {watch('selected_department')}</p>
-                  <p style={{ color: '#333333' }}><strong>Doctor:</strong> {doctors.find(d => d.id === watch('selected_doctor'))?.name}</p>
+                  <p style={{ color: '#333333' }}><strong>Department:</strong> {watch('selected_department') === 'CUSTOM' ? customDepartmentName : watch('selected_department')}</p>
+                  <p style={{ color: '#333333' }}><strong>Doctor:</strong> {watch('selected_doctor') === 'CUSTOM' ? customDoctorName : doctors.find(d => d.id === watch('selected_doctor'))?.name}</p>
                   <p style={{ color: '#333333' }}><strong>Total Fees Paid:</strong> ₹{calculateTotalFees().toLocaleString()}</p>
                   {watchedAdmission && (
                     <p style={{ color: '#333333' }}><strong>Admission:</strong> {watch('room_type')} room, Bed {watch('bed_number')}</p>
@@ -740,8 +751,34 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                           {dept.name}
                         </option>
                       ))}
+                      <option value="CUSTOM">Custom Department</option>
                     </select>
                     {errors.selected_department && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.selected_department.message}</p>}
+                    
+                    {/* Custom Department Input */}
+                    {watchedDepartment === 'CUSTOM' && (
+                      <div style={{ marginTop: '8px' }}>
+                        <input
+                          {...register('custom_department_name', {
+                            required: watchedDepartment === 'CUSTOM' ? 'Please enter custom department name' : false
+                          })}
+                          placeholder="Enter custom department name"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                        />
+                        {errors.custom_department_name && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.custom_department_name.message}</p>}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
@@ -770,8 +807,34 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                           {doctor.name} - {doctor.specialization} (₹{doctor.fee})
                         </option>
                       ))}
+                      <option value="CUSTOM">Custom Doctor</option>
                     </select>
                     {errors.selected_doctor && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.selected_doctor.message}</p>}
+                    
+                    {/* Custom Doctor Input */}
+                    {watchedDoctor === 'CUSTOM' && (
+                      <div style={{ marginTop: '8px' }}>
+                        <input
+                          {...register('custom_doctor_name', {
+                            required: watchedDoctor === 'CUSTOM' ? 'Please enter custom doctor name' : false
+                          })}
+                          placeholder="Enter custom doctor name"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                        />
+                        {errors.custom_doctor_name && <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.custom_doctor_name.message}</p>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
