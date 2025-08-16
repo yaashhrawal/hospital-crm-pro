@@ -38,6 +38,9 @@ export class HospitalService {
       
       console.log('✅ Auth user found:', user.email);
       
+      // Get user role from metadata
+      const userRole = user.user_metadata?.role || 'frontdesk';
+      
       // Try to get user profile from users table
       let userProfile: any = null;
       let profileError: any = null;
@@ -46,7 +49,7 @@ export class HospitalService {
         const result = await supabase
           .from('users')
           .select('*')
-          .eq('auth_id', user.id);
+          .eq('id', user.id);
           
         if (result.error) {
           profileError = result.error;

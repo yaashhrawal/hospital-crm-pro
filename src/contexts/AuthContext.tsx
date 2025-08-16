@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { authService } from '../services/authService';
 import type { LoginCredentials, RegisterData } from '../services/authService';
-import type { AuthUser } from '../config/supabase';
+import type { AuthUser } from '../config/supabaseNew';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -16,6 +16,7 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   isAdmin: () => boolean;
   isDoctor: () => boolean;
+  isFrontdesk: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -184,8 +185,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const hasPermission = (permission: string): boolean => {
+    console.log('🔍 [AuthContext] hasPermission check:', {
+      permission,
+      user: user ? { email: user.email, role: user.role } : null,
+      userObject: user
+    });
+    
+    // FORCE ADMIN ACCESS: Grant all permissions to admin@valant.com
+    if (user && user.email === 'admin@valant.com') {
+      console.log('✅ [AuthContext] FORCE ADMIN ACCESS - granting permission:', permission);
+      return true;
+    }
+    
+    // Admin users have ALL permissions - no restrictions
+    if (user && authService.isAdmin(user)) {
+      console.log('✅ [AuthContext] User is admin - granting permission:', permission);
+      return true;
+    }
+    
     const permissions = authService.getUserPermissions(user);
-    return permissions.includes(permission);
+    const hasIt = permissions.includes(permission);
+    
+    console.log('🔍 [AuthContext] Permission check result:', {
+      permission,
+      userRole: user?.role,
+      allPermissions: permissions,
+      hasPermission: hasIt,
+      isAdminCheck: authService.isAdmin(user)
+    });
+    
+    return hasIt;
   };
 
   const isAdmin = (): boolean => {
@@ -194,6 +223,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isDoctor = (): boolean => {
     return authService.isDoctor(user);
+  };
+
+  const isFrontdesk = (): boolean => {
+    return authService.isFrontdesk(user);
   };
 
   const value: AuthContextType = {
@@ -209,6 +242,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     hasPermission,
     isAdmin,
     isDoctor,
+    isFrontdesk,
   };
 
   return (
@@ -304,8 +338,8 @@ export const useAuthActions = () => {
 
 // Hook for permissions
 export const usePermissions = () => {
-  const { hasRole, hasPermission, isAdmin, isDoctor } = useAuth();
-  return { hasRole, hasPermission, isAdmin, isDoctor };
+  const { hasRole, hasPermission, isAdmin, isDoctor, isFrontdesk } = useAuth();
+  return { hasRole, hasPermission, isAdmin, isDoctor, isFrontdesk };
 };
 
 export default AuthContext;

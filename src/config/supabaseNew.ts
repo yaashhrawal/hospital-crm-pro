@@ -45,7 +45,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF' | 'RECEPTIONIST';
+  role: 'ADMIN' | 'FRONTDESK' | 'DOCTOR' | 'NURSE' | 'STAFF' | 'RECEPTIONIST';
   phone: string;
   specialization?: string;
   consultation_fee?: number;
@@ -54,6 +54,15 @@ export interface User {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
 }
 
 export interface Patient {

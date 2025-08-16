@@ -13,6 +13,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { classNames } from '@/utils';
+import { usePermissions } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -20,18 +21,26 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Patient Entry', href: '/patient-entry', icon: UserPlus },
-  { name: 'Daily Operations', href: '/daily-operations', icon: Activity },
-  { name: 'Revenue Dashboard', href: '/revenue', icon: TrendingUp },
-  { name: 'Expense Entry', href: '/expense-entry', icon: FileText },
-  { name: 'Patients', href: '/patients', icon: Users },
-  { name: 'Appointments', href: '/appointments', icon: Calendar },
-  { name: 'Billing', href: '/billing', icon: Receipt },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, permission: 'read_dashboard' },
+  { name: 'Patient Entry', href: '/patient-entry', icon: UserPlus, permission: 'create_patients' },
+  { name: 'Daily Operations', href: '/daily-operations', icon: Activity, permission: 'access_operations' },
+  { name: 'Revenue Dashboard', href: '/revenue', icon: TrendingUp, permission: 'read_dashboard' },
+  { name: 'Expense Entry', href: '/expense-entry', icon: FileText, permission: 'create_expenses' },
+  { name: 'Patients', href: '/patients', icon: Users, permission: 'read_patients' },
+  { name: 'Appointments', href: '/appointments', icon: Calendar, permission: 'read_appointments' },
+  { name: 'Billing', href: '/billing', icon: Receipt, permission: 'read_bills' },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
+  const { hasPermission } = usePermissions();
+
+  // Filter navigation items based on user permissions
+  const allowedNavigation = navigation.filter(item => {
+    if (!item.permission) return true; // Allow items without permission requirements
+    return hasPermission(item.permission);
+  });
+
   return (
     <>
       {/* Mobile sidebar overlay */}
@@ -68,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-            {navigation.map((item) => (
+            {allowedNavigation.map((item) => (
               <NavLink
                 key={item.name}
                 to={item.href}
@@ -97,8 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
                 </div>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">Admin</p>
-                <p className="text-xs text-gray-500">admin@hospital.com</p>
+                <p className="text-sm font-medium text-gray-700">Administrator</p>
+                <p className="text-xs text-gray-500">System User</p>
               </div>
             </div>
           </div>

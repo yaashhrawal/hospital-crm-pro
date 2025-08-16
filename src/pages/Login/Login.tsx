@@ -269,13 +269,6 @@ export const Login: React.FC = () => {
             </form>
 
             {/* Test Credentials */}
-            <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="text-sm font-semibold text-blue-900 mb-2">Test Credentials:</h4>
-              <div className="text-sm text-blue-800">
-                <p><strong>Email:</strong> admin@hospital.com</p>
-                <p><strong>Password:</strong> admin123</p>
-              </div>
-            </div>
 
             {/* Footer */}
             <div className="mt-8 text-center text-sm text-gray-500">

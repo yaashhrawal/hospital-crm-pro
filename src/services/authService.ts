@@ -11,7 +11,7 @@ export interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
-  role?: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'STAFF';
+  role?: 'admin' | 'frontdesk' | 'doctor' | 'nurse' | 'accountant';
 }
 
 export interface AuthUser {
@@ -48,6 +48,7 @@ class AuthService {
       }
 
       console.log('✅ [AuthService] Login successful, returning user:', user);
+      console.log('🔍 AuthService Debug - user.role:', user.role);
 
       const authUser: AuthUser = {
         id: user.id,
@@ -57,6 +58,8 @@ class AuthService {
         role: user.role,
         isActive: user.is_active,
       };
+
+      console.log('🔍 AuthService Debug - final authUser:', authUser);
 
       return {
         user: authUser,
@@ -181,14 +184,21 @@ class AuthService {
    * Check if user is admin
    */
   isAdmin(user: AuthUser | null): boolean {
-    return this.hasRole(user, 'ADMIN');
+    return this.hasRole(user, ['admin', 'ADMIN']);
   }
 
   /**
    * Check if user is doctor
    */
   isDoctor(user: AuthUser | null): boolean {
-    return this.hasRole(user, 'DOCTOR');
+    return this.hasRole(user, ['doctor', 'DOCTOR']);
+  }
+
+  /**
+   * Check if user is frontdesk
+   */
+  isFrontdesk(user: AuthUser | null): boolean {
+    return this.hasRole(user, 'frontdesk');
   }
 
   /**
@@ -199,10 +209,11 @@ class AuthService {
 
     const basePermissions = ['read_own_profile'];
 
-    switch (user.role) {
-      case 'ADMIN':
+    switch (user.role.toLowerCase()) {
+      case 'admin':
         return [
-          ...basePermissions,
+          // Admin has ALL possible permissions - no restrictions
+          'read_own_profile',
           'read_all_users',
           'write_all_users',
           'read_patients',
@@ -217,9 +228,32 @@ class AuthService {
           'read_dashboard',
           'create_expenses',
           'manage_departments',
+          'access_operations',
+          'delete_patients',
+          'delete_appointments',
+          'delete_bills',
+          'admin_access',
+          'super_admin',
+          'manage_users',
+          'system_settings',
+          'full_access',
         ];
       
-      case 'DOCTOR':
+      case 'frontdesk':
+        return [
+          ...basePermissions,
+          'read_patients',
+          'create_patients',
+          'read_appointments',
+          'read_bills',
+          'create_bills',
+          'write_bills',
+          'read_dashboard',
+          // Frontdesk has NO edit access to patient list
+          // Frontdesk has NO access to operations section
+        ];
+      
+      case 'doctor':
         return [
           ...basePermissions,
           'read_patients',
@@ -232,9 +266,10 @@ class AuthService {
           'create_bills',
           'write_bills',
           'read_dashboard',
+          'access_operations',
         ];
       
-      case 'NURSE':
+      case 'nurse':
         return [
           ...basePermissions,
           'read_patients',
@@ -244,19 +279,27 @@ class AuthService {
           'write_appointments',
           'read_bills',
           'read_dashboard',
+          'access_operations',
         ];
       
-      case 'STAFF':
+      case 'accountant':
         return [
           ...basePermissions,
           'read_patients',
-          'create_patients',
           'read_appointments',
           'read_bills',
           'create_bills',
           'write_bills',
           'read_dashboard',
+          'create_expenses',
         ];
+      
+      // Legacy support
+      case 'ADMIN':
+      case 'DOCTOR':
+      case 'NURSE':
+      case 'STAFF':
+        return this.getUserPermissions({ ...user, role: user.role.toLowerCase() });
       
       default:
         return basePermissions;

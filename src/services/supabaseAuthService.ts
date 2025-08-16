@@ -160,22 +160,33 @@ class SupabaseAuthService {
       
       if (!user) return null;
 
-      // Get user profile
+      // Get role from auth metadata (this is what we set for role-based access)
+      const roleFromMetadata = user.user_metadata?.role || user.app_metadata?.role;
+      console.log('🔍 Debug - user metadata:', user.user_metadata);
+      console.log('🔍 Debug - app metadata:', user.app_metadata);
+      console.log('🔍 Debug - role from metadata:', roleFromMetadata);
+      
+      // Get user profile for other details
       const { data: profile, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error || !profile) return null;
+      console.log('🔍 Debug - profile data:', profile);
+      console.log('🔍 Debug - profile error:', error);
+
+      // Use metadata role if available, fallback to profile role
+      const userRole = roleFromMetadata || (profile?.role) || 'frontdesk';
+      console.log('🔍 Debug - final user role:', userRole);
 
       return {
-        id: profile.id,
-        email: profile.email,
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        role: profile.role,
-        is_active: profile.is_active,
+        id: user.id,
+        email: user.email || (profile?.email) || '',
+        first_name: profile?.first_name || 'User',
+        last_name: profile?.last_name || 'Name',
+        role: userRole,
+        is_active: profile?.is_active ?? true,
       };
     } catch (error) {
       console.error('Get current user error:', error);

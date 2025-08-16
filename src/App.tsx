@@ -3,6 +3,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
 import { supabase } from './config/supabaseNew';
+import { useAuth } from './contexts/AuthContext';
 import { 
   loadGoogleDriveAPI, 
   initGoogleDriveClient, 
@@ -28,37 +29,29 @@ import DischargeSection from './components/DischargeSection';
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
 // Login Component
-const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
-  const [email, setEmail] = useState('admin@hospital.com');
-  const [password, setPassword] = useState('admin123');
-  const [loading, setLoading] = useState(false);
+const LoginPage: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login, loading } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     
     try {
       console.log('🔐 Attempting login with:', email);
-      const { user, error } = await HospitalService.signIn(email, password);
+      const result = await login({ email, password });
       
-      if (error) {
-        console.error('❌ Login error:', error);
-        toast.error(`Login failed: ${error.message || 'Invalid credentials'}`);
+      if (!result.success) {
+        console.error('❌ Login error:', result.error);
+        toast.error(`Login failed: ${result.error || 'Invalid credentials'}`);
         return;
       }
       
-      if (user) {
-        console.log('✅ Login successful:', user.email);
-        toast.success(`Welcome back, ${user.first_name}!`);
-        onLogin();
-      } else {
-        toast.error('Invalid credentials');
-      }
+      console.log('✅ Login successful');
+      toast.success(`Welcome back!`);
     } catch (error: any) {
       console.error('🚨 Login exception:', error);
       toast.error(`Login failed: ${error.message || 'Connection error'}`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -66,12 +59,11 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-          <div className="text-6xl mb-4">🏥</div>
-          <h2 className="text-3xl font-extrabold text-gray-900">
-            Hospital CRM Pro
-          </h2>
+          <div className="mb-4">
+            <img src="/logo.png" alt="Logo" className="h-24 w-auto mx-auto" />
+          </div>
           <p className="mt-2 text-sm text-gray-600">
-            Complete Hospital Management System with Supabase Backend
+            Advanced Healthcare Management System
           </p>
         </div>
       </div>
@@ -119,12 +111,6 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
             </button>
           </form>
 
-          {/* Default Credentials Info */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Default Credentials:</h3>
-            <p className="text-xs text-blue-700">Email: admin@hospital.com</p>
-            <p className="text-xs text-blue-700">Password: admin123</p>
-          </div>
 
           {/* Features List */}
           <div className="mt-6 text-center">
@@ -144,10 +130,8 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
 
 // Main App Component
 const App: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [loading, setLoading] = useState(true);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [navHideTimer, setNavHideTimer] = useState<NodeJS.Timeout | null>(null);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
@@ -157,8 +141,8 @@ const App: React.FC = () => {
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editedProfile, setEditedProfile] = useState({
-    first_name: '',
-    last_name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: ''
   });
@@ -198,7 +182,7 @@ const App: React.FC = () => {
 
   // Auto-hide navigation after 3 seconds of inactivity (only if enabled in settings)
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!user) return;
     
     // If auto-hide is disabled, always show navigation
     if (!settings.autoHideNav) {
@@ -234,7 +218,7 @@ const App: React.FC = () => {
         clearTimeout(navHideTimer);
       }
     };
-  }, [isLoggedIn, settings.autoHideNav]);
+  }, [user, settings.autoHideNav]);
 
   // Handle mouse enter - show navigation (only if auto-hide is enabled)
   const handleNavMouseEnter = () => {
@@ -260,10 +244,7 @@ const App: React.FC = () => {
     setNavHideTimer(timer);
   };
 
-  useEffect(() => {
-    // Check authentication status on app start
-    checkAuthStatus();
-  }, []);
+  // Authentication is now handled by AuthContext
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -289,48 +270,15 @@ const App: React.FC = () => {
     console.log('showSettingsModal:', showSettingsModal);
   }, [showProfileModal, showSettingsModal]);
 
-  const checkAuthStatus = async () => {
-    try {
-      console.log('🔍 Checking authentication status...');
-      const user = await HospitalService.getCurrentUser();
-      
-      if (user) {
-        console.log('✅ User authenticated:', user.email);
-        setCurrentUser(user);
-        setIsLoggedIn(true);
-        toast.success(`Welcome back, ${user.first_name}!`, { duration: 2000 });
-      } else {
-        console.log('ℹ️ No authenticated user found');
-        setIsLoggedIn(false);
-      }
-    } catch (error: any) {
-      console.error('🚨 Auth check error:', error);
-      setIsLoggedIn(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Authentication functions removed - now handled by AuthContext
 
-  const handleLogin = async () => {
-    setIsLoggedIn(true);
-    // Re-fetch user data after login
-    const user = await HospitalService.getCurrentUser();
-    setCurrentUser(user);
-  };
+  const { logout } = useAuth();
+  const { hasPermission } = useAuth();
 
   const handleLogout = async () => {
     try {
       console.log('🚪 Signing out...');
-      const { error } = await HospitalService.signOut();
-      
-      if (error) {
-        console.error('❌ Logout error:', error);
-        toast.error('Logout failed');
-        return;
-      }
-      
-      setIsLoggedIn(false);
-      setCurrentUser(null);
+      await logout();
       setActiveTab('dashboard');
       toast.success('Logged out successfully');
       console.log('✅ Logout successful');
@@ -344,10 +292,10 @@ const App: React.FC = () => {
   const handleEditProfile = () => {
     setIsEditingProfile(true);
     setEditedProfile({
-      first_name: currentUser?.first_name || '',
-      last_name: currentUser?.last_name || '',
-      email: currentUser?.email || '',
-      phone: currentUser?.phone || ''
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      email: user?.email || '',
+      phone: user?.phone || ''
     });
   };
 
@@ -505,7 +453,7 @@ const App: React.FC = () => {
         backup_info: {
           hospital_name: 'VALANT HOSPITAL',
           backup_date: new Date().toISOString(),
-          backup_by: currentUser?.email || 'Unknown',
+          backup_by: user?.email || 'Unknown',
           backup_version: '2.0',
           data_types: ['patients', 'transactions', 'appointments', 'expenses', 'refunds'],
           total_records: (patients?.length || 0) + (transactions?.length || 0) + (appointments?.length || 0) + (expenses?.length || 0) + (refunds?.length || 0)
@@ -697,7 +645,7 @@ const App: React.FC = () => {
         export_info: {
           hospital_name: 'VALANT HOSPITAL',
           exported_at: new Date().toISOString(),
-          exported_by: currentUser?.email || 'Unknown'
+          exported_by: user?.email || 'Unknown'
         }
       };
       
@@ -976,9 +924,21 @@ const App: React.FC = () => {
     );
   }
 
+  // Show loading spinner while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show login page if not authenticated
-  if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+  if (!user) {
+    return <LoginPage />;
   }
 
   // Main app navigation tabs - CLEAN PRODUCTION
@@ -1034,12 +994,19 @@ const App: React.FC = () => {
       id: 'operations', 
       name: '📊 Operations', 
       component: OperationsLedger,
-      description: 'Financial ledger perfectly synchronized with Patient List - no date mismatches!' 
+      description: 'Financial ledger perfectly synchronized with Patient List - no date mismatches!',
+      permission: 'access_operations'
     }
   ];
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || RealTimeDashboard;
-  const activeTabInfo = tabs.find(tab => tab.id === activeTab);
+  // Filter tabs based on user permissions
+  const filteredTabs = tabs.filter(tab => {
+    if (!tab.permission) return true; // Allow tabs without permission requirements
+    return hasPermission(tab.permission);
+  });
+
+  const ActiveComponent = filteredTabs.find(tab => tab.id === activeTab)?.component || RealTimeDashboard;
+  const activeTabInfo = filteredTabs.find(tab => tab.id === activeTab);
 
   const renderActiveComponent = () => {
     if (activeTab === 'dashboard') {
@@ -1080,7 +1047,7 @@ const App: React.FC = () => {
             <div className="flex items-center space-x-4">
 
               {/* User Avatar & Info with Dropdown */}
-              {currentUser && (
+              {user && (
                 <div className="relative user-dropdown">
                   <button
                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
@@ -1088,15 +1055,15 @@ const App: React.FC = () => {
                   >
                     <div className="text-right">
                       <div className="text-sm font-medium text-gray-900">
-                        {currentUser.first_name} {currentUser.last_name}
+                        {user.firstName} {user.lastName}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {currentUser.email}
+                        {user.email}
                       </div>
                     </div>
                     <div className="flex items-center space-x-1">
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                        {currentUser.first_name?.charAt(0)}{currentUser.last_name?.charAt(0)}
+                        {user.firstName?.charAt(0) || 'U'}{user.lastName?.charAt(0) || 'S'}
                       </div>
                       <svg className={`w-4 h-4 text-gray-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1110,10 +1077,10 @@ const App: React.FC = () => {
                       <div className="py-1">
                         <div className="px-4 py-2 border-b border-gray-100">
                           <div className="text-sm font-medium text-gray-900">
-                            {currentUser.first_name} {currentUser.last_name}
+                            {user.firstName} {user.lastName}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {currentUser.email}
+                            {user.email}
                           </div>
                         </div>
                         <button
@@ -1187,7 +1154,7 @@ const App: React.FC = () => {
             }`}
           >
             <nav className="flex justify-center space-x-4 py-3 overflow-x-auto">
-              {tabs.map((tab) => (
+              {filteredTabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => {
@@ -1239,7 +1206,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center text-sm text-gray-500">
             <div>
-              © 2024 Hospital CRM Pro • Built with React, TypeScript & Supabase
+              © 2024 • Advanced Healthcare Management System
             </div>
             <div className="flex items-center space-x-4">
               <span className="flex items-center">
@@ -1253,7 +1220,7 @@ const App: React.FC = () => {
       </footer>
 
       {/* Profile Modal */}
-      {showProfileModal && currentUser && (
+      {showProfileModal && user && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
             {/* Header */}
@@ -1275,13 +1242,13 @@ const App: React.FC = () => {
               {/* User Avatar Section */}
               <div className="flex items-center space-x-6">
                 <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                  {currentUser.first_name?.charAt(0)}{currentUser.last_name?.charAt(0)}
+                  {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">
-                    {currentUser.first_name} {currentUser.last_name}
+                    {user.firstName} {user.lastName}
                   </h3>
-                  <p className="text-gray-600">{currentUser.email}</p>
+                  <p className="text-gray-600">{user.email}</p>
                   <p className="text-sm text-gray-500">STAFF • Hospital Administrator</p>
                 </div>
               </div>
@@ -1295,7 +1262,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">First Name</label>
                       <input
                         type="text"
-                        value={isEditingProfile ? editedProfile.first_name : currentUser.first_name || ''}
+                        value={isEditingProfile ? editedProfile.firstName : user.firstName || ''}
                         onChange={(e) => isEditingProfile && setEditedProfile(prev => ({ ...prev, first_name: e.target.value }))}
                         readOnly={!isEditingProfile}
                         className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
@@ -1307,7 +1274,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">Last Name</label>
                       <input
                         type="text"
-                        value={isEditingProfile ? editedProfile.last_name : currentUser.last_name || ''}
+                        value={isEditingProfile ? editedProfile.lastName : user.lastName || ''}
                         onChange={(e) => isEditingProfile && setEditedProfile(prev => ({ ...prev, last_name: e.target.value }))}
                         readOnly={!isEditingProfile}
                         className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
@@ -1319,7 +1286,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">Email Address</label>
                       <input
                         type="email"
-                        value={isEditingProfile ? editedProfile.email : currentUser.email || ''}
+                        value={isEditingProfile ? editedProfile.email : user.email || ''}
                         onChange={(e) => isEditingProfile && setEditedProfile(prev => ({ ...prev, email: e.target.value }))}
                         readOnly={!isEditingProfile}
                         className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
@@ -1331,7 +1298,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">Phone Number</label>
                       <input
                         type="tel"
-                        value={isEditingProfile ? editedProfile.phone : currentUser.phone || 'Not provided'}
+                        value={isEditingProfile ? editedProfile.phone : user.phone || 'Not provided'}
                         onChange={(e) => isEditingProfile && setEditedProfile(prev => ({ ...prev, phone: e.target.value }))}
                         readOnly={!isEditingProfile}
                         placeholder="Enter phone number"
@@ -1350,7 +1317,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">User ID</label>
                       <input
                         type="text"
-                        value={currentUser.id || ''}
+                        value={user.id || ''}
                         readOnly
                         className="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-900 font-mono text-sm"
                       />
@@ -1455,7 +1422,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <h4 className="font-medium text-blue-900">Version</h4>
-                    <p className="text-blue-700">Hospital CRM Pro v3.0</p>
+                    <p className="text-blue-700">Version 3.0</p>
                   </div>
                   <div className="bg-yellow-50 p-4 rounded-lg">
                     <h4 className="font-medium text-yellow-900">Last Backup</h4>

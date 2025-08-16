@@ -67,7 +67,7 @@ class DataService {
           password: '',
           first_name: user.first_name || '',
           last_name: user.last_name || '',
-          role: (user.role as 'admin' | 'doctor' | 'staff') || 'staff',
+          role: (user.role as 'admin' | 'frontdesk' | 'doctor' | 'nurse' | 'accountant' | 'staff') || 'frontdesk',
           is_active: user.is_active ?? true,
           created_at: new Date().toISOString()
         } as User;
@@ -92,7 +92,7 @@ class DataService {
           password: '',
           first_name: user.first_name,
           last_name: user.last_name,
-          role: (user.role as 'admin' | 'doctor' | 'staff'),
+          role: (user.role as 'admin' | 'frontdesk' | 'doctor' | 'nurse' | 'accountant' | 'staff'),
           is_active: user.is_active,
           created_at: new Date().toISOString()
         } as User;

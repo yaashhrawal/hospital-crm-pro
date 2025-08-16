@@ -220,8 +220,8 @@ const BillingSection: React.FC = () => {
       </head>
       <body>
         <div class="header">
-          <div class="hospital-name">🏥 Hospital CRM Pro</div>
-          <div>Comprehensive Healthcare Management</div>
+          <img src="/logo.png" alt="Logo" style="height: 60px; margin: 0 auto;" />
+          <div style="margin-top: 10px;">Advanced Healthcare Management</div>
         </div>
         
         <div class="bill-info">
@@ -247,7 +247,7 @@ const BillingSection: React.FC = () => {
         
         <div class="footer">
           <p>Thank you for choosing our healthcare services!</p>
-          <p>Hospital CRM Pro - Your Health, Our Priority</p>
+          <p>Your Health, Our Priority</p>
         </div>
       </body>
       </html>

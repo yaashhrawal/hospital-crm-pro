@@ -509,8 +509,8 @@ const OPDBillingModule: React.FC = () => {
       </head>
       <body>
         <div class="header">
-          <div class="hospital-name">🏥 Hospital CRM Pro</div>
-          <div>Comprehensive Healthcare Management</div>
+          <img src="/logo.png" alt="Logo" style="height: 60px; margin: 0 auto;" />
+          <div style="margin-top: 10px;">Advanced Healthcare Management</div>
           <div class="bill-type">OPD BILL</div>
         </div>
         
@@ -573,7 +573,7 @@ const OPDBillingModule: React.FC = () => {
           <p><strong>Bill Generated:</strong> ${currentDate} at ${currentTime}</p>
           <p><em>This is a computer generated OPD bill.</em></p>
           <p>Thank you for choosing our healthcare services!</p>
-          <p>Hospital CRM Pro - Your Health, Our Priority</p>
+          <p>Your Health, Our Priority</p>
         </div>
       </body>
       </html>

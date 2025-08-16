@@ -17,6 +17,7 @@ import useReceiptPrinting from '../hooks/useReceiptPrinting';
 import { createRoot } from 'react-dom/client';
 import ReceiptTemplate from './receipts/ReceiptTemplate';
 import type { ReceiptData } from './receipts/ReceiptTemplate';
+import { usePermissions } from '../contexts/AuthContext';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -551,6 +552,7 @@ interface ComprehensivePatientListProps {
 }
 
 const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onNavigate }) => {
+  const { hasPermission } = usePermissions();
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<PatientWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1646,17 +1648,19 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                             🔬 Services
                           </button>
                           
-                          {/* 3. Edit */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditPatient(patient);
-                            }}
-                            className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            title="Edit Patient Details"
-                          >
-                            ✏️ Edit
-                          </button>
+                          {/* 3. Edit - Only show for users with write_patients permission */}
+                          {hasPermission('write_patients') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditPatient(patient);
+                              }}
+                              className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              title="Edit Patient Details"
+                            >
+                              ✏️ Edit
+                            </button>
+                          )}
                           
                           {/* 4. IPD (renamed from Shift to IPD) */}
                           <button
