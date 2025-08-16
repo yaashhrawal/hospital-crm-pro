@@ -30,6 +30,23 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [showTransactionPrescription, setShowTransactionPrescription] = useState(false);
+  const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
+  const [selectedTransactionForPrescription, setSelectedTransactionForPrescription] = useState<any>(null);
+
+  const printPrescriptionForTransaction = (patient: PatientWithRelations, transaction: any) => {
+    const patientForPrescription = {
+      ...patient,
+      currentTransactionId: transaction.id,
+      currentTransactionDate: transaction.created_at || transaction.transaction_date,
+      currentTransactionType: transaction.transaction_type,
+      currentTransactionAmount: transaction.amount
+    };
+    
+    setSelectedPatientForPrescription(patientForPrescription);
+    setSelectedTransactionForPrescription(transaction);
+    setShowTransactionPrescription(true);
+  };
   
   if (!isOpen) return null;
 
@@ -479,6 +496,15 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                               🖨️
                             </button>
                           )}
+                          {transaction.status === 'COMPLETED' && (
+                            <button
+                              onClick={() => printPrescriptionForTransaction(patient, transaction)}
+                              className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
+                              title="Print Prescription"
+                            >
+                              📋
+                            </button>
+                          )}
                           {transaction.status !== 'CANCELLED' && (
                             <button
                               onClick={() => handleDeleteTransaction(transaction.id, transaction.description, transaction.amount)}
@@ -504,6 +530,18 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           )}
         </div>
       </div>
+
+      {/* Transaction-specific Prescription Modal */}
+      {showTransactionPrescription && selectedPatientForPrescription && (
+        <ValantPrescription
+          patient={selectedPatientForPrescription}
+          onClose={() => {
+            setShowTransactionPrescription(false);
+            setSelectedPatientForPrescription(null);
+            setSelectedTransactionForPrescription(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -52,6 +52,12 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
   };
 
   const getTotalPaidAmount = () => {
+    // If this is a transaction-specific prescription, show only that transaction's amount
+    if ((patient as any).currentTransactionAmount !== undefined) {
+      return (patient as any).currentTransactionAmount;
+    }
+    
+    // Otherwise, show total of all completed transactions (original behavior)
     if (!patient.transactions || patient.transactions.length === 0) {
       return 0;
     }
@@ -190,6 +196,11 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     const ageText = patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A';
     const genderText = patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender;
     const totalPaid = getTotalPaidAmount();
+    
+    // Check if this is a transaction-specific prescription
+    const isTransactionSpecific = (patient as any).currentTransactionAmount !== undefined;
+    const transactionType = isTransactionSpecific ? (patient as any).currentTransactionType : '';
+    const transactionDate = isTransactionSpecific ? (patient as any).currentTransactionDate : '';
     
     const printContent = `
       <!DOCTYPE html>
