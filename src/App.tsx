@@ -783,9 +783,14 @@ const App: React.FC = () => {
         
         if (exportData.patients && exportDataObject.patients?.data?.length > 0) {
           csvContent += '=== PATIENTS ===\n';
-          csvContent += 'Patient ID,First Name,Last Name,Phone,Email,Gender,Age,Address,Patient Tag,Visit Count,Department Status,Total Spent,Last Visit,Registration Date\n';
+          csvContent += 'Patient ID,First Name,Last Name,Phone,Doctor Name,Department,Gender,Age,Address,Patient Tag,Visit Count,Department Status,Total Spent,Last Visit,Registration Date\n';
           exportDataObject.patients.data.forEach((p: any) => {
-            csvContent += `"${p.patient_id || 'N/A'}","${p.first_name || ''}","${p.last_name || ''}","${p.phone || ''}","${p.email || ''}","${p.gender === 'MALE' ? 'Male' : p.gender === 'FEMALE' ? 'Female' : p.gender || ''}","${p.age || ''}","${p.address || ''}","${p.patient_tag || p.notes || ''}","${p.visitCount || 0}","${p.departmentStatus || 'OPD'}","${p.totalSpent || 0}","${p.lastVisit || 'Never'}","${p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}"
+            const doctorName = p.assigned_doctor || (p.assigned_doctors && p.assigned_doctors.length > 0 ? p.assigned_doctors[0].name : '') || '';
+            const department = p.assigned_department || (p.assigned_doctors && p.assigned_doctors.length > 0 ? p.assigned_doctors[0].department : '') || '';
+            const lastVisitDate = p.lastVisit || p.date_of_entry || p.created_at || '';
+            const registrationDate = p.created_at || p.date_of_entry || '';
+            
+            csvContent += `"${p.patient_id || 'N/A'}","${p.first_name || ''}","${p.last_name || ''}","${p.phone || ''}","${doctorName}","${department}","${p.gender === 'MALE' ? 'Male' : p.gender === 'FEMALE' ? 'Female' : p.gender || ''}","${p.age || ''}","${p.address || ''}","${p.patient_tag || p.notes || ''}","${p.visitCount || 0}","${p.departmentStatus || 'OPD'}","${p.totalSpent || 0}","${lastVisitDate ? new Date(lastVisitDate).toLocaleDateString() : 'No visits'}","${registrationDate ? new Date(registrationDate).toLocaleDateString() : 'Unknown'}"
 `;
           });
           csvContent += '\n';

@@ -130,17 +130,32 @@ export const formatCurrencyWithSymbol = (amount: number): string => {
 
 // Format date for export
 export const formatDate = (date: string | Date): string => {
-  if (!date || date === '' || date === 'Invalid Date') return 'N/A';
+  if (!date || date === '' || date === 'Invalid Date' || date === 'null' || date === 'undefined') {
+    return 'N/A';
+  }
   
   try {
     let dateObj: Date;
     
     if (typeof date === 'string') {
-      // Handle YYYY-MM-DD format specifically to avoid timezone issues
+      // Handle various date formats
       if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // YYYY-MM-DD format
         const [year, month, day] = date.split('-').map(Number);
         dateObj = new Date(year, month - 1, day);
+      } else if (date.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+        // ISO format YYYY-MM-DDTHH:mm:ss
+        dateObj = new Date(date);
+      } else if (date.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        // MM/DD/YYYY format
+        const [month, day, year] = date.split('/').map(Number);
+        dateObj = new Date(year, month - 1, day);
+      } else if (date.match(/^\d{2}-\d{2}-\d{4}$/)) {
+        // DD-MM-YYYY format
+        const [day, month, year] = date.split('-').map(Number);
+        dateObj = new Date(year, month - 1, day);
       } else {
+        // Try generic date parsing
         dateObj = new Date(date);
       }
     } else {
@@ -148,7 +163,7 @@ export const formatDate = (date: string | Date): string => {
     }
     
     // Check if date is valid
-    if (isNaN(dateObj.getTime())) {
+    if (isNaN(dateObj.getTime()) || dateObj.getFullYear() < 1900 || dateObj.getFullYear() > 2100) {
       return 'N/A';
     }
     

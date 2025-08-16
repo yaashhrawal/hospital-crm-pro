@@ -1195,12 +1195,25 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         const regDate = patient.created_at || '';
         const formattedRegDate = formatDate(regDate);
         
+        // Get doctor information
+        const doctorName = patient.assigned_doctor || 
+                          (patient.assigned_doctors && patient.assigned_doctors.length > 0 ? 
+                           patient.assigned_doctors[0].name : '') || '';
+        const department = patient.assigned_department || 
+                          (patient.assigned_doctors && patient.assigned_doctors.length > 0 ? 
+                           patient.assigned_doctors[0].department : '') || '';
+
+        // Format dates with better handling
+        const lastVisitDate = patient.lastVisit || patient.date_of_entry || patient.created_at || '';
+        const registrationDate = patient.created_at || patient.date_of_entry || '';
+
         return {
           patient_id: patient.patient_id,
           first_name: patient.first_name,
           last_name: patient.last_name || "",
           phone: patient.phone || "",
-          email: patient.email || "",
+          doctor_name: doctorName,
+          department: department,
           gender: patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : patient.gender || "",
           age: patient.age || "",
           address: patient.address || "",
@@ -1211,8 +1224,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             return deptStatus.status;
           })(),
           total_spent: patient.totalSpent || 0,
-          last_visit: formatDate(patient.lastVisit || patient.date_of_entry || ""),
-          registration_date: formattedRegDate,
+          last_visit: lastVisitDate ? formatDate(lastVisitDate) : "No visits",
+          registration_date: registrationDate ? formatDate(registrationDate) : "Unknown",
         };
       });
       
@@ -1226,7 +1239,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           "First Name", 
           "Last Name",
           "Phone",
-          "Email",
+          "Doctor Name",
+          "Department",
           "Gender",
           "Age",
           "Address", 
