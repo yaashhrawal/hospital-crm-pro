@@ -98,6 +98,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
     // Doctor and Department (single selection for backward compatibility)
     selected_department: '',
     selected_doctor: '',
+    custom_doctor_name: '',
+    custom_department_name: '',
     // Multiple doctors selection
     consultation_mode: 'single', // 'single' or 'multiple'
     // Transaction data
@@ -337,6 +339,19 @@ const NewFlexiblePatientEntry: React.FC = () => {
         return;
       }
 
+      // Validate custom fields if selected
+      if (formData.selected_department === 'CUSTOM' && !formData.custom_department_name.trim()) {
+        toast.error('Please enter custom department name');
+        setLoading(false);
+        return;
+      }
+
+      if (formData.selected_doctor === 'CUSTOM' && !formData.custom_doctor_name.trim()) {
+        toast.error('Please enter custom doctor name');
+        setLoading(false);
+        return;
+      }
+
       console.log('💾 Preparing patient data for submission...');
       
       let newPatient: any;
@@ -411,8 +426,10 @@ const NewFlexiblePatientEntry: React.FC = () => {
           `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
         
         // Doctor assignment for backward compatibility
-        assigned_doctor: formData.consultation_mode === 'single' ? formData.selected_doctor || undefined : undefined,
-        assigned_department: formData.consultation_mode === 'single' ? formData.selected_department || undefined : undefined,
+        assigned_doctor: formData.consultation_mode === 'single' ? 
+          (formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor) || undefined : undefined,
+        assigned_department: formData.consultation_mode === 'single' ? 
+          (formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department) || undefined : undefined,
       };
 
       // Note: Patient will be hidden from patient list automatically if they have an appointment
@@ -427,10 +444,13 @@ const NewFlexiblePatientEntry: React.FC = () => {
       
       if (formData.consultation_mode === 'single') {
         // Single doctor mode (backward compatibility)
-        if (formData.selected_doctor && formData.selected_department) {
+        const finalDoctorName = formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor;
+        const finalDepartmentName = formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department;
+        
+        if (finalDoctorName && finalDepartmentName) {
           assignedDoctorsData.push({
-            doctor_name: formData.selected_doctor,
-            department: formData.selected_department,
+            doctor_name: finalDoctorName,
+            department: finalDepartmentName,
             consultation_fee: formData.consultation_fee
           });
         }
@@ -492,11 +512,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
         
         // Get doctor name and department from consultation settings
         const appointmentDoctorName = formData.consultation_mode === 'single' 
-          ? formData.selected_doctor 
+          ? (formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor)
           : (selectedDoctors.length > 0 ? selectedDoctors[0].doctorName : '');
         
         const appointmentDepartment = formData.consultation_mode === 'single'
-          ? formData.selected_department
+          ? (formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department)
           : (selectedDoctors.length > 0 ? selectedDoctors[0].department : 'General');
         
         if (!appointmentDoctorName) {
@@ -584,6 +604,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
         reference_details: '',
         selected_department: '',
         selected_doctor: '',
+        custom_doctor_name: '',
+        custom_department_name: '',
         consultation_mode: 'single',
         consultation_fee: 0,
         discount_percentage: 0,
@@ -1442,7 +1464,31 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         {DEPARTMENTS.map(dept => (
                           <option key={dept} value={dept}>{dept}</option>
                         ))}
+                        <option value="CUSTOM">Custom Department</option>
                       </select>
+                      
+                      {/* Custom Department Input */}
+                      {formData.selected_department === 'CUSTOM' && (
+                        <div style={{ marginTop: '8px' }}>
+                          <input
+                            value={formData.custom_department_name}
+                            onChange={(e) => setFormData({ ...formData, custom_department_name: e.target.value })}
+                            placeholder="Enter custom department name"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid #CCCCCC',
+                              fontSize: '16px',
+                              color: '#333333',
+                              backgroundColor: '#FFFFFF',
+                              outline: 'none'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                            onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
@@ -1470,7 +1516,31 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         {filteredDoctors.map(doc => (
                           <option key={doc.name} value={doc.name}>{doc.name}</option>
                         ))}
+                        <option value="CUSTOM">Custom Doctor</option>
                       </select>
+                      
+                      {/* Custom Doctor Input */}
+                      {formData.selected_doctor === 'CUSTOM' && (
+                        <div style={{ marginTop: '8px' }}>
+                          <input
+                            value={formData.custom_doctor_name}
+                            onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
+                            placeholder="Enter custom doctor name"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid #CCCCCC',
+                              fontSize: '16px',
+                              color: '#333333',
+                              backgroundColor: '#FFFFFF',
+                              outline: 'none'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                            onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
