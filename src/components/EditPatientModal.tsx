@@ -66,7 +66,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     medical_history: patient.medical_history || '',
     allergies: patient.allergies || '',
     current_medications: patient.current_medications || '',
-    patient_tag: patient.notes || '', // Map notes to patient_tag
+    patient_tag: patient.patient_tag || '', // Use actual patient_tag field
     has_reference: patient.has_reference ? 'YES' : 'NO',
     reference_details: patient.reference_details || '',
     // Doctor and Department
@@ -158,7 +158,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
         current_medications: formData.current_medications || undefined,
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details || undefined : undefined,
-        notes: formData.patient_tag || undefined,
+        patient_tag: formData.patient_tag || undefined,
         date_of_entry: formData.date_of_entry ? formData.date_of_entry.toISOString().split('T')[0] : undefined,
         assigned_doctor: formData.selected_doctor || undefined,
         assigned_department: formData.selected_department || undefined,

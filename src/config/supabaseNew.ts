@@ -84,6 +84,7 @@ export interface Patient {
   doctor_specialty?: string; // Doctor's specialty from doctors table
   doctor_hospital_experience?: string; // Doctor's hospital experience from doctors table
   notes?: string;
+  patient_tag?: string; // Patient categorization tag (Community, Camp, VIP, etc.)
   date_of_entry?: string; // Visit/entry date
   ipd_status?: 'OPD' | 'ADMITTED' | 'DISCHARGED'; // IPD admission status
   ipd_bed_number?: string; // Current IPD bed number
@@ -277,6 +278,7 @@ export interface CreatePatientData {
   assigned_department?: string; // Primary assigned department (backward compatibility)
   assigned_doctors?: AssignedDoctor[]; // Multiple assigned doctors
   notes?: string;
+  patient_tag?: string; // Patient categorization tag (Community, Camp, VIP, etc.)
   date_of_entry?: string; // Visit/entry date
   hospital_id: string;
 }

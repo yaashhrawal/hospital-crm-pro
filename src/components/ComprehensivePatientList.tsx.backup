@@ -321,10 +321,10 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
             <div><span className="font-medium">Email:</span> {patient.email || 'Not provided'}</div>
             <div><span className="font-medium">Gender:</span> {patient.gender === 'MALE' ? 'Male (M)' : patient.gender === 'FEMALE' ? 'Female (F)' : patient.gender || 'Not specified'}</div>
             <div><span className="font-medium">Date of Birth:</span> {patient.date_of_birth || 'Not provided'}</div>
-            {(patient.patient_tag || patient.notes) && (
+            {patient.patient_tag && (
               <div><span className="font-medium">Patient Tag:</span> 
                 <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                  {patient.patient_tag || patient.notes}
+                  {patient.patient_tag}
                 </span>
               </div>
             )}
@@ -945,48 +945,17 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       } else {
       }
       
-      // Debug patient_tag data directly from database
-      console.log('🔍 Database Patient Debug - First 3 patients with their patient_tag field:', 
-        patientsData.slice(0, 3).map(p => ({
-          name: `${p.first_name} ${p.last_name}`,
-          patient_id: p.patient_id,
-          patient_tag: p.patient_tag,
-          notes: p.notes,
-          patient_tag_type: typeof p.patient_tag,
-          notes_type: typeof p.notes,
-          all_keys: Object.keys(p).filter(k => k.includes('tag') || k.includes('note'))
-        }))
-      );
-      
-      // Check if any patients have tags in notes field but not in patient_tag field
-      const patientsWithNotesButNoTag = patientsData.filter(p => 
-        p.notes && p.notes.trim() !== '' && (!p.patient_tag || p.patient_tag.trim() === '')
-      );
-      if (patientsWithNotesButNoTag.length > 0) {
-        console.log('⚠️ Found patients with data in notes but not patient_tag:', 
-          patientsWithNotesButNoTag.slice(0, 3).map(p => ({
-            name: `${p.first_name} ${p.last_name}`,
-            notes: p.notes,
-            patient_tag: p.patient_tag
-          }))
-        );
-      }
-
       setPatients(patientsData);
       
       // Force re-sorting after patients are loaded to ensure date-based order is correct
       // This is important when back-dated entries are loaded
       
-      // Extract unique tags from patients for filter dropdown (check both patient_tag and notes)
-      const uniqueTags = [...new Set([
-        ...patientsData
+      // Extract unique tags from patients for filter dropdown
+      const uniqueTags = [...new Set(
+        patientsData
           .map(p => p.patient_tag)
-          .filter(tag => tag && tag.trim() !== ''),
-        ...patientsData
-          .map(p => p.notes)
-          .filter(note => note && note.trim() !== ''),
-        'Community', 'Camp'
-      ])].sort();
+          .filter(tag => tag && tag.trim() !== '')
+      ), 'Community', 'Camp'].sort();
       
       // Debug logging for patient tags
       console.log('🏷️ Patient List Debug - Total patients:', patientsData.length);
@@ -1028,9 +997,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
     // Apply tag filter
     if (filterTag !== 'all') {
-      filtered = filtered.filter(patient => 
-        patient.patient_tag === filterTag || patient.notes === filterTag
-      );
+      filtered = filtered.filter(patient => patient.patient_tag === filterTag);
     }
 
     // Apply sorting
@@ -1183,14 +1150,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       
       const exportData = filteredPatients.map(patient => {
         
-        // Debug patient_tag data
-        console.log(`📊 Excel Export Debug - Patient: ${patient.first_name} ${patient.last_name}`, {
-          patient_tag: patient.patient_tag,
-          patient_tag_type: typeof patient.patient_tag,
-          patient_tag_exists: patient.patient_tag !== undefined,
-          patient_tag_value: patient.patient_tag || 'EMPTY/NULL'
-        });
-        
         // Debug registration date formatting
         const regDate = patient.created_at || '';
         const formattedRegDate = formatDate(regDate);
@@ -1198,50 +1157,52 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         return {
           patient_id: patient.patient_id,
           first_name: patient.first_name,
-          last_name: patient.last_name || "",
-          phone: patient.phone || "",
-          email: patient.email || "",
-          gender: patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : patient.gender || "",
-          age: patient.age || "",
-          address: patient.address || "",
-          patient_tag: patient.patient_tag || patient.notes || "",
+          last_name: patient.last_name,
+          phone: patient.phone || '',
+          email: patient.email || '',
+          gender: patient.gender || '',
+          age: patient.age || '',
+          address: patient.address || '',
+          date_of_birth: patient.date_of_birth || '',
+          medical_history: patient.medical_history || '',
+          allergies: patient.allergies || '',
+          patient_tag: patient.patient_tag || '',
+          emergency_contact: patient.emergency_contact_name || '',
           visit_count: patient.visitCount || 0,
-          department_status: (() => {
-            const deptStatus = getDepartmentStatus(patient);
-            return deptStatus.status;
-          })(),
-          total_spent: patient.totalSpent || 0,
-          last_visit: formatDate(patient.lastVisit || patient.date_of_entry || ""),
-          registration_date: formattedRegDate,
+          department_status: patient.departmentStatus || 'OPD',
+          total_spent: patient.totalSpent || 0, // Clean numeric value
+          last_visit: formatDate(patient.lastVisit || patient.date_of_entry || ''),
+          registration_date: patient.created_at || '', // Store raw date
         };
       });
-      
-      // Debug final export data
-      console.log('📊 Final Excel Export Data Sample:', exportData.slice(0, 2));
 
       const success = exportToExcel({
         filename: `Patient_List_${getLocalDateString()}`,
         headers: [
-          "Patient ID",
-          "First Name", 
-          "Last Name",
-          "Phone",
-          "Email",
-          "Gender",
-          "Age",
-          "Address", 
-          "Patient Tag",
-          "Visit Count",
-          "Department Status",
-          "Total Spent",
-          "Last Visit",
-          "Registration Date"
+          'Patient ID',
+          'First Name',
+          'Last Name', 
+          'Phone',
+          'Email',
+          'Gender',
+          'Age',
+          'Address',
+          'Date of Birth',
+          'Medical History',
+          'Allergies',
+          'Patient Tag',
+          'Emergency Contact',
+          'Visit Count',
+          'Department Status',
+          'Total Spent',
+          'Last Visit',
+          'Registration Date'
         ],
         data: exportData,
         formatters: {
-          total_spent: (value) => formatCurrencyForExcel(value),
-          last_visit: (value) => value ? formatDate(value) : "Never",
-          registration_date: (value) => value ? formatDate(value) : "N/A"
+          total_spent: (value) => formatCurrencyForExcel(value), // Clean numeric value
+          last_visit: (value) => value ? formatDate(value) : 'Never',
+          registration_date: (value) => value ? formatDate(value) : 'Unknown'
         }
       });
 
@@ -1520,9 +1481,9 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         <div className="text-sm text-gray-500">ID: {patient.patient_id}</div>
                         <div className="text-sm text-gray-500">
                           {patient.age || 'N/A'} yrs • {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender || 'N/A'}
-                          {(patient.patient_tag || patient.notes) && (
+                          {patient.patient_tag && (
                             <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                              {patient.patient_tag || patient.notes}
+                              {patient.patient_tag}
                             </span>
                           )}
                         </div>

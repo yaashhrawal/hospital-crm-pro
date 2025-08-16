@@ -399,11 +399,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
         has_reference: formData.has_reference === 'YES',
         reference_details: formData.has_reference === 'YES' ? formData.reference_details || undefined : undefined,
         
-        // Notes and tags - combine patient_tag and reference if both exist
-        notes: [
-          formData.patient_tag,
-          formData.has_reference === 'YES' && formData.reference_details ? `REF: ${formData.reference_details}` : null
-        ].filter(Boolean).join(' | ') || undefined,
+        // Patient tag
+        patient_tag: formData.patient_tag || undefined,
+        
+        // Notes - only include reference details
+        notes: formData.has_reference === 'YES' && formData.reference_details ? `REF: ${formData.reference_details}` : undefined,
         
         // Date tracking - use local date to avoid timezone issues
         date_of_entry: formData.date_of_entry ? 

@@ -417,6 +417,7 @@ export class HospitalService {
         blood_group: data.blood_group || null,
         medical_history: data.medical_history || null,
         allergies: data.allergies || null,
+        patient_tag: data.patient_tag || null,
         // Reference information
         has_reference: data.has_reference || false,
         reference_details: data.reference_details || null,

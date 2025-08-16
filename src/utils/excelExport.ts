@@ -50,10 +50,23 @@ const convertToCSV = (headers: string[], data: any[], formatters: { [key: string
   csvRows.push(headers.map(header => escapeCSVValue(header)).join(','));
   
   // Add data rows
-  data.forEach(row => {
+  data.forEach((row, rowIndex) => {
     const values = headers.map(header => {
       const key = header.toLowerCase().replace(/\s+/g, '_');
       let value = row[key] || row[header] || '';
+      
+      // Debug patient_tag specifically
+      if (header === 'Patient Tag' && rowIndex === 0) {
+        console.log(`🔍 Excel Export Key Mapping Debug:`, {
+          header: header,
+          key: key,
+          row_keys: Object.keys(row),
+          value_from_key: row[key],
+          value_from_header: row[header],
+          final_value: value,
+          patient_tag_direct: row.patient_tag
+        });
+      }
       
       // Apply formatter if available
       if (formatters[key]) {
@@ -117,15 +130,26 @@ export const formatCurrencyWithSymbol = (amount: number): string => {
 
 // Format date for export
 export const formatDate = (date: string | Date): string => {
-  if (!date) return 'N/A';
+  if (!date || date === '' || date === 'Invalid Date') return 'N/A';
   
   try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    let dateObj: Date;
+    
+    if (typeof date === 'string') {
+      // Handle YYYY-MM-DD format specifically to avoid timezone issues
+      if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = date.split('-').map(Number);
+        dateObj = new Date(year, month - 1, day);
+      } else {
+        dateObj = new Date(date);
+      }
+    } else {
+      dateObj = date;
+    }
     
     // Check if date is valid
     if (isNaN(dateObj.getTime())) {
-      console.warn('Invalid date provided to formatDate:', date);
-      return 'Invalid Date';
+      return 'N/A';
     }
     
     return dateObj.toLocaleDateString('en-IN', {
@@ -134,8 +158,7 @@ export const formatDate = (date: string | Date): string => {
       year: 'numeric'
     });
   } catch (error) {
-    console.error('Error formatting date:', date, error);
-    return 'Invalid Date';
+    return 'N/A';
   }
 };
 
