@@ -14,6 +14,7 @@ export interface ReceiptData {
     email: string;
     registration: string;
     gst: string;
+    website?: string;
   };
   
   // Patient Information
@@ -83,7 +84,70 @@ interface ReceiptTemplateProps {
   className?: string;
 }
 
+// Function to convert number to words
+const convertToWords = (num: number): string => {
+  if (num === 0) return 'Zero Rupees Only';
+  
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const convertHundreds = (n: number): string => {
+    let result = '';
+    if (n >= 100) {
+      result += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    } else if (n >= 10) {
+      result += teens[n - 10] + ' ';
+      return result;
+    }
+    if (n > 0) {
+      result += ones[n] + ' ';
+    }
+    return result;
+  };
+  
+  let result = '';
+  const crores = Math.floor(num / 10000000);
+  if (crores > 0) {
+    result += convertHundreds(crores) + 'Crore ';
+    num %= 10000000;
+  }
+  
+  const lakhs = Math.floor(num / 100000);
+  if (lakhs > 0) {
+    result += convertHundreds(lakhs) + 'Lakh ';
+    num %= 100000;
+  }
+  
+  const thousands = Math.floor(num / 1000);
+  if (thousands > 0) {
+    result += convertHundreds(thousands) + 'Thousand ';
+    num %= 1000;
+  }
+  
+  if (num > 0) {
+    result += convertHundreds(num);
+  }
+  
+  return result.trim() + ' Rupees Only';
+};
+
 const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' }) => {
+  // Get current time when receipt is rendered
+  const getCurrentTime = () => {
+    return new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    });
+  };
+
   // Calculate totals from charges if not provided
   const calculateTotals = () => {
     const chargesTotal = data.charges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
@@ -220,10 +284,12 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
       {/* Header */}
       <div className="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black">
         <div className="flex flex-col items-center justify-center mb-4">
-          {/* Hospital Name - Always visible */}
-          <h1 className="text-2xl font-bold text-blue-600 mb-2 print:text-black print:block">
-            {data.hospital.name || 'VALANT HOSPITAL'}
-          </h1>
+          {/* Hospital Name - Only show if provided */}
+          {data.hospital.name && (
+            <h1 className="text-2xl font-bold text-blue-600 mb-2 print:text-black print:block">
+              {data.hospital.name}
+            </h1>
+          )}
           {/* Logo - Optional */}
           <img 
             src="/logo.png" 
@@ -240,7 +306,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         <div className="text-sm text-gray-700 mt-4 print:text-black">
           <p className="print:text-black">{data.hospital.address}</p>
           <p className="print:text-black">Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
-          <p className="print:text-black">Reg. No: {data.hospital.registration} | GST: {data.hospital.gst}</p>
+          <p className="print:text-black">Website: www.valanthospital.com</p>
         </div>
       </div>
 
@@ -253,7 +319,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
           <div>
             <p><strong>RECEIPT NO:</strong> {data.receiptNumber}</p>
             <p><strong>DATE:</strong> {data.date}</p>
-            <p><strong>TIME:</strong> {data.time}</p>
+            <p><strong>TIME:</strong> {getCurrentTime()}</p>
           </div>
           <div className="text-right">
             <p><strong>Patient ID:</strong> {data.patient.id}</p>
@@ -268,7 +334,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         <div className="grid grid-cols-2 gap-4 text-sm print:grid-cols-2 print:gap-4">
           <div>
             <p className="print:text-black"><strong>NAME:</strong> {data.patient.name || 'N/A'}</p>
-            <p className="print:text-black"><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} / {data.patient.gender || 'N/A'}</p>
+            <p className="print:text-black"><strong>AGE/SEX:</strong> {data.patient.age || 'N/A'} years / {data.patient.gender || 'N/A'}</p>
             <p className="print:text-black"><strong>MOBILE:</strong> {data.patient.phone || 'N/A'}</p>
             {data.type === 'IP_STICKER' && data.patient.history_present_illness && (
               <p><strong>HPI:</strong> {data.patient.history_present_illness}</p>
@@ -278,8 +344,6 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             )}
           </div>
           <div>
-            <p className="print:text-black"><strong>BLOOD GROUP:</strong> {data.patient.bloodGroup || 'N/A'}</p>
-            <p className="print:text-black"><strong>ADDRESS:</strong> {data.patient.address || 'N/A'}</p>
             {data.staff.processedBy && <p className="print:text-black"><strong>PROCESSED BY:</strong> {data.staff.processedBy}</p>}
             {data.type === 'IP_STICKER' && data.patient.procedure_planned && (
               <p><strong>Procedure:</strong> {data.patient.procedure_planned}</p>
@@ -368,32 +432,44 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
               <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Service</th>
               <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Qty</th>
               <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Rate (₹)</th>
+              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Discount</th>
               <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Amount (₹)</th>
+              <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Payment Mode</th>
             </tr>
           </thead>
           <tbody>
             {services.length > 0 ? (
               <>
-                {services.map((service) => (
+                {services.map((service, index) => (
                   <tr key={service.sr}>
                     <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.sr}</td>
                     <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.service}</td>
                     <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">{service.qty}</td>
                     <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.rate.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">
+                      {totals.discount > 0 && index === 0 ? `₹${totals.discount.toFixed(2)}` : '-'}
+                    </td>
                     <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.amount.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
+                      {data.payments[0]?.mode || 'CASH'}
+                    </td>
                   </tr>
                 ))}
-                {/* Total Row */}
+                {/* Bill Summary Row */}
                 <tr className="bg-gray-100 font-bold print:bg-gray-200">
-                  <td colSpan={4} className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">TOTAL:</td>
-                  <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">
-                    ₹{services.reduce((sum, service) => sum + service.amount, 0).toFixed(2)}
+                  <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
+                    <div className="text-center">
+                      <p className="mb-1">Consultation Fee: ₹{totals.subtotal.toFixed(2)}</p>
+                      <p className="mb-1">Subtotal: ₹{totals.subtotal.toFixed(2)}</p>
+                      <p className="text-lg font-bold">Net Amount Payable: ₹{totals.netAmount.toFixed(2)}</p>
+                      <p className="text-sm mt-1">Amount in Words: {convertToWords(totals.netAmount)}</p>
+                    </div>
                   </td>
                 </tr>
               </>
             ) : (
               <tr>
-                <td colSpan={5} className="border border-gray-300 px-3 py-2 text-center text-gray-500 print:border-black print:text-black">
+                <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center text-gray-500 print:border-black print:text-black">
                   No services recorded
                 </td>
               </tr>
@@ -402,62 +478,6 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         </table>
       </div>
 
-      {/* Payment Details & Summary (Hidden for IP Sticker/Admission) */}
-      {(data.type !== 'IP_STICKER' && data.type !== 'ADMISSION') && (
-        <>
-          {data.payments.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-gray-800">Payment Details</h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                {data.payments.map((payment, index) => (
-                  <div key={index} className="flex justify-between text-sm mb-1">
-                    <span><strong>{payment.mode}:</strong> {payment.reference ? `(Ref: ${payment.reference})` : ''}</span>
-                    <span>₹{(payment.amount || 0).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Summary */}
-          <div className="border-t-2 border-gray-300 pt-4 mb-6 print:block">
-            <div className="flex justify-end print:block">
-              <div className="w-64 print:w-full">
-                <div className="flex justify-between mb-2 print:font-normal">
-                  <span className="print:text-black">Total Amount:</span>
-                  <span className="print:text-black">₹{totals.subtotal.toFixed(2)}</span>
-                </div>
-                {totals.discount > 0 && (
-                  <div className="flex justify-between mb-2 text-red-600 print:text-black">
-                    <span>Discount:</span>
-                    <span>- ₹{totals.discount.toFixed(2)}</span>
-                  </div>
-                )}
-                {totals.insurance > 0 && (
-                  <div className="flex justify-between mb-2 text-blue-600 print:text-black">
-                    <span>Insurance Covered:</span>
-                    <span>- ₹{totals.insurance.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2 print:text-black print:border-black">
-                  <span className="print:font-bold">Net Amount:</span>
-                  <span className="print:font-bold">₹{totals.netAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between mt-2 print:text-black">
-                  <span>Amount Paid:</span>
-                  <span>₹{totals.amountPaid.toFixed(2)}</span>
-                </div>
-                {totals.balance !== 0 && (
-                  <div className={`flex justify-between mt-2 font-semibold ${totals.balance > 0 ? 'text-red-600' : 'text-green-600'} print:text-black`}>
-                    <span>{totals.balance > 0 ? 'Balance Due:' : 'Excess Paid:'}</span>
-                    <span>₹{Math.abs(totals.balance).toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Notes */}
       {data.notes && (
@@ -484,10 +504,9 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
 
       {/* Footer */}
       <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
-        <p>Thank you for choosing {data.hospital.name}</p>
+        <p>Thank you for choosing VALANT HOSPITAL</p>
         <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
         {data.isOriginal !== false && <p className="font-bold mt-2">** ORIGINAL COPY **</p>}
-        <p className="mt-1">Generated on {data.date} at {data.time}</p>
       </div>
     </div>
   );

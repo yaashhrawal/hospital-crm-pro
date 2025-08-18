@@ -249,8 +249,9 @@ class AuthService {
           'create_bills',
           'write_bills',
           'read_dashboard',
+          'access_operations',
           // Frontdesk has NO edit access to patient list
-          // Frontdesk has NO access to operations section
+          // Frontdesk now HAS access to operations section
         ];
       
       case 'doctor':
@@ -294,15 +295,41 @@ class AuthService {
           'create_expenses',
         ];
       
-      // Legacy support
+      // Legacy support and variations
       case 'ADMIN':
       case 'DOCTOR':
-      case 'NURSE':
+      case 'FRONTDESK':
+      case 'front_desk':
+      case 'receptionist':
+      case 'staff':
       case 'STAFF':
-        return this.getUserPermissions({ ...user, role: user.role.toLowerCase() });
-      
+      case 'NURSE':
+        return [
+          ...basePermissions,
+          'read_patients',
+          'create_patients',
+          'read_appointments',
+          'read_bills',
+          'create_bills',
+          'write_bills',
+          'read_dashboard',
+          'access_operations',
+          // All staff variations get operations access
+        ];
+
       default:
-        return basePermissions;
+        // Default case - give operations access to any unrecognized role
+        return [
+          ...basePermissions,
+          'read_patients',
+          'create_patients',
+          'read_appointments',
+          'read_bills',
+          'create_bills',
+          'write_bills',
+          'read_dashboard',
+          'access_operations',
+        ];
     }
   }
 }

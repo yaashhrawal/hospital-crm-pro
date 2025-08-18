@@ -8,12 +8,13 @@ import { supabase } from '../config/supabaseNew';
 export const useReceiptPrinting = () => {
   // Default hospital information
   const DEFAULT_HOSPITAL_INFO = {
-    name: 'Healthcare Management System',
-    address: 'Medical Center, Healthcare District, City - 400001',
-    phone: '+91 98765 43210',
-    email: 'info@healthcarecms.com',
-    registration: 'MH/HC/2024/001',
-    gst: '27ABCDE1234F1Z5'
+    name: '',
+    address: '10, Madhav Vihar Shobhagpura, Udaipur (313001)',
+    phone: '+91 9119118000',
+    email: 'valanthospital@gmail.com',
+    registration: '',
+    gst: '',
+    website: 'www.valanthospital.com'
   };
 
   const generateReceiptNumber = (type: string): string => {
@@ -90,10 +91,11 @@ export const useReceiptPrinting = () => {
         type: 'CONSULTATION',
         receiptNumber: generateReceiptNumber('CONS'),
         date: new Date().toLocaleDateString('en-IN'),
-        time: new Date().toLocaleTimeString([], {
+        time: new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
         }),
         hospital: DEFAULT_HOSPITAL_INFO,
         patient: {
@@ -153,10 +155,11 @@ export const useReceiptPrinting = () => {
         type: receiptType,
         receiptNumber: generateReceiptNumber('ADM'),
         date: new Date().toLocaleDateString('en-IN'),
-        time: new Date().toLocaleTimeString([], {
+        time: new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
         }),
         hospital: DEFAULT_HOSPITAL_INFO,
         patient: {
@@ -228,10 +231,11 @@ export const useReceiptPrinting = () => {
         type: 'DISCHARGE',
         receiptNumber: generateReceiptNumber('DISCH'),
         date: new Date().toLocaleDateString('en-IN'),
-        time: new Date().toLocaleTimeString([], {
+        time: new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
         }),
         hospital: DEFAULT_HOSPITAL_INFO,
         patient: {
@@ -392,10 +396,11 @@ export const useReceiptPrinting = () => {
         type: 'DAILY_SUMMARY',
         receiptNumber: generateReceiptNumber('DAILY'),
         date: new Date(date).toLocaleDateString('en-IN'),
-        time: new Date().toLocaleTimeString([], {
+        time: new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
         }),
         hospital: DEFAULT_HOSPITAL_INFO,
         patient: {

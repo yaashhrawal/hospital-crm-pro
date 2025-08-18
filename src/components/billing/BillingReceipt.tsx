@@ -53,19 +53,21 @@ const BillingReceipt: React.FC<BillingReceiptProps> = ({ bill, onClose }) => {
     type: 'PAYMENT',
     receiptNumber: `BILL-${bill.patientId.slice(-6).toUpperCase()}-${Date.now()}`,
     date: new Date().toLocaleDateString('en-IN'),
-    time: new Date().toLocaleTimeString([], {
+    time: new Date().toLocaleTimeString('en-IN', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
       }),
     
     hospital: {
-      name: 'VALANT HOSPITAL',
-      address: 'Madhuban, Siwan, Bihar',
-      phone: '+91 99999 99999',
-      email: 'info@valanthospital.com',
-      registration: 'REG/2024/001',
-      gst: 'GST123456789'
+      name: '',
+      address: '10, Madhav Vihar Shobhagpura, Udaipur (313001)',
+      phone: '+91 9119118000',
+      email: 'valanthospital@gmail.com',
+      registration: '',
+      gst: '',
+      website: 'www.valanthospital.com'
     },
     
     patient: {

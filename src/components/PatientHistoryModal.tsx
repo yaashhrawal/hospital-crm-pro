@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import dataService from '../services/dataService';
 import type { Patient, PatientTransaction } from '../types/index';
 import { getPatientTransactionDate, formatDateForDisplay, getPatientEntryDate } from '../utils/dateUtils';
+import ReceiptTemplate, { type ReceiptData } from './receipts/ReceiptTemplate';
 
 interface PatientHistoryModalProps {
   patient: Patient;
@@ -256,66 +257,111 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
       return;
     }
 
-    // Create a printable receipt for selected transactions
-    const receiptContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Transaction Receipts</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .receipt { border: 1px solid #ccc; margin-bottom: 20px; padding: 15px; page-break-after: always; }
-            .header { text-align: center; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-            .patient-info { margin-bottom: 15px; }
-            .transaction-details { background: #f9f9f9; padding: 10px; border-radius: 5px; }
-            .amount { font-size: 18px; font-weight: bold; color: #28a745; }
-            @media print {
-              .no-print { display: none; }
-              body { margin: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="no-print" style="text-align: center; margin-bottom: 20px;">
-            <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print All Receipts</button>
-            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
-          </div>
-          
-          ${selectedTransactionsData.map(transaction => `
-            <div class="receipt">
-              <div class="header">
-                <h2>Transaction Receipt</h2>
-                <p><strong>Receipt ID:</strong> ${transaction.transactionId}</p>
-                <p><strong>Date:</strong> ${new Date(transaction.visitDate).toLocaleDateString()}</p>
-              </div>
-              
-              <div class="patient-info">
-                <h3>Patient Information</h3>
-                <p><strong>Name:</strong> ${patient.first_name} ${patient.last_name}</p>
-                <p><strong>Patient ID:</strong> ${patient.patient_id}</p>
-                <p><strong>Phone:</strong> ${patient.phone || 'Not provided'}</p>
-              </div>
-              
-              <div class="transaction-details">
-                <h3>Transaction Details</h3>
-                <p><strong>Type:</strong> ${transaction.transaction_type?.replace('_', ' ').toUpperCase()}</p>
-                <p><strong>Description:</strong> ${transaction.description}</p>
-                <p><strong>Payment Mode:</strong> ${transaction.payment_mode?.toUpperCase()}</p>
-                <p><strong>Amount:</strong> <span class="amount">₹${Math.abs(transaction.amount).toFixed(2)}</span></p>
-              </div>
-            </div>
-          `).join('')}
-        </body>
-      </html>
-    `;
+    // Generate receipts using the same template as patient list
+    selectedTransactionsData.forEach((transaction, index) => {
+      const receiptData: ReceiptData = {
+        type: 'PAYMENT',
+        receiptNumber: `REC-${transaction.transactionId}`,
+        date: new Date(transaction.visitDate).toLocaleDateString('en-IN'),
+        time: new Date().toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
+        }),
+        
+        hospital: {
+          name: '',
+          address: '10, Madhav Vihar Shobhagpura, Udaipur (313001)',
+          phone: '+91 9119118000',
+          email: 'valanthospital@gmail.com',
+          registration: '',
+          gst: '',
+          website: 'www.valanthospital.com'
+        },
+        
+        patient: {
+          id: patient.patient_id,
+          name: `${patient.first_name} ${patient.last_name || ''}`.trim(),
+          phone: patient.phone || 'Not provided',
+          age: patient.age,
+          gender: patient.gender,
+          address: patient.address
+        },
+        
+        charges: [{
+          description: transaction.description,
+          amount: Math.abs(transaction.amount),
+          quantity: 1,
+          rate: Math.abs(transaction.amount)
+        }],
+        
+        payments: [{
+          mode: (transaction.payment_mode?.toUpperCase() || 'CASH') as 'CASH' | 'ONLINE' | 'INSURANCE',
+          amount: Math.abs(transaction.amount),
+          date: new Date(transaction.visitDate).toLocaleDateString('en-IN')
+        }],
+        
+        totals: {
+          subtotal: Math.abs(transaction.amount),
+          discount: 0,
+          insurance: 0,
+          netAmount: Math.abs(transaction.amount),
+          amountPaid: Math.abs(transaction.amount),
+          balance: 0
+        },
+        
+        staff: {
+          processedBy: 'System User',
+          authorizedBy: 'Hospital Administrator'
+        },
+        
+        notes: `Transaction Type: ${transaction.transaction_type?.replace('_', ' ').toUpperCase()}`,
+        isOriginal: true
+      };
 
-    // Open receipt in new window
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(receiptContent);
-      printWindow.document.close();
-      printWindow.focus();
-    }
+      // Create modal for each receipt
+      setTimeout(() => {
+        const modalContainer = document.createElement('div');
+        modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+        document.body.appendChild(modalContainer);
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto';
+        modalContainer.appendChild(modalContent);
+        
+        modalContent.innerHTML = `
+          <div class="flex justify-between items-center p-4 border-b print:hidden">
+            <h3 class="text-lg font-semibold">Receipt ${index + 1} of ${selectedTransactionsData.length}</h3>
+            <div class="flex gap-2">
+              <button id="printBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2">
+                <span>🖨️</span> Print Receipt
+              </button>
+              <button id="closeBtn" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                Close
+              </button>
+            </div>
+          </div>
+          <div class="p-8 print:p-6" id="receipt-content"></div>
+        `;
+        
+        // Add event listeners
+        modalContent.querySelector('#printBtn')?.addEventListener('click', () => window.print());
+        modalContent.querySelector('#closeBtn')?.addEventListener('click', () => {
+          document.body.removeChild(modalContainer);
+        });
+        
+        // Render the ReceiptTemplate using React
+        import('react-dom/client').then(({ createRoot }) => {
+          const receiptContainer = modalContent.querySelector('#receipt-content');
+          if (receiptContainer) {
+            const root = createRoot(receiptContainer);
+            root.render(React.createElement(ReceiptTemplate, { data: receiptData }));
+          }
+        });
+        
+      }, index * 100); // Stagger the modals slightly
+    });
 
     toast.success(`Generated ${selectedTransactionsData.length} receipts for printing`);
   };
