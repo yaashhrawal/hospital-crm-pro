@@ -184,6 +184,13 @@ class AuthService {
    * Check if user is admin
    */
   isAdmin(user: AuthUser | null): boolean {
+    if (!user) return false;
+    
+    // Force admin access for specific users
+    if (user.email === 'admin@valant.com' || user.email === 'meenal@valant.com') {
+      return true;
+    }
+    
     return this.hasRole(user, ['admin', 'ADMIN']);
   }
 

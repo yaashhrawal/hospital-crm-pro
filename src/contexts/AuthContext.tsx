@@ -191,8 +191,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       userObject: user
     });
     
-    // FORCE ADMIN ACCESS: Grant all permissions to admin@valant.com
-    if (user && user.email === 'admin@valant.com') {
+    // FORCE ADMIN ACCESS: Grant all permissions to admin users
+    if (user && (user.email === 'admin@valant.com' || user.email === 'meenal@valant.com')) {
       console.log('✅ [AuthContext] FORCE ADMIN ACCESS - granting permission:', permission);
       return true;
     }
