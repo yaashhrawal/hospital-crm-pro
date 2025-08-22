@@ -10,7 +10,6 @@ interface DailyExpense {
   amount: number;
   payment_mode: string;
   expense_date: string;
-  status: string;
   receipt_number: string;
   hospital_id: string;
   created_at?: string;
@@ -97,7 +96,6 @@ const DailyExpenseTab: React.FC = () => {
         payment_mode: formData.payment_mode,
         expense_date: formData.expense_date,
         receipt_number: formData.receipt_number.trim() || `RCP${Date.now()}`,
-        status: 'APPROVED',
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 

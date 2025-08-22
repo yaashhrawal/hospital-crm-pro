@@ -145,10 +145,12 @@ const DailyOperationsView: React.FC = () => {
       const netRevenue = totalIncome - totalExpenses;
 
       const cashPayments = transactions
-        .filter(t => t.payment_mode === 'cash')
+        .filter(t => t.payment_mode === 'cash' && t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
       
-      const digitalPayments = totalIncome - cashPayments;
+      const digitalPayments = transactions
+        .filter(t => ['online', 'card', 'upi'].includes(t.payment_mode) && t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
 
       const activeAdmissions = admissions.filter(a => a.status === 'active').length;
       const completedJourneys = journeys.filter(j => j.status === 'discharged').length;

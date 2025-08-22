@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { getDoctorWithDegree } from '../data/doctorDegrees';
 import { supabase } from '../config/supabaseNew';
+import MedicineDropdown from './MedicineDropdown';
 
 interface Valant2PrescriptionProps {
   patient: PatientWithRelations;
@@ -12,7 +13,7 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
   const [doctorDetails, setDoctorDetails] = useState<{specialty?: string, hospital_experience?: string}>({});
   
   // Text box states for prescription content
-  const [prescriptionText, setPrescriptionText] = useState('');
+  const [prescriptionText, setPrescriptionText] = useState<string[]>([]);
   const [chiefComplaints, setChiefComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [advice, setAdvice] = useState('');
@@ -270,10 +271,10 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
                 </div>
               ` : ''}
               
-              ${prescriptionText ? `
+              ${prescriptionText.length > 0 ? `
                 <div class="prescription-section">
                   <h3>Prescription:</h3>
-                  <div class="content">${prescriptionText}</div>
+                  <div class="content">${prescriptionText.map(medicine => `<div>• ${medicine}</div>`).join('')}</div>
                 </div>
               ` : ''}
               
@@ -464,15 +465,11 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
 
           {/* Prescription */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Prescription/Medications:
-            </label>
-            <textarea
-              value={prescriptionText}
-              onChange={(e) => setPrescriptionText(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              rows={6}
-              placeholder="Enter medications and dosage..."
+            <MedicineDropdown
+              selectedMedicines={prescriptionText}
+              onChange={(medicines) => setPrescriptionText(medicines)}
+              placeholder="Select Medicine..."
+              label="Prescription/Medications"
             />
           </div>
 
@@ -606,10 +603,14 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
                 </div>
               )}
               
-              {prescriptionText && (
+              {prescriptionText.length > 0 && (
                 <div>
                   <h3 className="font-bold text-gray-700 text-xs uppercase mb-1">Prescription:</h3>
-                  <div className="text-gray-900 whitespace-pre-wrap">{prescriptionText}</div>
+                  <div className="text-gray-900">
+                    {prescriptionText.map((medicine, index) => (
+                      <div key={index} className="mb-1">• {medicine}</div>
+                    ))}
+                  </div>
                 </div>
               )}
               

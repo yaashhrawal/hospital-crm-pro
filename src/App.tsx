@@ -26,107 +26,11 @@ import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
 import IPDBedManagement from './components/IPDBedManagement';
 import DischargeSection from './components/DischargeSection';
+import { Login } from './pages/Login/Login'; // Import 3D Login component
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
-// Login Component
-const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, loading } = useAuth();
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      console.log('🔐 Attempting login with:', email);
-      const result = await login({ email, password });
-      
-      if (!result.success) {
-        console.error('❌ Login error:', result.error);
-        toast.error(`Login failed: ${result.error || 'Invalid credentials'}`);
-        return;
-      }
-      
-      console.log('✅ Login successful');
-      toast.success(`Welcome back!`);
-    } catch (error: any) {
-      console.error('🚨 Login exception:', error);
-      toast.error(`Login failed: ${error.message || 'Connection error'}`);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="text-center">
-          <div className="mb-4">
-            <img src="/logo.png" alt="Logo" className="h-24 w-auto mx-auto" />
-          </div>
-          <p className="mt-2 text-sm text-gray-600">
-            Advanced Healthcare Management System
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10 border">
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your email"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your password"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Signing in...
-                </div>
-              ) : (
-                'Sign in to Hospital CRM'
-              )}
-            </button>
-          </form>
-
-
-          {/* Features List */}
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500 mb-2">Features Available:</p>
-            <div className="flex flex-wrap justify-center gap-1">
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Patient Management</span>
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Appointments</span>
-              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">Analytics</span>
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">Real-time Dashboard</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Login Component - Replaced with 3D animated version from ./pages/Login/Login
+// The old LoginPage component has been commented out and replaced with the imported Login component
 
 // Main App Component
 const App: React.FC = () => {
@@ -938,7 +842,7 @@ const App: React.FC = () => {
 
   // Show login page if not authenticated
   if (!user) {
-    return <LoginPage />;
+    return <Login />;
   }
 
   // Main app navigation tabs - CLEAN PRODUCTION

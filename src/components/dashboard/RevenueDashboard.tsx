@@ -459,7 +459,12 @@ const RevenueDashboard: React.FC = () => {
 
               <div className="bg-purple-50 p-4 rounded-lg">
                 <div className="text-lg font-semibold text-purple-600">
-                  {((revenueMetrics.totalIncome - (revenueMetrics.paymentModeBreakdown.cash || 0)) / Math.max(1, revenueMetrics.totalIncome) * 100).toFixed(1)}%
+                  {(() => {
+                    const digitalAmount = (revenueMetrics.paymentModeBreakdown.online || 0) + 
+                                         (revenueMetrics.paymentModeBreakdown.card || 0) + 
+                                         (revenueMetrics.paymentModeBreakdown.upi || 0);
+                    return (digitalAmount / Math.max(1, revenueMetrics.totalIncome) * 100).toFixed(1);
+                  })()}%
                 </div>
                 <div className="text-sm text-gray-600">Digital Payments</div>
               </div>

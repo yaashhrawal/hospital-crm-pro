@@ -472,8 +472,12 @@ export class HospitalService {
     try {
       console.log(`📅 Fetching patients for EXACT date: ${dateStr} (NO CUMULATIVE RESULTS)`);
       
-      // NEW APPROACH: Get all patients and filter exactly client-side
-      // This avoids all timezone issues that cause cumulative results
+      // OPTIMIZED APPROACH: Fetch recent patients first (last 30 days) then filter
+      // This reduces data transfer while ensuring we get today's patients
+      
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentDate = thirtyDaysAgo.toISOString();
       
       const { data: allPatients, error } = await supabase
         .from('patients')
@@ -483,6 +487,7 @@ export class HospitalService {
           admissions:patient_admissions(*)
         `)
         .eq('hospital_id', HOSPITAL_ID)
+        .gte('created_at', recentDate)
         .order('created_at', { ascending: false })
         .limit(1000);
       
@@ -571,24 +576,27 @@ export class HospitalService {
       const enhancedPatients = limitedPatients.map(patient => {
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
-        // Only count completed transactions (exclude cancelled)
-        // Calculate actual totalSpent for all patients (including ORTHO/DR. HEMANT)
+        
+        // Calculate totalSpent from all transactions (not filtered by date)
+        // The frontend will handle date filtering for display
         const totalSpent = transactions
           .filter((t: any) => t.status !== 'CANCELLED')
           .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        
+        // For visitCount and lastVisit, still use all transactions (but exclude cancelled)
+        const allActiveTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        
         // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
-        const registrationVisits = transactions.filter((t: any) => 
+        const registrationVisits = allActiveTransactions.filter((t: any) => 
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation') &&
-          t.status !== 'CANCELLED'
+          t.transaction_type === 'consultation')
         ).length;
         // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
         const visitCount = registrationVisits > 0 ? registrationVisits : 1;
-        const activeTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
-        const lastVisit = activeTransactions.length > 0 
-          ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+        const lastVisit = allActiveTransactions.length > 0 
+          ? allActiveTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
         // Check IPD status to determine department
@@ -680,24 +688,27 @@ export class HospitalService {
       const enhancedPatients = patients?.map(patient => {
         const transactions = patient.transactions || [];
         const admissions = []; // Temporarily empty until patient_admissions is fixed
-        // Only count completed transactions (exclude cancelled)
-        // Calculate actual totalSpent for all patients (including ORTHO/DR. HEMANT)
+        
+        // Calculate totalSpent from all transactions (not filtered by date)
+        // The frontend will handle date filtering for display
         const totalSpent = transactions
           .filter((t: any) => t.status !== 'CANCELLED')
           .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        
+        // For visitCount and lastVisit, still use all transactions (but exclude cancelled)
+        const allActiveTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        
         // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
-        const registrationVisits = transactions.filter((t: any) => 
+        const registrationVisits = allActiveTransactions.filter((t: any) => 
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation') &&
-          t.status !== 'CANCELLED'
+          t.transaction_type === 'consultation')
         ).length;
         // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
         const visitCount = registrationVisits > 0 ? registrationVisits : 1;
-        const activeTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
-        const lastVisit = activeTransactions.length > 0 
-          ? activeTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+        const lastVisit = allActiveTransactions.length > 0 
+          ? allActiveTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
           : null;
         
         // Check IPD status to determine department
@@ -2102,6 +2113,370 @@ export class HospitalService {
       
     } catch (error: any) {
       console.error('❌ Error creating missing admission:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CUSTOM INVESTIGATIONS ====================
+  
+  static async getCustomInvestigations(): Promise<any[]> {
+    try {
+      console.log('📋 Getting custom investigations...');
+      
+      const { data: investigations, error } = await supabase
+        .from('custom_investigations')
+        .select('*')
+        .eq('hospital_id', HOSPITAL_ID)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (error) {
+        console.error('❌ Get custom investigations error:', error);
+        throw new Error(`Failed to get custom investigations: ${error.message}`);
+      }
+      
+      console.log('✅ Custom investigations retrieved:', investigations?.length || 0);
+      return investigations || [];
+      
+    } catch (error: any) {
+      console.error('🚨 getCustomInvestigations error:', error);
+      throw error;
+    }
+  }
+
+  static async addCustomInvestigation(name: string, description?: string, category?: string): Promise<any> {
+    try {
+      console.log('📋 Adding custom investigation:', name);
+      
+      const investigationData = {
+        name: name.trim(),
+        description: description?.trim() || '',
+        category: category?.trim() || 'General',
+        hospital_id: HOSPITAL_ID,
+        created_by: 'user',
+        is_active: true
+      };
+      
+      const { data: investigation, error } = await supabase
+        .from('custom_investigations')
+        .insert(investigationData)
+        .select()
+        .single();
+      
+      if (error) {
+        // Handle duplicate name error
+        if (error.code === '23505') {
+          console.log('⚠️ Investigation already exists:', name);
+          // Return existing investigation
+          const { data: existing } = await supabase
+            .from('custom_investigations')
+            .select('*')
+            .eq('name', name)
+            .eq('hospital_id', HOSPITAL_ID)
+            .single();
+          return existing;
+        }
+        console.error('❌ Add custom investigation error:', error);
+        throw new Error(`Failed to add custom investigation: ${error.message}`);
+      }
+      
+      console.log('✅ Custom investigation added successfully');
+      return investigation;
+      
+    } catch (error: any) {
+      console.error('🚨 addCustomInvestigation error:', error);
+      throw error;
+    }
+  }
+
+  static async deleteCustomInvestigation(id: string): Promise<void> {
+    try {
+      console.log('🗑️ Deleting custom investigation:', id);
+      
+      const { error } = await supabase
+        .from('custom_investigations')
+        .update({ is_active: false })
+        .eq('id', id)
+        .eq('hospital_id', HOSPITAL_ID);
+      
+      if (error) {
+        console.error('❌ Delete custom investigation error:', error);
+        throw new Error(`Failed to delete custom investigation: ${error.message}`);
+      }
+      
+      console.log('✅ Custom investigation deleted successfully');
+      
+    } catch (error: any) {
+      console.error('🚨 deleteCustomInvestigation error:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CUSTOM PAIN COMPLAINTS ====================
+  
+  static async getPainComplaints(): Promise<any[]> {
+    try {
+      console.log('🩹 Getting pain complaints...');
+      
+      const { data: complaints, error } = await supabase
+        .from('custom_pain_complaints')
+        .select('*')
+        .eq('hospital_id', HOSPITAL_ID)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (error) {
+        console.error('❌ Get pain complaints error:', error);
+        throw new Error(`Failed to get pain complaints: ${error.message}`);
+      }
+      
+      console.log('✅ Pain complaints retrieved:', complaints?.length || 0);
+      return complaints || [];
+      
+    } catch (error: any) {
+      console.error('🚨 getPainComplaints error:', error);
+      throw error;
+    }
+  }
+
+  static async addPainComplaint(name: string): Promise<any> {
+    try {
+      console.log('🩹 Adding pain complaint:', name);
+      
+      const complaintData = {
+        name: name.trim(),
+        hospital_id: HOSPITAL_ID,
+        created_by: 'user',
+        is_active: true
+      };
+      
+      const { data: complaint, error } = await supabase
+        .from('custom_pain_complaints')
+        .insert(complaintData)
+        .select()
+        .single();
+      
+      if (error) {
+        if (error.code === '23505') {
+          console.log('⚠️ Pain complaint already exists:', name);
+          const { data: existing } = await supabase
+            .from('custom_pain_complaints')
+            .select('*')
+            .eq('name', name)
+            .eq('hospital_id', HOSPITAL_ID)
+            .single();
+          return existing;
+        }
+        console.error('❌ Add pain complaint error:', error);
+        throw new Error(`Failed to add pain complaint: ${error.message}`);
+      }
+      
+      console.log('✅ Pain complaint added successfully');
+      return complaint;
+      
+    } catch (error: any) {
+      console.error('🚨 addPainComplaint error:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CUSTOM LOCATIONS ====================
+  
+  static async getLocations(): Promise<any[]> {
+    try {
+      console.log('📍 Getting locations...');
+      
+      const { data: locations, error } = await supabase
+        .from('custom_locations')
+        .select('*')
+        .eq('hospital_id', HOSPITAL_ID)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (error) {
+        console.error('❌ Get locations error:', error);
+        throw new Error(`Failed to get locations: ${error.message}`);
+      }
+      
+      console.log('✅ Locations retrieved:', locations?.length || 0);
+      return locations || [];
+      
+    } catch (error: any) {
+      console.error('🚨 getLocations error:', error);
+      throw error;
+    }
+  }
+
+  static async addLocation(name: string): Promise<any> {
+    try {
+      console.log('📍 Adding location:', name);
+      
+      const locationData = {
+        name: name.trim(),
+        hospital_id: HOSPITAL_ID,
+        created_by: 'user',
+        is_active: true
+      };
+      
+      const { data: location, error } = await supabase
+        .from('custom_locations')
+        .insert(locationData)
+        .select()
+        .single();
+      
+      if (error) {
+        if (error.code === '23505') {
+          console.log('⚠️ Location already exists:', name);
+          const { data: existing } = await supabase
+            .from('custom_locations')
+            .select('*')
+            .eq('name', name)
+            .eq('hospital_id', HOSPITAL_ID)
+            .single();
+          return existing;
+        }
+        console.error('❌ Add location error:', error);
+        throw new Error(`Failed to add location: ${error.message}`);
+      }
+      
+      console.log('✅ Location added successfully');
+      return location;
+      
+    } catch (error: any) {
+      console.error('🚨 addLocation error:', error);
+      throw error;
+    }
+  }
+
+  // ==================== PRESCRIPTION MANAGEMENT ====================
+  
+  static async savePrescription(prescriptionData: any): Promise<any> {
+    try {
+      console.log('💊 Saving prescription...', prescriptionData);
+      
+      const prescriptionRecord = {
+        patient_id: prescriptionData.patient_id,
+        patient_name: prescriptionData.patient_name,
+        doctor_name: prescriptionData.doctor_name,
+        department: prescriptionData.department,
+        hospital_id: HOSPITAL_ID,
+        chief_complaints: prescriptionData.chief_complaints,
+        present_history: prescriptionData.present_history,
+        past_history: prescriptionData.past_history,
+        drug_history: prescriptionData.drug_history,
+        local_examination: prescriptionData.local_examination,
+        investigations: prescriptionData.investigations,
+        investigation_reference: prescriptionData.investigation_reference,
+        general_advise: prescriptionData.general_advise,
+        medical_advise: prescriptionData.medical_advise,
+        created_by: 'user',
+        is_active: true
+      };
+      
+      const { data: prescription, error } = await supabase
+        .from('prescriptions')
+        .insert(prescriptionRecord)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Save prescription error:', error);
+        throw new Error(`Failed to save prescription: ${error.message}`);
+      }
+      
+      console.log('✅ Prescription saved successfully');
+      return prescription;
+      
+    } catch (error: any) {
+      console.error('🚨 savePrescription error:', error);
+      throw error;
+    }
+  }
+
+  static async getPrescriptions(patientId: string): Promise<any[]> {
+    try {
+      console.log('📋 Getting prescriptions for patient:', patientId);
+      
+      const { data: prescriptions, error } = await supabase
+        .from('prescriptions')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('hospital_id', HOSPITAL_ID)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Get prescriptions error:', error);
+        throw new Error(`Failed to get prescriptions: ${error.message}`);
+      }
+      
+      console.log('✅ Prescriptions retrieved:', prescriptions?.length || 0);
+      return prescriptions || [];
+      
+    } catch (error: any) {
+      console.error('🚨 getPrescriptions error:', error);
+      throw error;
+    }
+  }
+
+  static async updatePrescription(id: string, prescriptionData: any): Promise<any> {
+    try {
+      console.log('🔄 Updating prescription:', id);
+      
+      const updateData = {
+        chief_complaints: prescriptionData.chief_complaints,
+        present_history: prescriptionData.present_history,
+        past_history: prescriptionData.past_history,
+        drug_history: prescriptionData.drug_history,
+        local_examination: prescriptionData.local_examination,
+        investigations: prescriptionData.investigations,
+        investigation_reference: prescriptionData.investigation_reference,
+        general_advise: prescriptionData.general_advise,
+        medical_advise: prescriptionData.medical_advise,
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data: prescription, error } = await supabase
+        .from('prescriptions')
+        .update(updateData)
+        .eq('id', id)
+        .eq('hospital_id', HOSPITAL_ID)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Update prescription error:', error);
+        throw new Error(`Failed to update prescription: ${error.message}`);
+      }
+      
+      console.log('✅ Prescription updated successfully');
+      return prescription;
+      
+    } catch (error: any) {
+      console.error('🚨 updatePrescription error:', error);
+      throw error;
+    }
+  }
+
+  static async deletePrescription(id: string): Promise<void> {
+    try {
+      console.log('🗑️ Deleting prescription:', id);
+      
+      const { error } = await supabase
+        .from('prescriptions')
+        .update({ is_active: false })
+        .eq('id', id)
+        .eq('hospital_id', HOSPITAL_ID);
+      
+      if (error) {
+        console.error('❌ Delete prescription error:', error);
+        throw new Error(`Failed to delete prescription: ${error.message}`);
+      }
+      
+      console.log('✅ Prescription deleted successfully');
+      
+    } catch (error: any) {
+      console.error('🚨 deletePrescription error:', error);
       throw error;
     }
   }

@@ -95,12 +95,40 @@ export const Login: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="text-center lg:text-left"
         >
-          <div className="flex items-center justify-center lg:justify-start">
-            <img 
-              src="/logo.png" 
-              alt="Valant Hospital Logo" 
-              className="h-32 w-auto"
-            />
+          <div className="mb-8">
+            <div className="flex items-center justify-center lg:justify-start mb-4">
+              <div className="bg-gradient-to-r from-blue-600 to-green-600 p-3 rounded-xl">
+                <Heart className="h-8 w-8 text-white" />
+              </div>
+              <div className="ml-3">
+                <h1 className="text-3xl font-bold text-gray-900">Hospital CRM</h1>
+                <p className="text-sm text-gray-600">Healthcare Management System</p>
+              </div>
+            </div>
+            <p className="text-lg text-gray-700 mb-8">
+              Streamline your healthcare operations with our comprehensive management platform. 
+              Manage patients, appointments, and more in one integrated solution.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
+                className="flex items-start space-x-4"
+              >
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <feature.icon className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{feature.title}</h3>
+                  <p className="text-sm text-gray-600">{feature.description}</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
 

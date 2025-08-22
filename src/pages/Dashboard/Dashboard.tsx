@@ -25,12 +25,12 @@ export const Dashboard: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [dateFilter, setDateFilter] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null
+    start: new Date(),
+    end: new Date()
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'thisWeek' | 'thisMonth' | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'thisWeek' | 'thisMonth' | null>('today');
   const [showRevenueDetails, setShowRevenueDetails] = useState(false);
   const [showPatientsDetails, setShowPatientsDetails] = useState(false);
   const [showAppointmentsDetails, setShowAppointmentsDetails] = useState(false);
@@ -41,17 +41,37 @@ export const Dashboard: React.FC = () => {
   const { data: dashboardStats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: [...queryKeys.dashboardStats, dateFilter, Date.now()], // Add timestamp for cache busting
     queryFn: async () => {
-      console.log('🔄 Fetching fresh dashboard data...', new Date().toLocaleTimeString());
-      const stats = await HospitalService.getDashboardStats();
+      console.log('🔄 Fetching dashboard data...', new Date().toLocaleTimeString());
+      console.log('📅 Dashboard dateFilter:', { start: dateFilter.start, end: dateFilter.end });
+      console.log('📊 Dashboard State Debug:', {
+        hasDateFilter: !!(dateFilter.start && dateFilter.end),
+        isTodayFilter: dateFilter.start && dateFilter.end && 
+          dateFilter.start.toDateString() === dateFilter.end.toDateString() &&
+          dateFilter.start.toDateString() === new Date().toDateString(),
+        startDate: dateFilter.start?.toISOString(),
+        endDate: dateFilter.end?.toISOString()
+      });
       
       // If date filter is applied, fetch filtered data
       if (dateFilter.start && dateFilter.end) {
+        console.log('📊 Using filtered dashboard stats for date range');
+        // Handle same-day date ranges properly
+        const startDate = new Date(dateFilter.start);
+        const endDate = new Date(dateFilter.end);
+        
+        // For same-day ranges, set end time to end of day
+        if (startDate.toDateString() === endDate.toDateString()) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+        
         return await HospitalService.getDashboardStatsWithDateRange(
-          dateFilter.start.toISOString(),
-          dateFilter.end.toISOString()
+          startDate.toISOString(),
+          endDate.toISOString()
         );
       }
       
+      console.log('📊 Using default dashboard stats (no date filter)');
+      const stats = await HospitalService.getDashboardStats();
       return stats;
     },
     refetchInterval: autoRefresh ? 10 * 1000 : false, // Refresh every 10 seconds for immediate updates
@@ -83,11 +103,21 @@ export const Dashboard: React.FC = () => {
   // Manual refresh function
   const handleManualRefresh = async () => {
     console.log('🔄 Manual refresh triggered...');
-    // Invalidate all dashboard-related queries
-    await queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
-    await Promise.all([refetchStats(), refetchAppointments()]);
-    setLastRefreshTime(new Date());
-    console.log('✅ Manual refresh completed');
+    try {
+      // Force immediate refresh by invalidating queries
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      await queryClient.refetchQueries({ queryKey: queryKeys.dashboardStats });
+      
+      // Also refetch appointments
+      if (refetchStats && refetchAppointments) {
+        await Promise.all([refetchStats(), refetchAppointments()]);
+      }
+      
+      setLastRefreshTime(new Date());
+      console.log('✅ Manual refresh completed');
+    } catch (error) {
+      console.error('❌ Refresh failed:', error);
+    }
   };
 
   // Format last refresh time
@@ -404,12 +434,20 @@ export const Dashboard: React.FC = () => {
             </div>
             
             <Button 
-              onClick={handleRefreshData}
-              disabled={statsLoading}
-              className="bg-[#007bff] hover:bg-[#0056b3] text-white px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              onClick={() => {
+                console.log('🔄 DASHBOARD REFRESH BUTTON CLICKED - Simple refresh: reloading page...');
+                console.log('📊 Dashboard state before refresh:', {
+                  dateFilter,
+                  selectedPeriod,
+                  autoRefresh,
+                  lastRefreshTime
+                });
+                window.location.reload();
+              }}
+              className="bg-[#007bff] hover:bg-[#0056b3] text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
-              <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
-              {statsLoading ? 'Refreshing...' : 'Force Refresh'}
+              <RefreshCw className="h-4 w-4" />
+              Refresh Data
             </Button>
             
             <Button 

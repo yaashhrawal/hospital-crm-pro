@@ -199,7 +199,12 @@ const PatientListView: React.FC = () => {
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-800">👥 Patient Management</h2>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">👥 Patient Management</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Today's Date: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            </div>
             <button
               onClick={() => setShowQuickEntry(!showQuickEntry)}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
@@ -295,6 +300,7 @@ const PatientListView: React.FC = () => {
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('totalSpent')}
+                  title={`Showing transactions for ${new Date().toLocaleDateString()}`}
                 >
                   Total Spent {getSortIcon('totalSpent')}
                 </th>

@@ -63,7 +63,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
   
   // Date filter state
-  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('all');
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -179,7 +179,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       const startDateStr = dateRange.start.toISOString().split('T')[0];
       const endDateStr = dateRange.end.toISOString().split('T')[0];
       
-      const filteredPatients = allPatientsData.filter(patient => {
+      const filteredPatients = (allPatientsData || []).filter(patient => {
         // 🔍 CRITICAL FIX: Use same priority logic as transactions
         let effectiveDateStr;
         if (patient.date_of_entry && patient.date_of_entry.trim() !== '') {
@@ -581,13 +581,29 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
   // Handle refresh data
   const handleRefreshData = async () => {
-    await Promise.all([
-      refetchStats(),
-      refetchPatients(),
-      refetchBeds(),
-      refetchOperations(),
-      refetchAppointments(),
-    ]);
+    console.log('🔄 ENHANCED DASHBOARD REFRESH BUTTON CLICKED');
+    console.log('📊 Current dashboard state:', {
+      dateFilter,
+      customStartDate,
+      customEndDate,
+      showDatePicker
+    });
+    
+    try {
+      console.log('🔄 Refreshing all dashboard data...');
+      await Promise.all([
+        refetchStats(),
+        refetchPatients(),
+        refetchBeds(),
+        refetchOperations(),
+        refetchAppointments(),
+      ]);
+      console.log('✅ Dashboard refresh completed successfully');
+      toast.success('Dashboard data refreshed!');
+    } catch (error) {
+      console.error('❌ Dashboard refresh failed:', error);
+      toast.error('Failed to refresh dashboard data');
+    }
   };
 
   // Listen for localStorage changes to update appointments
@@ -998,18 +1014,25 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
       switch (cardType) {
         case 'patients':
-          // CONSISTENCY FIX: Use same data source as main dashboard for consistency
-          console.log('👥 Patient Card Click: Using same filtered data as main dashboard for consistency...');
+          // CONSISTENCY FIX: Use same data source as main card calculation
+          console.log('👥 Patient Card Click: Using consistent data source with main card...');
           
           const currentFilteredPatients = patientsData || [];
           
-          // For proper breakdown, we need ALL patient data to calculate Today/Week/Month
-          const allPatientsForBreakdown = await HospitalService.getPatients(1000);
+          // Use the SAME all patients data as the main card to ensure consistency
+          const allPatientsForBreakdown = allPatientsData || [];
           
-          // Use consistent date formatting
+          console.log('📊 Data Source Consistency Check:', {
+            currentFilter: dateFilter,
+            mainCardShowing: cardData.totalPatients,
+            currentFilteredLength: currentFilteredPatients.length,
+            allPatientsLength: allPatientsForBreakdown.length
+          });
+          
+          // Use consistent date formatting - MATCH main dashboard calculation
           const todayStr = formatDateString(new Date());
           const weekStartDate = new Date();
-          weekStartDate.setDate(weekStartDate.getDate() - 7);
+          weekStartDate.setDate(weekStartDate.getDate() - 7); // Keep same as main dashboard
           const weekStartStr = formatDateString(weekStartDate);
           const monthStartDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
           const monthStartStr = formatDateString(monthStartDate);
@@ -1033,7 +1056,19 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
               ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
               : p.created_at.split('T')[0];
-            return effectiveDateStr >= weekStartStr && effectiveDateStr <= todayStr;
+            
+            // Debug individual patient dates for week calculation
+            const isInWeekRange = effectiveDateStr >= weekStartStr && effectiveDateStr <= todayStr;
+            if (p.first_name && p.first_name.includes('TEST')) {
+              console.log(`📅 Week Filter Debug - ${p.first_name} ${p.last_name}:`, {
+                effectiveDateStr,
+                weekStartStr,
+                todayStr,
+                isInRange: isInWeekRange
+              });
+            }
+            
+            return isInWeekRange;
           }) || [];
           
           const monthPatients = allPatientsForBreakdown?.filter((p: any) => {
@@ -1048,6 +1083,27 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             thisWeek: { count: weekPatients.length, data: weekPatients },
             thisMonth: { count: monthPatients.length, data: monthPatients },
           };
+          
+          console.log('📊 Patient Card Breakdown Results:', {
+            currentDateFilter: dateFilter,
+            mainCardTotalShowing: cardData.totalPatients,
+            breakdownResults: {
+              todayCount: todayPatients.length,
+              weekCount: weekPatients.length,
+              monthCount: monthPatients.length
+            },
+            totalAllPatients: allPatientsForBreakdown?.length,
+            dateCalculations: {
+              todayStr,
+              weekStartStr,
+              monthStartStr
+            },
+            samplePatients: {
+              todayPatients: todayPatients.slice(0, 3).map(p => `${p.first_name} ${p.last_name} (${p.date_of_entry || p.created_at.split('T')[0]})`),
+              weekPatients: weekPatients.slice(0, 5).map(p => `${p.first_name} ${p.last_name} (${p.date_of_entry || p.created_at.split('T')[0]})`)
+            }
+          });
+          
           break;
 
         case 'admissions':
@@ -1426,7 +1482,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           {/* Date Filter Section */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-[#333333]">
-              <Filter className="h-5 w-5 text-[#007bff]" />
+              <Filter className="h-5 w-5" style={{ color: '#0056B3' }} />
               <span className="font-medium">Filter by Date:</span>
             </div>
             
@@ -1451,9 +1507,10 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                   }}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     dateFilter === filter.value
-                      ? 'bg-[#007bff] text-white shadow-sm'
+                      ? 'text-white shadow-sm'
                       : 'bg-white text-[#333333] hover:bg-[#f8f9fa] border border-gray-200'
                   }`}
+                  style={dateFilter === filter.value ? { backgroundColor: '#0056B3' } : {}}
                 >
                   {filter.label}
                 </button>
@@ -1464,7 +1521,8 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           {/* Refresh Button */}
           <Button 
             onClick={handleRefreshData}
-            className="bg-[#007bff] hover:bg-[#0056b3] text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            className="text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:opacity-90"
+            style={{ backgroundColor: '#0056B3' }}
           >
             <RefreshCw className="h-4 w-4" />
             Refresh Data
@@ -1476,7 +1534,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 mb-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-[#007bff]" />
+                <CalendarDays className="h-4 w-4" style={{ color: '#0056B3' }} />
                 <span className="text-sm font-medium text-[#333333]">From:</span>
                 <input
                   type="date"
@@ -1511,9 +1569,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
         {/* Filter Summary */}
         {dateFilter !== 'all' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <div className="border rounded-lg p-3 mb-4" style={{ backgroundColor: '#f0f4ff', borderColor: '#0056B3' }}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-800">
+              <div className="flex items-center gap-2" style={{ color: '#0056B3' }}>
                 <CalendarDays className="h-4 w-4" />
                 <span className="text-sm font-medium">
                   {dateFilter === 'today' && 'Showing data for today'}
@@ -1529,7 +1587,8 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                   setCustomStartDate('');
                   setCustomEndDate('');
                 }}
-                className="text-blue-600 hover:text-blue-800 text-sm underline"
+                className="text-sm underline hover:opacity-80"
+                style={{ color: '#0056B3' }}
               >
                 Clear Filter
               </button>
@@ -1548,9 +1607,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-[#999999]">Total Patients</h3>
-              <Users className="h-5 w-5 text-[#007bff]" />
+              <Users className="h-5 w-5" style={{ color: '#0056B3' }} />
             </div>
-            <div className="text-3xl font-bold text-[#007bff] mb-1">
+            <div className="text-3xl font-bold mb-1" style={{ color: '#0056B3' }}>
               {cardData.totalPatients.toLocaleString()}
             </div>
             <p className="text-xs text-[#999999]">
@@ -1569,9 +1628,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-[#999999]">Admissions</h3>
-              <Calendar className="h-5 w-5 text-[#007bff]" />
+              <Calendar className="h-5 w-5" style={{ color: '#0056B3' }} />
             </div>
-            <div className="text-3xl font-bold text-[#007bff] mb-1">
+            <div className="text-3xl font-bold mb-1" style={{ color: '#0056B3' }}>
               {cardData.admissions.toString()}
             </div>
             <p className="text-xs text-[#999999]">
@@ -1590,9 +1649,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-[#999999]">Available Beds</h3>
-              <Bed className="h-5 w-5 text-[#007bff]" />
+              <Bed className="h-5 w-5" style={{ color: '#0056B3' }} />
             </div>
-            <div className="text-3xl font-bold text-[#007bff] mb-1">
+            <div className="text-3xl font-bold mb-1" style={{ color: '#0056B3' }}>
               {cardData.availableBeds.toString()}
             </div>
             <p className="text-xs text-[#999999]">
@@ -1611,9 +1670,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-[#999999]">Revenue</h3>
-              <IndianRupee className="h-5 w-5 text-[#007bff]" />
+              <IndianRupee className="h-5 w-5" style={{ color: '#0056B3' }} />
             </div>
-            <div className="text-3xl font-bold text-[#007bff] mb-1">
+            <div className="text-3xl font-bold mb-1" style={{ color: '#0056B3' }}>
               {formatCurrency(cardData.revenue)}
             </div>
             <p className="text-xs text-[#999999]">
@@ -1632,9 +1691,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-[#999999]">Expenses</h3>
-              <TrendingDown className="h-5 w-5 text-[#007bff]" />
+              <TrendingDown className="h-5 w-5" style={{ color: '#0056B3' }} />
             </div>
-            <div className="text-3xl font-bold text-[#007bff] mb-1">
+            <div className="text-3xl font-bold mb-1" style={{ color: '#0056B3' }}>
               {formatCurrency(cardData.expenses)}
             </div>
             <p className="text-xs text-[#999999]">
@@ -1651,7 +1710,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Appointments Calendar */}
           <div className="bg-white rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-[#333333] mb-1">Appointments Calendar</h3>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: '#0056B3' }}>Appointments Calendar</h3>
             <p className="text-sm text-[#999999] mb-4">Select a date to view scheduled appointments</p>
             
             {/* Calendar Header */}
@@ -1697,13 +1756,18 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                       ${
                         isCurrentMonth
                           ? isToday
-                            ? 'bg-[#007bff] text-white font-bold'
+                            ? 'text-white font-bold'
                             : isSelected
-                            ? 'bg-[#007bff] text-white'
+                            ? 'text-white'
                             : 'text-[#333333] hover:bg-gray-100'
                           : 'text-[#999999] hover:bg-gray-50'
                       }
                     `}
+                    style={
+                      isCurrentMonth && (isToday || isSelected)
+                        ? { backgroundColor: '#0056B3' }
+                        : {}
+                    }
                   >
                     {date.getDate()}
                   </button>
@@ -1714,7 +1778,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
           {/* Upcoming Appointments */}
           <div className="bg-white rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-[#333333] mb-1">Upcoming Appointments</h3>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: '#0056B3' }}>Upcoming Appointments</h3>
             <p className="text-sm text-[#999999] mb-4">
               Showing appointments for {formatSelectedDateRange()}
             </p>
@@ -1842,7 +1906,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto m-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-[#333333] capitalize">
+              <h2 className="text-xl font-bold capitalize" style={{ color: '#0056B3' }}>
                 {selectedCard} Breakdown
               </h2>
               <button
@@ -1861,9 +1925,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
               <div className="space-y-6">
                 {/* Time Period Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="rounded-lg p-4" style={{ backgroundColor: '#f0f4ff' }}>
                     <h3 className="text-sm font-medium text-[#999999]">Today</h3>
-                    <div className="text-2xl font-bold text-[#007bff]">
+                    <div className="text-2xl font-bold" style={{ color: '#0056B3' }}>
                       {['revenue', 'expenses'].includes(selectedCard) 
                         ? formatCurrency(cardBreakdown.today.count)
                         : cardBreakdown.today.count.toLocaleString()}
@@ -1895,7 +1959,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                 {/* Service Revenue Breakdown (only for revenue card) */}
                 {selectedCard === 'revenue' && cardBreakdown.today.topServices && cardBreakdown.today.topServices.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold text-[#333333] mb-3">
+                    <h3 className="text-lg font-semibold mb-3" style={{ color: '#0056B3' }}>
                       Revenue by Service (Today)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1907,7 +1971,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                               <p className="text-xs text-[#666666]">{service.count} transaction{service.count !== 1 ? 's' : ''}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-[#007bff]">{formatCurrency(service.amount)}</p>
+                              <p className="font-bold" style={{ color: '#0056B3' }}>{formatCurrency(service.amount)}</p>
                               <p className="text-xs text-[#666666]">{service.percentage}%</p>
                             </div>
                           </div>
@@ -1938,7 +2002,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
 
                 {/* Recent Data */}
                 <div>
-                  <h3 className="text-lg font-semibold text-[#333333] mb-3">
+                  <h3 className="text-lg font-semibold mb-3" style={{ color: '#0056B3' }}>
                     Recent {selectedCard.charAt(0).toUpperCase() + selectedCard.slice(1)}
                   </h3>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -1958,7 +2022,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                         </div>
                         <div className="text-right">
                           {(['revenue', 'expenses'].includes(selectedCard)) && (
-                            <p className="font-semibold text-[#007bff]">
+                            <p className="font-semibold" style={{ color: '#0056B3' }}>
                               {formatCurrency(item.amount || 0)}
                             </p>
                           )}

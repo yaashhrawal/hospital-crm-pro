@@ -389,8 +389,8 @@ export const useReceiptPrinting = () => {
       if (error) throw error;
 
       const totalRevenue = transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
-      const cashRevenue = transactions?.filter(t => t.payment_mode === 'CASH').reduce((sum, t) => sum + t.amount, 0) || 0;
-      const onlineRevenue = transactions?.filter(t => t.payment_mode === 'ONLINE').reduce((sum, t) => sum + t.amount, 0) || 0;
+      const cashRevenue = transactions?.filter(t => t.payment_mode === 'cash').reduce((sum, t) => sum + t.amount, 0) || 0;
+      const onlineRevenue = transactions?.filter(t => ['online', 'card', 'upi'].includes(t.payment_mode)).reduce((sum, t) => sum + t.amount, 0) || 0;
 
       const receiptData: ReceiptData = {
         type: 'DAILY_SUMMARY',

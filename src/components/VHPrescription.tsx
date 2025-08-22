@@ -2,16 +2,42 @@ import React, { useState, useEffect } from 'react';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { getDoctorWithDegree } from '../data/doctorDegrees';
 import { supabase } from '../config/supabaseNew';
+import { MEDICAL_SERVICES, type MedicalService } from '../data/medicalServices';
+import MedicineDropdown from './MedicineDropdown';
 
 interface VHPrescriptionProps {
   patient: PatientWithRelations;
   onClose: () => void;
 }
 
+interface PrescriptionData {
+  chiefComplaints: {
+    painComplaint: string;
+    location: string;
+    duration: string;
+  };
+  historyOfPresentIllness: string;
+  investigation: string[];
+  reference: string;
+  medicinePrescribed: string[];
+}
+
 const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => {
   const [templateLoaded, setTemplateLoaded] = useState(false);
   const [templateError, setTemplateError] = useState(false);
   const [doctorDetails, setDoctorDetails] = useState<{specialty?: string, hospital_experience?: string}>({});
+  const [showTypingInterface, setShowTypingInterface] = useState(false);
+  const [prescriptionData, setPrescriptionData] = useState<PrescriptionData>({
+    chiefComplaints: {
+      painComplaint: '',
+      location: '',
+      duration: ''
+    },
+    historyOfPresentIllness: '',
+    investigation: [],
+    reference: '',
+    medicinePrescribed: []
+  });
 
   const getCurrentDate = () => {
     return new Date().toLocaleDateString('en-IN');
@@ -239,22 +265,37 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               left: 48px;
             }
 
-            .patient-details > div {
+            .patient-row {
+              display: flex;
               margin-bottom: 12px;
+            }
+
+            .patient-left {
+              flex: 1;
+              max-width: 350px;
+              white-space: nowrap;
+            }
+
+            .patient-right {
+              flex: 1;
+              margin-left: 200px;
+              max-width: 250px;
+              white-space: nowrap;
             }
 
             .patient-details .label {
               display: inline-block;
-              width: 128px;
               font-size: 18px;
               font-weight: 500;
               color: #374151;
+              margin-right: 8px;
             }
 
             .patient-details .value {
               font-size: 20px;
               font-weight: 500;
               color: #111827;
+              white-space: nowrap;
             }
 
             .right-details {
@@ -283,9 +324,9 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             .doctor-details {
               position: absolute;
               bottom: 384px;
-              right: 48px;
+              right: 150px;
               text-align: left;
-              max-width: 288px;
+              max-width: 400px;
             }
 
             .doctor-name {
@@ -319,6 +360,41 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               font-weight: bold;
               color: #4B5563;
               margin-top: 4px;
+            }
+
+            .prescription-content {
+              position: absolute;
+              top: 380px;
+              left: 48px;
+              right: 48px;
+              bottom: 400px;
+              overflow: hidden;
+              font-family: Arial, sans-serif;
+            }
+
+            .section {
+              margin-bottom: 32px;
+            }
+
+            .section-title {
+              font-size: 24px;
+              font-weight: bold;
+              color: #374151;
+              margin-bottom: 16px;
+            }
+
+            .section-content {
+              font-size: 18px;
+              color: #4B5563;
+              line-height: 1.6;
+            }
+
+            .section-content .label {
+              font-weight: 700;
+            }
+
+            .section-content div {
+              margin-bottom: 8px;
             }
 
             .vitals-section {
@@ -360,21 +436,25 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
         <body>
           <div class="prescription-container">
             <div class="patient-details">
-              <div>
-                <span class="label">Name:</span>
-                <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
+              <div class="patient-row">
+                <div class="patient-left">
+                  <span class="label">Name:</span>
+                  <span class="value">${patient.prefix ? `${patient.prefix} ` : ''}${patient.first_name} ${patient.last_name}</span>
+                </div>
+                <div class="patient-right">
+                  <span class="label">Age/Sex:</span>
+                  <span class="value">${ageText} / ${genderText}</span>
+                </div>
               </div>
-              <div>
-                <span class="label">Patient No:</span>
-                <span class="value">${patient.patient_id}</span>
-              </div>
-              <div>
-                <span class="label">Department:</span>
-                <span class="value">${departmentName}</span>
-              </div>
-              <div>
-                <span class="label">Paid Amount:</span>
-                <span class="value">₹${totalPaid.toLocaleString()}</span>
+              <div class="patient-row">
+                <div class="patient-left">
+                  <span class="label">Patient No:</span>
+                  <span class="value">${patient.patient_id}</span>
+                </div>
+                <div class="patient-right">
+                  <span class="label">Department:</span>
+                  <span class="value">${departmentName}</span>
+                </div>
               </div>
             </div>
 
@@ -384,9 +464,53 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
                 <span class="value">${currentDate}</span>
               </div>
               <div>
-                <span class="label">Age/Sex:</span>
-                <span class="value">${ageText} / ${genderText}</span>
+                <span class="label">Paid Amount:</span>
+                <span class="value">₹${totalPaid.toLocaleString()}</span>
               </div>
+            </div>
+
+            <!-- Prescription Content Area -->
+            <div class="prescription-content">
+              ${(prescriptionData.chiefComplaints.painComplaint || prescriptionData.chiefComplaints.location || prescriptionData.chiefComplaints.duration) ? `
+                <div class="section">
+                  <div class="section-title">Chief Complaints:</div>
+                  <div class="section-content">
+                    ${prescriptionData.chiefComplaints.painComplaint ? `<div><span class="label">Pain:</span> ${prescriptionData.chiefComplaints.painComplaint}</div>` : ''}
+                    ${prescriptionData.chiefComplaints.location ? `<div><span class="label">Location:</span> ${prescriptionData.chiefComplaints.location}</div>` : ''}
+                    ${prescriptionData.chiefComplaints.duration ? `<div><span class="label">Duration:</span> ${prescriptionData.chiefComplaints.duration}</div>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+              
+              ${prescriptionData.historyOfPresentIllness ? `
+                <div class="section">
+                  <div class="section-title">History of Present Illness:</div>
+                  <div class="section-content">${prescriptionData.historyOfPresentIllness}</div>
+                </div>
+              ` : ''}
+              
+              ${prescriptionData.investigation.length > 0 ? `
+                <div class="section">
+                  <div class="section-title">Investigation:</div>
+                  <div class="section-content">
+                    ${prescriptionData.investigation.map(item => `<div>• ${item}</div>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+              
+              ${prescriptionData.reference ? `
+                <div class="section">
+                  <div class="section-title">Reference:</div>
+                  <div class="section-content">${prescriptionData.reference}</div>
+                </div>
+              ` : ''}
+              
+              ${prescriptionData.medicinePrescribed.length > 0 ? `
+                <div class="section">
+                  <div class="section-title">Medicine Prescribed:</div>
+                  <div class="section-content">${prescriptionData.medicinePrescribed.map(medicine => `<div>• ${medicine}</div>`).join('')}</div>
+                </div>
+              ` : ''}
             </div>
 
             <div class="doctor-details">
@@ -447,9 +571,15 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
         `
       }} />
       
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-        {/* Print and Close buttons */}
+      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
+        {/* Print, Type, and Close buttons */}
         <div className="flex justify-end gap-2 p-4 border-b print:hidden">
+          <button
+            onClick={() => setShowTypingInterface(!showTypingInterface)}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            <span>✏️</span> {showTypingInterface ? 'Hide' : 'Type'} Prescription
+          </button>
           <button
             onClick={handlePrint}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
@@ -463,6 +593,163 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             Close
           </button>
         </div>
+
+        {/* Typing Interface */}
+        {showTypingInterface && (
+          <div className="p-6 border-b bg-gray-50 print:hidden">
+            <h3 className="text-lg font-semibold mb-4 text-gray-800">Prescription Details</h3>
+            
+            {/* Chief Complaints Section */}
+            <div className="mb-6">
+              <h4 className="text-md font-medium mb-3 text-gray-700">1. Chief Complaints</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">a. Pain Complaint</label>
+                  <textarea
+                    value={prescriptionData.chiefComplaints.painComplaint}
+                    onChange={(e) => setPrescriptionData(prev => ({
+                      ...prev,
+                      chiefComplaints: { ...prev.chiefComplaints, painComplaint: e.target.value }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Describe pain complaint..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">b. Location</label>
+                  <textarea
+                    value={prescriptionData.chiefComplaints.location}
+                    onChange={(e) => setPrescriptionData(prev => ({
+                      ...prev,
+                      chiefComplaints: { ...prev.chiefComplaints, location: e.target.value }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Location of pain..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">c. Duration</label>
+                  <textarea
+                    value={prescriptionData.chiefComplaints.duration}
+                    onChange={(e) => setPrescriptionData(prev => ({
+                      ...prev,
+                      chiefComplaints: { ...prev.chiefComplaints, duration: e.target.value }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Duration of symptoms..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* History of Present Illness */}
+            <div className="mb-6">
+              <label className="block text-md font-medium text-gray-700 mb-2">2. History of Present Illness</label>
+              <textarea
+                value={prescriptionData.historyOfPresentIllness}
+                onChange={(e) => setPrescriptionData(prev => ({ ...prev, historyOfPresentIllness: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={4}
+                placeholder="Describe the history of present illness..."
+              />
+            </div>
+
+            {/* Investigation */}
+            <div className="mb-6">
+              <label className="block text-md font-medium text-gray-700 mb-2">3. Investigation</label>
+              <div className="space-y-2">
+                <select
+                  onChange={(e) => {
+                    const selectedService = e.target.value;
+                    if (selectedService && !prescriptionData.investigation.includes(selectedService)) {
+                      setPrescriptionData(prev => ({
+                        ...prev,
+                        investigation: [...prev.investigation, selectedService]
+                      }));
+                    }
+                    e.target.value = '';
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Investigation/Service...</option>
+                  {MEDICAL_SERVICES
+                    .filter(service => service.isActive)
+                    .map(service => (
+                      <option key={service.id} value={service.name}>
+                        {service.name} - {service.category} (₹{service.basePrice})
+                      </option>
+                    ))
+                  }
+                </select>
+                
+                {/* Selected Investigations */}
+                {prescriptionData.investigation.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex flex-wrap gap-2">
+                      {prescriptionData.investigation.map((item, index) => (
+                        <div key={index} className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm">
+                          <span>{item}</span>
+                          <button
+                            onClick={() => {
+                              setPrescriptionData(prev => ({
+                                ...prev,
+                                investigation: prev.investigation.filter((_, i) => i !== index)
+                              }));
+                            }}
+                            className="text-blue-600 hover:text-blue-800 font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reference */}
+            <div className="mb-6">
+              <label className="block text-md font-medium text-gray-700 mb-2">4. Reference</label>
+              <textarea
+                value={prescriptionData.reference}
+                onChange={(e) => setPrescriptionData(prev => ({ ...prev, reference: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Reference notes..."
+              />
+            </div>
+
+            {/* Medicine Prescribed */}
+            <div className="mb-4">
+              <MedicineDropdown
+                selectedMedicines={prescriptionData.medicinePrescribed}
+                onChange={(medicines) => setPrescriptionData(prev => ({ ...prev, medicinePrescribed: medicines }))}
+                placeholder="Select Medicine..."
+                label="5. Medicine Prescribed"
+              />
+            </div>
+
+            {/* Clear All Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setPrescriptionData({
+                  chiefComplaints: { painComplaint: '', location: '', duration: '' },
+                  historyOfPresentIllness: '',
+                  investigation: [],
+                  reference: '',
+                  medicinePrescribed: []
+                })}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Loading/Error State */}
         {!templateLoaded && !templateError && (
@@ -503,38 +790,38 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             }}
           >
 
-          {/* Patient Details - Just after black line */}
-          <div className="absolute top-64 left-12 space-y-3">
-            {/* Name */}
-            <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Name:</span>
-              <span className="text-xl font-medium text-gray-900">
-                {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
-              </span>
+          {/* Patient Details */}
+          <div className="absolute top-64 left-12">
+            {/* Row 1: Name and Age/Sex */}
+            <div className="flex mb-3">
+              <div className="flex items-center whitespace-nowrap">
+                <span className="text-lg font-medium text-gray-700">Name:</span>
+                <span className="text-xl font-medium text-gray-900 ml-2">
+                  {patient.prefix ? `${patient.prefix} ` : ''}{patient.first_name} {patient.last_name}
+                </span>
+              </div>
+              <div className="flex items-center whitespace-nowrap ml-52">
+                <span className="text-lg font-medium text-gray-700">Age/Sex:</span>
+                <span className="text-xl text-gray-900 ml-2">
+                  {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
+                </span>
+              </div>
             </div>
 
-            {/* Patient No */}
-            <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Patient No:</span>
-              <span className="text-xl text-gray-900">{patient.patient_id}</span>
-            </div>
-
-            {/* Department */}
-            <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Department:</span>
-              <span className="text-xl text-gray-900">{getDepartmentName()}</span>
-            </div>
-
-            {/* Paid Amount */}
-            <div className="flex items-center">
-              <span className="w-32 text-lg font-medium text-gray-700">Paid Amount:</span>
-              <span className="text-xl font-semibold text-green-600">
-                ₹{getTotalPaidAmount().toLocaleString()}
-              </span>
+            {/* Row 2: Patient No and Department */}
+            <div className="flex">
+              <div className="flex items-center whitespace-nowrap">
+                <span className="text-lg font-medium text-gray-700">Patient No:</span>
+                <span className="text-xl text-gray-900 ml-2">{patient.patient_id}</span>
+              </div>
+              <div className="flex items-center whitespace-nowrap ml-52">
+                <span className="text-lg font-medium text-gray-700">Department:</span>
+                <span className="text-xl text-gray-900 ml-2">{getDepartmentName()}</span>
+              </div>
             </div>
           </div>
 
-          {/* Date and Age/Sex - Right Side aligned with patient details */}
+          {/* Date and Paid Amount - Right Side */}
           <div className="absolute top-64 right-0 mr-12 space-y-3 text-right">
             {/* Date */}
             <div className="flex items-center justify-end">
@@ -542,13 +829,74 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
               <span className="text-xl text-gray-900">{getCurrentDate()}</span>
             </div>
 
-            {/* Age/Sex */}
+            {/* Paid Amount */}
             <div className="flex items-center justify-end">
-              <span className="text-lg font-medium text-gray-700 mr-2">Age/Sex:</span>
-              <span className="text-xl text-gray-900">
-                {patient.age && patient.age.trim() !== '' ? `${patient.age} years` : 'N/A'} / {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender}
+              <span className="text-lg font-medium text-gray-700 mr-2">Paid Amount:</span>
+              <span className="text-xl font-semibold text-green-600">
+                ₹{getTotalPaidAmount().toLocaleString()}
               </span>
             </div>
+          </div>
+
+          {/* Prescription Content Area */}
+          <div className="absolute top-96 left-12 right-12 bottom-[26rem] overflow-hidden">
+            {/* Chief Complaints */}
+            {(prescriptionData.chiefComplaints.painComplaint || prescriptionData.chiefComplaints.location || prescriptionData.chiefComplaints.duration) && (
+              <div className="mb-8">
+                <div className="text-2xl font-bold text-gray-800 mb-4">Chief Complaints:</div>
+                <div className="text-lg text-gray-700 space-y-3">
+                  {prescriptionData.chiefComplaints.painComplaint && (
+                    <div><span className="font-bold">Pain:</span> {prescriptionData.chiefComplaints.painComplaint}</div>
+                  )}
+                  {prescriptionData.chiefComplaints.location && (
+                    <div><span className="font-bold">Location:</span> {prescriptionData.chiefComplaints.location}</div>
+                  )}
+                  {prescriptionData.chiefComplaints.duration && (
+                    <div><span className="font-bold">Duration:</span> {prescriptionData.chiefComplaints.duration}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* History of Present Illness */}
+            {prescriptionData.historyOfPresentIllness && (
+              <div className="mb-8">
+                <div className="text-2xl font-bold text-gray-800 mb-4">History of Present Illness:</div>
+                <div className="text-lg text-gray-700 leading-relaxed">{prescriptionData.historyOfPresentIllness}</div>
+              </div>
+            )}
+
+            {/* Investigation */}
+            {prescriptionData.investigation.length > 0 && (
+              <div className="mb-8">
+                <div className="text-2xl font-bold text-gray-800 mb-4">Investigation:</div>
+                <div className="text-lg text-gray-700">
+                  {prescriptionData.investigation.map((item, index) => (
+                    <div key={index} className="mb-2">• {item}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reference */}
+            {prescriptionData.reference && (
+              <div className="mb-8">
+                <div className="text-2xl font-bold text-gray-800 mb-4">Reference:</div>
+                <div className="text-lg text-gray-700 leading-relaxed">{prescriptionData.reference}</div>
+              </div>
+            )}
+
+            {/* Medicine Prescribed */}
+            {prescriptionData.medicinePrescribed.length > 0 && (
+              <div className="mb-8">
+                <div className="text-2xl font-bold text-gray-800 mb-4">Medicine Prescribed:</div>
+                <div className="text-lg text-gray-700 leading-relaxed">
+                  {prescriptionData.medicinePrescribed.map((medicine, index) => (
+                    <div key={index} className="mb-2">• {medicine}</div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Doctor Details - Bottom Right Above Signature */}

@@ -287,6 +287,8 @@ const OperationsLedger: React.FC = () => {
       if (expError) {
         console.error('Error loading expenses:', expError);
       } else if (expenses) {
+        console.log('💰 Loaded expenses from database:', expenses);
+        console.log('💰 Number of expenses found:', expenses.length);
         expenses.forEach((expense: any) => {
           // CRITICAL FIX: Format expenses date and time in IST 12-hour format
           const expenseDate = new Date(expense.expense_date);
@@ -302,6 +304,21 @@ const OperationsLedger: React.FC = () => {
           // Convert UTC database time to local time
           const localTime = formatLocalTime(expenseDateTime);
           
+          // Use description as primary expense name, fallback to category
+          let expenseName = 'Daily Expense';
+          if (expense.description && expense.description.trim()) {
+            expenseName = expense.description.trim();
+          } else if (expense.expense_category && expense.expense_category.trim()) {
+            expenseName = expense.expense_category.trim();
+          }
+          
+          console.log('💰 Processing expense:', {
+            id: expense.id,
+            category: expense.expense_category,
+            description: expense.description,
+            finalName: expenseName
+          });
+
           allEntries.push({
             id: expense.id,
             date: istDate,
@@ -311,6 +328,13 @@ const OperationsLedger: React.FC = () => {
             description: expense.description,
             amount: expense.amount,
             payment_mode: expense.payment_mode || 'CASH',
+            patient_name: expenseName, // Show expense name
+            patient_id: 'N/A', // Expenses don't have patient IDs
+            patient_age: 'N/A', // Expenses don't have patient age
+            patient_gender: 'N/A', // Expenses don't have patient gender
+            consultant_name: expense.approved_by || 'System',
+            department: 'Administration',
+            patient_tag: 'N/A',
             reference_id: expense.id,
             created_at: expense.created_at
           });
@@ -421,6 +445,10 @@ const OperationsLedger: React.FC = () => {
       
       setAvailablePatientTags(uniqueTags);
       
+      // Debug: Log all entries before setting them
+      console.log('🔍 All entries being set:', allEntries);
+      console.log('🔍 Expense entries only:', allEntries.filter(e => e.type === 'EXPENSE'));
+      
       setEntries(allEntries);
     } catch (error: any) {
       console.error('Error loading ledger:', error);
@@ -464,31 +492,50 @@ const OperationsLedger: React.FC = () => {
     filteredEntries.forEach(entry => {
       if (entry.type === 'REVENUE') {
         totals.revenue += entry.amount;
-        if (entry.payment_mode === 'CASH') {
+        if (entry.payment_mode?.toLowerCase() === 'cash') {
           totals.cashRevenue += entry.amount;
-        } else {
+        } else if (['online', 'card', 'upi'].includes(entry.payment_mode?.toLowerCase())) {
           totals.onlineRevenue += entry.amount;
         }
       } else if (entry.type === 'EXPENSE') {
         totals.expenses += entry.amount;
-        if (entry.payment_mode === 'CASH') {
+        if (entry.payment_mode?.toLowerCase() === 'cash') {
           totals.cashExpenses += entry.amount;
-        } else {
+        } else if (['online', 'card', 'upi'].includes(entry.payment_mode?.toLowerCase())) {
           totals.onlineExpenses += entry.amount;
         }
       } else if (entry.type === 'REFUND') {
         totals.refunds += entry.amount;
-        if (entry.payment_mode === 'CASH') {
+        if (entry.payment_mode?.toLowerCase() === 'cash') {
           totals.cashRefunds += entry.amount;
-        } else {
+        } else if (['online', 'card', 'upi'].includes(entry.payment_mode?.toLowerCase())) {
           totals.onlineRefunds += entry.amount;
         }
       }
     });
 
     const netRevenue = totals.revenue - totals.expenses - totals.refunds;
-    const netCash = totals.cashRevenue - totals.cashExpenses - totals.cashRefunds;
-    const netOnline = totals.onlineRevenue - totals.onlineExpenses - totals.onlineRefunds;
+    // Deduct ALL expenses and refunds from cash (regardless of their payment mode)
+    const netCash = totals.cashRevenue - totals.expenses - totals.refunds;
+    const netOnline = totals.onlineRevenue;
+
+    // Debug logging
+    console.log('💰 OPERATIONS CALCULATION DEBUG:', {
+      filteredEntriesCount: filteredEntries.length,
+      totalRevenue: totals.revenue,
+      totalExpenses: totals.expenses,
+      totalRefunds: totals.refunds,
+      cashRevenue: totals.cashRevenue,
+      onlineRevenue: totals.onlineRevenue,
+      netCash: netCash,
+      netOnline: netOnline,
+      netRevenue: netRevenue,
+      sampleEntries: filteredEntries.slice(0, 5).map(e => ({
+        type: e.type,
+        amount: e.amount,
+        payment_mode: e.payment_mode
+      }))
+    });
 
     return { ...totals, netRevenue, netCash, netOnline };
   };
@@ -534,7 +581,7 @@ const OperationsLedger: React.FC = () => {
           'Date',
           'Time',
           'Patient ID',
-          'Patient Name',
+          'Patient Name / Expense Name',
           'Age',
           'Gender',
           'Consultant',
@@ -801,11 +848,12 @@ const OperationsLedger: React.FC = () => {
                   <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '50px' }}>S.No</th>
                   <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Date & Time</th>
                   <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Patient ID</th>
-                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '120px' }}>Patient Name</th>
+                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '120px' }}>Patient Name / Expense Name</th>
                   <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Age & Gender</th>
                   <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '100px' }}>Consultant</th>
                   <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Department</th>
                   <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Type</th>
+                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Payment Mode</th>
                   <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Amount (₹)</th>
                   <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '70px' }}>Discount (₹)</th>
                   <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Net Revenue (₹)</th>
@@ -831,8 +879,25 @@ const OperationsLedger: React.FC = () => {
                         {entry.patient_id || 'N/A'}
                       </td>
                       <td className="p-3 text-sm" style={{ width: '120px' }}>
-                        <div className="font-medium truncate" title={entry.patient_name || 'N/A'}>
-                          {entry.patient_name || 'N/A'}
+                        <div className="flex flex-col">
+                          <div 
+                            className={`font-medium truncate ${
+                              entry.type === 'EXPENSE' ? 'text-orange-600' : 'text-blue-600'
+                            }`} 
+                            title={entry.patient_name || 'N/A'}
+                          >
+                            {entry.patient_name || 'N/A'}
+                          </div>
+                          {entry.type === 'EXPENSE' && (
+                            <span className="text-xs text-gray-500 mt-1">
+                              💸 Expense
+                            </span>
+                          )}
+                          {entry.type !== 'EXPENSE' && (
+                            <span className="text-xs text-gray-500 mt-1">
+                              👤 Patient
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-3 text-center text-xs" style={{ width: '80px' }}>
@@ -856,6 +921,19 @@ const OperationsLedger: React.FC = () => {
                           'bg-yellow-100 text-yellow-800'
                         }`}>
                           {entry.type === 'REVENUE' ? '💰' : entry.type === 'EXPENSE' ? '💸' : '↩️'} {entry.type}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center" style={{ width: '80px' }}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          entry.payment_mode?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-800' : 
+                          ['online', 'card', 'upi'].includes(entry.payment_mode?.toLowerCase()) ? 'bg-blue-100 text-blue-800' : 
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {entry.payment_mode?.toLowerCase() === 'cash' ? '💵' : 
+                           entry.payment_mode?.toLowerCase() === 'online' ? '🌐' :
+                           entry.payment_mode?.toLowerCase() === 'card' ? '💳' :
+                           entry.payment_mode?.toLowerCase() === 'upi' ? '📱' : ''} 
+                          {entry.payment_mode?.toUpperCase() || 'N/A'}
                         </span>
                       </td>
                       <td className={`p-3 text-right text-sm ${entry.type === 'EXPENSE' ? 'text-red-600' : entry.type === 'REFUND' ? 'text-yellow-600' : 'text-green-600'}`} style={{ width: '80px' }}>

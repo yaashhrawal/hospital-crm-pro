@@ -75,11 +75,6 @@ class AppointmentService {
             last_name,
             email
           ),
-          department:departments(
-            id,
-            name,
-            description
-          ),
           bills(
             id,
             bill_number,
@@ -167,11 +162,6 @@ class AppointmentService {
             last_name,
             email,
             role
-          ),
-          department:departments(
-            id,
-            name,
-            description
           ),
           bills(
             id,

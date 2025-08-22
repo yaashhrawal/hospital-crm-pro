@@ -230,7 +230,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-2xl font-bold" style={{ color: '#0056B3' }}>
             👤 {patient.first_name} {patient.last_name}
           </h2>
           <button
@@ -332,7 +332,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
         {/* Patient Details */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-semibold mb-3">Patient Information</h3>
+          <h3 className="text-lg font-semibold mb-3" style={{ color: '#0056B3' }}>Patient Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div><span className="font-medium">ID:</span> {patient.patient_id}</div>
             <div><span className="font-medium">Phone:</span> {patient.phone || 'Not provided'}</div>
@@ -361,7 +361,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
         {/* Transaction History */}
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Transaction History ({transactions.length})</h3>
+            <h3 className="text-lg font-semibold" style={{ color: '#0056B3' }}>Transaction History ({transactions.length})</h3>
             
             {/* Bulk Actions */}
             {transactions.length > 0 && (
@@ -574,7 +574,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
     return result;
   };
 
-  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('today');
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
@@ -620,16 +620,68 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
     return { status: patient.departmentStatus || 'OPD', style: 'bg-green-100 text-green-800' };
   };
 
+  // Helper function to get the most recent payment mode (simplified to Cash/Online only)
+  const getRecentPaymentMode = (patient: PatientWithRelations) => {
+    if (!patient.transactions || patient.transactions.length === 0) {
+      console.log(`No transactions for patient ${patient.first_name} ${patient.last_name}`);
+      return null;
+    }
+
+    console.log(`Patient ${patient.first_name} ${patient.last_name} has ${patient.transactions.length} transactions`);
+    
+    const completedTransactions = patient.transactions.filter(t => t.status === 'COMPLETED' && t.payment_mode);
+    console.log(`Completed transactions with payment_mode:`, completedTransactions.map(t => ({
+      id: t.id,
+      payment_mode: t.payment_mode,
+      status: t.status,
+      created_at: t.created_at,
+      transaction_date: t.transaction_date
+    })));
+
+    // Get the most recent completed transaction with payment mode
+    const recentTransaction = completedTransactions
+      .sort((a, b) => {
+        const dateA = new Date(a.created_at || a.transaction_date || '');
+        const dateB = new Date(b.created_at || b.transaction_date || '');
+        return dateB.getTime() - dateA.getTime();
+      })[0];
+
+    if (!recentTransaction?.payment_mode) {
+      console.log(`No recent transaction with payment_mode found`);
+      return null;
+    }
+    
+    console.log(`Recent transaction payment_mode: "${recentTransaction.payment_mode}"`);
+    
+    // Normalize payment mode comparison - handle both uppercase and lowercase
+    const paymentMode = recentTransaction.payment_mode?.toLowerCase();
+    const result = paymentMode === 'cash' ? 'Cash' : 'Online';
+    
+    console.log(`Normalized payment_mode: "${paymentMode}" -> Returning: ${result}`);
+    return result;
+  };
+
   useEffect(() => {
+    console.log('🔄 PatientList useEffect triggered:', { dateRange, startDate, endDate, selectedDate });
+    console.log('📊 Current component state:', {
+      dateRange,
+      isDefaultToday: dateRange === 'today',
+      todayDate: getLocalDateString(),
+      selectedDate,
+      startDate,
+      endDate
+    });
     loadPatients();
   }, [dateRange, startDate, endDate, selectedDate]);
 
   useEffect(() => {
+    console.log('📅 PatientList dateRange changed to:', dateRange);
     // Update date range when dateRange changes
     const today = new Date();
     switch (dateRange) {
       case 'today':
         const todayStr = getLocalDateString(today);
+        console.log('📅 Setting today date to:', todayStr);
         setSelectedDate(todayStr);
         setStartDate(todayStr);
         setEndDate(todayStr);
@@ -659,6 +711,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
   const loadPatients = async () => {
     try {
+      console.log('🔄 loadPatients called with:', { dateRange, selectedDate, startDate, endDate });
       setLoading(true);
       
       let patientsData;
@@ -666,14 +719,13 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       // Use backend filtering for 'today' and single custom dates to get exact results
       if (dateRange === 'today') {
         const todayStr = selectedDate || getLocalDateString();
+        console.log('📅 Loading TODAY patients for date:', todayStr);
         
         // Always use the backend method with error handling
         patientsData = await HospitalService.getPatientsForDate(todayStr, 500);
         
         // Debug the returned patients
-        if (patientsData.length > 0) {
-        } else {
-        }
+        console.log('✅ Loaded', patientsData.length, 'patients for today');
       } else if (dateRange === 'custom') {
         // For custom date, use NEW exact date service to avoid cumulative results
         patientsData = await ExactDateService.getPatientsForExactDate(startDate, 500);
@@ -985,34 +1037,46 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       } else {
       }
       
-      // Debug patient_tag data directly from database
-      console.log('🔍 Database Patient Debug - First 3 patients with their patient_tag field:', 
-        patientsData.slice(0, 3).map(p => ({
-          name: `${p.first_name} ${p.last_name}`,
-          patient_id: p.patient_id,
-          patient_tag: p.patient_tag,
-          notes: p.notes,
-          patient_tag_type: typeof p.patient_tag,
-          notes_type: typeof p.notes,
-          all_keys: Object.keys(p).filter(k => k.includes('tag') || k.includes('note'))
-        }))
-      );
-      
-      // Check if any patients have tags in notes field but not in patient_tag field
-      const patientsWithNotesButNoTag = patientsData.filter(p => 
-        p.notes && p.notes.trim() !== '' && (!p.patient_tag || p.patient_tag.trim() === '')
-      );
-      if (patientsWithNotesButNoTag.length > 0) {
-        console.log('⚠️ Found patients with data in notes but not patient_tag:', 
-          patientsWithNotesButNoTag.slice(0, 3).map(p => ({
-            name: `${p.first_name} ${p.last_name}`,
-            notes: p.notes,
-            patient_tag: p.patient_tag
-          }))
-        );
+      // Debug patient_tag data (minimal logging)
+      if (patientsData.length > 0) {
+        console.log('🔍 Patients loaded:', patientsData.length);
+        console.log('✅ SUCCESS: Today filter loaded', patientsData.length, 'patients for date:', dateRange === 'today' ? selectedDate : 'NOT TODAY');
+      } else {
+        console.log('⚠️ WARNING: No patients found for today filter');
       }
 
-      setPatients(patientsData);
+      // Calculate totalSpent based on selected date filter
+      const filteredPatientsData = patientsData.map(patient => {
+        const transactions = patient.transactions || [];
+        let filteredTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        
+        // Filter transactions based on the selected date range
+        if (dateRange !== 'all') {
+          filteredTransactions = filteredTransactions.filter((t: any) => {
+            const transactionDate = t.transaction_date || new Date(t.created_at).toISOString().split('T')[0];
+            
+            if (dateRange === 'today') {
+              const targetDate = selectedDate || getLocalDateString();
+              return transactionDate === targetDate;
+            } else if (dateRange === 'custom') {
+              return transactionDate === startDate;
+            } else if (dateRange === 'week' || dateRange === 'month') {
+              return transactionDate >= startDate && transactionDate <= endDate;
+            }
+            return true;
+          });
+        }
+        
+        // Recalculate totalSpent based on filtered transactions
+        const filteredTotalSpent = filteredTransactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        
+        return {
+          ...patient,
+          totalSpent: filteredTotalSpent // Override with filtered total
+        };
+      });
+      
+      setPatients(filteredPatientsData);
       
       // Force re-sorting after patients are loaded to ensure date-based order is correct
       // This is important when back-dated entries are loaded
@@ -1323,103 +1387,165 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">👥 Comprehensive Patient List</h1>
-        <p className="text-gray-600">Complete patient management with search, filter, and detailed history</p>
-        {dateRange !== 'all' && (
-          <div className="mt-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">
-            📅 Showing patients from: {
-              dateRange === 'today' ? new Date(selectedDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              }) :
-              dateRange === 'custom' ? new Date(startDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              }) :
-              dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              })} - ${new Date(endDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              })})` :
-              `This month (${new Date(startDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              })} - ${new Date(endDate).toLocaleDateString('en-IN', { 
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric'
-              })})`
-            }
-          </div>
-        )}
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-          <div className="text-2xl font-bold text-blue-700">{patients.length}</div>
-          <div className="text-blue-600">Total Patients</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-          <div className="text-2xl font-bold text-green-700">{filteredPatients.length}</div>
-          <div className="text-green-600">Filtered Results</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
-          <div className="text-2xl font-bold text-purple-700">
-            ₹{patients.reduce((sum, p) => {
-              // Exclude ORTHO/DR. HEMANT patients from revenue
-              if (p.assigned_department === 'ORTHO' || p.assigned_doctor === 'DR. HEMANT') {
-                return sum;
+    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
+      {/* Header with Title and Stats Cards */}
+      <div className="mb-8">
+        {/* Title */}
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold mb-2" style={{ color: '#0056B3' }}>Comprehensive Patient List</h1>
+          {dateRange !== 'all' && (
+            <div className="mt-3 text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-full inline-block">
+              📅 Showing patients from: {
+                dateRange === 'today' ? new Date(selectedDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                }) :
+                dateRange === 'custom' ? new Date(startDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                }) :
+                dateRange === 'week' ? `This week (${new Date(startDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                })} - ${new Date(endDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                })})` :
+                `This month (${new Date(startDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                })} - ${new Date(endDate).toLocaleDateString('en-IN', { 
+                  timeZone: 'Asia/Kolkata',
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                })})`
               }
-              return sum + (p.totalSpent || 0);
-            }, 0).toLocaleString()}
-          </div>
-          <div className="text-purple-600">Total Revenue</div>
+            </div>
+          )}
         </div>
-        <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
-          <div className="text-2xl font-bold text-orange-700">
-            {patients.reduce((sum, p) => sum + (p.visitCount || 0), 0)}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-blue-700">{patients.length}</div>
+                <div className="text-blue-600 font-medium">Total Patients</div>
+              </div>
+              <div className="bg-blue-100 p-3 rounded-full">
+                <span className="text-2xl">👥</span>
+              </div>
+            </div>
           </div>
-          <div className="text-orange-600">Total Visits</div>
+          <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-green-700">{filteredPatients.length}</div>
+                <div className="text-green-600 font-medium">Filtered Results</div>
+              </div>
+              <div className="bg-green-100 p-3 rounded-full">
+                <span className="text-2xl">🔍</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-purple-700">
+                  ₹{patients.reduce((sum, p) => {
+                    // Exclude ORTHO/DR. HEMANT patients from revenue
+                    if (p.assigned_department === 'ORTHO' || p.assigned_doctor === 'DR. HEMANT') {
+                      return sum;
+                    }
+                    return sum + (p.totalSpent || 0);
+                  }, 0).toLocaleString()}
+                </div>
+                <div className="text-purple-600 font-medium">Total Revenue</div>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-full">
+                <span className="text-2xl">💰</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-orange-700">
+                  {patients.reduce((sum, p) => sum + (p.visitCount || 0), 0)}
+                </div>
+                <div className="text-orange-600 font-medium">Total Visits</div>
+              </div>
+              <div className="bg-orange-100 p-3 rounded-full">
+                <span className="text-2xl">📊</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-xl font-semibold" style={{ color: '#0056B3' }}>Search & Filter Patients</h2>
+          {/* Action Buttons - Moved to top right */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                console.log('🔄 REFRESH BUTTON CLICKED - Patient list refresh: reloading page...');
+                console.log('📊 Current state before refresh:', {
+                  dateRange,
+                  selectedDate,
+                  startDate,
+                  endDate,
+                  patientsCount: filteredPatients.length
+                });
+                window.location.reload();
+              }}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all duration-200 flex items-center gap-1"
+            >
+              🔄 Refresh Data
+            </button>
+            <button
+              onClick={exportPatientsToExcel}
+              disabled={filteredPatients.length === 0}
+              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              title="Export to Excel"
+            >
+              📊 Export
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           {/* Search */}
-          <div className="flex-1">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
             <input
               type="text"
-              placeholder="Search by name, phone, email, or patient ID..."
+              placeholder="Name, phone, email, or patient ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
           {/* Gender Filter */}
-          <div className="min-w-[150px]">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
             <select
               value={filterGender}
               onChange={(e) => setFilterGender(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Genders</option>
               <option value="M">M</option>
@@ -1429,11 +1555,12 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           </div>
 
           {/* TAG Filter */}
-          <div className="min-w-[180px]">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
             <select
               value={filterTag}
               onChange={(e) => setFilterTag(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Tags</option>
               {availableTags.map((tag) => (
@@ -1444,399 +1571,455 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             </select>
           </div>
 
-          {/* Date Range Filter */}
-          <div className="min-w-[150px]">
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="custom">Custom Date</option>
-            </select>
-          </div>
-
-          {/* Custom Single Date Input - Modern Date Picker */}
-          {dateRange === 'custom' && (
-            <div className="min-w-[200px]">
-              <ModernDatePicker
-                label="Select Date"
-                value={startDate}
-                onChange={(date) => {
-                  setStartDate(date);
-                  setEndDate(date); // Always keep start and end date the same
-                }}
-                placeholder="Select date (DD/MM/YYYY)"
-              />
-            </div>
-          )}
-
-          {/* Single Date Input for Today - Modern Date Picker */}
-          {dateRange === 'today' && (
-            <>
-              <div className="min-w-[200px]">
-                <ModernDatePicker
-                  label="Select Date"
-                  value={selectedDate}
-                  onChange={(date) => setSelectedDate(date)}
-                  placeholder="Select date (DD/MM/YYYY)"
-                />
+          {/* Date Range Filter - Button Style */}
+          <div className="md:col-span-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                🔽 <span className="text-sm font-medium text-gray-700">Filter by Date:</span>
               </div>
-              <button
-                onClick={() => {
-                  const todayDate = getLocalDateString();
-                  setSelectedDate(todayDate);
-                  // Force reload after setting today's date
-                  setTimeout(() => {
-                    loadPatients();
-                  }, 100);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 shadow-sm mt-6 transition-colors duration-200"
-                title="Set to today's date"
-              >
-                📅 Today
-              </button>
-            </>
-          )}
+              <div className="flex gap-2 flex-wrap items-center">
+                <button
+                  onClick={() => setDateRange('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateRange === 'all' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  All Time
+                </button>
+                <button
+                  onClick={() => setDateRange('today')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateRange === 'today' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => setDateRange('week')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateRange === 'week' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  onClick={() => setDateRange('month')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateRange === 'month' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={() => setDateRange('custom')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateRange === 'custom' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Custom Range
+                </button>
 
-          {/* Action Buttons */}
-          <div className="flex space-x-2">
-            <button
-              onClick={loadPatients}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              🔄 Refresh
-            </button>
-            <button
-              onClick={exportPatientsToExcel}
-              disabled={filteredPatients.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md"
-              title="Export to Excel"
-            >
-              📊 Export
-            </button>
+                {/* Inline Date Picker for Today */}
+                {dateRange === 'today' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <ModernDatePicker
+                        label=""
+                        value={selectedDate}
+                        onChange={(date) => setSelectedDate(date)}
+                        placeholder="DD/MM/YYYY"
+                      />
+                      <button
+                        onClick={() => {
+                          const todayDate = getLocalDateString();
+                          setSelectedDate(todayDate);
+                          setTimeout(() => {
+                            loadPatients();
+                          }, 100);
+                        }}
+                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 whitespace-nowrap"
+                        title="Set to today's date"
+                      >
+                        📅 Today
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Inline Date Picker for Custom */}
+                {dateRange === 'custom' && (
+                  <div className="flex items-center">
+                    <ModernDatePicker
+                      label=""
+                      value={startDate}
+                      onChange={(date) => {
+                        setStartDate(date);
+                        setEndDate(date);
+                      }}
+                      placeholder="DD/MM/YYYY"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Patient List */}
       {filteredPatients.length > 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th 
-                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('name')}
-                  >
-                    Patient {getSortIcon('name')}
-                  </th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
-                  <th 
-                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('visits')}
-                  >
-                    Visits {getSortIcon('visits')}
-                  </th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Department</th>
-                  <th 
-                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('spent')}
-                  >
-                    Total Spent {getSortIcon('spent')}
-                  </th>
-                  <th 
-                    className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('date')}
-                  >
-                    Last Visit {getSortIcon('date')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPatients.map((patient, index) => (
-                  <tr 
-                    key={patient.id} 
-                    className={`border-b hover:bg-gray-50 cursor-pointer ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-                    }`}
-                    onClick={() => handlePatientClick(patient)}
-                  >
-                    <td className="p-4">
+        <div>
+          {/* Sort Options */}
+          <div className="mb-6 bg-white p-4 rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="font-medium text-gray-700">Sort by:</span>
+              <button
+                onClick={() => handleSort('name')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortBy === 'name' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Patient Name {getSortIcon('name')}
+              </button>
+              <button
+                onClick={() => handleSort('date')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortBy === 'date' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Last Visit {getSortIcon('date')}
+              </button>
+              <button
+                onClick={() => handleSort('visits')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortBy === 'visits' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Visits {getSortIcon('visits')}
+              </button>
+              <button
+                onClick={() => handleSort('spent')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortBy === 'spent' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Total Spent {getSortIcon('spent')}
+              </button>
+            </div>
+          </div>
+
+          {/* Patient Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredPatients.map((patient) => (
+              <div
+                key={patient.id}
+                className="bg-white rounded-xl shadow-lg border hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+                onClick={() => handlePatientClick(patient)}
+              >
+                <div className="p-6">
+                  {/* Patient Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {patient.first_name.charAt(0)}{patient.last_name ? patient.last_name.charAt(0) : ''}
+                      </div>
                       <div>
-                        <div className="font-semibold text-gray-800">
+                        <h3 className="text-lg font-semibold" style={{ color: '#0056B3' }}>
                           {patient.first_name} {patient.last_name}
-                        </div>
-                        <div className="text-sm text-gray-500">ID: {patient.patient_id}</div>
-                        <div className="text-sm text-gray-500">
-                          {patient.age || 'N/A'} yrs • {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender || 'N/A'}
-                          {(patient.patient_tag || patient.notes) && (
-                            <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                              {patient.patient_tag || patient.notes}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-purple-600 mt-1">
-                          {patient.assigned_doctors && patient.assigned_doctors.length > 0 ? (
-                            <div>
-                              <span className="font-medium">
-                                👨‍⚕️ {patient.assigned_doctors.find(d => d.isPrimary)?.name || patient.assigned_doctors[0]?.name}
-                                {patient.assigned_department && (
-                                  <span className="ml-2 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                                    {patient.assigned_department}
-                                  </span>
-                                )}
-                              </span>
-                              {patient.assigned_doctors.length > 1 && (
-                                <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
-                                  +{patient.assigned_doctors.length - 1} more
-                                </span>
-                              )}
-                            </div>
-                          ) : patient.assigned_doctor ? (
-                            <span className="font-medium">
-                              👨‍⚕️ {patient.assigned_doctor}
-                              {patient.assigned_department && (
-                                <span className="ml-2 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                                  {patient.assigned_department}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">No doctor assigned</span>
-                          )}
-                        </div>
-                        
-                        {/* Action Buttons - Moved Below Details */}
-                        <div className="flex flex-wrap gap-1 mt-3">
-                          {/* 1. Prescription */}
-                          <div className="relative inline-block">
-                            <select
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const selectedTemplate = e.target.value;
-                                if (selectedTemplate === 'valant') {
-                                  handlePrescription(patient, 'valant');
-                                } else if (selectedTemplate === 'vh') {
-                                  handlePrescription(patient, 'vh');
-                                }
-                                e.target.value = ''; // Reset selection
-                              }}
-                              className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
-                              title="Generate Prescription"
-                            >
-                              <option value="">📝 Presc.</option>
-                              <option value="valant">Valant Template</option>
-                              <option value="vh">V+H Template</option>
-                            </select>
-                          </div>
-                          
-                          {/* 2. Services */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleManageServices(patient);
-                            }}
-                            className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            title="Manage Medical Services"
-                          >
-                            🔬 Services
-                          </button>
-                          
-                          {/* 3. Edit - Only show for users with write_patients permission */}
-                          {hasPermission('write_patients') && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditPatient(patient);
-                              }}
-                              className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                              title="Edit Patient Details"
-                            >
-                              ✏️ Edit
-                            </button>
-                          )}
-                          
-                          {/* 4. IPD (renamed from Shift to IPD) */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShiftToIPD(patient);
-                            }}
-                            className="bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                            title="Shift Patient to IPD"
-                            disabled={patient.ipd_status === 'ADMITTED'}
-                          >
-                            🏥 IPD
-                          </button>
-                          
-                          {/* 5. History */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePatientClick(patient);
-                            }}
-                            className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            title="View Patient History"
-                          >
-                            📋 History
-                          </button>
-                          
-                          {/* 6. Receipt */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewReceipt(patient);
-                            }}
-                            className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            title="View Receipt"
-                          >
-                            🧾 Receipt
-                          </button>
-                          
-                          {/* 7. Delete */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
-                            }}
-                            className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                            title="Delete patient permanently"
-                            disabled={loading}
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
+                        </h3>
+                        <p className="text-sm text-gray-500">ID: {patient.patient_id}</p>
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="text-sm">
-                        <div>{patient.phone || 'No phone'}</div>
-                        {patient.email && (
-                          <div className="text-gray-500">{patient.email}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
-                        {patient.visitCount || 0}
+                    </div>
+                    <div className="flex flex-col items-end space-y-1">
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
+                        {patient.visitCount || 0} visits
                       </span>
-                    </td>
-                    <td className="p-4">
                       {(() => {
                         const deptStatus = getDepartmentStatus(patient);
                         return (
-                          <span className={`px-2 py-1 rounded text-sm font-medium ${deptStatus.style}`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${deptStatus.style}`}>
                             {deptStatus.status}
                           </span>
                         );
                       })()}
-                    </td>
-                    <td className="p-4">
-                      <span className="text-green-600 font-semibold">
-                        ₹{(patient.totalSpent || 0).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm text-gray-600">
                       {(() => {
-                        // EXTENSIVE DEBUGGING - Log all available date fields
-                        
-                        let lastVisitDate = null;
-                        let dateSource = 'none';
-                        
-                        // Priority 1: Use date_of_entry if it's explicitly set (user-defined visit date)
-                        if (patient.date_of_entry && patient.date_of_entry.trim() !== '') {
-                          lastVisitDate = patient.date_of_entry;
-                          dateSource = 'entry';
-                        }
-                        
-                        // Priority 2: Most recent transaction date (if transactions exist and no date_of_entry)
-                        else if (patient.transactions && patient.transactions.length > 0) {
-                          // Filter out cancelled transactions and sort by date
-                          const activeTransactions = patient.transactions
-                            .filter(t => t.status !== 'CANCELLED' && t.created_at)
-                            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                          
-                          
-                          if (activeTransactions.length > 0) {
-                            lastVisitDate = activeTransactions[0].created_at;
-                            dateSource = 'transaction';
-                          }
-                        }
-                        
-                        // Priority 3: Use pre-calculated lastVisit field from HospitalService
-                        else if (patient.lastVisit) {
-                          lastVisitDate = patient.lastVisit;
-                          dateSource = 'calculated';
-                        }
-                        
-                        // Priority 4: Fallback to patient creation date
-                        else if (patient.created_at) {
-                          lastVisitDate = patient.created_at;
-                          dateSource = 'created';
-                        }
-                        
-                        
-                        // Format the date consistently
-                        if (lastVisitDate) {
-                          try {
-                            let date;
-                            
-                            // Handle date strings properly to avoid timezone issues
-                            if (typeof lastVisitDate === 'string' && lastVisitDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                              // For YYYY-MM-DD format, create date as local time to avoid timezone shift
-                              const [year, month, day] = lastVisitDate.split('-').map(Number);
-                              date = new Date(year, month - 1, day);
-                            } else {
-                              date = new Date(lastVisitDate);
-                            }
-                            
-                            // Validate the date
-                            if (isNaN(date.getTime())) {
-                              return 'Invalid Date';
-                            }
-                            
-                            const formattedDate = date.toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: '2-digit', 
-                              year: 'numeric'
-                            });
-                            return formattedDate;
-                          } catch (error) {
-                            return 'Date Error';
-                          }
-                        }
-                        
-                        return 'Never';
+                        const paymentMode = getRecentPaymentMode(patient);
+                        return paymentMode && (
+                          <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-xs font-medium">
+                            {paymentMode}
+                          </span>
+                        );
                       })()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  {/* Patient Details */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="w-16">Age:</span>
+                      <span>{patient.age || 'N/A'} yrs • {patient.gender === 'MALE' ? 'M' : patient.gender === 'FEMALE' ? 'F' : patient.gender || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="w-16">Phone:</span>
+                      <span>{patient.phone || 'Not provided'}</span>
+                    </div>
+                    {patient.email && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="w-16">Email:</span>
+                        <span>{patient.email}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center text-sm text-purple-600">
+                      <span className="w-16">Doctor:</span>
+                      <div>
+                        {patient.assigned_doctors && patient.assigned_doctors.length > 0 ? (
+                          <div>
+                            <span className="font-medium">
+                              👨‍⚕️ {patient.assigned_doctors.find(d => d.isPrimary)?.name || patient.assigned_doctors[0]?.name}
+                            </span>
+                            {patient.assigned_doctors.length > 1 && (
+                              <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                                +{patient.assigned_doctors.length - 1} more
+                              </span>
+                            )}
+                            {patient.assigned_department && (
+                              <div className="text-xs text-gray-600 mt-1 bg-gray-100 px-2 py-0.5 rounded inline-block">
+                                {patient.assigned_department}
+                              </div>
+                            )}
+                          </div>
+                        ) : patient.assigned_doctor ? (
+                          <div>
+                            <span className="font-medium">👨‍⚕️ {patient.assigned_doctor}</span>
+                            {patient.assigned_department && (
+                              <div className="text-xs text-gray-600 mt-1 bg-gray-100 px-2 py-0.5 rounded inline-block">
+                                {patient.assigned_department}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">No doctor assigned</span>
+                        )}
+                      </div>
+                    </div>
+                    {(patient.patient_tag || patient.notes) && (
+                      <div className="flex items-center text-sm">
+                        <span className="w-16">Tag:</span>
+                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                          {patient.patient_tag || patient.notes}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Financial Info */}
+                  <div className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Spent</p>
+                      <p className="text-lg font-bold text-green-600">₹{(patient.totalSpent || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Last Visit</p>
+                      <p className="text-sm font-medium text-gray-800">
+                        {(() => {
+                          let lastVisitDate = null;
+                          
+                          // Same date logic as before
+                          if (patient.date_of_entry && patient.date_of_entry.trim() !== '') {
+                            lastVisitDate = patient.date_of_entry;
+                          } else if (patient.transactions && patient.transactions.length > 0) {
+                            const activeTransactions = patient.transactions
+                              .filter(t => t.status !== 'CANCELLED' && t.created_at)
+                              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                            if (activeTransactions.length > 0) {
+                              lastVisitDate = activeTransactions[0].created_at;
+                            }
+                          } else if (patient.lastVisit) {
+                            lastVisitDate = patient.lastVisit;
+                          } else if (patient.created_at) {
+                            lastVisitDate = patient.created_at;
+                          }
+                          
+                          if (lastVisitDate) {
+                            try {
+                              let date;
+                              if (typeof lastVisitDate === 'string' && lastVisitDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                const [year, month, day] = lastVisitDate.split('-').map(Number);
+                                date = new Date(year, month - 1, day);
+                              } else {
+                                date = new Date(lastVisitDate);
+                              }
+                              if (isNaN(date.getTime())) return 'Invalid Date';
+                              return date.toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit', 
+                                year: 'numeric'
+                              });
+                            } catch (error) {
+                              return 'Date Error';
+                            }
+                          }
+                          return 'Never';
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* Prescription */}
+                    <div className="relative">
+                      <select
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const selectedTemplate = e.target.value;
+                          if (selectedTemplate === 'valant') {
+                            handlePrescription(patient, 'valant');
+                          } else if (selectedTemplate === 'vh') {
+                            handlePrescription(patient, 'vh');
+                          }
+                          e.target.value = '';
+                        }}
+                        className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium"
+                        title="Generate Prescription"
+                      >
+                        <option value="">📝 Presc.</option>
+                        <option value="valant">Valant Template</option>
+                        <option value="vh">V+H Template</option>
+                      </select>
+                    </div>
+                    
+                    {/* Services */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleManageServices(patient);
+                      }}
+                      className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      title="Manage Medical Services"
+                    >
+                      🔬 Services
+                    </button>
+                    
+                    {/* Edit */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditPatient(patient);
+                      }}
+                      className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      title="Edit Patient Details"
+                    >
+                      ✏️ Edit
+                    </button>
+                    
+                    {/* IPD */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShiftToIPD(patient);
+                      }}
+                      className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium disabled:opacity-50"
+                      title="Shift Patient to IPD"
+                      disabled={patient.ipd_status === 'ADMITTED'}
+                    >
+                      🏥 IPD
+                    </button>
+                    
+                    {/* History */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePatientClick(patient);
+                      }}
+                      className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      title="View Patient History"
+                    >
+                      📋 History
+                    </button>
+                    
+                    {/* Receipt */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewReceipt(patient);
+                      }}
+                      className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      title="View Receipt"
+                    >
+                      🧾 Receipt
+                    </button>
+                    
+                    {/* Delete */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
+                      }}
+                      className="bg-white text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium disabled:opacity-50"
+                      title="Delete patient permanently"
+                      disabled={loading}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-          <div className="text-6xl mb-4">👥</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No patients found</h3>
-          <p className="text-gray-600 mb-4">
+        <div className="bg-white rounded-xl shadow-lg border p-16 text-center">
+          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">👥</span>
+          </div>
+          <h3 className="text-2xl font-bold mb-3" style={{ color: '#0056B3' }}>No patients found</h3>
+          <p className="text-lg text-gray-600 mb-6 max-w-md mx-auto">
             {searchTerm || filterGender !== 'all' || filterTag !== 'all' || dateRange !== 'all'
-              ? 'Try adjusting your search or filters'
-              : 'No patients have been registered yet'
+              ? 'Try adjusting your search criteria or filters to find more patients'
+              : 'No patients have been registered yet. Start by adding your first patient'
             }
           </p>
-          <button
-            onClick={loadPatients}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            🔄 Refresh List
-          </button>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium shadow-lg transition-all duration-200"
+            >
+              🔄 Refresh List
+            </button>
+            {searchTerm || filterGender !== 'all' || filterTag !== 'all' || dateRange !== 'all' ? (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterGender('all');
+                  setFilterTag('all');
+                  setDateRange('all');
+                }}
+                className="bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 font-medium shadow-lg transition-all duration-200"
+              >
+                🗑️ Clear Filters
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
 
