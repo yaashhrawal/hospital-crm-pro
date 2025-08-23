@@ -1135,13 +1135,24 @@ export class HospitalService {
       
       console.log('📋 Getting transactions for today\'s revenue calculation...');
       
-      // Get ALL transactions to check service dates AND recent patients
+      // Get ALL transactions using the EXACT same query as OperationsLedger
       const [transactionsResult, recentPatientsResult] = await Promise.all([
         supabase
           .from('patient_transactions')
-          .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor, date_of_entry)')
+          .select(`
+            id,
+            amount,
+            payment_mode,
+            transaction_type,
+            transaction_date,
+            description,
+            doctor_name,
+            status,
+            created_at,
+            patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
+          `)
           .eq('status', 'COMPLETED')
-          .order('transaction_date', { ascending: false }),
+          .order('created_at', { ascending: false }),
         
         // Get recent patients for details section
         supabase
@@ -1205,13 +1216,18 @@ export class HospitalService {
         monthEnd: monthEndStr
       });
       
-      // Process transactions for period breakdown
+      // Process transactions for period breakdown using EXACT OperationsLedger logic
       if (allTransactions) {
+        console.log('📊 Processing transactions using OperationsLedger filtering logic...');
         allTransactions.forEach((transaction, index) => {
-          // Skip ORTHO/DR. HEMANT patients
-          if (transaction.patient?.assigned_department === 'ORTHO' || 
-              transaction.patient?.assigned_doctor === 'DR. HEMANT') {
-            return;
+          // Apply the EXACT same filtering as OperationsLedger
+          const filterDoctorName = transaction.patient?.assigned_doctor?.toUpperCase() || '';
+          const filterDepartment = transaction.patient?.assigned_department?.toUpperCase() || '';
+          
+          // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
+          if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
+            console.log('🚫 Excluding transaction (OperationsLedger filter):', transaction.id, filterDoctorName, filterDepartment);
+            return; // Skip this specific combination
           }
           
           // 🔍 WHITE-BOX: Bulletproof date processing
@@ -1238,7 +1254,13 @@ export class HospitalService {
           const enhancedTransaction = {
             ...transaction,
             patientName: `${transaction.patient?.first_name || ''} ${transaction.patient?.last_name || ''}`.trim(),
-            displayDate: transactionDateStr
+            displayDate: transactionDateStr,
+            // Add patient details for matching OperationsLedger display
+            patient_age: transaction.patient?.age,
+            patient_gender: transaction.patient?.gender,
+            patient_tag: transaction.patient?.patient_tag,
+            department: transaction.patient?.assigned_department,
+            consultant_name: transaction.patient?.assigned_doctor
           };
           
           // 🔍 WHITE-BOX: Debug EVERY transaction date processing

@@ -26,6 +26,7 @@ import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
 import IPDBedManagement from './components/IPDBedManagement';
 import DischargeSection from './components/DischargeSection';
+// import TableInspector from './components/TableInspector'; // Removed debug component
 import { Login } from './pages/Login/Login'; // Import 3D Login component
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
 
@@ -1334,6 +1335,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+
 
               {/* Preferences */}
               <div className="space-y-4">

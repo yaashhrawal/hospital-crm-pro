@@ -3,6 +3,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import dataService from '../../services/dataService';
+import { supabase } from '../../config/supabaseNew';
 import toast from 'react-hot-toast';
 
 interface RevenueMetrics {
@@ -13,6 +14,17 @@ interface RevenueMetrics {
   paymentModeBreakdown: Record<string, number>;
   departmentBreakdown: Record<string, number>;
   doctorBreakdown: Record<string, number>;
+  transactionDetails?: Array<{
+    id: string;
+    patient_name: string;
+    patient_id: string;
+    transaction_type: string;
+    amount: number;
+    payment_mode: string;
+    transaction_date: string;
+    created_at: string;
+    description?: string;
+  }>;
 }
 
 interface TimeRange {
@@ -29,12 +41,15 @@ const RevenueDashboard: React.FC = () => {
 
   const getTimeRange = (range: 'today' | 'week' | 'month'): TimeRange => {
     const now = new Date();
+    console.log('📅 RevenueDashboard - Getting time range for:', range, 'Current date:', now.toISOString());
     
     switch (range) {
       case 'today':
+        const todayFormatted = format(now, 'yyyy-MM-dd');
+        console.log('📅 RevenueDashboard - Today formatted as:', todayFormatted);
         return {
-          start: format(now, 'yyyy-MM-dd'),
-          end: format(now, 'yyyy-MM-dd'),
+          start: todayFormatted,
+          end: todayFormatted,
           label: 'Today'
         };
       case 'week':
@@ -60,11 +75,123 @@ const RevenueDashboard: React.FC = () => {
       // For today, we can use the single date method
       if (selectedTimeRange === 'today') {
         const dailyRevenue = await dataService.getDailyRevenue(timeRange.start);
+        
+        // Use the exact same query as OperationsLedger to get matching data
+        console.log('📊 RevenueDashboard - Using OperationsLedger query for date:', timeRange.start);
+        
+        const { data: allTransactions, error } = await supabase
+          .from('patient_transactions')
+          .select(`
+            id,
+            amount,
+            payment_mode,
+            transaction_type,
+            transaction_date,
+            description,
+            doctor_name,
+            status,
+            created_at,
+            patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
+          `)
+          .eq('status', 'COMPLETED')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('❌ RevenueDashboard transaction fetch error:', error);
+          throw error;
+        }
+
+        // Filter transactions for today using the same logic as OperationsLedger
+        const transactions = (allTransactions || []).filter((trans: any) => {
+          // Use transaction_date if available, otherwise use created_at
+          let transactionDate = trans.transaction_date;
+          if (!transactionDate && trans.created_at) {
+            transactionDate = trans.created_at.split('T')[0];
+          }
+          
+          // Check if transaction is from the selected date
+          const isFromSelectedDate = transactionDate === timeRange.start || 
+                                   (trans.created_at && trans.created_at.split('T')[0] === timeRange.start);
+          
+          if (!isFromSelectedDate) return false;
+          
+          // Apply the same filtering as OperationsLedger: Skip only DR HEMANT with ORTHO department
+          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase() || '';
+          const filterDepartment = trans.patient?.assigned_department?.toUpperCase() || '';
+          
+          // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
+          if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
+            return false;
+          }
+          
+          return true;
+        });
+        
+        console.log('📊 RevenueDashboard - Filtered transactions using OperationsLedger logic:', {
+          date: timeRange.start,
+          totalFromDB: allTransactions?.length || 0,
+          filteredCount: transactions.length,
+          transactions: transactions.map((t: any) => ({
+            id: t.id,
+            patient_name: `${t.patient?.first_name || ''} ${t.patient?.last_name || ''}`.trim(),
+            type: t.transaction_type,
+            amount: t.amount,
+            transaction_date: t.transaction_date,
+            created_at: t.created_at
+          }))
+        });
+        
+        // Build payment mode breakdown from today's transactions only
+        const paymentModeBreakdown: Record<string, number> = {};
+        const departmentBreakdown: Record<string, number> = {};
+        const doctorBreakdown: Record<string, number> = {};
+        const transactionDetails: RevenueMetrics['transactionDetails'] = [];
+        
+        transactions.forEach((trans: any) => {
+          // Get patient info from the nested patient object
+          const patient = trans.patient;
+          const patientName = patient 
+            ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Unknown Patient'
+            : 'Unknown Patient';
+            
+          // Add ALL transactions to transaction details (matching OperationsLedger)
+          transactionDetails.push({
+            id: trans.id,
+            patient_name: patientName,
+            patient_id: patient?.patient_id || trans.patient_id,
+            transaction_type: trans.transaction_type,
+            amount: trans.amount,
+            payment_mode: trans.payment_mode,
+            transaction_date: trans.transaction_date || trans.created_at.split('T')[0],
+            created_at: trans.created_at,
+            description: trans.description
+          });
+          
+          // For aggregated breakdowns, apply same logic as operations
+          // Payment mode breakdown
+          if (trans.payment_mode) {
+            paymentModeBreakdown[trans.payment_mode] = (paymentModeBreakdown[trans.payment_mode] || 0) + trans.amount;
+          }
+          
+          // Department breakdown
+          if (patient?.assigned_department) {
+            departmentBreakdown[patient.assigned_department] = (departmentBreakdown[patient.assigned_department] || 0) + trans.amount;
+          }
+          
+          // Doctor breakdown
+          if (patient?.assigned_doctor) {
+            doctorBreakdown[patient.assigned_doctor] = (doctorBreakdown[patient.assigned_doctor] || 0) + trans.amount;
+          }
+        });
+        
         setRevenueMetrics({
           ...dailyRevenue,
-          paymentModeBreakdown: {},
-          departmentBreakdown: {},
-          doctorBreakdown: {},
+          paymentModeBreakdown,
+          departmentBreakdown,
+          doctorBreakdown,
+          transactionDetails: transactionDetails.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )
         });
       } else {
         // For week/month, we need to aggregate data across multiple dates
@@ -290,6 +417,69 @@ const RevenueDashboard: React.FC = () => {
               </div>
             </Card>
           </div>
+
+          {/* Transaction Details List */}
+          {revenueMetrics.transactionDetails && revenueMetrics.transactionDetails.length > 0 && (
+            <Card className="p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Operations - Transaction Details</h3>
+              <div className="overflow-x-auto">
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Patient
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Payment
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {revenueMetrics.transactionDetails.map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 whitespace-nowrap text-sm">
+                            <span className="capitalize">{transaction.transaction_type.replace(/_/g, ' ').toLowerCase()}</span>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                            {transaction.patient_name}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                            {format(new Date(transaction.transaction_date), 'M/d/yyyy')}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                            {formatCurrency(transaction.amount)}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                            <span className="capitalize">{transaction.payment_mode.toLowerCase()}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">
+                    Total Transactions: {revenueMetrics.transactionDetails.length}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    Total Amount: {formatCurrency(revenueMetrics.transactionDetails.reduce((sum, t) => sum + t.amount, 0))}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Breakdown Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

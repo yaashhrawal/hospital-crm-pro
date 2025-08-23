@@ -21,7 +21,8 @@ const DOCTORS_DATA = [
   { name: 'DR. KULDDEP VALA', department: 'NEUROSURGERY' },
   { name: 'DR. KURNAL PATEL', department: 'UROLOGY' },
   { name: 'DR. SAURABH GUPTA', department: 'ENDOCRINOLOGY' },
-  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' }
+  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' },
+  { name: 'DR. POONAM JAIN', department: 'PHYSIOTHERAPY' }
 ];
 
 // Get unique departments
@@ -119,7 +120,8 @@ const VisitAgainModal: React.FC<VisitAgainModalProps> = ({ patient, onClose, onV
             'NEUROSURGERY': 1200,
             'ENDOCRINOLOGY': 700,
             'GENERAL PHYSICIAN': 400,
-            'DIETICIAN': 300
+            'DIETICIAN': 300,
+            'PHYSIOTHERAPY': 600
           };
           setValue('consultation_fee', defaultFees[selectedDoc.department] || 500);
         }

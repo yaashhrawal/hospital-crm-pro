@@ -29,7 +29,8 @@ const DOCTORS_DATA = [
   { name: 'DR. KULDDEP VALA', department: 'NEUROSURGERY' },
   { name: 'DR. KURNAL PATEL', department: 'UROLOGY' },
   { name: 'DR. SAURABH GUPTA', department: 'ENDOCRINOLOGY' },
-  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' }
+  { name: 'DR. BATUL PEEPAWALA', department: 'GENERAL PHYSICIAN' },
+  { name: 'DR. POONAM JAIN', department: 'PHYSIOTHERAPY' }
 ];
 
 // Get unique departments

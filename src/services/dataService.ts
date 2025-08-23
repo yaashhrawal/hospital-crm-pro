@@ -184,30 +184,41 @@ class DataService {
 
   // Doctor Management - Direct Supabase Integration
   async getDoctors(): Promise<Doctor[]> {
-    console.log('📡 Fetching doctors directly from Supabase');
-    try {
-      const { data, error } = await supabase
-        .from('doctors')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-      if (error) {
-        console.error('❌ Supabase doctors fetch error:', error);
-        console.error('Error details:', { message: error.message, code: error.code, details: error.details });
-        
-        // If table doesn't exist, return empty array instead of throwing
-        if (error.code === '42P01') {
-          console.warn('⚠️ Doctors table does not exist. Please run CREATE_DOCTORS_TABLE.sql');
-          return [];
-        }
-        throw error;
+    console.log('📡 getDoctors() called - returning hardcoded doctors with Dr. Poonam Jain');
+    
+    // Skip complex database queries and return hardcoded doctors directly
+    const hardcodedDoctors = this.getHardcodedDoctors();
+    console.log('✅ Returning hardcoded doctors:', hardcodedDoctors);
+    return hardcodedDoctors;
+  }
+
+  private getHardcodedDoctors(): Doctor[] {
+    return [
+      {
+        id: 'hemant-khajja',
+        name: 'DR. HEMANT KHAJJA',
+        department: 'ORTHOPAEDIC',
+        specialization: 'Orthopaedic Surgeon',
+        fee: 800,
+        is_active: true
+      },
+      {
+        id: 'lalita-suwalka',
+        name: 'DR. LALITA SUWALKA', 
+        department: 'DIETICIAN',
+        specialization: 'Clinical Dietician',
+        fee: 500,
+        is_active: true
+      },
+      {
+        id: 'poonam-jain-physiotherapy',
+        name: 'DR. POONAM JAIN',
+        department: 'PHYSIOTHERAPY', 
+        specialization: 'Physiotherapist',
+        fee: 600,
+        is_active: true
       }
-      console.log('✅ Doctors fetched successfully from Supabase:', data?.length || 0, 'records');
-      return data || [];
-    } catch (error) {
-      console.error('🚨 Doctors fetch failed:', error);
-      throw error;
-    }
+    ];
   }
 
   async getDoctorsByDepartment(department: string): Promise<Doctor[]> {
@@ -233,23 +244,35 @@ class DataService {
 
   // Department Management - Direct Supabase Integration
   async getDepartments(): Promise<Department[]> {
-    console.log('📡 Fetching departments directly from Supabase');
-    try {
-      const { data, error } = await supabase
-        .from('departments')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-      if (error) {
-        console.error('❌ Supabase departments fetch error:', error);
-        throw error;
+    console.log('📡 getDepartments() called - returning hardcoded departments with PHYSIOTHERAPY');
+    
+    // Skip complex database queries and return hardcoded departments directly
+    const hardcodedDepartments = this.getHardcodedDepartments();
+    console.log('✅ Returning hardcoded departments:', hardcodedDepartments);
+    return hardcodedDepartments;
+  }
+
+  private getHardcodedDepartments(): Department[] {
+    return [
+      {
+        id: 'orthopaedic-dept',
+        name: 'ORTHOPAEDIC',
+        description: 'Orthopaedic Surgery and Bone Care',
+        is_active: true
+      },
+      {
+        id: 'dietician-dept', 
+        name: 'DIETICIAN',
+        description: 'Nutrition and Diet Planning',
+        is_active: true
+      },
+      {
+        id: 'physiotherapy-dept',
+        name: 'PHYSIOTHERAPY',
+        description: 'Physiotherapy and Rehabilitation', 
+        is_active: true
       }
-      console.log('✅ Departments fetched successfully from Supabase:', data?.length || 0, 'records');
-      return data || [];
-    } catch (error) {
-      console.error('🚨 Departments fetch failed:', error);
-      throw error;
-    }
+    ];
   }
 
   // Transaction Management - Direct Supabase Integration
@@ -330,18 +353,93 @@ class DataService {
 
   async getTransactionsByDate(date: string): Promise<PatientTransaction[]> {
     console.log('📡 Fetching transactions by date directly from Supabase:', date);
+    console.log('🕐 Current system date/time:', {
+      now: new Date().toISOString(),
+      localDate: new Date().toLocaleDateString(),
+      requestedDate: date
+    });
+    
     try {
-      const { data, error } = await supabase
+      // Create date range for the entire day
+      const startOfDay = `${date} 00:00:00`;
+      const endOfDay = `${date} 23:59:59`;
+      
+      console.log('📅 Fetching transactions for date range:', { 
+        requestedDate: date,
+        startOfDay, 
+        endOfDay 
+      });
+      
+      // First try to get all transactions for this hospital
+      const { data: allTransactions, error } = await supabase
         .from('patient_transactions')
         .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
         .eq('hospital_id', HOSPITAL_ID)
-        .eq('transaction_date', date)
         .order('created_at', { ascending: false });
+      
       if (error) {
-        console.error('❌ Supabase transactions by date fetch error:', error);
+        console.error('❌ Supabase transactions fetch error:', error);
         throw error;
       }
-      console.log('✅ Transactions by date fetched successfully from Supabase:', data?.length || 0, 'records for date:', date);
+      
+      // Then filter in JavaScript for the specific date
+      console.log('🔍 Filtering transactions. Sample of first 3 transactions:', 
+        allTransactions?.slice(0, 3).map(t => ({
+          id: t.id,
+          transaction_date: t.transaction_date,
+          created_at: t.created_at,
+          amount: t.amount,
+          patient_id: t.patient_id
+        }))
+      );
+      
+      const data = allTransactions?.filter((t, index) => {
+        // Check transaction_date first
+        if (t.transaction_date) {
+          const txnDate = t.transaction_date.split('T')[0] || t.transaction_date.split(' ')[0];
+          const matches = txnDate === date;
+          if (index < 5) { // Log first 5 for debugging
+            console.log(`Transaction ${index}: transaction_date=${t.transaction_date}, extracted=${txnDate}, requested=${date}, matches=${matches}`);
+          }
+          return matches;
+        }
+        // Fall back to created_at if no transaction_date
+        if (t.created_at) {
+          const createdDate = t.created_at.split('T')[0];
+          const matches = createdDate === date;
+          if (index < 5) { // Log first 5 for debugging
+            console.log(`Transaction ${index}: NO transaction_date, created_at=${t.created_at}, extracted=${createdDate}, requested=${date}, matches=${matches}`);
+          }
+          return matches;
+        }
+        return false;
+      });
+      
+      // Log raw data for debugging
+      console.log('📊 Raw transaction data from Supabase:', {
+        totalRecords: allTransactions?.length || 0,
+        filteredRecords: data?.length || 0,
+        requestedDate: date,
+        sampleRecord: data?.[0] ? {
+          transaction_date: data[0].transaction_date,
+          created_at: data[0].created_at,
+          amount: data[0].amount,
+          transaction_type: data[0].transaction_type
+        } : null
+      });
+      
+      console.log('✅ Transactions by date fetched successfully from Supabase:', {
+        requestedDate: date,
+        totalInDatabase: allTransactions?.length || 0,
+        matchingDate: data?.length || 0,
+        transactions: data?.map(t => ({
+          type: t.transaction_type,
+          amount: t.amount,
+          patient_id: t.patient_id,
+          date: t.transaction_date || t.created_at
+        }))
+      });
+      
       return data || [];
     } catch (error) {
       console.error('🚨 Transactions by date fetch failed:', error);

@@ -324,9 +324,10 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             .doctor-details {
               position: absolute;
               bottom: 384px;
-              right: 150px;
+              right: 120px;
               text-align: left;
-              max-width: 400px;
+              max-width: 450px;
+              padding-left: 20px;
             }
 
             .doctor-name {
@@ -515,8 +516,9 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
             <div class="doctor-details">
               <div class="doctor-name">${doctorInfo.name}</div>
-              ${doctorInfo.degree ? `<div class="doctor-degree">${doctorInfo.degree}</div>` : ''}
-              ${doctorInfo.specialty ? `<div class="doctor-specialty">${doctorInfo.specialty}</div>` : ''}
+              ${doctorInfo.degree ? `<div class="doctor-degree">${doctorInfo.degree.replace(/\n/g, '<br>')}</div>` : ''}
+              <div class="doctor-specialty">${departmentName}</div>
+              ${doctorInfo.specialty && doctorInfo.specialty !== doctorInfo.degree ? `<div class="doctor-specialty">Specialty: ${doctorInfo.specialty}</div>` : ''}
               ${doctorInfo.hospital_experience ? `<div class="doctor-experience">${doctorInfo.hospital_experience}</div>` : ''}
             </div>
           </div>
@@ -900,7 +902,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Doctor Details - Bottom Right Above Signature */}
-          <div className="absolute bottom-[24rem] right-12 text-left max-w-xs">
+          <div className="absolute bottom-[24rem] right-16 text-left max-w-md" style={{ paddingLeft: '1rem' }}>
             {/* Doctor Name */}
             <div className="font-bold text-2xl uppercase leading-tight" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
@@ -908,16 +910,20 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             
             {/* Doctor Degree */}
             {getDoctorInfo().degree && (
-              <div className="text-lg mt-1 font-medium text-gray-700" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+              <div className="text-lg mt-1 font-medium text-gray-700" style={{ fontFamily: 'Canva Sans, sans-serif', whiteSpace: 'pre-line' }}>
                 {getDoctorInfo().degree}
               </div>
             )}
             
+            {/* Department */}
+            <div className="text-lg mt-1 font-bold text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+              {getDepartmentName()}
+            </div>
             
-            {/* Specialty */}
-            {getDoctorInfo().specialty && (
+            {/* Specialty - only show if different from degree */}
+            {getDoctorInfo().specialty && getDoctorInfo().specialty !== getDoctorInfo().degree && (
               <div className="text-lg mt-1 font-bold text-gray-600" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
-                {getDoctorInfo().specialty}
+                Specialty: {getDoctorInfo().specialty}
               </div>
             )}
             

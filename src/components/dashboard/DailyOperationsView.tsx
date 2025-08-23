@@ -54,12 +54,27 @@ const DailyOperationsView: React.FC = () => {
     setLoading(true);
     try {
       // Load all required data
+      console.log('🏥 DailyOperationsView - Fetching transactions for date:', selectedDate);
       const [transactions, patients, admissions, dailyExpenses] = await Promise.all([
         dataService.getTransactionsByDate(selectedDate),
         dataService.getPatients(),
         dataService.getActiveAdmissions(),
         dataService.getExpensesByDate(selectedDate),
       ]);
+      
+      console.log('🏥 DailyOperationsView - Fetched transactions:', {
+        date: selectedDate,
+        count: transactions.length,
+        transactions: transactions.map(t => ({
+          id: t.id,
+          patient_id: t.patient_id,
+          type: t.transaction_type,
+          amount: t.amount,
+          transaction_date: t.transaction_date,
+          created_at: t.created_at
+        }))
+      });
+      
       setExpenses(dailyExpenses);
 
       // Group transactions by patient

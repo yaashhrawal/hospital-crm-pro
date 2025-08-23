@@ -527,7 +527,7 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
               
               {/* Doctor Degree - Just below name */}
               {getDoctorInfo().degree && (
-                <div className="text-sm mt-1 font-medium text-gray-700" style={{ fontFamily: 'Canva Sans, sans-serif' }}>
+                <div className="text-sm mt-1 font-medium text-gray-700" style={{ fontFamily: 'Canva Sans, sans-serif', whiteSpace: 'pre-line' }}>
                   {getDoctorInfo().degree}
                 </div>
               )}
