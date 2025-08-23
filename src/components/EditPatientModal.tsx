@@ -5,6 +5,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { supabase } from '../config/supabaseNew';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   User, 
   Stethoscope, 
@@ -45,6 +46,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
   onClose,
   onPatientUpdated
 }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [filteredDoctors, setFilteredDoctors] = useState(DOCTORS_DATA);
   const [transactionLoading, setTransactionLoading] = useState(false);
@@ -965,215 +967,258 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                 </div>
               </div>
 
-              {/* Payment Section */}
-              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                <div className="flex items-center gap-2 mb-6">
-                  <CreditCard className="w-5 h-5" style={{ color: '#0056B3' }} />
-                  <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Payment Details</h2>
-                </div>
-
-                {/* Existing Payments Selector */}
-                {existingPayments.length > 0 ? (
-                  <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#EBF5FF', border: '2px solid #0056B3' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#0056B3', marginBottom: '12px' }}>
-                      📋 Select Payment to Edit
-                    </h3>
-                    <select
-                      value={selectedPaymentId || ''}
-                      onChange={(e) => {
-                        const paymentId = e.target.value;
-                        setSelectedPaymentId(paymentId);
-                        const selectedPayment = existingPayments.find(p => p.id === paymentId);
-                        if (selectedPayment) {
-                          setPaymentData({
-                            consultation_fee: selectedPayment.amount || 0,
-                            discount_percentage: 0,
-                            discount_reason: '',
-                            payment_mode: selectedPayment.payment_mode || 'CASH',
-                            online_payment_method: 'UPI',
-                            transaction_type: selectedPayment.transaction_type || 'CONSULTATION',
-                            description: selectedPayment.description || ''
-                          });
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #0056B3',
-                        fontSize: '16px',
-                        color: '#333333',
-                        backgroundColor: '#FFFFFF',
-                        outline: 'none'
-                      }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#004494'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                    >
-                      <option value="">Select a payment to edit</option>
-                      {existingPayments.map((payment: any) => (
-                        <option key={payment.id} value={payment.id}>
-                          {payment.transaction_type === 'entry_fee' || payment.transaction_type === 'ENTRY_FEE' ? 'Entry Fee' : 'Consultation'} - 
-                          ₹{payment.amount} - 
-                          {payment.doctor_name || 'No Doctor'} - 
-                          {new Date(payment.created_at).toLocaleDateString()}
-                        </option>
-                      ))}
-                    </select>
+              {/* Payment Section - Hidden for frontdesk users */}
+              {user?.email !== 'frontdesk@valant.com' && (
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="flex items-center gap-2 mb-6">
+                    <CreditCard className="w-5 h-5" style={{ color: '#0056B3' }} />
+                    <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Payment Details</h2>
                   </div>
-                ) : (
-                  <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '2px solid #F59E0B' }}>
-                    <p style={{ color: '#92400E' }}>⚠️ No initial payments found. You can create a new payment below.</p>
-                  </div>
-                )}
 
-                {/* Payment Form */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                        Transaction Type
-                      </label>
+                  {/* Existing Payments Selector */}
+                  {existingPayments.length > 0 ? (
+                    <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#EBF5FF', border: '2px solid #0056B3' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#0056B3', marginBottom: '12px' }}>
+                        📋 Select Payment to Edit
+                      </h3>
                       <select
-                        value={paymentData.transaction_type}
-                        onChange={(e) => setPaymentData({ ...paymentData, transaction_type: e.target.value })}
+                        value={selectedPaymentId || ''}
+                        onChange={(e) => {
+                          const paymentId = e.target.value;
+                          setSelectedPaymentId(paymentId);
+                          const selectedPayment = existingPayments.find(p => p.id === paymentId);
+                          if (selectedPayment) {
+                            setPaymentData({
+                              consultation_fee: selectedPayment.amount || 0,
+                              discount_percentage: 0,
+                              discount_reason: '',
+                              payment_mode: selectedPayment.payment_mode || 'CASH',
+                              online_payment_method: 'UPI',
+                              transaction_type: selectedPayment.transaction_type || 'CONSULTATION',
+                              description: selectedPayment.description || ''
+                            });
+                          }
+                        }}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: '1px solid #CCCCCC',
+                          border: '1px solid #0056B3',
                           fontSize: '16px',
                           color: '#333333',
                           backgroundColor: '#FFFFFF',
                           outline: 'none'
                         }}
-                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        onFocus={(e) => e.currentTarget.style.borderColor = '#004494'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = '#0056B3'}
                       >
-                        <option value="CONSULTATION">Consultation Fee</option>
-                        <option value="LAB_TEST">Lab Test</option>
-                        <option value="XRAY">X-Ray</option>
-                        <option value="MEDICINE">Medicine</option>
-                        <option value="PROCEDURE">Procedure</option>
-                        <option value="SERVICE">Other Service</option>
+                        <option value="">Select a payment to edit</option>
+                        {existingPayments.map((payment: any) => (
+                          <option key={payment.id} value={payment.id}>
+                            {payment.transaction_type === 'entry_fee' || payment.transaction_type === 'ENTRY_FEE' ? 'Entry Fee' : 'Consultation'} - 
+                            ₹{payment.amount} - 
+                            {payment.doctor_name || 'No Doctor'} - 
+                            {new Date(payment.created_at).toLocaleDateString()}
+                          </option>
+                        ))}
                       </select>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                        Amount (₹) <span style={{ color: '#EF4444' }}>*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={paymentData.consultation_fee}
-                        onChange={(e) => setPaymentData({ ...paymentData, consultation_fee: Number(e.target.value) || 0 })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #CCCCCC',
-                          fontSize: '16px',
-                          color: '#333333',
-                          outline: 'none'
-                        }}
-                        placeholder="Enter amount"
-                        min="0"
-                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
-                        required
-                      />
+                  ) : (
+                    <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '2px solid #F59E0B' }}>
+                      <p style={{ color: '#92400E' }}>⚠️ No initial payments found. You can create a new payment below.</p>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                        Discount (%)
-                      </label>
-                      <input
-                        type="number"
-                        value={paymentData.discount_percentage}
-                        onChange={(e) => setPaymentData({ ...paymentData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #CCCCCC',
-                          fontSize: '16px',
-                          color: '#333333',
-                          outline: 'none'
-                        }}
-                        placeholder="0"
-                        min="0"
-                        max="100"
-                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                        Payment Mode
-                      </label>
-                      <select
-                        value={paymentData.payment_mode}
-                        onChange={(e) => setPaymentData({ ...paymentData, payment_mode: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #CCCCCC',
-                          fontSize: '16px',
-                          color: '#333333',
-                          backgroundColor: '#FFFFFF',
-                          outline: 'none'
-                        }}
-                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="ONLINE">Online</option>
-                      </select>
-                    </div>
-                    {paymentData.payment_mode === 'ONLINE' && (
+                  {/* Payment Form */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                          Online Method
+                          Transaction Type
                         </label>
-                        <div className="flex gap-2">
-                          <label className="flex items-center gap-1 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="online_payment_method"
-                              value="UPI"
-                              checked={paymentData.online_payment_method === 'UPI'}
-                              onChange={(e) => setPaymentData({ ...paymentData, online_payment_method: e.target.value })}
-                              style={{ accentColor: '#0056B3' }}
-                            />
-                            UPI
+                        <select
+                          value={paymentData.transaction_type}
+                          onChange={(e) => setPaymentData({ ...paymentData, transaction_type: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        >
+                          <option value="CONSULTATION">Consultation Fee</option>
+                          <option value="LAB_TEST">Lab Test</option>
+                          <option value="XRAY">X-Ray</option>
+                          <option value="MEDICINE">Medicine</option>
+                          <option value="PROCEDURE">Procedure</option>
+                          <option value="SERVICE">Other Service</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Amount (₹) <span style={{ color: '#EF4444' }}>*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={paymentData.consultation_fee}
+                          onChange={(e) => setPaymentData({ ...paymentData, consultation_fee: Number(e.target.value) || 0 })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            outline: 'none'
+                          }}
+                          placeholder="Enter amount"
+                          min="0"
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Discount (%)
+                        </label>
+                        <input
+                          type="number"
+                          value={paymentData.discount_percentage}
+                          onChange={(e) => setPaymentData({ ...paymentData, discount_percentage: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            outline: 'none'
+                          }}
+                          placeholder="0"
+                          min="0"
+                          max="100"
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Payment Mode
+                        </label>
+                        <select
+                          value={paymentData.payment_mode}
+                          onChange={(e) => setPaymentData({ ...paymentData, payment_mode: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none'
+                          }}
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="ONLINE">Online</option>
+                        </select>
+                      </div>
+                      {paymentData.payment_mode === 'ONLINE' && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                            Online Method
                           </label>
-                          <label className="flex items-center gap-1 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="online_payment_method"
-                              value="CARD"
-                              checked={paymentData.online_payment_method === 'CARD'}
-                              onChange={(e) => setPaymentData({ ...paymentData, online_payment_method: e.target.value })}
-                              style={{ accentColor: '#0056B3' }}
-                            />
-                            Card
-                          </label>
+                          <div className="flex gap-2">
+                            <label className="flex items-center gap-1 text-sm cursor-pointer">
+                              <input
+                                type="radio"
+                                name="online_payment_method"
+                                value="UPI"
+                                checked={paymentData.online_payment_method === 'UPI'}
+                                onChange={(e) => setPaymentData({ ...paymentData, online_payment_method: e.target.value })}
+                                style={{ accentColor: '#0056B3' }}
+                              />
+                              UPI
+                            </label>
+                            <label className="flex items-center gap-1 text-sm cursor-pointer">
+                              <input
+                                type="radio"
+                                name="online_payment_method"
+                                value="CARD"
+                                checked={paymentData.online_payment_method === 'CARD'}
+                                onChange={(e) => setPaymentData({ ...paymentData, online_payment_method: e.target.value })}
+                                style={{ accentColor: '#0056B3' }}
+                              />
+                              Card
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {paymentData.discount_percentage > 0 && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                          Discount Reason
+                        </label>
+                        <input
+                          type="text"
+                          value={paymentData.discount_reason}
+                          onChange={(e) => setPaymentData({ ...paymentData, discount_reason: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CCCCCC',
+                            fontSize: '16px',
+                            color: '#333333',
+                            outline: 'none'
+                          }}
+                          placeholder="Reason for discount"
+                          onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                          onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                        />
+                      </div>
+                    )}
+
+                    {/* Amount Summary */}
+                    {paymentData.consultation_fee > 0 && (
+                      <div className="p-3 rounded-lg" style={{ backgroundColor: '#F0FDF4', border: '2px solid #10B981' }}>
+                        <div className="text-center">
+                          {paymentData.discount_percentage > 0 && (
+                            <div style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>
+                              Original: ₹{paymentData.consultation_fee.toLocaleString()} - Discount ({paymentData.discount_percentage}%): ₹{(paymentData.consultation_fee * (paymentData.discount_percentage / 100)).toFixed(2)}
+                            </div>
+                          )}
+                          <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#059669' }}>
+                            Total Amount: ₹{(paymentData.consultation_fee - (paymentData.consultation_fee * (paymentData.discount_percentage / 100))).toFixed(2)}
+                          </span>
+                          <div style={{ fontSize: '14px', color: '#666666', marginTop: '4px' }}>
+                            Payment: {paymentData.payment_mode === 'ONLINE' ? paymentData.online_payment_method : paymentData.payment_mode}
+                          </div>
                         </div>
                       </div>
                     )}
-                  </div>
 
-                  {paymentData.discount_percentage > 0 && (
                     <div>
                       <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                        Discount Reason
+                        Description (Optional)
                       </label>
-                      <input
-                        type="text"
-                        value={paymentData.discount_reason}
-                        onChange={(e) => setPaymentData({ ...paymentData, discount_reason: e.target.value })}
+                      <textarea
+                        value={paymentData.description}
+                        onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -1181,92 +1226,51 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
                           border: '1px solid #CCCCCC',
                           fontSize: '16px',
                           color: '#333333',
-                          outline: 'none'
+                          outline: 'none',
+                          resize: 'vertical'
                         }}
-                        placeholder="Reason for discount"
+                        rows={2}
+                        placeholder="Additional notes about this transaction"
                         onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
                         onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
                       />
                     </div>
-                  )}
 
-                  {/* Amount Summary */}
-                  {paymentData.consultation_fee > 0 && (
-                    <div className="p-3 rounded-lg" style={{ backgroundColor: '#F0FDF4', border: '2px solid #10B981' }}>
-                      <div className="text-center">
-                        {paymentData.discount_percentage > 0 && (
-                          <div style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>
-                            Original: ₹{paymentData.consultation_fee.toLocaleString()} - Discount ({paymentData.discount_percentage}%): ₹{(paymentData.consultation_fee * (paymentData.discount_percentage / 100)).toFixed(2)}
-                          </div>
-                        )}
-                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#059669' }}>
-                          Total Amount: ₹{(paymentData.consultation_fee - (paymentData.consultation_fee * (paymentData.discount_percentage / 100))).toFixed(2)}
-                        </span>
-                        <div style={{ fontSize: '14px', color: '#666666', marginTop: '4px' }}>
-                          Payment: {paymentData.payment_mode === 'ONLINE' ? paymentData.online_payment_method : paymentData.payment_mode}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                      Description (Optional)
-                    </label>
-                    <textarea
-                      value={paymentData.description}
-                      onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
+                    {/* Update Payment Button */}
+                    <button
+                      type="button"
+                      onClick={handleUpdatePayment}
+                      disabled={transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0)}
                       style={{
                         width: '100%',
-                        padding: '10px 12px',
+                        padding: '12px',
                         borderRadius: '8px',
-                        border: '1px solid #CCCCCC',
+                        backgroundColor: transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0) ? '#999999' : '#10B981',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontWeight: 'bold',
+                        cursor: transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0) ? 'not-allowed' : 'pointer',
                         fontSize: '16px',
-                        color: '#333333',
-                        outline: 'none',
-                        resize: 'vertical'
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
                       }}
-                      rows={2}
-                      placeholder="Additional notes about this transaction"
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
-                    />
+                      onMouseEnter={(e) => !transactionLoading && selectedPaymentId && (e.currentTarget.style.backgroundColor = '#059669')}
+                      onMouseLeave={(e) => !transactionLoading && selectedPaymentId && (e.currentTarget.style.backgroundColor = '#10B981')}
+                    >
+                      {transactionLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Updating Payment...
+                        </>
+                      ) : (
+                        selectedPaymentId ? '💳 Update Payment' : '💳 Add Payment'
+                      )}
+                    </button>
                   </div>
-
-                  {/* Update Payment Button */}
-                  <button
-                    type="button"
-                    onClick={handleUpdatePayment}
-                    disabled={transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      backgroundColor: transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0) ? '#999999' : '#10B981',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      fontWeight: 'bold',
-                      cursor: transactionLoading || (!selectedPaymentId && paymentData.consultation_fee === 0) ? 'not-allowed' : 'pointer',
-                      fontSize: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                    onMouseEnter={(e) => !transactionLoading && selectedPaymentId && (e.currentTarget.style.backgroundColor = '#059669')}
-                    onMouseLeave={(e) => !transactionLoading && selectedPaymentId && (e.currentTarget.style.backgroundColor = '#10B981')}
-                  >
-                    {transactionLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Updating Payment...
-                      </>
-                    ) : (
-                      selectedPaymentId ? '💳 Update Payment' : '💳 Add Payment'
-                    )}
-                  </button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 

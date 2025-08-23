@@ -17,7 +17,7 @@ import useReceiptPrinting from '../hooks/useReceiptPrinting';
 import { createRoot } from 'react-dom/client';
 import ReceiptTemplate from './receipts/ReceiptTemplate';
 import type { ReceiptData } from './receipts/ReceiptTemplate';
-import { usePermissions } from '../contexts/AuthContext';
+import { usePermissions, useAuth } from '../contexts/AuthContext';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -28,6 +28,7 @@ interface PatientHistoryModalProps {
 
 const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOpen, onClose, onPatientUpdated }) => {
   const { printServiceReceipt } = useReceiptPrinting();
+  const { user } = useAuth();
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
@@ -506,7 +507,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                               📋
                             </button>
                           )}
-                          {transaction.status !== 'CANCELLED' && (
+                          {transaction.status !== 'CANCELLED' && user?.email !== 'frontdesk@valant.com' && (
                             <button
                               onClick={() => handleDeleteTransaction(transaction.id, transaction.description, transaction.amount)}
                               disabled={deletingTransactionId === transaction.id}
@@ -553,6 +554,7 @@ interface ComprehensivePatientListProps {
 
 const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onNavigate }) => {
   const { hasPermission } = usePermissions();
+  const { user } = useAuth();
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<PatientWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1969,18 +1971,20 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                       🧾 Receipt
                     </button>
                     
-                    {/* Delete */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
-                      }}
-                      className="bg-white text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium disabled:opacity-50"
-                      title="Delete patient permanently"
-                      disabled={loading}
-                    >
-                      🗑️ Delete
-                    </button>
+                    {/* Delete - Hidden for frontdesk users */}
+                    {user?.email !== 'frontdesk@valant.com' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePatient(patient.id, `${patient.first_name} ${patient.last_name}`);
+                        }}
+                        className="bg-white text-red-600 border border-red-200 px-3 py-2 rounded-lg text-xs hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium disabled:opacity-50"
+                        title="Delete patient permanently"
+                        disabled={loading}
+                      >
+                        🗑️ Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
