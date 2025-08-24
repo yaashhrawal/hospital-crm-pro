@@ -203,23 +203,51 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
   };
 
   const handleDeleteTransaction = async (transactionId: string, description: string, amount: number) => {
-    if (!confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\nAmount: ₹${amount.toLocaleString()}\n\nThis will mark the transaction as cancelled and cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to permanently delete this transaction?\n\n"${description}"\nAmount: ₹${amount.toLocaleString()}\n\nThis action cannot be undone and will remove the transaction from all records.`)) {
       return;
     }
 
     try {
       setDeletingTransactionId(transactionId);
       
-      // Update transaction status to CANCELLED
-      await HospitalService.updateTransactionStatus(transactionId, 'CANCELLED');
+      // Permanently delete the transaction
+      await HospitalService.deleteTransaction(transactionId);
       
-      toast.success('Transaction cancelled successfully. Patient totals will be updated.');
+      toast.success('Transaction deleted permanently from all records.');
       
-      // Close modal and trigger patient list refresh
-      onClose();
+      // Remove the deleted transaction from the current patient's transaction list
+      const updatedTransactions = patient.transactions?.filter(t => t.id !== transactionId) || [];
+      const updatedPatient = {
+        ...patient,
+        transactions: updatedTransactions,
+        // Recalculate totals
+        totalSpent: updatedTransactions
+          .filter(t => t.status !== 'CANCELLED')
+          .reduce((sum, t) => sum + (t.amount || 0), 0),
+        visitCount: updatedTransactions.filter(t => 
+          t.transaction_type === 'ENTRY_FEE' || 
+          t.transaction_type === 'entry_fee' ||
+          t.transaction_type === 'CONSULTATION' ||
+          t.transaction_type === 'consultation'
+        ).length || 1
+      };
+      
+      // Update the patient in the parent component's state
+      patient.transactions = updatedTransactions;
+      patient.totalSpent = updatedPatient.totalSpent;
+      patient.visitCount = updatedPatient.visitCount;
+      
+      // Trigger dashboard refresh to update totals everywhere
+      window.dispatchEvent(new Event('transactionUpdated'));
+      
+      // Trigger patient list refresh to update the main list
       if (onPatientUpdated) {
         onPatientUpdated();
       }
+      
+      // Don't close the modal - let user continue viewing/managing transactions
+      toast.info('You can continue managing transactions or close this window.');
+      
     } catch (error: any) {
       toast.error(`Failed to delete transaction: ${error.message}`);
     } finally {

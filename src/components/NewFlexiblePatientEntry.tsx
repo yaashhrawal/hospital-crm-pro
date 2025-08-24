@@ -361,16 +361,29 @@ const NewFlexiblePatientEntry: React.FC = () => {
       if (isNewVisit && selectedExistingPatient) {
         console.log('🔄 Processing new visit for existing patient:', selectedExistingPatient.patient_id);
         
-        // Update existing patient's date_of_entry to new visit date
-        const updateData = {
+        // Update existing patient's date_of_entry and doctor information to new visit date
+        const updateData: any = {
           date_of_entry: formData.date_of_entry.toISOString().split('T')[0] // Format as YYYY-MM-DD
         };
+        
+        // Update doctor information if provided
+        if (formData.consultation_mode === 'single') {
+          const finalDoctorName = formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor;
+          const finalDepartmentName = formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department;
+          
+          if (finalDoctorName) {
+            updateData.assigned_doctor = finalDoctorName;
+          }
+          if (finalDepartmentName) {
+            updateData.assigned_department = finalDepartmentName;
+          }
+        }
         
         try {
           const updatedPatient = await HospitalService.updatePatient(selectedExistingPatient.id, updateData);
           if (updatedPatient) {
             newPatient = { ...selectedExistingPatient, ...updateData };
-            console.log('✅ Updated patient date_of_entry for new visit');
+            console.log('✅ Updated patient date_of_entry and doctor info for new visit');
             toast.success(`New visit recorded for ${selectedExistingPatient.first_name} ${selectedExistingPatient.last_name}`);
           } else {
             throw new Error('Failed to update patient for new visit');
@@ -428,14 +441,25 @@ const NewFlexiblePatientEntry: React.FC = () => {
         
         // Doctor assignment for backward compatibility
         assigned_doctor: formData.consultation_mode === 'single' ? 
-          (formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor) || undefined : undefined,
+          (formData.selected_doctor === 'CUSTOM' ? 
+            (formData.custom_doctor_name || undefined) : 
+            (formData.selected_doctor || undefined)) : undefined,
         assigned_department: formData.consultation_mode === 'single' ? 
-          (formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department) || undefined : undefined,
+          (formData.selected_department === 'CUSTOM' ? 
+            (formData.custom_department_name || undefined) : 
+            (formData.selected_department || undefined)) : undefined,
       };
 
       // Note: Patient will be hidden from patient list automatically if they have an appointment
 
         console.log('📤 Creating patient with data:', patientData);
+        console.log('👨‍⚕️ Doctor info being saved:', {
+          doctor: patientData.assigned_doctor,
+          department: patientData.assigned_department,
+          mode: formData.consultation_mode,
+          selected_doctor: formData.selected_doctor,
+          selected_department: formData.selected_department
+        });
         newPatient = await HospitalService.createPatient(patientData);
         console.log('✅ Patient created successfully:', newPatient);
       }

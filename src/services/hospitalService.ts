@@ -1007,6 +1007,51 @@ export class HospitalService {
       throw error;
     }
   }
+
+  static async deleteTransaction(transactionId: string): Promise<void> {
+    try {
+      console.log(`🗑️ Permanently deleting transaction ${transactionId}`);
+      
+      // First fetch the transaction to log details
+      const { data: transaction, error: fetchError } = await supabase
+        .from('patient_transactions')
+        .select('*')
+        .eq('id', transactionId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Could not fetch transaction before deletion:', fetchError);
+      } else {
+        console.log('📝 Transaction to be deleted:', {
+          id: transaction.id,
+          created_at: transaction.created_at,
+          transaction_date: transaction.transaction_date,
+          amount: transaction.amount,
+          description: transaction.description,
+          age: transaction.created_at ? 
+            `${Math.floor((Date.now() - new Date(transaction.created_at).getTime()) / (1000 * 60 * 60 * 24))} days old` : 
+            'Unknown age'
+        });
+      }
+      
+      // Now delete the transaction
+      const { error } = await supabase
+        .from('patient_transactions')
+        .delete()
+        .eq('id', transactionId);
+      
+      if (error) {
+        console.error('❌ Delete transaction error:', error);
+        throw new Error(`Failed to delete transaction: ${error.message}`);
+      }
+      
+      console.log('✅ Transaction permanently deleted successfully');
+      
+    } catch (error: any) {
+      console.error('🚨 deleteTransaction error:', error);
+      throw error;
+    }
+  }
   
   // ==================== APPOINTMENT OPERATIONS ====================
   

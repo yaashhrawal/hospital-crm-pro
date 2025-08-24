@@ -4,6 +4,7 @@ import HospitalService from '../services/hospitalService';
 import { supabase } from '../config/supabaseNew';
 import type { CreatePatientData } from '../config/supabaseNew';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
+import { DoctorService } from '../services/doctorService';
 
 const SimplePatientEntry: React.FC = () => {
   const { printConsultationReceipt } = useReceiptPrinting();
@@ -56,6 +57,9 @@ const SimplePatientEntry: React.FC = () => {
     allergies: '',
     date_of_birth: '',
     visit_date: new Date().toISOString().split('T')[0], // Default to today
+    // Doctor info
+    assigned_doctor: '',
+    assigned_department: '',
     // Financial info
     consultation_fee: 0,
     discount_amount: 0,
@@ -80,9 +84,16 @@ const SimplePatientEntry: React.FC = () => {
   const [existingPatient, setExistingPatient] = useState<any>(null);
   const [showExistingPatientPrompt, setShowExistingPatientPrompt] = useState(false);
   const [lastVisitInfo, setLastVisitInfo] = useState<any>(null);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
 
   useEffect(() => {
     testConnection();
+    // Load doctors and departments
+    const doctorsData = DoctorService.getAllDoctors();
+    const departmentsData = DoctorService.getAllDepartments();
+    setDoctors(doctorsData);
+    setDepartments(departmentsData);
   }, []);
 
   // Check for duplicates when phone or name changes
@@ -160,12 +171,34 @@ const SimplePatientEntry: React.FC = () => {
     try {
       console.log('🏥 Creating new visit for existing patient:', existingPatient.patient_id);
       
+      // Update patient's doctor information if provided
+      if (formData.assigned_doctor || formData.assigned_department) {
+        const updateData: any = {};
+        if (formData.assigned_doctor) {
+          updateData.assigned_doctor = formData.assigned_doctor;
+        }
+        if (formData.assigned_department) {
+          updateData.assigned_department = formData.assigned_department;
+        }
+        
+        const { error: updateError } = await supabase
+          .from('patients')
+          .update(updateData)
+          .eq('id', existingPatient.id);
+          
+        if (updateError) {
+          console.error('Failed to update patient doctor info:', updateError);
+        } else {
+          console.log('✅ Updated patient doctor information');
+        }
+      }
+      
       // Create visit record
       const visitData = {
         patient_id: existingPatient.id,
         visit_type: 'Consultation',
         chief_complaint: formData.medical_history || 'General Consultation',
-        department: formData.department || 'General',
+        department: formData.assigned_department || formData.department || 'General',
         visit_date: formData.visit_date || new Date().toISOString().split('T')[0],
         notes: `Visit on ${formData.visit_date || new Date().toLocaleDateString()}`
       };
@@ -299,6 +332,8 @@ const SimplePatientEntry: React.FC = () => {
         medical_history: formData.medical_history.trim() || undefined,
         allergies: formData.allergies.trim() || undefined,
         date_of_entry: formData.visit_date || undefined, // Store the visit date
+        assigned_doctor: formData.assigned_doctor || undefined,
+        assigned_department: formData.assigned_department || undefined,
         hospital_id: '550e8400-e29b-41d4-a716-446655440000'
       };
 
@@ -411,6 +446,8 @@ const SimplePatientEntry: React.FC = () => {
       address: '',
       patient_tag: '',
       visit_date: new Date().toISOString().split('T')[0],
+      assigned_doctor: '',
+      assigned_department: '',
       emergency_contact_name: '',
       emergency_contact_phone: '',
       blood_group: '',
@@ -624,6 +661,57 @@ const SimplePatientEntry: React.FC = () => {
               />
               <div className="text-xs text-gray-500 mt-1">
                 📅 Date when this visit occurred (for back-dating entries)
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select
+                value={formData.assigned_department}
+                onChange={(e) => {
+                  setFormData({ 
+                    ...formData, 
+                    assigned_department: e.target.value,
+                    assigned_doctor: '' // Reset doctor when department changes
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+              <select
+                value={formData.assigned_doctor}
+                onChange={(e) => {
+                  const selectedDoctor = doctors.find(d => d.name === e.target.value);
+                  setFormData({ 
+                    ...formData, 
+                    assigned_doctor: e.target.value,
+                    assigned_department: selectedDoctor ? selectedDoctor.department : formData.assigned_department
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Doctor</option>
+                {formData.assigned_department 
+                  ? doctors
+                      .filter(doc => doc.department === formData.assigned_department)
+                      .map((doc) => (
+                        <option key={doc.id} value={doc.name}>{doc.name}</option>
+                      ))
+                  : doctors.map((doc) => (
+                      <option key={doc.id} value={doc.name}>{doc.name}</option>
+                    ))
+                }
+              </select>
+              <div className="text-xs text-gray-500 mt-1">
+                👨‍⚕️ Select department first to filter doctors, or select any doctor
               </div>
             </div>
           </div>

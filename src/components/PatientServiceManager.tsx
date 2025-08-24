@@ -335,16 +335,16 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     const serviceToRemove = services[index];
     
     try {
-      // If the service has a transaction ID, cancel it in the database
+      // If the service has a transaction ID, delete it from the database
       if (serviceToRemove.transactionId) {
-        await HospitalService.updateTransactionStatus(serviceToRemove.transactionId, 'CANCELLED');
+        await HospitalService.deleteTransaction(serviceToRemove.transactionId);
       }
       
       // Remove from local state by index
       const updatedServices = services.filter((_, i) => i !== index);
       setServices(updatedServices);
       
-      toast.success('Service removed');
+      toast.success('Service removed permanently');
       onServicesUpdated?.();
       
       // Trigger dashboard refresh
