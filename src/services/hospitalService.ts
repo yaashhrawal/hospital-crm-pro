@@ -1035,17 +1035,47 @@ export class HospitalService {
       }
       
       // Now delete the transaction
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('patient_transactions')
         .delete()
-        .eq('id', transactionId);
+        .eq('id', transactionId)
+        .select('*', { count: 'exact' });
       
       if (error) {
         console.error('❌ Delete transaction error:', error);
         throw new Error(`Failed to delete transaction: ${error.message}`);
       }
       
-      console.log('✅ Transaction permanently deleted successfully');
+      console.log(`✅ Transaction permanently deleted successfully. Rows affected: ${count || 'unknown'}`);
+      
+      // Verify deletion by trying to fetch the transaction again
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('patient_transactions')
+        .select('*')
+        .eq('id', transactionId);
+      
+      if (verifyError) {
+        console.log('🔍 Verify query error:', verifyError.message);
+      }
+      
+      if (verifyData && verifyData.length === 0) {
+        console.log('✅ VERIFIED: Transaction completely removed from database');
+      } else if (verifyData && verifyData.length > 0) {
+        console.error('❌ CRITICAL WARNING: Transaction still exists in database after deletion!', verifyData);
+        throw new Error('Transaction was not actually deleted from the database!');
+      }
+      
+      // Also check if there are any related records that might be causing issues
+      const { data: allTransactions, error: allError } = await supabase
+        .from('patient_transactions')
+        .select('id, description, amount, created_at, transaction_date')
+        .limit(5);
+        
+      if (allError) {
+        console.error('Error checking remaining transactions:', allError);
+      } else {
+        console.log('📊 Sample of remaining transactions in database:', allTransactions);
+      }
       
     } catch (error: any) {
       console.error('🚨 deleteTransaction error:', error);
@@ -1094,9 +1124,12 @@ export class HospitalService {
   
   static async getAppointments(limit = 100): Promise<AppointmentWithRelations[]> {
     try {
-      console.log('📅 Fetching appointments from database...');
+      console.log('📅 [HOSPITAL SERVICE] Fetching appointments from database...');
+      console.log('🔗 [HOSPITAL SERVICE] Supabase URL:', process.env.VITE_SUPABASE_URL);
+      console.log('🔑 [HOSPITAL SERVICE] Using anon key:', !!process.env.VITE_SUPABASE_ANON_KEY);
       
       // First try with relationships
+      console.log('🔄 [HOSPITAL SERVICE] Querying future_appointments table with relationships...');
       const { data: appointments, error } = await supabase
         .from('future_appointments')
         .select(`
@@ -1109,10 +1142,10 @@ export class HospitalService {
         .limit(limit);
       
       if (error) {
-        console.error('❌ Get appointments with relations error:', error);
+        console.error('❌ [HOSPITAL SERVICE] Get appointments with relations error:', error);
         
         // If relationships fail, try simple query
-        console.log('🔄 Trying simple query without relationships...');
+        console.log('🔄 [HOSPITAL SERVICE] Trying simple query without relationships...');
         const { data: simpleAppointments, error: simpleError } = await supabase
           .from('future_appointments')
           .select('*')
@@ -1120,15 +1153,18 @@ export class HospitalService {
           .limit(limit);
         
         if (simpleError) {
-          console.error('❌ Simple appointments query also failed:', simpleError);
+          console.error('❌ [HOSPITAL SERVICE] Simple appointments query also failed:', simpleError);
+          console.log('🔍 [HOSPITAL SERVICE] Error details:', JSON.stringify(simpleError, null, 2));
           throw simpleError;
         }
         
-        console.log('✅ Got appointments without relationships:', simpleAppointments);
+        console.log('✅ [HOSPITAL SERVICE] Got appointments without relationships:', simpleAppointments);
+        console.log('📊 [HOSPITAL SERVICE] Simple appointments count:', simpleAppointments?.length || 0);
         return (simpleAppointments || []) as AppointmentWithRelations[];
       }
       
-      console.log('✅ Successfully loaded appointments with relationships:', appointments);
+      console.log('✅ [HOSPITAL SERVICE] Successfully loaded appointments with relationships:', appointments);
+      console.log('📊 [HOSPITAL SERVICE] Appointments with relationships count:', appointments?.length || 0);
       return (appointments || []) as AppointmentWithRelations[];
       
     } catch (error: any) {
@@ -1433,6 +1469,45 @@ export class HospitalService {
           }
         });
       }
+
+      // Get today's expenses from daily_expenses table
+      console.log('💸 Getting today\'s expenses...', { today });
+      const { data: todayExpensesData, error: expenseError } = await supabase
+        .from('daily_expenses')
+        .select('*')
+        .eq('date', today);
+      
+      if (expenseError) {
+        console.error('❌ Error fetching expenses:', expenseError);
+      }
+      
+      console.log('💸 Raw expenses data:', { 
+        count: todayExpensesData?.length || 0,
+        data: todayExpensesData,
+        queryDate: today 
+      });
+      
+      const todayExpenses = todayExpensesData?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
+      
+      // Calculate expense breakdown by category
+      const expensesByCategory: Record<string, number> = {};
+      const topExpenses: any[] = [];
+      
+      todayExpensesData?.forEach(expense => {
+        const category = expense.expense_category || 'OTHER';
+        expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+        
+        if (topExpenses.length < 10) {
+          topExpenses.push(expense);
+        }
+      });
+
+      console.log('💸 Today\'s expense calculation:', {
+        todayDate: today,
+        expenseRecords: todayExpensesData?.length || 0,
+        totalExpenses: todayExpenses,
+        expensesByCategory
+      });
       
       console.log('💰 Monthly revenue calculation (transaction-based):', {
         startOfMonth,
@@ -1447,6 +1522,7 @@ export class HospitalService {
         occupiedBeds: 0, // TODO: Calculate from admissions
         todayRevenue: periodBreakdown.today.revenue, // Use exact today's revenue from period breakdown
         monthlyRevenue,
+        todayExpenses, // Add today's expenses field
         todayAppointments,
         pendingAdmissions: 0, // TODO: Calculate from admissions
         patientGrowthRate: 0, // TODO: Calculate growth rate
@@ -1471,9 +1547,9 @@ export class HospitalService {
             recentAppointments: []
           },
           expenses: {
-            total: 0,
-            byCategory: {},
-            topExpenses: []
+            total: todayExpenses, // Use calculated today's expenses
+            byCategory: expensesByCategory,
+            topExpenses
           },
           beds: {
             total: totalBeds,
@@ -1753,9 +1829,9 @@ export class HospitalService {
       const { data: expensesData } = await supabase
         .from('daily_expenses')
         .select('*')
-        .gte('expense_date', start.toISOString().split('T')[0])
-        .lte('expense_date', end.toISOString().split('T')[0])
-        .order('expense_date', { ascending: false });
+        .gte('date', start.toISOString().split('T')[0])
+        .lte('date', end.toISOString().split('T')[0])
+        .order('date', { ascending: false });
       
       const totalExpenses = expensesData?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
       
