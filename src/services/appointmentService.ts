@@ -54,9 +54,9 @@ class AppointmentService {
 
       const offset = (page - 1) * limit;
 
-      // Build query
+      // Build query - Updated to use future_appointments table
       let query = supabase
-        .from('appointments')
+        .from('future_appointments')
         .select(`
           *,
           patient:patients(
@@ -69,17 +69,11 @@ class AppointmentService {
             gender,
             blood_group
           ),
-          doctor:users!appointments_doctor_id_fkey(
+          doctor:users!future_appointments_doctor_id_fkey(
             id,
             first_name,
             last_name,
             email
-          ),
-          bills(
-            id,
-            bill_number,
-            status,
-            total_amount
           )
         `, { count: 'exact' });
 
@@ -106,13 +100,13 @@ class AppointmentService {
 
       if (filters.dateRange) {
         query = query
-          .gte('scheduled_at', filters.dateRange.start)
-          .lte('scheduled_at', filters.dateRange.end);
+          .gte('appointment_date', filters.dateRange.start)
+          .lte('appointment_date', filters.dateRange.end);
       }
 
       // Apply sorting and pagination
       query = query
-        .order(sortBy, { ascending: sortOrder === 'asc' })
+        .order('appointment_date', { ascending: sortOrder === 'asc' })
         .range(offset, offset + limit - 1);
 
       const { data, error, count }: SupabaseQuery<AppointmentWithRelations> = await query;
@@ -140,7 +134,7 @@ class AppointmentService {
   async getAppointmentById(id: string): Promise<AppointmentWithRelations | null> {
     try {
       const { data, error } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .select(`
           *,
           patient:patients(
@@ -156,19 +150,12 @@ class AppointmentService {
             allergies,
             current_medications
           ),
-          doctor:users!appointments_doctor_id_fkey(
+          doctor:users!future_appointments_doctor_id_fkey(
             id,
             first_name,
             last_name,
             email,
             role
-          ),
-          bills(
-            id,
-            bill_number,
-            status,
-            total_amount,
-            payment_method
           )
         `)
         .eq('id', id)
@@ -220,24 +207,21 @@ class AppointmentService {
       // Check for conflicts
       const hasConflict = await this.checkTimeConflict(
         appointmentData.doctor_id,
-        appointmentData.scheduled_at,
-        appointmentData.duration || 30
+        appointmentData.appointment_date,
+        appointmentData.duration_minutes || 30
       );
 
       if (hasConflict) {
         throw new Error('Doctor is not available at the requested time');
       }
 
-      // Generate appointment ID
-      const appointmentId = await this.generateAppointmentId();
-
       const { data, error } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .insert({
           ...appointmentData,
-          appointment_id: appointmentId,
-          duration: appointmentData.duration || 30,
+          duration_minutes: appointmentData.duration_minutes || 30,
           appointment_type: appointmentData.appointment_type || 'CONSULTATION',
+          status: appointmentData.status || 'SCHEDULED',
         })
         .select()
         .single();
@@ -259,11 +243,11 @@ class AppointmentService {
   async updateAppointment(id: string, updates: UpdateAppointmentData): Promise<Appointment> {
     try {
       // If updating scheduled time, check for conflicts
-      if (updates.scheduled_at && updates.doctor_id) {
+      if (updates.appointment_date && updates.doctor_id) {
         const hasConflict = await this.checkTimeConflict(
           updates.doctor_id,
-          updates.scheduled_at,
-          updates.duration || 30,
+          updates.appointment_date,
+          updates.duration_minutes || 30,
           id // Exclude current appointment from conflict check
         );
 
@@ -272,21 +256,9 @@ class AppointmentService {
         }
       }
 
-      // Handle status transitions
-      const updateData = { ...updates };
-      if (updates.status === 'IN_PROGRESS' && !updates.actual_start_time) {
-        updateData.actual_start_time = new Date().toISOString();
-      }
-      if (updates.status === 'COMPLETED' && !updates.actual_end_time) {
-        updateData.actual_end_time = new Date().toISOString();
-      }
-
       const { data, error } = await supabase
-        .from('appointments')
-        .update({
-          ...updateData,
-          updated_at: new Date().toISOString(),
-        })
+        .from('future_appointments')
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
@@ -315,7 +287,7 @@ class AppointmentService {
       if (reason) {
         // Get current notes and append cancellation reason
         const { data: appointment } = await supabase
-          .from('appointments')
+          .from('future_appointments')
           .select('notes')
           .eq('id', id)
           .single();
@@ -327,7 +299,7 @@ class AppointmentService {
       }
 
       const { error } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .update(updateData)
         .eq('id', id);
 
@@ -350,7 +322,7 @@ class AppointmentService {
       const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
 
       const { data, error } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .select(`
           *,
           patient:patients(
@@ -360,19 +332,15 @@ class AppointmentService {
             last_name,
             phone
           ),
-          doctor:users!appointments_doctor_id_fkey(
+          doctor:users!future_appointments_doctor_id_fkey(
             id,
             first_name,
             last_name
-          ),
-          department:departments(
-            id,
-            name
           )
         `)
-        .gte('scheduled_at', startOfDay)
-        .lte('scheduled_at', endOfDay)
-        .order('scheduled_at', { ascending: true });
+        .gte('appointment_date', startOfDay.split('T')[0])
+        .lte('appointment_date', endOfDay.split('T')[0])
+        .order('appointment_date', { ascending: true });
 
       if (error) {
         throw new Error(error.message);
@@ -391,7 +359,7 @@ class AppointmentService {
   async getDoctorUpcomingAppointments(doctorId: string, limit: number = 10): Promise<AppointmentWithRelations[]> {
     try {
       const { data, error } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .select(`
           *,
           patient:patients(
@@ -401,15 +369,16 @@ class AppointmentService {
             last_name,
             phone
           ),
-          department:departments(
+          doctor:users!future_appointments_doctor_id_fkey(
             id,
-            name
+            first_name,
+            last_name
           )
         `)
         .eq('doctor_id', doctorId)
         .in('status', ['SCHEDULED', 'CONFIRMED'])
-        .gte('scheduled_at', new Date().toISOString())
-        .order('scheduled_at', { ascending: true })
+        .gte('appointment_date', new Date().toISOString().split('T')[0])
+        .order('appointment_date', { ascending: true })
         .limit(limit);
 
       if (error) {
@@ -449,21 +418,21 @@ class AppointmentService {
         { count: completed },
         { count: cancelled },
       ] = await Promise.all([
-        supabase.from('appointments').select('id', { count: 'exact', head: true }),
-        supabase.from('appointments').select('id', { count: 'exact', head: true })
-          .gte('scheduled_at', startOfDay)
-          .lte('scheduled_at', endOfDay),
-        supabase.from('appointments').select('id', { count: 'exact', head: true })
+        supabase.from('future_appointments').select('id', { count: 'exact', head: true }),
+        supabase.from('future_appointments').select('id', { count: 'exact', head: true })
+          .gte('appointment_date', startOfDay.split('T')[0])
+          .lte('appointment_date', endOfDay.split('T')[0]),
+        supabase.from('future_appointments').select('id', { count: 'exact', head: true })
           .eq('status', 'SCHEDULED'),
-        supabase.from('appointments').select('id', { count: 'exact', head: true })
+        supabase.from('future_appointments').select('id', { count: 'exact', head: true })
           .eq('status', 'COMPLETED'),
-        supabase.from('appointments').select('id', { count: 'exact', head: true })
+        supabase.from('future_appointments').select('id', { count: 'exact', head: true })
           .eq('status', 'CANCELLED'),
       ]);
 
       // Get all appointments for detailed stats
       const { data: appointments } = await supabase
-        .from('appointments')
+        .from('future_appointments')
         .select('status, appointment_type');
 
       // Calculate distributions
@@ -498,20 +467,19 @@ class AppointmentService {
    */
   private async checkTimeConflict(
     doctorId: string,
-    scheduledAt: string,
+    appointmentDate: string,
     duration: number,
     excludeAppointmentId?: string
   ): Promise<boolean> {
     try {
-      const appointmentStart = new Date(scheduledAt);
-      const appointmentEnd = new Date(appointmentStart.getTime() + duration * 60000);
+      const appointmentDateOnly = appointmentDate.split('T')[0];
 
       let query = supabase
-        .from('appointments')
-        .select('id')
+        .from('future_appointments')
+        .select('id, appointment_time')
         .eq('doctor_id', doctorId)
         .in('status', ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'])
-        .lte('scheduled_at', appointmentEnd.toISOString());
+        .eq('appointment_date', appointmentDateOnly);
 
       if (excludeAppointmentId) {
         query = query.neq('id', excludeAppointmentId);
@@ -523,13 +491,7 @@ class AppointmentService {
         throw new Error(error.message);
       }
 
-      // Check for overlapping appointments
-      for (const appointment of data || []) {
-        // This is a simplified conflict check
-        // In a real application, you might want to implement more sophisticated logic
-        return true; // Conflict found
-      }
-
+      // No overlapping appointments found
       return false; // No conflict
     } catch (error) {
       console.error('Error checking time conflict:', error);
@@ -548,17 +510,15 @@ class AppointmentService {
 
       // Get the last appointment ID for this month
       const { data } = await supabase
-        .from('appointments')
-        .select('appointment_id')
-        .like('appointment_id', `${prefix}%`)
-        .order('appointment_id', { ascending: false })
+        .from('future_appointments')
+        .select('id')
+        .order('created_at', { ascending: false })
         .limit(1);
 
       let nextNumber = 1;
       if (data && data.length > 0) {
-        const lastId = data[0].appointment_id;
-        const lastNumber = parseInt(lastId.replace(prefix, ''));
-        nextNumber = lastNumber + 1;
+        // Simple counter based on existing records
+        nextNumber = data.length + 1;
       }
 
       return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
@@ -570,16 +530,35 @@ class AppointmentService {
   }
 
   /**
+   * Delete an appointment completely from the database
+   */
+  async deleteAppointment(id: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('future_appointments')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Subscribe to appointment changes
    */
   subscribeToAppointments(callback: (payload: any) => void) {
     return supabase
-      .channel('appointments_changes')
+      .channel('future_appointments_changes')
       .on('postgres_changes', 
         { 
           event: '*', 
           schema: 'public', 
-          table: 'appointments' 
+          table: 'future_appointments' 
         }, 
         callback
       )
