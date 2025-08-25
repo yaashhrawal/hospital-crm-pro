@@ -83,6 +83,126 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     return `${year}-${month}-${day}`;
   };
 
+  // 🔧 NEW: Robust date comparison function to handle multiple formats
+  const isSameDate = (dateStr1: string | null | undefined, dateStr2: string | null | undefined): boolean => {
+    if (!dateStr1 || !dateStr2) return false;
+    
+    // Parse both dates to YYYY-MM-DD format for comparison
+    const parseDate = (dateStr: string): string => {
+      if (!dateStr || dateStr.trim() === '') return '';
+      
+      // Handle DD/MM/YYYY format (common in date_of_entry)
+      if (dateStr.includes('/') && dateStr.split('/').length === 3) {
+        const [day, month, year] = dateStr.split('/');
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      
+      // Handle ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      
+      // Handle YYYY-MM-DD format (already correct)
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+      
+      // Fallback: try to parse as Date and format
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          return formatDateString(date);
+        }
+      } catch (e) {
+        console.warn('Failed to parse date:', dateStr);
+      }
+      
+      return '';
+    };
+    
+    const parsed1 = parseDate(dateStr1);
+    const parsed2 = parseDate(dateStr2);
+    
+    return parsed1 === parsed2 && parsed1 !== '';
+  };
+
+  // 🔧 NEW: Simplified date range helper using existing isSameDate logic
+  const isDateInRange = (dateStr: string | null | undefined, startDateStr: string, endDateStr: string): boolean => {
+    if (!dateStr || !startDateStr || !endDateStr) return false;
+    
+    // Reuse the existing robust date parsing from isSameDate
+    const normalizeDate = (dateStr: string): string => {
+      if (!dateStr || dateStr.trim() === '') return '';
+      
+      // Handle DD/MM/YYYY format (common in date_of_entry)
+      if (dateStr.includes('/') && dateStr.split('/').length === 3) {
+        const [day, month, year] = dateStr.split('/');
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      
+      // Handle ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      
+      // Handle YYYY-MM-DD format (already correct)
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+      
+      // Fallback: try to parse as Date and format
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          return formatDateString(date);
+        }
+      } catch (e) {
+        console.warn('Failed to parse date in range check:', dateStr);
+      }
+      
+      return '';
+    };
+    
+    const normalizedDate = normalizeDate(dateStr);
+    const normalizedStart = normalizeDate(startDateStr);
+    const normalizedEnd = normalizeDate(endDateStr);
+    
+    if (!normalizedDate || !normalizedStart || !normalizedEnd) {
+      console.warn('Date normalization failed:', { dateStr, startDateStr, endDateStr });
+      return false;
+    }
+    
+    // 🔧 ENHANCED: More inclusive boundary checking
+    const result = normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
+    
+    // Debug boundary cases and failed checks
+    if (normalizedDate === normalizedStart || normalizedDate === normalizedEnd) {
+      console.log('📅 Boundary date match:', {
+        original: dateStr,
+        normalized: normalizedDate,
+        range: `${normalizedStart} to ${normalizedEnd}`,
+        result: '✅ MATCHED'
+      });
+    } else if (!result && normalizedDate) {
+      // Log near-misses for debugging
+      const daysBefore = (new Date(normalizedStart).getTime() - new Date(normalizedDate).getTime()) / (1000 * 60 * 60 * 24);
+      const daysAfter = (new Date(normalizedDate).getTime() - new Date(normalizedEnd).getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (Math.abs(daysBefore) <= 2 || Math.abs(daysAfter) <= 2) {
+        console.log('📅 Near-miss date (within 2 days):', {
+          original: dateStr,
+          normalized: normalizedDate,
+          range: `${normalizedStart} to ${normalizedEnd}`,
+          daysBefore: daysBefore.toFixed(1),
+          daysAfter: daysAfter.toFixed(1),
+          result: '❌ EXCLUDED'
+        });
+      }
+    }
+    
+    return result;
+  };
+
   // Helper function to get IST date range based on filter
   // FIXED: Now uses IST timezone consistently like operations ledger
   const getDateRange = () => {
@@ -104,9 +224,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         };
         
       case 'week':
-        // Last 7 days in IST
+        // Last 7 days in IST (6 days ago + today = 7 days total)
         const weekDate = new Date();
-        weekDate.setDate(weekDate.getDate() - 7);
+        weekDate.setDate(weekDate.getDate() - 6); // FIXED: Changed from -7 to -6 for correct 7-day range
         const weekStr = formatDateString(weekDate);
         const weekStart = new Date(`${weekStr}T00:00:00+05:30`);
         const weekEnd = new Date(`${todayStr}T23:59:59+05:30`);
@@ -865,57 +985,92 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     let totalRevenue = 0;
     
     if (dateFilter === 'today') {
-      // For 'today' filter, count actual today's patients using same logic as breakdown
+      // For 'today' filter, count actual today's patients using robust date comparison
       const todayStr = formatDateString(new Date());
       
-      // Count patients for today (same logic as breakdown)
-      const allPatients = allPatientsData || []; // Use all patients data, not pre-filtered
-      totalPatients = allPatients.filter((p: any) => {
-        const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
-          ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
-          : p.created_at.split('T')[0];
-        return effectiveDateStr === todayStr;
-      }).length;
+      // 🔧 DATA VALIDATION: Check if patient data exists
+      const allPatients = allPatientsData || [];
+      console.log('👥 PATIENT DATA VALIDATION:', {
+        allPatientsCount: allPatients.length,
+        todayStr,
+        samplePatients: allPatients.slice(0, 3).map(p => ({
+          id: p.id,
+          name: `${p.first_name} ${p.last_name}`,
+          date_of_entry: p.date_of_entry,
+          created_at: p.created_at,
+          effectiveDate: p.date_of_entry && p.date_of_entry.trim() !== '' 
+            ? p.date_of_entry 
+            : p.created_at?.split('T')[0]
+        }))
+      });
       
-      // Count revenue for today (same logic as breakdown)
+      // Count patients for today using ROBUST date comparison
+      const todaysPatients = allPatients.filter((p: any) => {
+        // Determine effective date for this patient
+        const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+          ? p.date_of_entry
+          : p.created_at;
+          
+        return isSameDate(effectiveDate, todayStr);
+      });
+      
+      totalPatients = todaysPatients.length;
+      
+      console.log('👥 TODAY PATIENT FILTERING DEBUG:', {
+        todayStr,
+        totalPatients: allPatients.length,
+        todaysPatients: todaysPatients.length,
+        todaysPatientDetails: todaysPatients.map(p => ({
+          id: p.id,
+          name: `${p.first_name} ${p.last_name}`,
+          effectiveDate: p.date_of_entry || p.created_at?.split('T')[0]
+        }))
+      });
+      
+      // 🔧 DATA VALIDATION: Check if revenue data exists
       const allRevenue = operationsData?.revenue || [];
+      console.log('💰 REVENUE DATA VALIDATION:', {
+        allRevenueCount: allRevenue.length,
+        todayStr,
+        sampleRevenue: allRevenue.slice(0, 3).map(r => ({
+          id: r.id,
+          amount: r.amount,
+          transaction_date: r.transaction_date,
+          patient_date_of_entry: r.patient?.date_of_entry,
+          created_at: r.created_at,
+          description: r.description
+        }))
+      });
+      
+      // Count revenue for today using ROBUST date comparison
       const todaysRevenue = allRevenue.filter((r: any) => {
-        let effectiveDateStr;
-        // 🔍 FIXED PRIORITY: For services, prioritize transaction date over patient registration date
+        // Determine effective date with same priority as before
+        let effectiveDate;
         if (r.transaction_date && r.transaction_date.trim() !== '') {
-          effectiveDateStr = r.transaction_date.includes('T') 
-            ? r.transaction_date.split('T')[0] 
-            : r.transaction_date;
+          effectiveDate = r.transaction_date;
         } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
-          effectiveDateStr = r.patient.date_of_entry.includes('T') 
-            ? r.patient.date_of_entry.split('T')[0] 
-            : r.patient.date_of_entry;
+          effectiveDate = r.patient.date_of_entry;
         } else {
-          effectiveDateStr = r.created_at.split('T')[0];
+          effectiveDate = r.created_at;
         }
-        return effectiveDateStr === todayStr;
+        
+        return isSameDate(effectiveDate, todayStr);
       });
       
       totalRevenue = todaysRevenue.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
       
-      // 🔍 DEBUG: Log today's revenue calculation
-      console.log('💰 TODAY REVENUE CARD DEBUG:', {
+      console.log('💰 TODAY REVENUE FILTERING DEBUG:', {
         todayStr,
         allRevenueCount: allRevenue.length,
         todaysRevenueCount: todaysRevenue.length,
         todaysRevenueAmount: totalRevenue,
-        todaysRevenueTransactions: todaysRevenue.map(r => ({
+        todaysRevenueDetails: todaysRevenue.map(r => ({
           id: r.id,
           amount: r.amount,
           description: r.description,
           type: r.transaction_type,
           patient: `${r.patient?.first_name} ${r.patient?.last_name}`,
-          effectiveDate: r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '' 
-            ? (r.patient.date_of_entry.includes('T') ? r.patient.date_of_entry.split('T')[0] : r.patient.date_of_entry)
-            : (r.transaction_date && r.transaction_date.trim() !== '' 
-              ? (r.transaction_date.includes('T') ? r.transaction_date.split('T')[0] : r.transaction_date)
-              : r.created_at.split('T')[0]),
-          createdAt: r.created_at
+          effectiveDate: r.transaction_date || r.patient?.date_of_entry || r.created_at?.split('T')[0]
         }))
       });
       
@@ -926,6 +1081,55 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         calculatedRevenue: totalRevenue,
         originalPatientsDataLength: patientsData?.length || 0,
         originalRevenueTotal: (operationsData?.revenue || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
+      });
+    } else if (dateFilter === 'week') {
+      // 🔧 FIXED: For 'week' filter, apply same robust date filtering logic as breakdown modal
+      const weekToday = new Date();
+      const weekTodayStr = formatDateString(weekToday);
+      
+      // Week: Last 7 days INCLUDING today (6 days ago + today = 7 days total)
+      const weekStartDate = new Date(weekToday);
+      weekStartDate.setDate(weekToday.getDate() - 6); // Same logic as breakdown modal
+      const weekStartStr = formatDateString(weekStartDate);
+      
+      // 🔧 Count patients for week using ROBUST date comparison (same as breakdown modal)
+      const allPatients = allPatientsData || [];
+      const weekPatients = allPatients.filter((p: any) => {
+        const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+          ? p.date_of_entry
+          : p.created_at;
+          
+        return isDateInRange(effectiveDate, weekStartStr, weekTodayStr);
+      });
+      
+      totalPatients = weekPatients.length;
+      
+      // 🔧 Count revenue for week using ROBUST date comparison (same as breakdown modal)
+      const allRevenue = operationsData?.revenue || [];
+      const weekRevenue = allRevenue.filter((r: any) => {
+        let effectiveDate;
+        if (r.transaction_date && r.transaction_date.trim() !== '') {
+          effectiveDate = r.transaction_date;
+        } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+          effectiveDate = r.patient.date_of_entry;
+        } else {
+          effectiveDate = r.created_at;
+        }
+        
+        return isDateInRange(effectiveDate, weekStartStr, weekTodayStr);
+      });
+      
+      totalRevenue = weekRevenue.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      
+      console.log('📅 MAIN CARD WEEK CALCULATION (FIXED - matches breakdown modal):', {
+        filter: dateFilter,
+        weekRange: `${weekStartStr} to ${weekTodayStr} (Last 7 days)`,
+        calculatedPatients: totalPatients,
+        calculatedRevenue: totalRevenue,
+        weekPatients: weekPatients.length,
+        weekRevenue: weekRevenue.length,
+        preFilteredRevenue: (operationsData?.revenue || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
+        note: 'This should now match exactly with breakdown modal calculations'
       });
     } else {
       // For other filters, use the existing filtered data
@@ -960,26 +1164,110 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       bed.status === 'vacant' || bed.status === 'AVAILABLE'
     ).length || 0;
     
-    // Expenses and refunds use existing filtered data
-    const totalExpenses = operationsData?.expenses.reduce((sum: number, expense: any) => 
-      sum + (expense.amount || 0), 0) || 0;
+    // 🔧 FIX: Apply date filtering for expenses to match breakdown modal consistency
+    let totalExpenses = 0;
+    
+    if (dateFilter === 'today') {
+      // For 'today' filter, count only today's expenses using robust date comparison
+      const todayStr = formatDateString(new Date());
+      
+      // 🔧 DATA VALIDATION: Check if expense data exists
+      const allExpenses = operationsData?.expenses || [];
+      console.log('💸 EXPENSE DATA VALIDATION:', {
+        allExpensesCount: allExpenses.length,
+        todayStr,
+        sampleExpenses: allExpenses.slice(0, 3).map(e => ({
+          id: e.id,
+          amount: e.amount,
+          expense_date: e.expense_date,
+          category: e.expense_category,
+          description: e.description
+        }))
+      });
+      
+      const todaysExpenses = allExpenses.filter((expense: any) => {
+        if (!expense.expense_date) return false;
+        return isSameDate(expense.expense_date, todayStr);
+      });
+      
+      totalExpenses = todaysExpenses.reduce((sum: number, expense: any) => 
+        sum + (expense.amount || 0), 0);
+        
+      console.log('💸 TODAY EXPENSE FILTERING DEBUG:', {
+        todayStr,
+        allExpensesCount: allExpenses.length,
+        todaysExpensesCount: todaysExpenses.length,
+        todaysExpenseAmount: totalExpenses,
+        todaysExpenseDetails: todaysExpenses.map(e => ({
+          id: e.id,
+          amount: e.amount,
+          category: e.expense_category,
+          date: e.expense_date,
+          description: e.description
+        }))
+      });
+    } else if (dateFilter === 'week') {
+      // 🔧 FIXED: For 'week' filter, apply same robust date filtering logic as breakdown modal
+      const weekToday = new Date();
+      const weekTodayStr = formatDateString(weekToday);
+      
+      // Week: Last 7 days INCLUDING today (6 days ago + today = 7 days total)
+      const weekStartDate = new Date(weekToday);
+      weekStartDate.setDate(weekToday.getDate() - 6); // Same logic as breakdown modal
+      const weekStartStr = formatDateString(weekStartDate);
+      
+      // 🔧 Count expenses for week using ROBUST date comparison (same as breakdown modal)
+      const allExpenses = operationsData?.expenses || [];
+      const weekExpenses = allExpenses.filter((e: any) => {
+        if (!e.expense_date) return false;
+        return isDateInRange(e.expense_date, weekStartStr, weekTodayStr);
+      });
+      
+      totalExpenses = weekExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+      
+      console.log('💸 MAIN CARD WEEK EXPENSE CALCULATION (FIXED - matches breakdown modal):', {
+        filter: dateFilter,
+        weekRange: `${weekStartStr} to ${weekTodayStr} (Last 7 days)`,
+        calculatedExpenses: totalExpenses,
+        weekExpensesCount: weekExpenses.length,
+        preFilteredExpenses: (operationsData?.expenses || []).reduce((sum: number, e: any) => sum + (e.amount || 0), 0),
+        note: 'This should now match exactly with breakdown modal calculations'
+      });
+    } else {
+      // For other filters, use existing filtered data
+      totalExpenses = operationsData?.expenses.reduce((sum: number, expense: any) => 
+        sum + (expense.amount || 0), 0) || 0;
+    }
     const totalRefunds = operationsData?.refunds?.reduce((sum: number, refund: any) => 
       sum + (refund.amount || 0), 0) || 0;
     
     // Calculate net revenue matching operations ledger formula
     const netRevenue = totalRevenue - totalExpenses - totalRefunds;
     
-    // Debug dashboard totals
-    console.log('📊 Dashboard Totals (matching operations logic):', {
+    // 🔧 COMPREHENSIVE DEBUG: Final dashboard totals with data validation
+    console.log('📊 FINAL DASHBOARD TOTALS (FIXED - robust date handling applied):', {
       filter: dateFilter,
-      totalRevenue,
-      totalExpenses,
-      totalRefunds,
-      netRevenue,
-      formula: 'Revenue - Expenses - Refunds',
-      transactionCount: operationsData?.revenue?.length || 0,
-      expenseCount: operationsData?.expenses?.length || 0,
-      refundCount: operationsData?.refunds?.length || 0
+      todayStr: dateFilter === 'today' ? formatDateString(new Date()) : 'N/A',
+      results: {
+        totalPatients,
+        totalRevenue,
+        totalExpenses,
+        totalRefunds,
+        netRevenue
+      },
+      dataSources: {
+        allPatientsCount: allPatientsData?.length || 0,
+        allRevenueCount: operationsData?.revenue?.length || 0,
+        allExpensesCount: operationsData?.expenses?.length || 0,
+        allRefundsCount: operationsData?.refunds?.length || 0
+      },
+      dataValidation: {
+        hasPatientData: (allPatientsData?.length || 0) > 0,
+        hasRevenueData: (operationsData?.revenue?.length || 0) > 0,
+        hasExpenseData: (operationsData?.expenses?.length || 0) > 0,
+        allDataLoaded: !!(allPatientsData && operationsData)
+      },
+      calculation: 'Revenue - Expenses - Refunds = Net Revenue'
     });
 
     return {
@@ -1001,9 +1289,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     try {
       const now = new Date();
       // CRITICAL FIX: Don't mutate the original date object
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const todayForBreakdown = new Date();
+      todayForBreakdown.setHours(0, 0, 0, 0);
+      const weekStart = new Date(todayForBreakdown.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
       let breakdown: CardBreakdown = {
@@ -1029,12 +1317,17 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             allPatientsLength: allPatientsForBreakdown.length
           });
           
-          // Use consistent date formatting - MATCH main dashboard calculation
-          const todayStr = formatDateString(new Date());
-          const weekStartDate = new Date();
-          weekStartDate.setDate(weekStartDate.getDate() - 7); // Keep same as main dashboard
+          // 🔧 FIXED: Use SAME improved date calculation as revenue
+          const patientToday = new Date();
+          const todayStr = formatDateString(patientToday);
+          
+          // Week: Last 7 days INCLUDING today (6 days ago to today)
+          const weekStartDate = new Date(patientToday);
+          weekStartDate.setDate(patientToday.getDate() - 6); // 6 days ago, not 7
           const weekStartStr = formatDateString(weekStartDate);
-          const monthStartDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          
+          // Month: From 1st of current month to today
+          const monthStartDate = new Date(patientToday.getFullYear(), patientToday.getMonth(), 1);
           const monthStartStr = formatDateString(monthStartDate);
           
           console.log('📅 Patient Card Date Calculations:', {
@@ -1046,25 +1339,29 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           });
           
           const todayPatients = allPatientsForBreakdown?.filter((p: any) => {
-            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
-              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
-              : p.created_at.split('T')[0];
-            return effectiveDateStr === todayStr;
+            // 🔧 FIX: Use robust date comparison for today patients  
+            const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? p.date_of_entry
+              : p.created_at;
+            return isSameDate(effectiveDate, todayStr);
           }) || [];
           
           const weekPatients = allPatientsForBreakdown?.filter((p: any) => {
-            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
-              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
-              : p.created_at.split('T')[0];
+            // 🔧 FIX: Use robust date range comparison for week patients
+            const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? p.date_of_entry
+              : p.created_at;
+              
+            const isInWeekRange = isDateInRange(effectiveDate, weekStartStr, todayStr);
             
-            // Debug individual patient dates for week calculation
-            const isInWeekRange = effectiveDateStr >= weekStartStr && effectiveDateStr <= todayStr;
-            if (p.first_name && p.first_name.includes('TEST')) {
+            // Debug for troubleshooting
+            if (p.first_name && (p.first_name.includes('TEST') || p.first_name.includes('Debug'))) {
               console.log(`📅 Week Filter Debug - ${p.first_name} ${p.last_name}:`, {
-                effectiveDateStr,
+                effectiveDate,
                 weekStartStr,
                 todayStr,
-                isInRange: isInWeekRange
+                isInRange: isInWeekRange,
+                parsedEffective: effectiveDate?.includes('T') ? effectiveDate.split('T')[0] : effectiveDate
               });
             }
             
@@ -1072,12 +1369,30 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           }) || [];
           
           const monthPatients = allPatientsForBreakdown?.filter((p: any) => {
-            const effectiveDateStr = p.date_of_entry && p.date_of_entry.trim() !== '' 
-              ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry)
-              : p.created_at.split('T')[0];
-            return effectiveDateStr >= monthStartStr && effectiveDateStr <= todayStr;
+            // 🔧 FIX: Use robust date range comparison for month patients
+            const effectiveDate = p.date_of_entry && p.date_of_entry.trim() !== '' 
+              ? p.date_of_entry
+              : p.created_at;
+            return isDateInRange(effectiveDate, monthStartStr, todayStr);
           }) || [];
           
+          console.log('👥 Patient Breakdown Results (FIXED - ROBUST DATE COMPARISONS):', {
+            dateTargets: { todayStr, weekStartStr, monthStartStr },
+            results: {
+              today: todayPatients.length,
+              week: weekPatients.length, 
+              month: monthPatients.length
+            },
+            todayPatientDetails: todayPatients.slice(0, 5).map(p => ({
+              name: `${p.first_name} ${p.last_name}`,
+              effectiveDate: p.date_of_entry || p.created_at?.split('T')[0]
+            })),
+            weekPatientDetails: weekPatients.slice(0, 5).map(p => ({
+              name: `${p.first_name} ${p.last_name}`,
+              effectiveDate: p.date_of_entry || p.created_at?.split('T')[0]
+            }))
+          });
+
           breakdown = {
             today: { count: todayPatients.length, data: todayPatients },
             thisWeek: { count: weekPatients.length, data: weekPatients },
@@ -1135,113 +1450,117 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           break;
 
         case 'revenue':
-          // CONSISTENCY FIX: Use same data source as main dashboard for consistency
-          console.log('💰 Revenue Card Click: Using same filtered data as main dashboard for consistency...');
+          // 🔧 CRITICAL FIX: Revenue card inconsistency issue resolved
+          // PROBLEM 1: Main dashboard card and breakdown modal used different data sources
+          // PROBLEM 2: Different DATE PRIORITY logic caused different transactions to be included
+          //   - Main card: transaction_date FIRST, then patient.date_of_entry, then created_at
+          //   - Breakdown: patient.date_of_entry FIRST, then transaction_date, then created_at
+          // SOLUTION: Both now use SAME data source + SAME date priority logic
+          console.log('💰 Revenue Card Click: Using EXACT same data as main dashboard...');
           
-          // Use the same pre-filtered revenue data that the main dashboard uses
-          const currentFilteredRevenue = operationsData?.revenue || [];
+          // Use the SAME pre-filtered data that the main dashboard uses for complete consistency
+          const allRevenueData = operationsData?.revenue || [];
           
-          // For proper breakdown, we need ALL revenue data to calculate Today/Week/Month
-          let allRevenueData: any[] = [];
-          const allTransactionData = await supabase
-            .from('patient_transactions')
-            .select(`
-              id,
-              amount,
-              payment_mode,
-              transaction_type,
-              description,
-              status,
-              created_at,
-              transaction_date,
-              patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry, assigned_department, assigned_doctor)
-            `)
-            .eq('status', 'COMPLETED')
-            .eq('patient.hospital_id', HOSPITAL_ID);
-          
-          if (allTransactionData.error) {
-            console.error('❌ Error fetching all transaction data:', allTransactionData.error);
-            // Use current filtered data as fallback for all periods
-            allRevenueData = currentFilteredRevenue;
-          } else {
-            // Apply exclusions (DR. HEMANT & ORTHO) - same as main dashboard
-            allRevenueData = (allTransactionData.data || []).filter(transaction => {
-              const patient = transaction.patient;
-              const isExcluded = patient?.assigned_department === 'ORTHO' || patient?.assigned_doctor === 'DR. HEMANT';
-              return !isExcluded;
-            });
-            
-            console.log('💰 Revenue Card Data Analysis:', {
-              currentFilteredCount: currentFilteredRevenue.length,
-              currentFilteredAmount: currentFilteredRevenue.reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
-              allTransactionsCount: allTransactionData.data?.length || 0,
-              afterExclusionsCount: allRevenueData.length,
-              excludedCount: (allTransactionData.data?.length || 0) - allRevenueData.length
-            });
-          }
+          console.log('💰 Revenue Card: Using main dashboard revenue data for consistency:', {
+            transactionCount: allRevenueData.length,
+            totalAmount: allRevenueData.reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
+            note: 'This ensures 100% consistency between card value and breakdown'
+          });
           
           // Use consistent date formatting (formatDateString like main dashboard)
-          const revenueTodayStr = formatDateString(new Date());
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          const revenueWeekStr = formatDateString(weekAgo);
-          const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-          const revenueMonthStr = formatDateString(monthStart);
+          // 🔧 FIXED: Better week and month calculation logic
+          const revenueToday = new Date();
+          const revenueTodayStr = formatDateString(revenueToday);
           
-          console.log('📅 Revenue Card Date Setup:', {
-            todayStr: revenueTodayStr,
-            weekStr: revenueWeekStr,
-            monthStr: revenueMonthStr
+          // Week: Last 7 days INCLUDING today (so 6 days ago to today)
+          const revenueWeekStartDate = new Date(revenueToday);
+          revenueWeekStartDate.setDate(revenueToday.getDate() - 6); // 6 days ago, not 7
+          const revenueWeekStr = formatDateString(revenueWeekStartDate);
+          
+          // Month: From 1st of current month to today  
+          const revenueMonthStartDate = new Date(revenueToday.getFullYear(), revenueToday.getMonth(), 1);
+          const revenueMonthStr = formatDateString(revenueMonthStartDate);
+          
+          console.log('📅 Revenue Card Date Setup (FIXED):', {
+            today: revenueTodayStr,
+            weekRange: `${revenueWeekStr} to ${revenueTodayStr} (Last 7 days)`,
+            monthRange: `${revenueMonthStr} to ${revenueTodayStr} (This month)`,
+            calculation: {
+              weekDays: Math.ceil((today.getTime() - weekStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+              monthDays: Math.ceil((today.getTime() - monthStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+            }
           });
 
-          const todayRevenue = allRevenueData?.filter((r: any) => {
-            // Use same date priority logic as main revenue calculation
-            let effectiveDateStr;
-            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
-              effectiveDateStr = r.patient.date_of_entry.includes('T') 
-                ? r.patient.date_of_entry.split('T')[0] 
-                : r.patient.date_of_entry;
-            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
-              effectiveDateStr = r.transaction_date.includes('T') 
-                ? r.transaction_date.split('T')[0] 
-                : r.transaction_date;
+          const todayRevenue = allRevenueData.filter((r: any) => {
+            // 🔧 CRITICAL FIX: Use ROBUST date comparison like main dashboard
+            let effectiveDate;
+            // PRIORITY 1: transaction_date (same as main dashboard)
+            if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDate = r.transaction_date;
+            // PRIORITY 2: patient.date_of_entry (same as main dashboard)  
+            } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDate = r.patient.date_of_entry;
+            // PRIORITY 3: created_at (same as main dashboard)
             } else {
-              effectiveDateStr = r.created_at.split('T')[0];
+              effectiveDate = r.created_at;
             }
-            return effectiveDateStr === revenueTodayStr;
-          }) || [];
+            return isSameDate(effectiveDate, revenueTodayStr);
+          });
           
-          const weekRevenue = allRevenueData?.filter((r: any) => {
-            let effectiveDateStr;
-            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
-              effectiveDateStr = r.patient.date_of_entry.includes('T') 
-                ? r.patient.date_of_entry.split('T')[0] 
-                : r.patient.date_of_entry;
-            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
-              effectiveDateStr = r.transaction_date.includes('T') 
-                ? r.transaction_date.split('T')[0] 
-                : r.transaction_date;
+          // 🔍 DEBUG: Sample the first few transactions to see date formats
+          console.log('💰 WEEK REVENUE DEBUG - Sample transactions:', {
+            totalTransactions: allRevenueData.length,
+            sampleData: allRevenueData.slice(0, 3).map(r => ({
+              id: r.id,
+              amount: r.amount,
+              transaction_date: r.transaction_date,
+              patient_date_of_entry: r.patient?.date_of_entry,
+              created_at: r.created_at,
+              effectiveDate: r.transaction_date || r.patient?.date_of_entry || r.created_at
+            })),
+            dateRange: { start: revenueWeekStr, end: revenueTodayStr }
+          });
+
+          let weekMatchCount = 0;
+          const weekRevenue = allRevenueData.filter((r: any) => {
+            // 🔧 FIX: Use robust date range comparison for week revenue
+            let effectiveDate;
+            // Use SAME priority as main dashboard: transaction_date FIRST
+            if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDate = r.transaction_date;
+            } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDate = r.patient.date_of_entry;
             } else {
-              effectiveDateStr = r.created_at.split('T')[0];
+              effectiveDate = r.created_at;
             }
-            return effectiveDateStr >= revenueWeekStr && effectiveDateStr <= revenueTodayStr;
-          }) || [];
+            const result = isDateInRange(effectiveDate, revenueWeekStr, revenueTodayStr);
+            
+            // Log the first few matches for debugging
+            if (result && weekMatchCount < 3) {
+              weekMatchCount++;
+              console.log(`✅ Week match #${weekMatchCount}:`, {
+                effectiveDate,
+                normalized: effectiveDate?.includes('T') ? effectiveDate.split('T')[0] : effectiveDate,
+                amount: r.amount
+              });
+            }
+            
+            return result;
+          });
           
-          const monthRevenue = allRevenueData?.filter((r: any) => {
-            let effectiveDateStr;
-            if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
-              effectiveDateStr = r.patient.date_of_entry.includes('T') 
-                ? r.patient.date_of_entry.split('T')[0] 
-                : r.patient.date_of_entry;
-            } else if (r.transaction_date && r.transaction_date.trim() !== '') {
-              effectiveDateStr = r.transaction_date.includes('T') 
-                ? r.transaction_date.split('T')[0] 
-                : r.transaction_date;
+          const monthRevenue = allRevenueData.filter((r: any) => {
+            // 🔧 FIX: Use robust date range comparison for month revenue
+            let effectiveDate;
+            // Use SAME priority as main dashboard: transaction_date FIRST
+            if (r.transaction_date && r.transaction_date.trim() !== '') {
+              effectiveDate = r.transaction_date;
+            } else if (r.patient?.date_of_entry && r.patient.date_of_entry.trim() !== '') {
+              effectiveDate = r.patient.date_of_entry;
             } else {
-              effectiveDateStr = r.created_at.split('T')[0];
+              effectiveDate = r.created_at;
             }
-            return effectiveDateStr >= revenueMonthStr && effectiveDateStr <= revenueTodayStr;
-          }) || [];
+            return isDateInRange(effectiveDate, revenueMonthStr, revenueTodayStr);
+          });
 
           // Debug revenue breakdown results
           const todayRevenueAmount = todayRevenue.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
@@ -1269,7 +1588,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           const weekServiceBreakdown = getServiceBreakdown(weekRevenue);
           const monthServiceBreakdown = getServiceBreakdown(monthRevenue);
 
-          console.log('🔍 Revenue Card Breakdown Results (WITH SERVICES):', {
+          console.log('🔍 Revenue Card Breakdown Results (FIXED - ROBUST DATE COMPARISONS):', {
             dateComparisons: {
               todayTarget: revenueTodayStr,
               weekTarget: `${revenueWeekStr} to ${revenueTodayStr}`,
@@ -1376,27 +1695,69 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           break;
 
         case 'expenses':
-          // Define local date variables for expenses case to avoid scope issues
-          const expenseMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          // 🔧 FIXED: Use SAME improved date calculation as revenue and patient
+          const expenseToday = new Date();
+          const expenseTodayStr = formatDateString(expenseToday);
+          
+          // Week: Last 7 days INCLUDING today (6 days ago to today)  
+          const expenseWeekStartDate = new Date(expenseToday);
+          expenseWeekStartDate.setDate(expenseToday.getDate() - 6); // 6 days ago, not 7
+          const expenseWeekStr = formatDateString(expenseWeekStartDate);
+          
+          // Month: From 1st of current month to today
+          const expenseMonthStartDate = new Date(expenseToday.getFullYear(), expenseToday.getMonth(), 1);
+          const expenseMonthStr = formatDateString(expenseMonthStartDate);
+          
+          console.log('💸 EXPENSE BREAKDOWN DEBUG (FIXED):', {
+            today: expenseTodayStr,
+            weekRange: `${expenseWeekStr} to ${expenseTodayStr} (Last 7 days)`,
+            monthRange: `${expenseMonthStr} to ${expenseTodayStr} (This month)`,
+            allExpensesCount: operationsData?.expenses?.length || 0,
+            calculation: {
+              weekDays: Math.ceil((today.getTime() - expenseWeekStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+              monthDays: Math.ceil((today.getTime() - expenseMonthStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+            }
+          });
           
           const todayExpenses = operationsData?.expenses.filter((e: any) => 
-            e.expense_date && new Date(e.expense_date) >= today) || [];
-          const weekExpenses = operationsData?.expenses.filter((e: any) => 
-            e.expense_date && new Date(e.expense_date) >= weekStart) || [];
-          const monthExpenses = operationsData?.expenses.filter((e: any) => 
-            e.expense_date && new Date(e.expense_date) >= expenseMonthStart) || [];
+            e.expense_date && isSameDate(e.expense_date, expenseTodayStr)) || [];
+          const weekExpenses = operationsData?.expenses.filter((e: any) => {
+            if (!e.expense_date) return false;
+            return isDateInRange(e.expense_date, expenseWeekStr, expenseTodayStr);
+          }) || [];
+          const monthExpenses = operationsData?.expenses.filter((e: any) => {
+            if (!e.expense_date) return false;
+            return isDateInRange(e.expense_date, expenseMonthStr, expenseTodayStr);
+          }) || [];
+
+          // Calculate amounts
+          const todayExpenseAmount = todayExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+          const weekExpenseAmount = weekExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+          const monthExpenseAmount = monthExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+          
+          console.log('💸 EXPENSE BREAKDOWN RESULTS:', {
+            today: { count: todayExpenses.length, amount: todayExpenseAmount },
+            week: { count: weekExpenses.length, amount: weekExpenseAmount },
+            month: { count: monthExpenses.length, amount: monthExpenseAmount },
+            todayExpenseDetails: todayExpenses.map(e => ({
+              id: e.id,
+              amount: e.amount,
+              date: e.expense_date,
+              category: e.expense_category
+            }))
+          });
 
           breakdown = {
             today: { 
-              count: todayExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0), 
+              count: todayExpenseAmount,
               data: todayExpenses 
             },
             thisWeek: { 
-              count: weekExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0), 
+              count: weekExpenseAmount,
               data: weekExpenses 
             },
             thisMonth: { 
-              count: monthExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0), 
+              count: monthExpenseAmount,
               data: monthExpenses 
             },
           };
@@ -1936,13 +2297,21 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                   </div>
                   
                   <div className="bg-green-50 rounded-lg p-4">
-                    <h3 className="text-sm font-medium text-[#999999]">This Week</h3>
+                    <h3 className="text-sm font-medium text-[#999999]">Last 7 Days</h3>
                     <div className="text-2xl font-bold text-green-600">
                       {['revenue', 'expenses'].includes(selectedCard) 
                         ? formatCurrency(cardBreakdown.thisWeek.count)
                         : cardBreakdown.thisWeek.count.toLocaleString()}
                     </div>
                     <p className="text-xs text-[#999999]">{cardBreakdown.thisWeek.data.length} records</p>
+                    <p className="text-xs text-green-600 mt-1 font-medium">
+                      {(() => {
+                        const currentDate = new Date();
+                        const weekStart = new Date(currentDate);
+                        weekStart.setDate(currentDate.getDate() - 6);
+                        return `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                      })()}
+                    </p>
                   </div>
                   
                   <div className="bg-purple-50 rounded-lg p-4">
@@ -1953,6 +2322,13 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
                         : cardBreakdown.thisMonth.count.toLocaleString()}
                     </div>
                     <p className="text-xs text-[#999999]">{cardBreakdown.thisMonth.data.length} records</p>
+                    <p className="text-xs text-purple-600 mt-1 font-medium">
+                      {(() => {
+                        const currentDate = new Date();
+                        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                        return `${monthStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                      })()}
+                    </p>
                   </div>
                 </div>
 

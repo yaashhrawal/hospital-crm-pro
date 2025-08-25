@@ -614,6 +614,252 @@ const OperationsLedger: React.FC = () => {
     }
   };
 
+  const printOperationsReport = () => {
+    console.log('🖨️ Print function called');
+    
+    try {
+      if (filteredEntries.length === 0) {
+        toast.error('No data to print');
+        return;
+      }
+
+      console.log('📊 Filtered entries length:', filteredEntries.length);
+
+      const totals = calculateTotals(filteredEntries);
+      const revenueEntries = filteredEntries.filter(e => e.type === 'REVENUE');
+      const expenseEntries = filteredEntries.filter(e => e.type === 'EXPENSE');
+      const refundEntries = filteredEntries.filter(e => e.type === 'REFUND');
+      
+      const printContent = `
+        <html>
+          <head>
+            <title>Operations Ledger - Transaction Details Report</title>
+            <style>
+              @media print {
+                body { font-family: Arial, sans-serif; font-size: 9px; margin: 15px; line-height: 1.3; }
+                .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+                .header h1 { font-size: 14px; margin: 0 0 3px 0; }
+                .header h2 { font-size: 12px; margin: 0 0 3px 0; color: #333; }
+                .header p { font-size: 8px; margin: 1px 0; color: #666; }
+                .summary { margin: 10px 0; padding: 8px; background: #f8f8f8; border: 1px solid #ddd; }
+                .summary h3 { font-size: 10px; margin: 0 0 5px 0; font-weight: bold; }
+                .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+                .summary-item { text-align: center; }
+                .summary-item strong { display: block; font-size: 8px; color: #666; }
+                .summary-item span { font-size: 10px; font-weight: bold; }
+                .net-revenue { background: #e8f5e8; padding: 8px; margin: 8px 0; border: 1px solid #4CAF50; text-align: center; }
+                .net-revenue h4 { margin: 0 0 5px 0; font-size: 10px; color: #2E7D32; }
+                .breakdown-section { margin: 12px 0; }
+                .breakdown-section h4 { font-size: 9px; font-weight: bold; margin: 0 0 5px 0; padding: 3px 0; border-bottom: 1px solid #ccc; }
+                table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+                th, td { border: 1px solid #ccc; padding: 3px; text-align: left; font-size: 7px; }
+                th { background-color: #f0f0f0; font-weight: bold; }
+                .revenue-row { background-color: #f0fff0; }
+                .expense-row { background-color: #fff0f0; }
+                .refund-row { background-color: #fff8f0; }
+                .totals { margin-top: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; }
+                .totals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+                @page { margin: 0.4in; size: A4; }
+              }
+              body { font-family: Arial, sans-serif; font-size: 9px; margin: 15px; line-height: 1.3; }
+              .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+              .header h1 { font-size: 14px; margin: 0 0 3px 0; }
+              .header h2 { font-size: 12px; margin: 0 0 3px 0; color: #333; }
+              .header p { font-size: 8px; margin: 1px 0; color: #666; }
+              .summary { margin: 10px 0; padding: 8px; background: #f8f8f8; border: 1px solid #ddd; }
+              .summary h3 { font-size: 10px; margin: 0 0 5px 0; font-weight: bold; }
+              .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+              .summary-item { text-align: center; }
+              .summary-item strong { display: block; font-size: 8px; color: #666; }
+              .summary-item span { font-size: 10px; font-weight: bold; }
+              .net-revenue { background: #e8f5e8; padding: 8px; margin: 8px 0; border: 1px solid #4CAF50; text-align: center; }
+              .net-revenue h4 { margin: 0 0 5px 0; font-size: 10px; color: #2E7D32; }
+              .breakdown-section { margin: 12px 0; }
+              .breakdown-section h4 { font-size: 9px; font-weight: bold; margin: 0 0 5px 0; padding: 3px 0; border-bottom: 1px solid #ccc; }
+              table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+              th, td { border: 1px solid #ccc; padding: 3px; text-align: left; font-size: 7px; }
+              th { background-color: #f0f0f0; font-weight: bold; }
+              .revenue-row { background-color: #f0fff0; }
+              .expense-row { background-color: #fff0f0; }
+              .refund-row { background-color: #fff8f0; }
+              .totals { margin-top: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; }
+              .totals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>HOSPITAL OPERATIONS LEDGER</h1>
+              <h2>Complete Transaction Details & Revenue Analysis</h2>
+              <p><strong>Raj Hospital & Maternity Center</strong></p>
+              <p>Period: <strong>${dateFrom}</strong> to <strong>${dateTo}</strong></p>
+              <p>Report Generated: ${new Date().toLocaleString()} | Total Transactions: ${filteredEntries.length}</p>
+            </div>
+            
+            <div class="summary">
+              <h3>📊 Financial Overview</h3>
+              <div class="summary-grid">
+                <div class="summary-item">
+                  <strong>TOTAL REVENUE</strong>
+                  <span style="color: green;">${formatCurrency(totals.revenue || 0)}</span>
+                </div>
+                <div class="summary-item">
+                  <strong>TOTAL EXPENSES</strong>
+                  <span style="color: red;">${formatCurrency(totals.expenses || 0)}</span>
+                </div>
+                <div class="summary-item">
+                  <strong>TOTAL REFUNDS</strong>
+                  <span style="color: orange;">${formatCurrency(filteredEntries.filter(e => e.type === 'REFUND').reduce((sum, e) => sum + (e.net_amount || e.amount), 0))}</span>
+                </div>
+              </div>
+              <div class="net-revenue">
+                <h4>💰 NET REVENUE BREAKDOWN</h4>
+                <div style="display: flex; justify-content: space-between; font-size: 9px;">
+                  <span><strong>Cash Revenue:</strong> ${formatCurrency(totals.netCash || 0)}</span>
+                  <span><strong>Online Revenue:</strong> ${formatCurrency(totals.netOnline || 0)}</span>
+                  <span><strong>FINAL NET REVENUE:</strong> ${formatCurrency(totals.netRevenue || 0)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="breakdown-section">
+              <h4>💚 REVENUE TRANSACTIONS (${revenueEntries.length} entries)</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th width="8%">Date</th>
+                    <th width="6%">Time</th>
+                    <th width="20%">Patient Name</th>
+                    <th width="15%">Category</th>
+                    <th width="20%">Description</th>
+                    <th width="8%">Amount</th>
+                    <th width="8%">Payment</th>
+                    <th width="15%">Doctor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${revenueEntries.map(entry => `
+                    <tr class="revenue-row">
+                      <td>${entry.date}</td>
+                      <td>${entry.time}</td>
+                      <td>${entry.patient_name || 'N/A'}</td>
+                      <td>${entry.category}</td>
+                      <td>${entry.description}</td>
+                      <td style="text-align: right; font-weight: bold; color: green;">₹${((entry.net_amount || entry.amount) || 0).toFixed(0)}</td>
+                      <td>${entry.payment_mode}</td>
+                      <td>${entry.consultant_name || 'N/A'}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="border-top: 2px solid green; font-weight: bold;">
+                    <td colspan="5" style="text-align: right;"><strong>REVENUE SUBTOTAL:</strong></td>
+                    <td style="text-align: right; color: green;"><strong>₹${(totals.revenue || 0).toFixed(0)}</strong></td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            ${expenseEntries.length > 0 ? `
+            <div class="breakdown-section">
+              <h4>❌ EXPENSE TRANSACTIONS (${expenseEntries.length} entries)</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th width="8%">Date</th>
+                    <th width="6%">Time</th>
+                    <th width="20%">Expense Name</th>
+                    <th width="15%">Category</th>
+                    <th width="20%">Description</th>
+                    <th width="8%">Amount</th>
+                    <th width="8%">Payment</th>
+                    <th width="15%">Department</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${expenseEntries.map(entry => `
+                    <tr class="expense-row">
+                      <td>${entry.date}</td>
+                      <td>${entry.time}</td>
+                      <td>${entry.patient_name || 'N/A'}</td>
+                      <td>${entry.category}</td>
+                      <td>${entry.description}</td>
+                      <td style="text-align: right; font-weight: bold; color: red;">-₹${((entry.net_amount || entry.amount) || 0).toFixed(0)}</td>
+                      <td>${entry.payment_mode}</td>
+                      <td>${entry.department || 'N/A'}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="border-top: 2px solid red; font-weight: bold;">
+                    <td colspan="5" style="text-align: right;"><strong>EXPENSES SUBTOTAL:</strong></td>
+                    <td style="text-align: right; color: red;"><strong>-₹${(totals.expenses || 0).toFixed(0)}</strong></td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+
+            ${refundEntries.length > 0 ? `
+            <div class="breakdown-section">
+              <h4>🔄 REFUND TRANSACTIONS (${refundEntries.length} entries)</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th width="8%">Date</th>
+                    <th width="6%">Time</th>
+                    <th width="20%">Patient Name</th>
+                    <th width="15%">Category</th>
+                    <th width="20%">Refund Reason</th>
+                    <th width="8%">Amount</th>
+                    <th width="8%">Payment</th>
+                    <th width="15%">Doctor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${refundEntries.map(entry => `
+                    <tr class="refund-row">
+                      <td>${entry.date}</td>
+                      <td>${entry.time}</td>
+                      <td>${entry.patient_name || 'N/A'}</td>
+                      <td>${entry.category}</td>
+                      <td>${entry.description}</td>
+                      <td style="text-align: right; font-weight: bold; color: orange;">-₹${((entry.net_amount || entry.amount) || 0).toFixed(0)}</td>
+                      <td>${entry.payment_mode}</td>
+                      <td>${entry.consultant_name || 'N/A'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+            
+            <div class="totals">
+              <div class="totals-grid">
+                <div><strong>Period:</strong> ${dateFrom} to ${dateTo}</div>
+                <div><strong>Net Revenue:</strong> <span style="color: ${(totals.netRevenue || 0) >= 0 ? 'green' : 'red'};">₹${(totals.netRevenue || 0).toFixed(0)}</span></div>
+                <div><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+          toast.success('Detailed operations report opened for printing!');
+        }, 500);
+      } else {
+        toast.error('Could not open print window - popup blocked?');
+      }
+      
+    } catch (error) {
+      console.error('❌ Print error:', error);
+      toast.error('Print failed: ' + (error as Error).message);
+    }
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'REVENUE': return 'text-green-600';
@@ -634,6 +880,25 @@ const OperationsLedger: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
+      {/* Print CSS */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .operations-print-area, .operations-print-area * { visibility: visible; }
+          .operations-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+          }
+          .print-hide { display: none !important; }
+          table { font-size: 8px !important; border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #000; padding: 2px; }
+          th { background-color: #f0f0f0; font-weight: bold; }
+        }
+      `}</style>
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">💰 Operations Ledger</h1>
@@ -775,17 +1040,25 @@ const OperationsLedger: React.FC = () => {
             <button
               onClick={loadLedgerEntries}
               disabled={loading}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
             >
               {loading ? '🔄 Loading...' : '🔍 Search'}
             </button>
             <button
               onClick={exportOperationsToExcel}
               disabled={loading || filteredEntries.length === 0}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 whitespace-nowrap"
+              className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 disabled:opacity-50 whitespace-nowrap text-sm"
               title="Export to Excel"
             >
               📊 Export
+            </button>
+            <button
+              onClick={printOperationsReport}
+              disabled={loading || filteredEntries.length === 0}
+              className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap text-sm"
+              title="Print Operations Report"
+            >
+              🖨️ Print
             </button>
           </div>
         </div>
@@ -830,7 +1103,7 @@ const OperationsLedger: React.FC = () => {
       </div>
 
       {/* Ledger Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden operations-print-area">
         <div className="p-4 bg-gray-50 border-b">
           <h2 className="text-lg font-semibold">Transaction Details ({filteredEntries.length} entries)</h2>
         </div>

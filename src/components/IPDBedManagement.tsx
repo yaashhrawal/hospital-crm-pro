@@ -585,13 +585,14 @@ const IPDBedManagement: React.FC = () => {
     return { totalBeds, occupiedBeds, vacantBeds, occupancyRate };
   };
 
-  // NEW: Handle admit click - now shows IPD Consent Form directly
+  // Handle admit click - shows patient selection modal first
   const handleAdmitClick = (bedId: string) => {
-    const selectedBed = beds.find(b => b.id === bedId);
-    if (!selectedBed) return;
-    
-    setSelectedBedForAdmissionConsent(selectedBed);
-    setShowAdmissionConsentForm(true);
+    setSelectedBedForAdmission(bedId);
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    setCustomAdmissionDate(today);
+    setUseCustomDate(false);
+    setShowPatientSelection(true);
   };
 
   // NEW: Handle smooth closing animation for patient records modal

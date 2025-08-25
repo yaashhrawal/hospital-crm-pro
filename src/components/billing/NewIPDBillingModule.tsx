@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, Search, X } from 'lucide-react';
+import { Printer, Search, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import HospitalService from '../../services/hospitalService';
 import { supabase, HOSPITAL_ID } from '../../config/supabaseNew';
 import type { PatientWithRelations } from '../../config/supabaseNew';
+import { MEDICAL_SERVICES, searchServices, type MedicalService } from '../../data/medicalServices';
 
 interface BillingRow {
   id: string;
@@ -20,6 +21,9 @@ interface BillingRow {
 }
 
 const NewIPDBillingModule: React.FC = () => {
+  // Main state for showing/hiding the IPD bill creation form
+  const [showCreateBill, setShowCreateBill] = useState(false);
+  
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,18 +48,347 @@ const NewIPDBillingModule: React.FC = () => {
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentMode, setNewPaymentMode] = useState('Cash');
   const [depositHistory, setDepositHistory] = useState([]);
+
+  // IPD Billing Form States
+  // Room & Accommodation
+  const [roomType, setRoomType] = useState('General Ward');
+  const [roomRate, setRoomRate] = useState(500);
+  const [stayDays, setStayDays] = useState(1);
+
+  // Medical Professional Charges
+  const [consultantFees, setConsultantFees] = useState(1000);
+  const [visitingDoctorFees, setVisitingDoctorFees] = useState(500);
+  const [nursingCharges, setNursingCharges] = useState(200);
+  const [attendantCharges, setAttendantCharges] = useState(100);
+
+  // Investigation & Diagnostic
+  const [labTests, setLabTests] = useState(800);
+  const [radiologyCharges, setRadiologyCharges] = useState(1200);
+  const [ecgCharges, setEcgCharges] = useState(300);
+  const [otherDiagnostics, setOtherDiagnostics] = useState(0);
+
+  // Treatment & Operation
+  const [operationTheaterCharges, setOperationTheaterCharges] = useState(0);
+  const [surgeonFees, setSurgeonFees] = useState(0);
+  const [anesthesiaCharges, setAnesthesiaCharges] = useState(0);
+  const [equipmentCharges, setEquipmentCharges] = useState(0);
+
+  // Medicine & Pharmacy
+  const [pharmacyBills, setPharmacyBills] = useState(0);
+  const [ivFluids, setIvFluids] = useState(0);
+  const [bloodProducts, setBloodProducts] = useState(0);
+  const [medicalSupplies, setMedicalSupplies] = useState(0);
+
+  // Other Services
+  const [physiotherapy, setPhysiotherapy] = useState(0);
+  const [ambulanceServices, setAmbulanceServices] = useState(0);
+  const [medicalCertificate, setMedicalCertificate] = useState(0);
+  const [miscCharges, setMiscCharges] = useState(0);
+
+  // Admission and Bill Summary
+  const [admissionFee, setAdmissionFee] = useState(2000);
+  const [discount, setDiscount] = useState(0);
+  const [tax, setTax] = useState(0);
+  const [finalPaymentMode, setFinalPaymentMode] = useState('CASH');
+
+  // Custom Fields
+  const [customFields, setCustomFields] = useState([
+    { description: '', amount: 0, type: 'One-time', id: Date.now() }
+  ]);
+
+  // Services Management
+  const [selectedServices, setSelectedServices] = useState<Array<{id: string, name: string, amount: number, selected: boolean}>>([]);
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState('');
+  const [customServiceAmount, setCustomServiceAmount] = useState('');
+  const [availableServices, setAvailableServices] = useState<MedicalService[]>(MEDICAL_SERVICES);
+
+  // Stay Segment Management
+  const [staySegments, setStaySegments] = useState([{
+    id: Date.now(),
+    roomType: 'General Ward',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to tomorrow
+    bedChargePerDay: 1000,
+    nursingChargePerDay: 200,
+    rmoChargePerDay: 100,
+    doctorChargePerDay: 500
+  }]);
+
+  // Deposit Management
+  const [newDepositAmount, setNewDepositAmount] = useState('');
+  const [newDepositMode, setNewDepositMode] = useState('CASH');
+  const [newDepositReference, setNewDepositReference] = useState('');
+  const [newDepositReceivedBy, setNewDepositReceivedBy] = useState('');
   const [receiptCounter, setReceiptCounter] = useState(1067);
   const [openCalendar, setOpenCalendar] = useState<{[key: string]: boolean}>({});
   const [showChangeCharges, setShowChangeCharges] = useState(false);
   const [showAddPharmacy, setShowAddPharmacy] = useState(false);
-  const [showViewPharmacy, setShowViewPharmacy] = useState(false);
-  const [pharmacyBills, setPharmacyBills] = useState([]);
-  const [newPharmacyBill, setNewPharmacyBill] = useState({
-    billNumber: '',
-    date: new Date().toISOString().split('T')[0],
-    items: [],
-    total: 0
-  }); // Starting receipt number
+
+  // Calculate automatic stay duration when patient is selected
+  useEffect(() => {
+    if (selectedPatient?.admissions?.[0]?.admission_date) {
+      const admissionDate = new Date(selectedPatient.admissions[0].admission_date);
+      const currentDate = new Date();
+      const diffTime = Math.abs(currentDate.getTime() - admissionDate.getTime());
+      const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      setStayDays(diffDays);
+    }
+  }, [selectedPatient]);
+
+  // Auto-recalculate totals whenever any billing amount changes
+  useEffect(() => {
+    // This will trigger re-renders with updated calculations
+    // The calculations are already live through the calculation functions
+  }, [
+    roomRate, stayDays, consultantFees, visitingDoctorFees, nursingCharges, attendantCharges,
+    labTests, radiologyCharges, ecgCharges, otherDiagnostics,
+    operationTheaterCharges, surgeonFees, anesthesiaCharges, equipmentCharges,
+    pharmacyBills, ivFluids, bloodProducts, medicalSupplies,
+    physiotherapy, ambulanceServices, medicalCertificate, miscCharges,
+    customFields, discount, tax, advancePayments
+  ]);
+
+  // Calculation functions
+  const calculateRoomCharges = () => roomRate * stayDays;
+  const calculateMedicalCharges = () => consultantFees + visitingDoctorFees + nursingCharges + attendantCharges;
+  const calculateDiagnosticCharges = () => labTests + radiologyCharges + ecgCharges + otherDiagnostics;
+  const calculateTreatmentCharges = () => operationTheaterCharges + surgeonFees + anesthesiaCharges + equipmentCharges;
+  const calculatePharmacyCharges = () => pharmacyBills + ivFluids + bloodProducts + medicalSupplies;
+  const calculateOtherCharges = () => physiotherapy + ambulanceServices + medicalCertificate + miscCharges;
+  
+  const calculateCustomCharges = () => {
+    return customFields.reduce((total, field) => {
+      if (field.type === 'Per day') {
+        return total + (field.amount * stayDays);
+      }
+      return total + field.amount;
+    }, 0);
+  };
+
+  const calculateGrossTotal = () => {
+    return calculateRoomCharges() + 
+           calculateMedicalCharges() + 
+           calculateDiagnosticCharges() + 
+           calculateTreatmentCharges() + 
+           calculatePharmacyCharges() + 
+           calculateOtherCharges() + 
+           calculateCustomCharges();
+  };
+
+  const calculateNetPayable = () => {
+    const gross = calculateGrossTotal();
+    return Math.max(0, gross - discount + tax);
+  };
+
+  const calculateBalanceAfterDeposits = () => {
+    return calculateNetPayable() - advancePayments;
+  };
+
+  // Custom field management functions
+  const addCustomField = () => {
+    const newField = {
+      description: '',
+      amount: 0,
+      type: 'One-time',
+      id: Date.now()
+    };
+    setCustomFields([...customFields, newField]);
+  };
+
+  const updateCustomField = (id: number, field: string, value: string | number) => {
+    setCustomFields(customFields.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const removeCustomField = (id: number) => {
+    setCustomFields(customFields.filter(item => item.id !== id));
+  };
+
+  // Stay segment calculation functions
+  const calculateDays = (startDate: string, endDate: string): number => {
+    if (!startDate || !endDate) return 0;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays === 0 ? 1 : diffDays; // Minimum 1 day
+  };
+
+  const calculateSegmentTotal = (segment: any): number => {
+    const days = calculateDays(segment.startDate, segment.endDate);
+    return (segment.bedChargePerDay + segment.nursingChargePerDay + segment.rmoChargePerDay + segment.doctorChargePerDay) * days;
+  };
+
+  const calculateTotalStayCharges = (): number => {
+    return staySegments.reduce((total, segment) => total + calculateSegmentTotal(segment), 0);
+  };
+
+  const updateStaySegment = (id: number, field: string, value: any) => {
+    setStaySegments(staySegments.map(segment => 
+      segment.id === id ? { ...segment, [field]: value } : segment
+    ));
+  };
+
+  const addStaySegment = () => {
+    const newSegment = {
+      id: Date.now(),
+      roomType: 'General Ward',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      bedChargePerDay: 1000,
+      nursingChargePerDay: 200,
+      rmoChargePerDay: 100,
+      doctorChargePerDay: 500
+    };
+    setStaySegments([...staySegments, newSegment]);
+  };
+
+  const removeStaySegment = (id: number) => {
+    if (staySegments.length > 1) {
+      setStaySegments(staySegments.filter(segment => segment.id !== id));
+    }
+  };
+
+  // Service management functions
+  const addServiceFromDropdown = (service: MedicalService) => {
+    const existingService = selectedServices.find(s => s.id === service.id);
+    if (!existingService) {
+      const newService = {
+        id: service.id,
+        name: service.name,
+        amount: service.basePrice,
+        selected: true
+      };
+      setSelectedServices([...selectedServices, newService]);
+      toast.success(`Added ${service.name} to bill`);
+    } else {
+      toast(`${service.name} is already in the bill`);
+    }
+    setServiceSearchTerm('');
+    setShowServiceDropdown(false);
+  };
+
+  const removeService = (serviceId: string) => {
+    setSelectedServices(selectedServices.filter(s => s.id !== serviceId));
+  };
+
+  const updateServiceAmount = (serviceId: string, amount: number) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { ...s, amount } : s
+    ));
+  };
+
+  const saveCustomService = async () => {
+    if (!customServiceName.trim() || !customServiceAmount) {
+      toast.error('Please enter service name and amount');
+      return;
+    }
+
+    try {
+      // Create custom service object
+      const customService: MedicalService = {
+        id: `custom_${Date.now()}`,
+        name: customServiceName.trim(),
+        code: `CUSTOM-${Date.now()}`,
+        category: 'PROCEDURES',
+        department: 'Custom Services',
+        description: `Custom service: ${customServiceName.trim()}`,
+        basePrice: parseFloat(customServiceAmount),
+        duration: 30,
+        preparationRequired: false,
+        fastingRequired: false,
+        isActive: true
+      };
+
+      // Add to available services
+      setAvailableServices([...availableServices, customService]);
+      
+      // Auto-add to selected services
+      const newSelectedService = {
+        id: customService.id,
+        name: customService.name,
+        amount: customService.basePrice,
+        selected: true
+      };
+      setSelectedServices([...selectedServices, newSelectedService]);
+
+      // Save to database (placeholder - implement actual database save)
+      try {
+        const { error } = await supabase
+          .from('custom_services')
+          .insert([{
+            hospital_id: HOSPITAL_ID,
+            service_name: customService.name,
+            service_code: customService.code,
+            category: customService.category,
+            department: customService.department,
+            description: customService.description,
+            base_price: customService.basePrice,
+            is_active: true,
+            created_at: new Date().toISOString()
+          }]);
+
+        if (error) {
+          console.error('Error saving custom service:', error);
+          toast.error('Service added to current bill but not saved permanently');
+        } else {
+          toast.success('Custom service saved and added to bill!');
+        }
+      } catch (dbError) {
+        console.error('Database save error:', dbError);
+        toast.error('Service added to current bill only');
+      }
+
+      // Reset form
+      setCustomServiceName('');
+      setCustomServiceAmount('');
+      
+    } catch (error) {
+      console.error('Error creating custom service:', error);
+      toast.error('Failed to add custom service');
+    }
+  };
+
+  const calculateSelectedServicesTotal = () => {
+    return selectedServices
+      .filter(service => service.selected)
+      .reduce((total, service) => total + service.amount, 0);
+  };
+
+  const filteredAvailableServices = availableServices.filter(service =>
+    service.name.toLowerCase().includes(serviceSearchTerm.toLowerCase()) ||
+    service.code.toLowerCase().includes(serviceSearchTerm.toLowerCase()) ||
+    service.category.toLowerCase().includes(serviceSearchTerm.toLowerCase())
+  ).slice(0, 10);
+
+  // Deposit management functions
+  const addDeposit = () => {
+    if (newDepositAmount && parseFloat(newDepositAmount) > 0) {
+      const newDeposit = {
+        receiptNo: `ADV-${Date.now()}-${depositHistory.length + 1}`,
+        date: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        amount: parseFloat(newDepositAmount),
+        paymentMode: newDepositMode,
+        reference: newDepositReference || '-',
+        receivedBy: newDepositReceivedBy || 'System',
+        timestamp: Date.now()
+      };
+
+      setDepositHistory([...depositHistory, newDeposit]);
+      setAdvancePayments(prev => prev + parseFloat(newDepositAmount));
+      
+      // Reset form
+      setNewDepositAmount('');
+      setNewDepositReference('');
+      setNewDepositReceivedBy('');
+      
+      // You can add toast notification here
+      console.log('Deposit added successfully');
+    }
+  };
 
   // List of insurance payers
   const payersList = [
@@ -210,7 +543,8 @@ const NewIPDBillingModule: React.FC = () => {
   const loadPatients = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading patients with admission data for billing...');
+      console.log('🔍 IPD BILLING: Loading patients with admission data for billing...');
+      console.log('🔍 IPD BILLING: Hospital ID:', HOSPITAL_ID);
       
       // Get all patients with admissions data using direct supabase query
       const { data: allPatients, error } = await supabase
@@ -226,16 +560,19 @@ const NewIPDBillingModule: React.FC = () => {
         .limit(1000);
       
       if (error) {
-        console.error('❌ Error loading patients with admissions:', error);
-        toast.error('Failed to load patient data');
+        console.error('❌ IPD BILLING: Error loading patients with admissions:', error);
+        toast.error('Failed to load patient data: ' + error.message);
         return;
       }
       
-      console.log('✅ Loaded patients with admissions:', allPatients?.length || 0);
+      console.log('✅ IPD BILLING: Loaded patients with admissions:', allPatients?.length || 0);
+      if (allPatients && allPatients.length > 0) {
+        console.log('✅ IPD BILLING: Sample patient data:', allPatients[0]);
+      }
       setPatients(allPatients || []);
     } catch (error) {
-      console.error('Failed to load patients:', error);
-      toast.error('Failed to load patient data');
+      console.error('❌ IPD BILLING: Failed to load patients:', error);
+      toast.error('Failed to load patient data: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -327,11 +664,23 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   // Add advance payment function
-  const addAdvancePayment = () => {
+  const addAdvancePayment = async () => {
+    console.log('🏥 DEPOSIT: addAdvancePayment function called');
+    console.log('🏥 DEPOSIT: newPaymentAmount:', newPaymentAmount);
+    console.log('🏥 DEPOSIT: selectedPatient:', selectedPatient);
+    
     const amount = parseFloat(newPaymentAmount);
+    console.log('🏥 DEPOSIT: parsed amount:', amount);
     
     if (!amount || amount <= 0) {
+      console.log('🏥 DEPOSIT: Invalid amount error');
       toast.error('Please enter a valid amount');
+      return;
+    }
+    
+    if (!selectedPatient) {
+      console.log('🏥 DEPOSIT: No patient selected error');
+      toast.error('Please select a patient first');
       return;
     }
     
@@ -350,7 +699,38 @@ const NewIPDBillingModule: React.FC = () => {
       paymentMode: newPaymentMode
     };
     
-    // Update states
+    try {
+      // Save to database - transactions table
+      const transactionData = {
+        transaction_id: newReceiptNo,
+        patient_id: getPatientDisplayData().uhiid || 'UNKNOWN',
+        patient_name: getPatientDisplayData().name || 'Unknown Patient',
+        transaction_type: 'IPD_ADVANCE_PAYMENT',
+        amount: amount,
+        payment_mode: newPaymentMode.toUpperCase(),
+        transaction_date: new Date().toISOString(),
+        description: `IPD Advance Payment - Receipt: ${newReceiptNo}`,
+        hospital_id: HOSPITAL_ID,
+        created_by: 'IPD_BILLING_SYSTEM',
+        status: 'COMPLETED'
+      };
+
+      const { error: dbError } = await supabase
+        .from('transactions')
+        .insert([transactionData]);
+
+      if (dbError) {
+        console.error('❌ Database save error:', dbError);
+        toast.warning('Payment recorded locally but not saved to database');
+      } else {
+        console.log('✅ Payment saved to database successfully');
+      }
+    } catch (error) {
+      console.error('❌ Database connection error:', error);
+      toast.warning('Payment recorded locally but database connection failed');
+    }
+    
+    // Update local states regardless of database result
     setDepositHistory([...depositHistory, newPayment]);
     setAdvancePayments(advancePayments + amount);
     setReceiptCounter(nextReceiptCounter);
@@ -377,8 +757,18 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
-    toast.success('Opening print dialog...');
+    console.log('🖨️ Print function called');
+    console.log('💰 Deposit history length:', depositHistory.length);
+    console.log('💳 Deposit history data:', depositHistory);
+    
+    try {
+      // Simple approach - just use window.print with CSS media queries
+      window.print();
+      toast.success('Opening print dialog...');
+    } catch (error) {
+      console.error('Print error:', error);
+      toast.error('Print failed - please try again');
+    }
   };
 
   // Patient search and selection functions
@@ -534,1967 +924,1190 @@ const NewIPDBillingModule: React.FC = () => {
     };
   };
 
-  return (
-    <div style={{ backgroundColor: '#f0f2f5', minHeight: '100vh', padding: '20px' }}>
-      <div style={{ 
-        maxWidth: '1400px', 
-        margin: '0 auto', 
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-        overflow: 'hidden'
-      }}>
-        {/* Title */}
-        <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '20px 30px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ fontSize: '24px', fontWeight: '600' }}>
-            Multi-Section IPD Billing
+  // If not showing create bill form, show the initial interface
+  if (!showCreateBill) {
+    return (
+      <div className="space-y-6">
+        {/* Header with Create Button */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
+            <p className="text-gray-600">Manage inpatient department bills</p>
           </div>
-          <button
-            onClick={() => setShowPatientModal(true)}
-            style={{
-              background: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <Search size={16} />
-            {selectedPatient ? 'Change Patient' : 'Select Patient'}
-          </button>
-        </div>
-
-        {/* Header Section */}
-        <div style={{
-          backgroundColor: '#e0e0e0',
-          padding: '20px 30px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          borderBottom: '2px solid #d0d0d0'
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '13px', margin: '4px 0', fontWeight: '600', color: selectedPatient ? '#000' : '#666' }}>
-              {getPatientDisplayData().name}
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              WARD NAME: <strong>{getPatientDisplayData().wardName}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              BED NO: <strong>{getPatientDisplayData().bedNo}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              UHIID: <strong>{getPatientDisplayData().uhiid}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              IPD NO: <strong>{getPatientDisplayData().ipdNo}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              REF. DR: <strong>{getPatientDisplayData().refDoctor}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              ADMITTING DR: <strong>{getPatientDisplayData().admittingDoctor}</strong>
-            </div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              PAYER NAME: <strong>{getDisplayPayerName()}</strong>
-              {paymentMode === 'INSURANCE' && (
-                <button
-                  onClick={() => setShowPayerModal(true)}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #6c757d',
-                    color: '#6c757d',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    marginLeft: '8px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Change
-                </button>
-              )}
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              DOA: <strong>{selectedPatient ? new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleDateString('en-GB') + ' ' + new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              }) : new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              })}</strong>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              TOTAL DEP: <strong style={{ color: '#008000' }}>₹{advancePayments.toFixed(2)}</strong>
-              <span style={{
-                display: 'inline-block',
-                width: '16px',
-                height: '16px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                borderRadius: '50%',
-                textAlign: 'center',
-                lineHeight: '16px',
-                fontSize: '10px',
-                marginLeft: '5px'
-              }}>i</span>
-            </div>
-            <div style={{ fontSize: '13px', margin: '4px 0' }}>
-              TOTAL DUE: <strong style={{ color: '#ff0000' }}>₹{summary.netPayable.toFixed(2)}</strong>
-              <span style={{
-                display: 'inline-block',
-                width: '16px',
-                height: '16px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                borderRadius: '50%',
-                textAlign: 'center',
-                lineHeight: '16px',
-                fontSize: '10px',
-                marginLeft: '5px'
-              }}>i</span>
-            </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={handlePrint}
+              className="mt-4 md:mt-0 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2 transition-colors"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Test Print</span>
+            </button>
+            <button
+              onClick={() => setShowCreateBill(true)}
+              className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create IPD Bill</span>
+            </button>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{
-          display: 'flex',
-          backgroundColor: '#f8f9fa',
-          borderBottom: '1px solid #dee2e6'
-        }}>
-          <button 
-            onClick={() => setActiveSection('deposit')}
-            style={{
-              flex: 1,
-              padding: '15px 20px',
-              background: 'none',
-              border: 'none',
-              fontSize: '16px',
-              fontWeight: '500',
-              color: activeSection === 'deposit' ? '#667eea' : '#6c757d',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              borderBottom: activeSection === 'deposit' ? '3px solid #667eea' : '3px solid transparent',
-              backgroundColor: activeSection === 'deposit' ? 'white' : 'transparent'
-            }}
-          >
-            Deposit Payment History
-          </button>
-          <button 
-            onClick={() => setActiveSection('billing')}
-            style={{
-              flex: 1,
-              padding: '15px 20px',
-              background: 'none',
-              border: 'none',
-              fontSize: '16px',
-              fontWeight: '500',
-              color: activeSection === 'billing' ? '#667eea' : '#6c757d',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              borderBottom: activeSection === 'billing' ? '3px solid #667eea' : '3px solid transparent',
-              backgroundColor: activeSection === 'billing' ? 'white' : 'transparent'
-            }}
-          >
-            Billing History
-          </button>
+        {/* Search and Filters */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Search by patient, bill ID, or doctor..."
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="ALL">All Status</option>
+              <option value="PAID">Paid</option>
+              <option value="PENDING">Pending</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
         </div>
 
-        {/* Section 1: Deposit Payment History */}
-        {activeSection === 'deposit' && (
-          <div style={{ padding: '20px 30px' }}>
-            <h3 style={{ color: '#495057', marginBottom: '20px', fontSize: '18px', fontWeight: '600' }}>
-              Deposit Payment History
-            </h3>
-            
-            {/* Deposit Table */}
-            {depositHistory.length > 0 ? (
-              <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                marginBottom: '30px'
-              }}>
-              <thead>
+        {/* IPD Bills Table */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Payment Receipt No</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Date</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Transaction Type</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Process By</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Amount</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'left',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Payment Mode</th>
-                  <th style={{
-                    padding: '12px 15px',
-                    textAlign: 'center',
-                    borderBottom: '1px solid #dee2e6',
-                    backgroundColor: '#f8f9fa',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '12px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Bill ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Patient
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Admission Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                {depositHistory.map((deposit) => (
-                  <tr key={deposit.id}>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>{deposit.receiptNo}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>{deposit.date}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>{deposit.transactionType}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>{deposit.processBy}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>₹{deposit.amount.toFixed(2)}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529'
-                    }}>{deposit.paymentMode}</td>
-                    <td style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #dee2e6',
-                      fontSize: '14px',
-                      color: '#212529',
-                      textAlign: 'center'
-                    }}>
-                      <button
-                        onClick={() => deleteAdvancePayment(deposit.id)}
-                        style={{
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          fontWeight: '500'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px',
-                color: '#6c757d',
-                fontSize: '16px',
-                backgroundColor: '#f8f9fa',
-                border: '1px solid #dee2e6',
-                borderRadius: '6px',
-                marginBottom: '30px'
-              }}>
-                No advance payments recorded yet.
-              </div>
-            )}
-
-            {/* Advance Payment Summary */}
-            <div style={{
-              backgroundColor: '#e8f5e8',
-              padding: '15px',
-              borderRadius: '4px',
-              marginBottom: '20px',
-              borderLeft: '4px solid #28a745'
-            }}>
-              <div style={{ fontSize: '14px', color: '#495057', marginBottom: '5px' }}>
-                Total Advance Payments:
-              </div>
-              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
-                ₹{advancePayments.toFixed(2)}
-              </div>
-            </div>
-
-            {/* Add New Payment Form */}
-            <div style={{
-              backgroundColor: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '6px',
-              border: '1px solid #dee2e6'
-            }}>
-              <h4 style={{ color: '#495057', marginBottom: '15px', fontSize: '16px', fontWeight: '600' }}>
-                Add New Advance Payment
-              </h4>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '15px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <label style={{ fontWeight: '500', color: '#495057', minWidth: '80px' }}>Amount:</label>
-                  <input 
-                    type="number" 
-                    value={newPaymentAmount}
-                    onChange={(e) => setNewPaymentAmount(e.target.value)}
-                    placeholder="0.00" 
-                    step="0.01" 
-                    min="0"
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #ced4da',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      minWidth: '150px'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <label style={{ fontWeight: '500', color: '#495057', minWidth: '100px' }}>Payment Mode:</label>
-                  <select 
-                    value={newPaymentMode}
-                    onChange={(e) => setNewPaymentMode(e.target.value)}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #ced4da',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      minWidth: '150px'
-                    }}
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
-                  </select>
-                </div>
-                <button 
-                  onClick={addAdvancePayment}
-                  style={{
-                    backgroundColor: '#667eea',
-                    color: 'white',
-                    border: 'none',
-                    padding: '10px 20px',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Add Payment
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Section 2: Billing History */}
-        {activeSection === 'billing' && (
-          <>
-            {/* Controls Section */}
-        <div style={{
-          padding: '20px 30px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          backgroundColor: '#f8f9fa',
-          borderBottom: '1px solid #dee2e6'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontSize: '14px', fontWeight: '500', color: '#495057' }}>
-              Ward Category:
-            </label>
-            <select 
-              value={wardCategory}
-              onChange={(e) => setWardCategory(e.target.value)}
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #ced4da',
-                borderRadius: '4px',
-                fontSize: '14px',
-                backgroundColor: 'white'
-              }}
-            >
-              <option>General Ward</option>
-              <option>Private Room</option>
-              <option>ICU</option>
-              <option>Emergency</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontSize: '14px', fontWeight: '500', color: '#495057' }}>
-              Billing Date:
-            </label>
-            <input 
-              type="date" 
-              value={billingDate}
-              onChange={(e) => setBillingDate(e.target.value)}
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #ced4da',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontSize: '14px', fontWeight: '500', color: '#495057' }}>
-              Payment Mode:
-            </label>
-            <select 
-              value={paymentMode}
-              onChange={(e) => handlePaymentModeChange(e.target.value as any)}
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #ced4da',
-                borderRadius: '4px',
-                fontSize: '14px',
-                backgroundColor: 'white'
-              }}
-            >
-              <option value="CASH">Cash</option>
-              <option value="INSURANCE">Insurance</option>
-              <option value="CARD">Card</option>
-              <option value="UPI">UPI</option>
-            </select>
-          </div>
-          {paymentMode === 'INSURANCE' && (
-            <button
-              onClick={() => setShowPayerModal(true)}
-              style={{
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '4px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              Select Payer
-            </button>
-          )}
-          <button 
-            onClick={() => setShowChangeCharges(true)}
-            style={{
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#0056b3'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
-          >
-            Change Charges
-          </button>
-          <button 
-            onClick={() => setShowAddPharmacy(true)}
-            style={{
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = '#28a745'}
-          >
-            Add Pharmacy Bill
-          </button>
-          <button 
-            onClick={() => setShowViewPharmacy(true)}
-            style={{
-            backgroundColor: '#6f42c1',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#5a32a3'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = '#6f42c1'}
-          >
-            View Pharmacy Bill
-          </button>
-        </div>
-
-        {/* Billing Table */}
-        <div style={{ padding: '0 30px', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-            <thead style={{ backgroundColor: '#f8f9fa' }}>
-              <tr>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  SERVICE TYPE
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  PARTICULARS
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  DATE
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  QTY
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  UNIT PRICE
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  DISCOUNT
-                </th>
-                <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '11px', fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>
-                  TOTAL
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {billingRows.map((row) => (
-                <tr key={row.id}>
-                  <td style={{ padding: '10px 8px', fontSize: '13px', borderBottom: '1px solid #e9ecef' }}>
-                    {row.serviceType === 'Other Services' || (row.serviceType && !serviceTypeOptions.includes(row.serviceType)) ? (
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="text"
-                          value={row.serviceType === 'Other Services' ? '' : row.serviceType}
-                          onChange={(e) => updateRow(row.id, 'serviceType', e.target.value)}
-                          placeholder="Enter custom service type"
-                          style={{
-                            width: '100%',
-                            padding: '8px 35px 8px 8px',
-                            border: '2px solid #667eea',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            backgroundColor: '#f8f9ff',
-                            outline: 'none',
-                            fontWeight: '500',
-                            color: '#2d3748'
-                          }}
-                          onFocus={(e) => {
-                            e.target.style.backgroundColor = '#ffffff';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                          }}
-                          onBlur={(e) => {
-                            e.target.style.backgroundColor = '#f8f9ff';
-                            e.target.style.boxShadow = 'none';
-                          }}
-                        />
-                        <button
-                          onClick={() => updateRow(row.id, 'serviceType', 'Room Charge')}
-                          style={{
-                            position: 'absolute',
-                            right: '4px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: '#dc3545',
-                            border: 'none',
-                            borderRadius: '4px',
-                            color: 'white',
-                            fontSize: '12px',
-                            padding: '4px 6px',
-                            cursor: 'pointer',
-                            lineHeight: 1
-                          }}
-                          title="Switch back to dropdown"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <select
-                        value={row.serviceType}
-                        onChange={(e) => updateRow(row.id, 'serviceType', e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '5px 8px',
-                          border: '1px solid #ced4da',
-                          borderRadius: '3px',
-                          fontSize: '13px',
-                          backgroundColor: 'white'
-                        }}
-                      >
-                        {serviceTypeOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                  <td style={{ padding: '10px 8px', fontSize: '13px', borderBottom: '1px solid #e9ecef' }}>
-                    <input
-                      type="text"
-                      value={row.particulars}
-                      onChange={(e) => updateRow(row.id, 'particulars', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '5px 8px',
-                        border: '1px solid #ced4da',
-                        borderRadius: '3px',
-                        fontSize: '13px',
-                        backgroundColor: 'white'
-                      }}
-                      placeholder="Enter particulars"
-                    />
-                  </td>
-                  <td style={{ padding: '10px 8px', fontSize: '13px', borderBottom: '1px solid #e9ecef', position: 'relative' }}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        value={row.date ? (() => {
-                          if (row.date.includes('-') && row.date.length === 10) {
-                            const [year, month, day] = row.date.split('-');
-                            return `${day}-${month}-${year}`;
-                          }
-                          return row.date;
-                        })() : ''}
-                        onChange={(e) => {
-                          let value = e.target.value.replace(/[^\d-]/g, '');
-                          
-                          // Format as DD-MM-YYYY
-                          if (value.length >= 2 && !value.includes('-')) {
-                            value = value.substring(0, 2) + '-' + value.substring(2);
-                          }
-                          if (value.length >= 5 && value.split('-').length === 2) {
-                            const parts = value.split('-');
-                            value = parts[0] + '-' + parts[1].substring(0, 2) + '-' + parts[1].substring(2);
-                          }
-                          
-                          // Limit to DD-MM-YYYY format
-                          if (value.length <= 10) {
-                            // If complete date, convert to ISO format for storage
-                            if (value.length === 10) {
-                              const [day, month, year] = value.split('-');
-                              if (day && month && year && day.length === 2 && month.length === 2 && year.length === 4) {
-                                const dayNum = parseInt(day);
-                                const monthNum = parseInt(month);
-                                const yearNum = parseInt(year);
-                                
-                                if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900) {
-                                  updateRow(row.id, 'date', `${year}-${month}-${day}`);
-                                  return;
-                                }
-                              }
-                            }
-                            updateRow(row.id, 'date', value);
-                          }
-                        }}
-                        placeholder="DD-MM-YYYY"
-                        style={{
-                          width: '100%',
-                          padding: '12px 45px 12px 15px',
-                          border: '2px solid #e1e5e9',
-                          borderRadius: '12px',
-                          fontSize: '14px',
-                          backgroundColor: '#ffffff',
-                          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-                          color: '#2d3748',
-                          cursor: 'text',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                          outline: 'none',
-                          transition: 'all 0.2s ease',
-                          letterSpacing: '0.5px'
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.borderColor = '#667eea';
-                          e.target.style.backgroundColor = '#fafbff';
-                          e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(0, 0, 0, 0.1)';
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderColor = '#e1e5e9';
-                          e.target.style.backgroundColor = '#ffffff';
-                          e.target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
-                        }}
-                        onMouseEnter={(e) => {
-                          if (e.target !== document.activeElement) {
-                            e.target.style.borderColor = '#cbd5e0';
-                            e.target.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (e.target !== document.activeElement) {
-                            e.target.style.borderColor = '#e1e5e9';
-                            e.target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
-                          }
-                        }}
-                      />
-                      <div style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '8px',
-                        padding: '6px',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(102, 126, 234, 0.3)',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      onClick={() => {
-                        setOpenCalendar(prev => ({
-                          ...prev,
-                          [row.id]: !prev[row.id]
-                        }));
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-50%) scale(1.05)';
-                        e.currentTarget.style.boxShadow = '0 4px 10px rgba(102, 126, 234, 0.4)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
-                      }}
-                      title="Open calendar">
-                        <span style={{ color: 'white', fontSize: '16px', lineHeight: 1 }}>📅</span>
-                      </div>
-                      
-                      {/* Custom Calendar Popup */}
-                      {openCalendar[row.id] && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          zIndex: 1000,
-                          backgroundColor: 'white',
-                          border: '2px solid #e1e5e9',
-                          borderRadius: '16px',
-                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-                          padding: '20px',
-                          minWidth: '320px',
-                          animation: 'fadeIn 0.2s ease'
-                        }}>
-                          {(() => {
-                            const today = new Date();
-                            const currentDate = row.date ? new Date(row.date) : today;
-                            const year = currentDate.getFullYear();
-                            const month = currentDate.getMonth();
-                            const firstDay = new Date(year, month, 1);
-                            const lastDay = new Date(year, month + 1, 0);
-                            const daysInMonth = lastDay.getDate();
-                            const startingDay = firstDay.getDay();
-                            
-                            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                                              'July', 'August', 'September', 'October', 'November', 'December'];
-                            
-                            const days = [];
-                            
-                            // Empty cells for days before month starts
-                            for (let i = 0; i < startingDay; i++) {
-                              days.push(<div key={`empty-${i}`} style={{ height: '40px' }}></div>);
-                            }
-                            
-                            // Days of the month
-                            for (let day = 1; day <= daysInMonth; day++) {
-                              const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                              const isSelected = row.date === `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                              
-                              days.push(
-                                <div
-                                  key={day}
-                                  style={{
-                                    height: '40px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    borderRadius: '8px',
-                                    fontWeight: isSelected ? 'bold' : 'normal',
-                                    backgroundColor: isSelected ? '#667eea' : isToday ? '#f0f4ff' : 'transparent',
-                                    color: isSelected ? 'white' : isToday ? '#667eea' : '#2d3748',
-                                    transition: 'all 0.2s ease',
-                                    fontSize: '14px'
-                                  }}
-                                  onClick={() => {
-                                    const selectedDate = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                                    updateRow(row.id, 'date', selectedDate);
-                                    setOpenCalendar(prev => ({ ...prev, [row.id]: false }));
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!isSelected) {
-                                      e.currentTarget.style.backgroundColor = '#e6edff';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSelected) {
-                                      e.currentTarget.style.backgroundColor = isToday ? '#f0f4ff' : 'transparent';
-                                    }
-                                  }}
-                                >
-                                  {day}
-                                </div>
-                              );
-                            }
-                            
-                            return (
-                              <div>
-                                <div style={{ 
-                                  display: 'flex', 
-                                  justifyContent: 'space-between', 
-                                  alignItems: 'center', 
-                                  marginBottom: '20px',
-                                  padding: '0 5px'
-                                }}>
-                                  <button
-                                    onClick={() => {
-                                      const newDate = new Date(currentDate);
-                                      newDate.setMonth(newDate.getMonth() - 1);
-                                      updateRow(row.id, 'date', `${newDate.getFullYear()}-${(newDate.getMonth() + 1).toString().padStart(2, '0')}-${Math.min(newDate.getDate(), new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()).toString().padStart(2, '0')}`);
-                                    }}
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      fontSize: '20px',
-                                      cursor: 'pointer',
-                                      padding: '5px 10px',
-                                      borderRadius: '6px',
-                                      color: '#667eea'
-                                    }}
-                                  >←</button>
-                                  <h3 style={{ 
-                                    margin: 0, 
-                                    color: '#2d3748', 
-                                    fontSize: '18px',
-                                    fontWeight: '600'
-                                  }}>
-                                    {monthNames[month]} {year}
-                                  </h3>
-                                  <button
-                                    onClick={() => {
-                                      const newDate = new Date(currentDate);
-                                      newDate.setMonth(newDate.getMonth() + 1);
-                                      updateRow(row.id, 'date', `${newDate.getFullYear()}-${(newDate.getMonth() + 1).toString().padStart(2, '0')}-${Math.min(newDate.getDate(), new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()).toString().padStart(2, '0')}`);
-                                    }}
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      fontSize: '20px',
-                                      cursor: 'pointer',
-                                      padding: '5px 10px',
-                                      borderRadius: '6px',
-                                      color: '#667eea'
-                                    }}
-                                  >→</button>
-                                </div>
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(7, 1fr)',
-                                  gap: '2px',
-                                  marginBottom: '15px'
-                                }}>
-                                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                                    <div key={day} style={{
-                                      textAlign: 'center',
-                                      fontWeight: '600',
-                                      color: '#6b7280',
-                                      fontSize: '12px',
-                                      padding: '8px 0'
-                                    }}>
-                                      {day}
-                                    </div>
-                                  ))}
-                                </div>
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(7, 1fr)',
-                                  gap: '2px'
-                                }}>
-                                  {days}
-                                </div>
-                                <div style={{ 
-                                  textAlign: 'center', 
-                                  marginTop: '15px',
-                                  paddingTop: '15px',
-                                  borderTop: '1px solid #e5e7eb'
-                                }}>
-                                  <button
-                                    onClick={() => {
-                                      const today = new Date();
-                                      updateRow(row.id, 'date', `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`);
-                                      setOpenCalendar(prev => ({ ...prev, [row.id]: false }));
-                                    }}
-                                    style={{
-                                      backgroundColor: '#667eea',
-                                      color: 'white',
-                                      border: 'none',
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      fontSize: '13px',
-                                      fontWeight: '500',
-                                      cursor: 'pointer',
-                                      marginRight: '10px',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  >
-                                    Today
-                                  </button>
-                                  <button
-                                    onClick={() => setOpenCalendar(prev => ({ ...prev, [row.id]: false }))}
-                                    style={{
-                                      backgroundColor: '#f3f4f6',
-                                      color: '#374151',
-                                      border: 'none',
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      fontSize: '13px',
-                                      fontWeight: '500',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    Close
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Click outside to close calendar */}
-                    {openCalendar[row.id] && (
-                      <div
-                        style={{
-                          position: 'fixed',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          zIndex: 999
-                        }}
-                        onClick={() => setOpenCalendar(prev => ({ ...prev, [row.id]: false }))}
-                      />
-                    )}
-                  </td>
-                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #e9ecef', textAlign: 'center' }}>
-                    <input
-                      type="number"
-                      value={row.quantity}
-                      onChange={(e) => updateRow(row.id, 'quantity', parseFloat(e.target.value) || 0)}
-                      style={{
-                        width: '50px',
-                        padding: '5px',
-                        border: '1px solid #ced4da',
-                        borderRadius: '3px',
-                        fontSize: '13px',
-                        textAlign: 'center'
-                      }}
-                      min="1"
-                    />
-                  </td>
-                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #e9ecef' }}>
-                    <input
-                      type="number"
-                      value={row.unitPrice || ''}
-                      onChange={(e) => updateRow(row.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      style={{
-                        width: '100%',
-                        padding: '5px 8px',
-                        border: '1px solid #ced4da',
-                        borderRadius: '3px',
-                        fontSize: '13px',
-                        textAlign: 'right'
-                      }}
-                      step="0.01"
-                    />
-                  </td>
-                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #e9ecef' }}>
-                    <div style={{ position: 'relative', display: 'inline-block', width: '80px' }}>
-                      <input
-                        type="number"
-                        value={row.discount || ''}
-                        onChange={(e) => updateRow(row.id, 'discount', parseFloat(e.target.value) || 0)}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '5px 18px 5px 8px',
-                          border: '1px solid #ced4da',
-                          borderRadius: '3px',
-                          fontSize: '13px',
-                          textAlign: 'right',
-                          outline: 'none'
-                        }}
-                        step="1"
-                        min="0"
-                        max="100"
-                        onFocus={(e) => {
-                          e.target.style.borderColor = '#667eea';
-                          e.target.style.boxShadow = '0 0 0 2px rgba(102, 126, 234, 0.1)';
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderColor = '#ced4da';
-                          e.target.style.boxShadow = 'none';
-                        }}
-                      />
-                      <span style={{
-                        position: 'absolute',
-                        right: '6px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        fontSize: '13px',
-                        color: '#6c757d',
-                        fontWeight: '600',
-                        pointerEvents: 'none'
-                      }}>%</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #e9ecef', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#212529' }}>
-                    ₹{row.total.toFixed(2)}
+              <tbody className="bg-white divide-y divide-gray-200">
+                <tr>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-gray-500" colSpan={6}>
+                    No IPD bills found. Click "Create IPD Bill" to get started.
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Summary Section */}
-        <div style={{
-          display: 'flex',
-          padding: '30px',
-          gap: '40px',
-          backgroundColor: '#f8f9fa',
-          marginTop: '20px'
-        }}>
-          {/* Payment Status */}
-          <div style={{ flex: 1 }}>
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '12px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px', fontWeight: '600' }}>
-                TOTAL BILL
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#212529' }}>
-                ₹{summary.totalBill.toFixed(2)}
-              </div>
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '12px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px', fontWeight: '600' }}>
-                ADVANCE PAYMENTS
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#28a745' }}>
-                ₹{advancePayments.toFixed(2)}
-              </div>
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '12px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px', fontWeight: '600' }}>
-                NET PAYABLE
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#212529' }}>
-                ₹{summary.netPayable.toFixed(2)}
-              </div>
-            </div>
-            <div style={{ marginBottom: '20px', opacity: 0.5 }}>
-              <div style={{ fontSize: '12px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px', fontWeight: '600' }}>
-                REFUND
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#212529' }}>
-                ₹{summary.refund.toFixed(2)}
-              </div>
-            </div>
-          </div>
-
-          {/* Final Bill Totals */}
-          <div style={{
-            flex: 1,
-            background: 'white',
-            padding: '20px',
-            borderRadius: '6px',
-            border: '1px solid #dee2e6'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '14px', borderBottom: '1px solid #e9ecef' }}>
-              <span style={{ color: '#495057', fontWeight: '500' }}>SUBTOTAL</span>
-              <span style={{ fontWeight: '600', color: '#212529' }}>₹{summary.subtotal.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '14px', borderBottom: '1px solid #e9ecef' }}>
-              <span style={{ color: '#495057', fontWeight: '500' }}>
-                TOTAL DISCOUNT
-              </span>
-              <span style={{ fontWeight: '600', color: '#212529' }}>₹{summary.totalDiscount.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '14px', borderBottom: '1px solid #e9ecef' }}>
-              <span style={{ color: '#495057', fontWeight: '500' }}>TOTAL BILL</span>
-              <span style={{ fontWeight: '600', color: '#212529' }}>₹{summary.totalBill.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '14px', borderBottom: '1px solid #e9ecef' }}>
-              <span style={{ color: '#495057', fontWeight: '500' }}>ADVANCE PAYMENTS (-)</span>
-              <span style={{ fontWeight: '600', color: '#28a745' }}>₹{advancePayments.toFixed(2)}</span>
-            </div>
-            <div style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              padding: '15px',
-              borderRadius: '6px',
-              marginTop: '15px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <span style={{ fontSize: '16px', fontWeight: '600' }}>NET PAYABLE</span>
-              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>₹{summary.netPayable.toFixed(2)}</span>
-            </div>
+              </tbody>
+            </table>
           </div>
         </div>
-          </>
-        )}
+      </div>
+    );
+  }
 
-        {/* Footer Actions */}
-        <div style={{
-          padding: '20px 30px',
-          textAlign: 'right',
-          borderTop: '1px solid #dee2e6'
-        }}>
-          <button
-            onClick={handlePrint}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              padding: '12px 40px',
-              borderRadius: '6px',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <Printer size={20} />
-            Print Bill
-          </button>
+  // Show the IPD billing form modal
+  return (
+    <div className="space-y-6">
+      {/* Print CSS */}
+      <style>{`
+        @media print {
+          /* Hide everything except printable content */
+          body * {
+            visibility: hidden;
+          }
+          #printable-bill-content, #printable-bill-content * {
+            visibility: visible;
+            display: block !important;
+          }
+          #printable-bill-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.2;
+            color: #000;
+            background: white;
+          }
+          .print-header {
+            text-align: center;
+            border-bottom: 1px solid #000;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+          }
+          .print-header h1 {
+            font-size: 16px;
+            margin: 0 0 2px 0;
+          }
+          .print-header h2 {
+            font-size: 14px;
+            margin: 0 0 2px 0;
+          }
+          .print-header p {
+            font-size: 10px;
+            margin: 1px 0;
+          }
+          .print-section {
+            margin-bottom: 6px;
+            padding: 4px 6px;
+            border: 1px solid #ccc;
+            page-break-inside: avoid;
+          }
+          .print-section h3 {
+            font-size: 12px;
+            margin: 0 0 4px 0;
+            font-weight: bold;
+          }
+          .print-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1px;
+            padding: 1px 0;
+            font-size: 10px;
+          }
+          .print-total {
+            font-weight: bold;
+            font-size: 11px;
+            border-top: 1px solid #000;
+            padding-top: 3px;
+            margin-top: 3px;
+          }
+          .stay-segment {
+            margin-bottom: 4px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 2px;
+          }
+          @page { 
+            margin: 0.4in; 
+            size: A4;
+          }
+        }
+      `}</style>
+      {/* Initial IPD Billing List Interface */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
+          <p className="text-gray-600">Manage inpatient department bills</p>
         </div>
       </div>
 
-      {/* Patient Selection Modal */}
+      {/* Search and Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Search by patient, bill ID, or doctor..."
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="ALL">All Status</option>
+            <option value="PAID">Paid</option>
+            <option value="PENDING">Pending</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      {/* IPD Bills Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  No IPD bills found
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* IPD Billing Form Modal */}
+      {showCreateBill && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Create IPD Bill</h3>
+                <button
+                  onClick={() => setShowCreateBill(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Simplified IPD Billing Form */}
+              <div className="space-y-6">
+                {/* Patient Selection */}
+                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border">
+                  <button
+                    onClick={() => setShowPatientModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center space-x-2 transition-colors"
+                  >
+                    <Search className="h-4 w-4" />
+                    <span>{selectedPatient ? 'Change Patient' : 'Select Patient'}</span>
+                  </button>
+                  
+                  {selectedPatient && (
+                    <div className="text-sm text-gray-700">
+                      <strong>{selectedPatient.name}</strong> - {selectedPatient.phone}
+                    </div>
+                  )}
+                </div>
+
+                {/* Patient Details */}
+                {selectedPatient && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-md font-semibold text-gray-800 mb-3">Patient Information</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div><span className="font-medium">Ward:</span> {getPatientDisplayData().wardName}</div>
+                      <div><span className="font-medium">Bed:</span> {getPatientDisplayData().bedNo}</div>
+                      <div><span className="font-medium">UHIID:</span> {getPatientDisplayData().uhiid}</div>
+                      <div><span className="font-medium">IPD No:</span> {getPatientDisplayData().ipdNo}</div>
+                      <div><span className="font-medium">Ref. Doctor:</span> {getPatientDisplayData().refDoctor}</div>
+                      <div><span className="font-medium">Admitting Doctor:</span> {getPatientDisplayData().admittingDoctor}</div>
+                    </div>
+                    
+                    <div className="mt-4 flex justify-between items-center pt-3 border-t border-gray-200">
+                      <div className="text-sm">
+                        <span className="font-medium text-green-600">Total Deposits: ₹{advancePayments.toFixed(2)}</span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-red-600">Total Due: ₹{summary.netPayable.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Billing Sections */}
+                <div className="border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-8">
+                    <button 
+                      onClick={() => setActiveSection('billing')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeSection === 'billing'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Create Bill
+                    </button>
+                    <button 
+                      onClick={() => setActiveSection('deposit')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeSection === 'deposit'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Payment History
+                    </button>
+                  </nav>
+                </div>
+
+                {/* Original IPD Billing Format with Enhanced UI */}
+                {activeSection === 'billing' && (
+                  <div className="space-y-6">
+                    {/* Billing Header */}
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-semibold text-gray-800">IPD Billing Services</h4>
+                      <div className="text-sm text-gray-600 bg-blue-50 px-3 py-1 rounded-lg">
+                        Total Stay: {selectedPatient ? Math.ceil((new Date().getTime() - new Date(selectedPatient.admissions?.[0]?.admission_date || new Date()).getTime()) / (1000 * 60 * 60 * 24)) : 0} days
+                      </div>
+                    </div>
+
+                    {/* Admission Charges */}
+                    <div className="bg-white p-4 rounded-lg border-l-4 border-l-blue-500 shadow-sm">
+                      <h5 className="font-medium text-gray-700 mb-3 flex items-center">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                        Admission Charges
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Admission Fee (₹)</label>
+                          <input 
+                            type="number" 
+                            value={admissionFee}
+                            onChange={(e) => setAdmissionFee(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="2000.00" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="GENERAL_WARD">General Ward</option>
+                            <option value="ICU">ICU</option>
+                            <option value="DELUXE_ROOM">Deluxe Room</option>
+                            <option value="PRIVATE_ROOM">Private Room</option>
+                            <option value="SEMI_PRIVATE">Semi Private Room</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stay Segments */}
+                    <div className="bg-white p-4 rounded-lg border-l-4 border-l-green-500 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h5 className="font-medium text-gray-700 flex items-center">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                          Room Stay Charges
+                          <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                            Total: ₹{calculateTotalStayCharges().toFixed(2)}
+                          </span>
+                        </h5>
+                        <button 
+                          onClick={addStaySegment}
+                          className="px-3 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors text-sm"
+                        >
+                          + Add Stay Period
+                        </button>
+                      </div>
+                      
+                      {/* Dynamic Stay Segments */}
+                      {staySegments.map((segment, index) => (
+                        <div key={segment.id} className="bg-gray-50 p-4 rounded-lg mb-4 relative">
+                          {staySegments.length > 1 && (
+                            <button
+                              onClick={() => removeStaySegment(segment.id)}
+                              className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                              <select 
+                                value={segment.roomType}
+                                onChange={(e) => {
+                                  const newRoomType = e.target.value;
+                                  // Auto-update rates based on room type
+                                  const rates = {
+                                    'General Ward': { bed: 1000, nursing: 200, rmo: 100, doctor: 500 },
+                                    'ICU': { bed: 3000, nursing: 500, rmo: 300, doctor: 1000 },
+                                    'Private Room': { bed: 2000, nursing: 300, rmo: 150, doctor: 750 },
+                                    'Deluxe Room': { bed: 2500, nursing: 400, rmo: 200, doctor: 800 },
+                                    'Semi Private': { bed: 1500, nursing: 250, rmo: 125, doctor: 600 }
+                                  };
+                                  const rate = rates[newRoomType as keyof typeof rates] || rates['General Ward'];
+                                  
+                                  // Update all fields in a single state change
+                                  setStaySegments(staySegments.map(seg => 
+                                    seg.id === segment.id ? { 
+                                      ...seg, 
+                                      roomType: newRoomType,
+                                      bedChargePerDay: rate.bed,
+                                      nursingChargePerDay: rate.nursing,
+                                      rmoChargePerDay: rate.rmo,
+                                      doctorChargePerDay: rate.doctor
+                                    } : seg
+                                  ));
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                              >
+                                <option value="General Ward">General Ward</option>
+                                <option value="ICU">ICU</option>
+                                <option value="Private Room">Private Room</option>
+                                <option value="Deluxe Room">Deluxe Room</option>
+                                <option value="Semi Private">Semi Private</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                              <input 
+                                type="date" 
+                                value={segment.startDate}
+                                onChange={(e) => updateStaySegment(segment.id, 'startDate', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                              <input 
+                                type="date" 
+                                value={segment.endDate}
+                                onChange={(e) => updateStaySegment(segment.id, 'endDate', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Bed Charge/Day</label>
+                              <input 
+                                type="number" 
+                                value={segment.bedChargePerDay}
+                                onChange={(e) => updateStaySegment(segment.id, 'bedChargePerDay', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Nursing/Day</label>
+                              <input 
+                                type="number" 
+                                value={segment.nursingChargePerDay}
+                                onChange={(e) => updateStaySegment(segment.id, 'nursingChargePerDay', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">RMO/Day</label>
+                              <input 
+                                type="number" 
+                                value={segment.rmoChargePerDay}
+                                onChange={(e) => updateStaySegment(segment.id, 'rmoChargePerDay', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor/Day</label>
+                              <input 
+                                type="number" 
+                                value={segment.doctorChargePerDay}
+                                onChange={(e) => updateStaySegment(segment.id, 'doctorChargePerDay', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500" 
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3 text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded flex justify-between items-center">
+                            <span>
+                              Days: {calculateDays(segment.startDate, segment.endDate)} | 
+                              Per Day: ₹{(segment.bedChargePerDay + segment.nursingChargePerDay + segment.rmoChargePerDay + segment.doctorChargePerDay).toFixed(2)}
+                            </span>
+                            <span className="font-semibold text-blue-700">
+                              Total: ₹{calculateSegmentTotal(segment).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* IPD Services with Dropdown */}
+                    <div className="bg-white p-4 rounded-lg border-l-4 border-l-purple-500 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h5 className="font-medium text-gray-700 flex items-center">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+                          IPD Services & Procedures
+                          <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                            Total: ₹{calculateSelectedServicesTotal().toFixed(2)}
+                          </span>
+                        </h5>
+                      </div>
+
+                      {/* Service Search Dropdown */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Add Service</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search and select services (Radiology, Laboratory, Procedures, etc.)..."
+                            value={serviceSearchTerm}
+                            onChange={(e) => {
+                              setServiceSearchTerm(e.target.value);
+                              setShowServiceDropdown(true);
+                            }}
+                            onFocus={() => setShowServiceDropdown(true)}
+                            className="w-full px-3 py-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 pl-10"
+                          />
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-400 h-4 w-4" />
+                          
+                          {/* Services Dropdown */}
+                          {showServiceDropdown && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-purple-300 rounded-md shadow-lg max-h-64 overflow-y-auto">
+                              {serviceSearchTerm.length === 0 ? (
+                                <div className="p-3 text-sm text-gray-500">
+                                  Start typing to search services or browse by category below...
+                                </div>
+                              ) : filteredAvailableServices.length > 0 ? (
+                                filteredAvailableServices.map((service) => (
+                                  <div
+                                    key={service.id}
+                                    onClick={() => addServiceFromDropdown(service)}
+                                    className="px-3 py-2 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium text-gray-800">{service.name}</div>
+                                        <div className="text-xs text-gray-500">{service.category} • {service.department}</div>
+                                        {service.description && (
+                                          <div className="text-xs text-gray-400 mt-1 truncate">{service.description}</div>
+                                        )}
+                                      </div>
+                                      <div className="text-sm font-semibold text-purple-600">₹{service.basePrice}</div>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-sm text-gray-500">
+                                  No services found matching "{serviceSearchTerm}"
+                                </div>
+                              )}
+                              
+                              {/* Quick Categories */}
+                              {serviceSearchTerm.length === 0 && (
+                                <div className="border-t border-gray-200 bg-gray-50">
+                                  <div className="p-2">
+                                    <div className="text-xs font-medium text-gray-600 mb-2">Quick Categories:</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {['RADIOLOGY', 'LABORATORY', 'CARDIOLOGY', 'PROCEDURES', 'PHYSIOTHERAPY', 'DENTAL'].map((category) => (
+                                        <button
+                                          key={category}
+                                          onClick={() => setServiceSearchTerm(category.toLowerCase())}
+                                          className="px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                                        >
+                                          {category}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Click outside to close dropdown */}
+                        {showServiceDropdown && (
+                          <div 
+                            className="fixed inset-0 z-5" 
+                            onClick={() => setShowServiceDropdown(false)}
+                          />
+                        )}
+                      </div>
+
+                      {/* Selected Services List */}
+                      {selectedServices.length > 0 && (
+                        <div className="mb-4">
+                          <h6 className="text-sm font-medium text-gray-700 mb-3">Selected Services ({selectedServices.length})</h6>
+                          <div className="space-y-2">
+                            {selectedServices.map((service) => (
+                              <div key={service.id} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium text-gray-800">{service.name}</div>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-600">₹</span>
+                                    <input
+                                      type="number"
+                                      value={service.amount}
+                                      onChange={(e) => updateServiceAmount(service.id, parseFloat(e.target.value) || 0)}
+                                      className="w-20 px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => removeService(service.id)}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Add Custom Service */}
+                      <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                        <h6 className="text-sm font-medium text-indigo-800 mb-3">Add Custom Service</h6>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <input 
+                            type="text" 
+                            placeholder="Service name..." 
+                            value={customServiceName}
+                            onChange={(e) => setCustomServiceName(e.target.value)}
+                            className="px-3 py-2 border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="Amount (₹)" 
+                            value={customServiceAmount}
+                            onChange={(e) => setCustomServiceAmount(e.target.value)}
+                            className="px-3 py-2 border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button 
+                            onClick={saveCustomService}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                          >
+                            Save & Add Service
+                          </button>
+                        </div>
+                        <div className="text-xs text-indigo-600 mt-2">
+                          💾 Custom services are automatically saved to database for future use
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bill Summary */}
+                    <div className="bg-gray-50 p-6 rounded-lg border-l-4 border-l-yellow-500 shadow-sm">
+                      <h5 className="font-medium text-gray-700 mb-4 flex items-center">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                        Bill Summary
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="text-sm text-gray-600">Admission Charges</div>
+                          <div className="text-xl font-semibold text-gray-800">₹{admissionFee.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="text-sm text-gray-600">Stay Charges</div>
+                          <div className="text-xl font-semibold text-gray-800">₹{calculateTotalStayCharges().toFixed(2)}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="text-sm text-gray-600">Service Charges</div>
+                          <div className="text-xl font-semibold text-gray-800">₹{calculateSelectedServicesTotal().toFixed(2)}</div>
+                        </div>
+                        <div className="bg-blue-100 p-4 rounded-lg border border-blue-300">
+                          <div className="text-sm text-blue-700">Grand Total</div>
+                          <div className="text-xl font-bold text-blue-800">₹{(admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal()).toFixed(2)}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
+                          <input 
+                            type="number" 
+                            value={discount}
+                            onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="0.00" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Charges (₹)</label>
+                          <input 
+                            type="number" 
+                            value={tax}
+                            onChange={(e) => setTax(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="0.00" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                          <select 
+                            value={finalPaymentMode}
+                            onChange={(e) => setFinalPaymentMode(e.target.value as 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER')}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="CASH">Cash</option>
+                            <option value="CARD">Card</option>
+                            <option value="UPI">UPI</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-lg font-semibold text-blue-800">Net Payable Amount</div>
+                            <div className="text-sm text-blue-600">After discount and additional charges</div>
+                          </div>
+                          <div className="text-3xl font-bold text-blue-800">₹{(admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal() - discount + tax).toFixed(2)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-between items-center pt-6 border-t">
+                      <div className="flex space-x-3">
+                        <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center space-x-2">
+                          <span>Save as Draft</span>
+                        </button>
+                        <button 
+                          onClick={handlePrint}
+                          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors flex items-center space-x-2"
+                        >
+                          <Printer className="h-4 w-4" />
+                          <span>Print Bill</span>
+                        </button>
+                      </div>
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => setShowCreateBill(false)}
+                          className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md hover:from-blue-700 hover:to-indigo-700 transition-colors font-semibold">
+                          Generate IPD Bill
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Enhanced Deposit History Section */}
+                {activeSection === 'deposit' && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-semibold text-gray-800">Advance Deposit Management</h4>
+                      <button className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
+                        + Add New Deposit
+                      </button>
+                    </div>
+
+                    {/* Deposit Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <div className="text-sm font-medium text-green-700">Total Deposits</div>
+                        <div className="text-xl font-bold text-green-800">₹{advancePayments.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div className="text-sm font-medium text-blue-700">Number of Deposits</div>
+                        <div className="text-xl font-bold text-blue-800">{depositHistory.length}</div>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <div className="text-sm font-medium text-purple-700">Latest Deposit</div>
+                        <div className="text-xl font-bold text-purple-800">
+                          ₹{depositHistory.length > 0 ? depositHistory[depositHistory.length - 1]?.amount || '0.00' : '0.00'}
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                        <div className="text-sm font-medium text-orange-700">Available Balance</div>
+                        <div className="text-xl font-bold text-orange-800">₹{Math.max(0, advancePayments - summary.netPayable).toFixed(2)}</div>
+                      </div>
+                    </div>
+
+                    {/* Add New Deposit Form */}
+                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                      <h5 className="font-medium text-gray-700 mb-4">Record New Advance Payment</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                          <input 
+                            type="number" 
+                            value={newPaymentAmount}
+                            onChange={(e) => setNewPaymentAmount(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                            placeholder="Enter amount"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                          <select 
+                            value={newPaymentMode}
+                            onChange={(e) => setNewPaymentMode(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          >
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Debit/Credit Card</option>
+                            <option value="UPI">UPI Payment</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Reference No.</label>
+                          <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                            placeholder="Transaction ID"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Received By</label>
+                          <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                            placeholder="Staff name"
+                          />
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('🏥 DEPOSIT BUTTON: Button clicked!');
+                            console.log('🏥 DEPOSIT BUTTON: Event object:', e);
+                            addAdvancePayment();
+                          }}
+                          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                        >
+                          Record Deposit
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Deposit History Table */}
+                    {depositHistory.length > 0 ? (
+                      <div className="bg-white rounded-lg border overflow-hidden">
+                        <div className="px-6 py-4 bg-gray-50 border-b">
+                          <h5 className="font-medium text-gray-800">Payment History</h5>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt No</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Mode</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received By</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {depositHistory.map((deposit, index) => (
+                                <tr key={index} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm font-mono">{deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`}</td>
+                                  <td className="px-4 py-3 text-sm">{deposit.date || new Date().toLocaleDateString('en-IN')}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-green-600">₹{deposit.amount || '0.00'}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                      {deposit.paymentMode || 'CASH'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{deposit.reference || '-'}</td>
+                                  <td className="px-4 py-3 text-sm">{deposit.receivedBy || 'System'}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <div className="flex space-x-2">
+                                      <button className="text-blue-600 hover:text-blue-800 text-xs">View Receipt</button>
+                                      <button className="text-green-600 hover:text-green-800 text-xs">Print</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-8 text-center">
+                        <div className="text-gray-500 mb-2">No advance payments recorded yet</div>
+                        <div className="text-sm text-gray-400">Use the form above to record the first advance payment</div>
+                      </div>
+                    )}
+
+                    {/* Deposit Actions */}
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm text-gray-600">
+                        All deposit transactions are recorded with timestamps and receipt numbers
+                      </div>
+                      <div className="flex space-x-3">
+                        <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors">
+                          Export History
+                        </button>
+                        <button className="px-4 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors">
+                          Print Summary
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Patient Modal */}
       {showPatientModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            width: '600px',
-            maxHeight: '80vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px',
-              borderBottom: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                Select Patient
-              </h3>
-              <button
-                onClick={() => setShowPatientModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                  fontSize: '20px'
-                }}
-              >
-                <X size={24} />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Select Patient for IPD Billing</h3>
+              <button onClick={() => setShowPatientModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
               </button>
             </div>
-
-            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ position: 'relative' }}>
-                <Search style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#9ca3af'
-                }} size={20} />
+            
+            {/* Search Input */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
                   type="text"
-                  placeholder="Search by name, ID, or phone..."
+                  placeholder="Search patients by name, phone, or patient ID..."
                   value={patientSearchTerm}
-                  onChange={(e) => setPatientSearchTerm(e.target.value)}
-                  style={{
-                    width: '100%',
-                    paddingLeft: '44px',
-                    paddingRight: '16px',
-                    paddingTop: '12px',
-                    paddingBottom: '12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px'
+                  onChange={(e) => {
+                    setPatientSearchTerm(e.target.value);
+                    setShowPatientDropdown(true);
                   }}
-                  autoFocus
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              maxHeight: '400px'
-            }}>
+            {/* Patient List */}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
               {loading ? (
-                <div style={{ padding: '40px', textAlign: 'center' }}>
-                  <div>Loading patients...</div>
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 mt-2">Loading patients...</p>
                 </div>
               ) : filteredPatients.length > 0 ? (
-                filteredPatients.map((patient) => (
-                  <div
-                    key={patient.id}
-                    onClick={() => handlePatientSelect(patient)}
-                    style={{
-                      padding: '16px 20px',
-                      borderBottom: '1px solid #f3f4f6',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <div style={{ fontWeight: '600', fontSize: '16px', color: '#111827' }}>
-                      {patient.first_name} {patient.last_name || ''}
-                    </div>
-                    <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-                      ID: {patient.patient_id} • Phone: {patient.phone} • Age: {patient.age || 'N/A'}
-                    </div>
-                    {patient.ipd_status && (
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#059669',
-                        marginTop: '4px',
-                        fontWeight: '500'
-                      }}>
-                        IPD Status: {patient.ipd_status}
+                filteredPatients.map((patient) => {
+                  const latestAdmission = patient.admissions?.[0];
+                  const isAdmitted = latestAdmission && !latestAdmission.discharge_date;
+                  
+                  return (
+                    <div 
+                      key={patient.patient_id}
+                      onClick={() => handlePatientSelect(patient)}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900">
+                                {patient.first_name} {patient.last_name || ''}
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                ID: {patient.patient_id} | Phone: {patient.phone}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Age: {patient.age || 'N/A'} | Gender: {patient.gender || 'N/A'}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              {isAdmitted ? (
+                                <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                                  Currently Admitted
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
+                                  Not Admitted
+                                </span>
+                              )}
+                              {latestAdmission && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {isAdmitted ? 'Admitted:' : 'Last admission:'} {new Date(latestAdmission.admission_date).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Show admission details if available */}
+                          {latestAdmission && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
+                                {latestAdmission.bed_id && (
+                                  <div><span className="font-medium">Bed:</span> {latestAdmission.bed_id}</div>
+                                )}
+                                {patient.assigned_doctor && (
+                                  <div><span className="font-medium">Doctor:</span> {patient.assigned_doctor}</div>
+                                )}
+                                {latestAdmission.admission_type && (
+                                  <div><span className="font-medium">Type:</span> {latestAdmission.admission_type}</div>
+                                )}
+                                {latestAdmission.chief_complaint && (
+                                  <div><span className="font-medium">Complaint:</span> {latestAdmission.chief_complaint}</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))
+                    </div>
+                  );
+                })
+              ) : patientSearchTerm.length > 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No patients found matching "{patientSearchTerm}"</p>
+                  <p className="text-sm text-gray-400 mt-1">Try searching by name, phone number, or patient ID</p>
+                </div>
               ) : (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                  {patientSearchTerm ? 'No patients found matching your search' : 'No patients available'}
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Start typing to search for patients</p>
+                  <p className="text-sm text-gray-400 mt-1">Showing recently admitted patients by default</p>
+                  
+                  {/* Show recent patients */}
+                  <div className="mt-4 space-y-2">
+                    {patients.slice(0, 10).map((patient) => {
+                      const latestAdmission = patient.admissions?.[0];
+                      const isAdmitted = latestAdmission && !latestAdmission.discharge_date;
+                      
+                      return (
+                        <div 
+                          key={patient.patient_id}
+                          onClick={() => handlePatientSelect(patient)}
+                          className="p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium text-gray-900 text-sm">
+                                {patient.first_name} {patient.last_name || ''}
+                              </h4>
+                              <p className="text-xs text-gray-600">
+                                {patient.patient_id} | {patient.phone}
+                              </p>
+                            </div>
+                            {isAdmitted && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                                Admitted
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
 
-            {selectedPatient && (
-              <div style={{
-                padding: '16px 20px',
-                borderTop: '1px solid #e5e7eb',
-                backgroundColor: '#f9fafb'
-              }}>
-                <button
-                  onClick={clearPatientSelection}
-                  style={{
-                    background: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Clear Selection
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Payer Selection Modal */}
-      {showPayerModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            width: '600px',
-            maxHeight: '80vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px',
-              borderBottom: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                Select Insurance Payer
-              </h3>
+            {/* Footer */}
+            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <p className="text-sm text-gray-500">
+                {patients.length} total patients loaded
+              </p>
               <button
-                onClick={() => setShowPayerModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                  fontSize: '20px'
-                }}
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              maxHeight: '500px'
-            }}>
-              {payersList.map((payer, index) => (
-                <div
-                  key={index}
-                  onClick={() => handlePayerSelect(payer)}
-                  style={{
-                    padding: '16px 20px',
-                    borderBottom: '1px solid #f3f4f6',
-                    cursor: 'pointer',
-                    transition: 'background-color 0.2s',
-                    backgroundColor: selectedPayer === payer ? '#e0f2fe' : 'transparent'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = selectedPayer === payer ? '#e0f2fe' : '#f9fafb'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = selectedPayer === payer ? '#e0f2fe' : 'transparent'}
-                >
-                  <div style={{ 
-                    fontWeight: selectedPayer === payer ? '600' : '500', 
-                    fontSize: '16px', 
-                    color: selectedPayer === payer ? '#0369a1' : '#111827' 
-                  }}>
-                    {payer}
-                  </div>
-                  {selectedPayer === payer && (
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#0369a1',
-                      marginTop: '4px',
-                      fontWeight: '500'
-                    }}>
-                      ✓ Currently Selected
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div style={{
-              padding: '16px 20px',
-              borderTop: '1px solid #e5e7eb',
-              backgroundColor: '#f9fafb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                {selectedPayer ? `Selected: ${selectedPayer}` : 'No payer selected'}
-              </div>
-              <button
-                onClick={() => setShowPayerModal(false)}
-                style={{
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                Confirm Selection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Change Charges Modal */}
-      {showChangeCharges && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            padding: '30px',
-            maxWidth: '800px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '25px',
-              paddingBottom: '15px',
-              borderBottom: '2px solid #e1e5e9'
-            }}>
-              <h2 style={{ margin: 0, color: '#2d3748', fontSize: '24px', fontWeight: '600' }}>Change Charges</h2>
-              <button
-                onClick={() => setShowChangeCharges(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  padding: '5px'
-                }}
-              >×</button>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: '#374151', marginBottom: '15px' }}>Current Billing Rows</h3>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
-                    <tr>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Service</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Unit Price</th>
-                      <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billingRows.map((row) => (
-                      <tr key={row.id}>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #e5e7eb' }}>{row.serviceType}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #e5e7eb' }}>
-                          <input
-                            type="number"
-                            value={row.unitPrice}
-                            onChange={(e) => updateRow(row.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            style={{
-                              width: '100px',
-                              padding: '6px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px',
-                              fontSize: '13px'
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>
-                          <button
-                            onClick={() => {
-                              setBillingRows(billingRows.filter(r => r.id !== row.id));
-                              toast.success('Row removed successfully!');
-                            }}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingTop: '20px',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              <button
-                onClick={() => {
-                  const newId = Date.now().toString();
-                  setBillingRows([...billingRows, {
-                    id: newId,
-                    serviceType: 'New Service',
-                    particulars: 'New Service',
-                    date: new Date().toISOString().split('T')[0],
-                    quantity: 1,
-                    unitPrice: 0,
-                    discount: 0,
-                    total: 0
-                  }]);
-                  toast.success('New billing row added!');
-                }}
-                style={{
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Add New Row
-              </button>
-              <button
-                onClick={() => setShowChangeCharges(false)}
-                style={{
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Pharmacy Bill Modal */}
-      {showAddPharmacy && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            padding: '30px',
-            maxWidth: '600px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '25px',
-              paddingBottom: '15px',
-              borderBottom: '2px solid #e1e5e9'
-            }}>
-              <h2 style={{ margin: 0, color: '#2d3748', fontSize: '24px', fontWeight: '600' }}>Add Pharmacy Bill</h2>
-              <button
-                onClick={() => setShowAddPharmacy(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  padding: '5px'
-                }}
-              >×</button>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Bill Number
-              </label>
-              <input
-                type="text"
-                value={newPharmacyBill.billNumber}
-                onChange={(e) => setNewPharmacyBill({...newPharmacyBill, billNumber: e.target.value})}
-                placeholder="Enter bill number"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #e1e5e9',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Date
-              </label>
-              <input
-                type="date"
-                value={newPharmacyBill.date}
-                onChange={(e) => setNewPharmacyBill({...newPharmacyBill, date: e.target.value})}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #e1e5e9',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Total Amount
-              </label>
-              <input
-                type="number"
-                value={newPharmacyBill.total}
-                onChange={(e) => setNewPharmacyBill({...newPharmacyBill, total: parseFloat(e.target.value) || 0})}
-                placeholder="0.00"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #e1e5e9',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '15px',
-              paddingTop: '20px',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              <button
-                onClick={() => setShowAddPharmacy(false)}
-                style={{
-                  backgroundColor: '#6b7280',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
+                onClick={() => setShowPatientModal(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
-              <button
-                onClick={() => {
-                  if (!newPharmacyBill.billNumber || !newPharmacyBill.total) {
-                    toast.error('Please fill in all fields');
-                    return;
-                  }
-                  
-                  const newBill = {
-                    ...newPharmacyBill,
-                    id: Date.now().toString(),
-                    createdAt: new Date().toLocaleString()
-                  };
-                  
-                  setPharmacyBills([...pharmacyBills, newBill]);
-                  setNewPharmacyBill({
-                    billNumber: '',
-                    date: new Date().toISOString().split('T')[0],
-                    items: [],
-                    total: 0
-                  });
-                  setShowAddPharmacy(false);
-                  toast.success('Pharmacy bill added successfully!');
-                }}
-                style={{
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Add Bill
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* View Pharmacy Bill Modal */}
-      {showViewPharmacy && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            padding: '30px',
-            maxWidth: '700px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '25px',
-              paddingBottom: '15px',
-              borderBottom: '2px solid #e1e5e9'
-            }}>
-              <h2 style={{ margin: 0, color: '#2d3748', fontSize: '24px', fontWeight: '600' }}>Pharmacy Bills</h2>
-              <button
-                onClick={() => setShowViewPharmacy(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  padding: '5px'
-                }}
-              >×</button>
-            </div>
-            
-            {pharmacyBills.length === 0 ? (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px',
-                color: '#6b7280'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>💊</div>
-                <h3 style={{ margin: '0 0 8px 0', color: '#374151' }}>No Pharmacy Bills</h3>
-                <p style={{ margin: 0 }}>No pharmacy bills have been added yet.</p>
+      {/* Printable Bill Content (Hidden from screen, visible in print) */}
+      <div 
+        id="printable-bill-content" 
+        style={{ display: 'none' }}
+        className="print-only"
+      >
+        <div className="print-header">
+          <h1>HOSPITAL IPD BILL</h1>
+          <h2>Raj Hospital & Maternity Center</h2>
+          <p>123 Medical Street, Healthcare City - 123456</p>
+          <p>Phone: +91 9876543210 | Email: info@rajhospital.com</p>
+        </div>
+
+        <div className="print-section">
+          <h3>Patient Information & Charges</h3>
+          <div className="print-row">
+            <span><strong>{getPatientDisplayData().name}</strong> | UHI: {getPatientDisplayData().uhiid} | IPD: {getPatientDisplayData().ipdNo?.slice(-6) || 'N/A'}</span>
+            <span>Dr. {getPatientDisplayData().refDoctor}</span>
+          </div>
+          <div className="print-row">
+            <span>{getPatientDisplayData().wardName} - Bed {getPatientDisplayData().bedNo}</span>
+            <span><strong>Admission Fee: ₹{admissionFee.toFixed(2)}</strong></span>
+          </div>
+        </div>
+
+        <div className="print-section">
+          <h3>Room Stay Charges</h3>
+          {staySegments.map((segment, index) => (
+            <div key={segment.id} className="stay-segment">
+              <div className="print-row" style={{ fontWeight: 'bold' }}>
+                <span>{segment.roomType} ({segment.startDate} to {segment.endDate}):</span>
+                <span>{calculateDays(segment.startDate, segment.endDate)} days - ₹{calculateSegmentTotal(segment).toFixed(2)}</span>
               </div>
-            ) : (
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
-                    <tr>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Bill #</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Date</th>
-                      <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Amount</th>
-                      <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pharmacyBills.map((bill, index) => (
-                      <tr key={bill.id} style={{ backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb' }}>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>{bill.billNumber}</td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
-                          {new Date(bill.date).toLocaleDateString('en-GB')}
-                        </td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontWeight: '600' }}>
-                          ₹{bill.total.toFixed(2)}
-                        </td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>
-                          <button
-                            onClick={() => {
-                              setPharmacyBills(pharmacyBills.filter(b => b.id !== bill.id));
-                              toast.success('Pharmacy bill deleted!');
-                            }}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                
-                <div style={{
-                  marginTop: '20px',
-                  padding: '15px',
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: '8px',
-                  borderLeft: '4px solid #0ea5e9'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', color: '#0f172a' }}>Total Pharmacy Amount:</span>
-                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0ea5e9' }}>
-                      ₹{pharmacyBills.reduce((sum, bill) => sum + bill.total, 0).toFixed(2)}
-                    </span>
-                  </div>
+            </div>
+          ))}
+          <div className="print-row print-total">
+            <span>Total Stay Charges:</span>
+            <span>₹{calculateTotalStayCharges().toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="print-section">
+          <h3>Services & Bill Summary</h3>
+          {selectedServices.filter(s => s.selected).length > 0 && (
+            <div>
+              {selectedServices.filter(s => s.selected).map(service => (
+                <div key={service.id} className="print-row">
+                  <span>{service.name}:</span>
+                  <span>₹{service.amount.toFixed(2)}</span>
                 </div>
+              ))}
+              <div className="print-row" style={{ fontWeight: 'bold', borderTop: '1px solid #ccc', paddingTop: '2px', marginBottom: '4px' }}>
+                <span>Total Service Charges:</span>
+                <span>₹{calculateSelectedServicesTotal().toFixed(2)}</span>
               </div>
-            )}
-
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              paddingTop: '20px',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              <button
-                onClick={() => setShowViewPharmacy(false)}
-                style={{
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Close
-              </button>
             </div>
+          )}
+          <div className="print-row" style={{ fontWeight: 'bold' }}>
+            <span>Gross Total (Admission + Stay + Services):</span>
+            <span>₹{(admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal()).toFixed(2)}</span>
+          </div>
+          <div className="print-row">
+            <span>Less: Discount</span>
+            <span>- ₹{discount.toFixed(2)}</span>
+          </div>
+          <div className="print-row">
+            <span>Add: Tax</span>
+            <span>+ ₹{tax.toFixed(2)}</span>
+          </div>
+          {depositHistory.length > 0 && (
+            <div style={{ borderTop: '1px solid #ccc', paddingTop: '4px', marginTop: '4px', marginBottom: '4px' }}>
+              <div className="print-row" style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '2px' }}>
+                <span>Payment History Details:</span>
+                <span></span>
+              </div>
+              {depositHistory.map((payment, index) => (
+                <div key={payment.id || index} className="print-row" style={{ fontSize: '9px', paddingLeft: '8px', marginBottom: '1px' }}>
+                  <span>{payment.paymentMode || 'Cash'} - {payment.date || new Date().toLocaleDateString()} - Receipt: {payment.receiptNo || `REC-${index + 1}`}</span>
+                  <span>₹{(payment.amount || 0).toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="print-row" style={{ fontWeight: 'bold', borderTop: '1px solid #ddd', paddingTop: '2px', fontSize: '10px' }}>
+                <span>Total Payments ({depositHistory.length} transactions):</span>
+                <span>₹{advancePayments.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+          {depositHistory.length === 0 && (
+            <div className="print-row" style={{ fontSize: '9px', fontStyle: 'italic', color: '#666' }}>
+              <span>No advance payments made</span>
+              <span></span>
+            </div>
+          )}
+          <div className="print-row">
+            <span>Less: Total Advance Paid ({depositHistory.length} payments)</span>
+            <span>- ₹{advancePayments.toFixed(2)}</span>
+          </div>
+          <div className="print-total print-row" style={{ borderTop: '2px solid #000', fontSize: '12px' }}>
+            <span><strong>FINAL AMOUNT DUE:</strong></span>
+            <span><strong>₹{Math.max(0, (admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal() - discount + tax - advancePayments)).toFixed(2)}</strong></span>
           </div>
         </div>
-      )}
+
+        <div className="print-section">
+          <div className="print-row">
+            <span><strong>Payment Mode:</strong> {getDisplayPayerName()}</span>
+            <span><strong>Generated:</strong> {new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '8px', textAlign: 'center', fontSize: '9px', color: '#666' }}>
+          <p>Thank you for choosing Raj Hospital & Maternity Center | For queries: Billing Dept</p>
+        </div>
+      </div>
+
+      {/* Other modals can be added here as needed */}
     </div>
   );
 };

@@ -115,7 +115,13 @@ const DischargeSection: React.FC = () => {
         
         // Add any patients not already found through admissions
         for (const patient of patientsWithDischargedStatus) {
-          const alreadyExists = allDischargedPatients.some(dp => dp.id === patient.id);
+          // Enhanced deduplication: check by both patient.id and patient.patient_id
+          const alreadyExists = allDischargedPatients.some(dp => 
+            dp.id === patient.id || 
+            dp.patient_id === patient.patient_id ||
+            (dp.patient_id === patient.id) ||
+            (dp.id === patient.patient_id)
+          );
           if (!alreadyExists) {
             // Try to get discharge history for additional info
             try {
@@ -148,8 +154,47 @@ const DischargeSection: React.FC = () => {
       } catch (error) {
       }
 
-      setDischargedPatients(allDischargedPatients);
-      toast.success(`Loaded ${allDischargedPatients.length} discharged patients`);
+      // FINAL DEDUPLICATION: Remove any remaining duplicates
+      console.log('🔍 Before final deduplication:', allDischargedPatients.length);
+      
+      const uniquePatients = new Map<string, DischargedPatient>();
+      
+      allDischargedPatients.forEach(patient => {
+        // Create multiple possible keys for the same patient
+        const keys = [
+          patient.id?.toString(),
+          patient.patient_id?.toString(),
+          `${patient.first_name}-${patient.last_name}-${patient.phone}`.toLowerCase()
+        ].filter(Boolean);
+        
+        // Use the first available key as the primary key
+        const primaryKey = keys[0];
+        
+        if (primaryKey && !uniquePatients.has(primaryKey)) {
+          // Check if any of the keys already exist
+          const keyExists = keys.some(key => uniquePatients.has(key));
+          
+          if (!keyExists) {
+            uniquePatients.set(primaryKey, patient);
+            
+            // Also set all other keys to prevent future duplicates
+            keys.forEach(key => {
+              if (key !== primaryKey) {
+                uniquePatients.set(key, patient);
+              }
+            });
+          }
+        }
+      });
+      
+      // Convert back to array, removing the duplicate key entries
+      const finalUniquePatients = Array.from(new Set(Array.from(uniquePatients.values())));
+      
+      console.log('✅ After final deduplication:', finalUniquePatients.length);
+      console.log('🔄 Removed duplicates:', allDischargedPatients.length - finalUniquePatients.length);
+
+      setDischargedPatients(finalUniquePatients);
+      toast.success(`Loaded ${finalUniquePatients.length} discharged patients (${allDischargedPatients.length - finalUniquePatients.length} duplicates removed)`);
       
     } catch (error: any) {
       toast.error(`Failed to load discharged patients: ${error.message}`);

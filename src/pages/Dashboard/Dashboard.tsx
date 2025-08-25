@@ -31,11 +31,6 @@ export const Dashboard: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'thisWeek' | 'thisMonth' | null>('today');
-  const [showRevenueDetails, setShowRevenueDetails] = useState(false);
-  const [showPatientsDetails, setShowPatientsDetails] = useState(false);
-  const [showAppointmentsDetails, setShowAppointmentsDetails] = useState(false);
-  const [showExpensesDetails, setShowExpensesDetails] = useState(false);
-  const [showBedsDetails, setShowBedsDetails] = useState(false);
 
   // Fetch dashboard data with date filter
   const { data: dashboardStats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
@@ -464,41 +459,6 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Test Button - Outside all conditions */}
-      <div className="px-6 pb-2">
-        <button 
-          onClick={() => alert('TEST BUTTON WORKS!')}
-          className="bg-red-500 text-white px-4 py-2 rounded mr-4"
-          style={{ zIndex: 9999, position: 'relative' }}
-        >
-          🔴 TEST CLICK - This should always work
-        </button>
-        
-        {/* Simple Test Period Cards - Always Visible */}
-        <button 
-          onClick={() => alert('TODAY SIMPLE TEST WORKS!')}
-          className="bg-blue-500 text-white px-4 py-2 rounded mr-2"
-        >
-          📅 Today Test
-        </button>
-        <button 
-          onClick={() => alert('WEEK SIMPLE TEST WORKS!')}
-          className="bg-green-500 text-white px-4 py-2 rounded mr-2"
-        >
-          📅 Week Test
-        </button>
-        <button 
-          onClick={() => alert('MONTH SIMPLE TEST WORKS!')}
-          className="bg-purple-500 text-white px-4 py-2 rounded mr-2"
-        >
-          📅 Month Test
-        </button>
-        
-        {/* ULTRA SIMPLE TEST - Minimal HTML */}
-        <button onClick={() => alert('ULTRA SIMPLE WORKS!')} className="bg-yellow-500 text-black px-4 py-2 rounded">
-          ⚡ ULTRA TEST
-        </button>
-      </div>
 
       {/* Summary Cards */}
       <div className="px-6 pb-6">
@@ -531,17 +491,13 @@ export const Dashboard: React.FC = () => {
               
               {/* Period Cards */}
               {dashboardStats?.details?.revenue?.periodBreakdown ? (
-                <div>
-                  <p className="text-sm text-green-600 mb-2">✅ Period breakdown data found! Cards should be clickable.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   {/* Today Card */}
                   <button 
                     className={`p-4 rounded-lg cursor-pointer transition-all hover:shadow-lg text-left w-full ${
                       selectedPeriod === 'today' ? 'bg-blue-50 border-2 border-blue-200 shadow-md' : 'bg-[#F5F5F5] hover:bg-gray-100'
                     }`}
                     onClick={() => {
-                      alert('Today button clicked!');
-                      console.log('🔥 Today BUTTON clicked!');
                       setSelectedPeriod(selectedPeriod === 'today' ? null : 'today');
                     }}
                     type="button"
@@ -561,8 +517,6 @@ export const Dashboard: React.FC = () => {
                       selectedPeriod === 'thisWeek' ? 'bg-blue-50 border-2 border-blue-200 shadow-md' : 'bg-[#F5F5F5] hover:bg-gray-100'
                     }`}
                     onClick={() => {
-                      alert('This Week button clicked!');
-                      console.log('🔥 This Week BUTTON clicked!');
                       setSelectedPeriod(selectedPeriod === 'thisWeek' ? null : 'thisWeek');
                     }}
                     type="button"
@@ -582,8 +536,6 @@ export const Dashboard: React.FC = () => {
                       selectedPeriod === 'thisMonth' ? 'bg-blue-50 border-2 border-blue-200 shadow-md' : 'bg-[#F5F5F5] hover:bg-gray-100'
                     }`}
                     onClick={() => {
-                      alert('This Month button clicked!');
-                      console.log('🔥 This Month BUTTON clicked!');
                       setSelectedPeriod(selectedPeriod === 'thisMonth' ? null : 'thisMonth');
                     }}
                     type="button"
@@ -596,29 +548,6 @@ export const Dashboard: React.FC = () => {
                       {dashboardStats.details.revenue.periodBreakdown.thisMonth?.count || 0} records
                     </p>
                   </button>
-                  
-                  {/* Test Button */}
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-600">Selected Period: {selectedPeriod || 'None'}</p>
-                    <button 
-                      onClick={() => setSelectedPeriod('today')}
-                      className="mr-2 px-3 py-1 bg-blue-500 text-white rounded text-sm"
-                    >
-                      Test: Select Today
-                    </button>
-                    <button 
-                      onClick={() => setSelectedPeriod('thisWeek')}
-                      className="mr-2 px-3 py-1 bg-green-500 text-white rounded text-sm"
-                    >
-                      Test: Select Week
-                    </button>
-                    <button 
-                      onClick={() => setSelectedPeriod(null)}
-                      className="px-3 py-1 bg-red-500 text-white rounded text-sm"
-                    >
-                      Test: Clear
-                    </button>
-                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-[#666666]">
@@ -1088,63 +1017,6 @@ export const Dashboard: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    
-                    {/* Detailed Transaction Breakdown - Always Visible */}
-                    <div className="mt-4 space-y-4">
-                      {/* Today Transactions */}
-                      {dashboardStats.details.revenue.periodBreakdown.today?.transactions?.length > 0 && (
-                        <div className="bg-green-50 rounded-lg p-4">
-                          <h5 className="text-sm font-semibold text-green-800 mb-3">
-                            📅 Today's Transactions ({dashboardStats.details.revenue.periodBreakdown.today.count})
-                          </h5>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {dashboardStats.details.revenue.periodBreakdown.today.transactions.slice(0, 5).map((transaction: any, index: number) => (
-                              <div key={index} className="text-xs bg-white rounded p-2 border-l-4 border-green-400">
-                                <div className="font-medium text-gray-800">{transaction.patientName}</div>
-                                <div className="text-gray-600">{transaction.transaction_type} • {transaction.payment_mode}</div>
-                                <div className="font-semibold text-green-700">{formatCurrency(transaction.amount)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* This Week Transactions */}
-                      {dashboardStats.details.revenue.periodBreakdown.thisWeek?.transactions?.length > 0 && (
-                        <div className="bg-blue-50 rounded-lg p-4">
-                          <h5 className="text-sm font-semibold text-blue-800 mb-3">
-                            📅 This Week's Transactions ({dashboardStats.details.revenue.periodBreakdown.thisWeek.count})
-                          </h5>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {dashboardStats.details.revenue.periodBreakdown.thisWeek.transactions.slice(0, 5).map((transaction: any, index: number) => (
-                              <div key={index} className="text-xs bg-white rounded p-2 border-l-4 border-blue-400">
-                                <div className="font-medium text-gray-800">{transaction.patientName}</div>
-                                <div className="text-gray-600">{transaction.transaction_type} • {transaction.payment_mode}</div>
-                                <div className="font-semibold text-blue-700">{formatCurrency(transaction.amount)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* This Month Transactions */}
-                      {dashboardStats.details.revenue.periodBreakdown.thisMonth?.transactions?.length > 0 && (
-                        <div className="bg-purple-50 rounded-lg p-4">
-                          <h5 className="text-sm font-semibold text-purple-800 mb-3">
-                            📅 This Month's Transactions ({dashboardStats.details.revenue.periodBreakdown.thisMonth.count})
-                          </h5>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {dashboardStats.details.revenue.periodBreakdown.thisMonth.transactions.slice(0, 5).map((transaction: any, index: number) => (
-                              <div key={index} className="text-xs bg-white rounded p-2 border-l-4 border-purple-400">
-                                <div className="font-medium text-gray-800">{transaction.patientName}</div>
-                                <div className="text-gray-600">{transaction.transaction_type} • {transaction.payment_mode}</div>
-                                <div className="font-semibold text-purple-700">{formatCurrency(transaction.amount)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )}
                 
@@ -1209,12 +1081,13 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Detailed Breakdowns */}
-        {dateFilter.start && dateFilter.end && (
-          <div className="space-y-6 mb-6">
-            {/* Revenue Details */}
-            {showRevenueDetails && dashboardStats?.details?.revenue && (
-              <div className="bg-white rounded-lg p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-[#333333] mb-4">Revenue Breakdown</h3>
+        <div className="space-y-6 mb-6">
+          {/* Revenue Details */}
+          {expandedCard === 'revenue' && (
+            <div className="bg-white rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-[#333333] mb-4">Revenue Breakdown</h3>
+              {dashboardStats?.details?.revenue ? (
+                <div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* By Transaction Type */}
                   <div>
@@ -1255,11 +1128,19 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-[#666666]">
+                  <p className="mb-2">📊 No detailed revenue data available</p>
+                  <p className="text-sm">Apply a date filter to see detailed revenue breakdown with transaction types, payment modes, and recent transactions.</p>
+                  <p className="text-xs mt-2 text-[#999999]">Current data shows: Monthly Revenue ₹{formatCurrency(dashboardStats?.monthlyRevenue || 0)}</p>
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* Patients Details */}
-            {showPatientsDetails && dashboardStats?.details?.patients && (
+          {/* Patients Details */}
+            {expandedCard === 'patients' && dashboardStats?.details?.patients && (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-[#333333] mb-4">Patients Breakdown</h3>
                 <div className="space-y-4">
@@ -1289,7 +1170,7 @@ export const Dashboard: React.FC = () => {
             )}
 
             {/* Appointments Details */}
-            {showAppointmentsDetails && dashboardStats?.details?.appointments && (
+            {expandedCard === 'appointments' && dashboardStats?.details?.appointments && (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-[#333333] mb-4">Appointments Breakdown</h3>
                 <div className="space-y-4">
@@ -1331,9 +1212,11 @@ export const Dashboard: React.FC = () => {
             )}
 
             {/* Expenses Details */}
-            {showExpensesDetails && dashboardStats?.details?.expenses && (
+            {expandedCard === 'expenses' && (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-[#333333] mb-4">Expenses Breakdown</h3>
+                {dashboardStats?.details?.expenses ? (
+                  <div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* By Category */}
                   <div>
@@ -1362,11 +1245,19 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-[#666666]">
+                    <p className="mb-2">💰 No detailed expense data available</p>
+                    <p className="text-sm">Apply a date filter to see detailed expense breakdown by categories and recent expenses.</p>
+                    <p className="text-xs mt-2 text-[#999999]">Current data shows: Today Expenses ₹{formatCurrency(dashboardStats?.todayExpenses || 0)}</p>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Beds Details */}
-            {showBedsDetails && dashboardStats?.details?.beds && (
+            {expandedCard === 'beds' && dashboardStats?.details?.beds && (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-[#333333] mb-4">Beds Status</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
