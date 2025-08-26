@@ -97,37 +97,61 @@ const DailyOperationsView: React.FC = () => {
         const patientAdmission = admissions.find(a => a.patient_id === patientId);
         const totalPaid = patientTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-        // Create timeline with consistent IST 12-hour time formatting
-        const timeline = patientTransactions
-          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map(transaction => {
-            // Convert UTC database time to actual local time
-            let formattedTime;
-            try {
-              const transactionDateTime = new Date(transaction.created_at);
-              // Manual timezone conversion
-              const utcTime = transactionDateTime.getTime();
-              const localTimezoneOffset = new Date().getTimezoneOffset() * 60 * 1000;
-              const localTime = new Date(utcTime - localTimezoneOffset);
-              
-              formattedTime = localTime.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              });
-            } catch (timeError) {
-              // Fallback to date-fns format if formatting fails
-              formattedTime = format(new Date(transaction.created_at), 'hh:mm a');
-            }
+        // Database should now return transactions in chronological order
+        // No need for complex frontend sorting since database query is fixed
+        console.log(`📋 Transactions for ${patient.first_name} ${patient.last_name} (database ordered):`);
+
+        // Create timeline from database-ordered transactions
+        const timeline = patientTransactions.map(transaction => {
+          // Convert UTC database time to actual local time
+          let formattedTime;
+          try {
+            const transactionDateTime = new Date(transaction.created_at);
+            // Manual timezone conversion
+            const utcTime = transactionDateTime.getTime();
+            const localTimezoneOffset = new Date().getTimezoneOffset() * 60 * 1000;
+            const localTime = new Date(utcTime - localTimezoneOffset);
             
-            return {
-              time: formattedTime,
-              type: transaction.transaction_type as 'entry' | 'consultation' | 'service' | 'admission',
-              description: transaction.description,
-              amount: transaction.amount,
-              payment_mode: transaction.payment_mode,
-            };
-          });
+            formattedTime = localTime.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          } catch (timeError) {
+            // Fallback to date-fns format if formatting fails
+            formattedTime = format(new Date(transaction.created_at), 'hh:mm a');
+          }
+          
+          // Map database transaction types to display types
+          let displayType: 'entry' | 'consultation' | 'service' | 'admission' | 'discharge';
+          switch (transaction.transaction_type?.toUpperCase()) {
+            case 'SERVICE':
+              displayType = 'service';
+              break;
+            case 'ADMISSION_FEE':
+              displayType = 'admission';
+              break;
+            case 'CONSULTATION':
+              displayType = 'consultation';
+              break;
+            case 'ENTRY_FEE':
+              displayType = 'entry';
+              break;
+            default:
+              displayType = 'service'; // Default fallback
+          }
+          
+          return {
+            time: formattedTime,
+            type: displayType,
+            description: transaction.description,
+            amount: transaction.amount,
+            payment_mode: transaction.payment_mode,
+          };
+        });
+
+        // Final verification: Timeline should now be in perfect chronological order
+        console.log(`📋 TIMELINE CREATED: ${timeline.length} events in chronological order for ${patient.first_name} ${patient.last_name}`);
 
         // Determine status
         let status: 'active' | 'discharged' | 'outpatient' = 'outpatient';
@@ -145,10 +169,26 @@ const DailyOperationsView: React.FC = () => {
         });
       }
 
-      // Sort journeys by first transaction time
+      // Sort journeys by first transaction date/time
       journeys.sort((a, b) => {
-        const timeA = new Date(a.transactions[0]?.created_at || 0).getTime();
-        const timeB = new Date(b.transactions[0]?.created_at || 0).getTime();
+        // Get the earliest transaction date for each patient
+        const getEarliestTransactionTime = (transactions: any[]) => {
+          if (!transactions || transactions.length === 0) return 0;
+          
+          const sortedTransactions = [...transactions].sort((t1, t2) => {
+            const date1 = t1.transaction_date ? new Date(t1.transaction_date).getTime() : new Date(t1.created_at).getTime();
+            const date2 = t2.transaction_date ? new Date(t2.transaction_date).getTime() : new Date(t2.created_at).getTime();
+            return date1 - date2;
+          });
+          
+          const firstTransaction = sortedTransactions[0];
+          return firstTransaction.transaction_date ? 
+            new Date(firstTransaction.transaction_date).getTime() : 
+            new Date(firstTransaction.created_at).getTime();
+        };
+        
+        const timeA = getEarliestTransactionTime(a.transactions);
+        const timeB = getEarliestTransactionTime(b.transactions);
         return timeA - timeB;
       });
 
@@ -206,8 +246,8 @@ const DailyOperationsView: React.FC = () => {
     switch (type) {
       case 'entry': return '🚪';
       case 'consultation': return '👩‍⚕️';
-      case 'service': return '🔬';
-      case 'admission': return '🏥';
+      case 'service': return '🧾'; // IPD Bill icon
+      case 'admission': return '💰'; // Deposit icon
       case 'discharge': return '👋';
       default: return '💰';
     }

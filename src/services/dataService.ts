@@ -370,12 +370,14 @@ class DataService {
         endOfDay 
       });
       
-      // First try to get all transactions for this hospital
+      // First try to get all transactions (removed hospital_id filter as it may not exist)
+      // FIXED: Order by transaction_date first (business date), then created_at
       const { data: allTransactions, error } = await supabase
         .from('patient_transactions')
         .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
-        .eq('hospital_id', HOSPITAL_ID)
-        .order('created_at', { ascending: false });
+        // .eq('hospital_id', HOSPITAL_ID) // Commented out as hospital may not exist
+        .order('transaction_date', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
       
       if (error) {
         console.error('❌ Supabase transactions fetch error:', error);

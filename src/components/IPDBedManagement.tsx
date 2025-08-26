@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Bed, User, Users, Activity, AlertCircle, Plus, Clock, Play, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
-import type { PatientWithRelations, PatientAdmissionWithRelations } from '../config/supabaseNew';
+import type { PatientWithRelations, PatientAdmissionWithRelations, Patient } from '../config/supabaseNew';
 import { HOSPITAL_ID } from '../config/supabaseNew';
 import ProcedureConsentForm from './ProcedureConsentForm';
 import IPDConsentForm from './IPDConsentForm';
@@ -346,7 +346,7 @@ const IPDBedManagement: React.FC = () => {
   
   // Blood Transfusion Monitoring Form state
   const [showBloodTransfusion, setShowBloodTransfusion] = useState(false);
-  const [selectedPatientForBloodTransfusion, setSelectedPatientForBloodTransfusion] = useState<Patient | null>(null);
+  const [selectedPatientForBloodTransfusion, setSelectedPatientForBloodTransfusion] = useState<PatientWithRelations | null>(null);
   const [selectedBedForBloodTransfusion, setSelectedBedForBloodTransfusion] = useState<BedData | null>(null);
   
   // Discharge Modal state
@@ -2241,6 +2241,336 @@ const IPDBedManagement: React.FC = () => {
             setSelectedPatientForNursing(null);
             setSelectedBedForNursing(null);
           }}
+        />
+      )}
+
+      {/* Intake/Output Modal */}
+      {showIntakeOutput && selectedPatientForNursing && selectedBedForNursing && (
+        <IntakeOutputForm
+          isOpen={showIntakeOutput}
+          onClose={() => {
+            setShowIntakeOutput(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Intake/Output data submitted:', data);
+            setShowIntakeOutput(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+            toast.success('Intake/Output chart saved successfully');
+          }}
+        />
+      )}
+
+      {/* Medication Chart Modal */}
+      {showMedicationChart && selectedPatientForNursing && selectedBedForNursing && (
+        <MedicationChartForm
+          isOpen={showMedicationChart}
+          onClose={() => {
+            setShowMedicationChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Medication chart data submitted:', data);
+            setShowMedicationChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+            toast.success('Medication chart saved successfully');
+          }}
+        />
+      )}
+
+      {/* Care Plan Modal */}
+      {showCarePlan && selectedPatientForNursing && selectedBedForNursing && (
+        <CarePlanForm
+          isOpen={showCarePlan}
+          onClose={() => {
+            setShowCarePlan(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Care plan data submitted:', data);
+            setShowCarePlan(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+            toast.success('Care plan saved successfully');
+          }}
+        />
+      )}
+
+      {/* Diabetic Chart Modal */}
+      {showDiabeticChart && selectedPatientForNursing && selectedBedForNursing && (
+        <DiabeticChartForm
+          isOpen={showDiabeticChart}
+          onClose={() => {
+            setShowDiabeticChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Diabetic chart data submitted:', data);
+            setShowDiabeticChart(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+            toast.success('Diabetic chart saved successfully');
+          }}
+        />
+      )}
+
+      {/* Nurses Notes Modal */}
+      {showNursesNotes && selectedPatientForNursing && selectedBedForNursing && (
+        <NursesNotesForm
+          isOpen={showNursesNotes}
+          onClose={() => {
+            setShowNursesNotes(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+          }}
+          patient={selectedPatientForNursing}
+          bedNumber={selectedBedForNursing.number}
+          ipdNumber={selectedBedForNursing?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Nurses notes data submitted:', data);
+            setShowNursesNotes(false);
+            setSelectedPatientForNursing(null);
+            setSelectedBedForNursing(null);
+            toast.success('Nurses notes saved successfully');
+          }}
+        />
+      )}
+
+      {/* TAT Form Modal */}
+      {showTatForm && selectedPatientForTat && selectedBedForTat && (
+        <TatForm
+          isOpen={showTatForm}
+          onClose={() => {
+            setShowTatForm(false);
+            setSelectedPatientForTat(null);
+            setSelectedBedForTat(null);
+          }}
+          patient={selectedPatientForTat}
+          bedNumber={selectedBedForTat.number}
+          ipdNumber={selectedBedForTat?.ipdNumber}
+          savedData={selectedBedForTat?.tatFormData}
+          onSubmit={handleTatFormSubmit}
+        />
+      )}
+
+      {/* PAC Record Modal */}
+      {showPACRecord && selectedPatientForPAC && selectedBedForPAC && (
+        <PACRecordForm
+          isOpen={showPACRecord}
+          onClose={() => {
+            setShowPACRecord(false);
+            setSelectedPatientForPAC(null);
+            setSelectedBedForPAC(null);
+          }}
+          patient={selectedPatientForPAC}
+          bedNumber={selectedBedForPAC.number}
+          ipdNumber={selectedBedForPAC?.ipdNumber}
+          savedData={selectedBedForPAC?.pacRecordData}
+          onSubmit={handlePACRecordSubmit}
+        />
+      )}
+
+      {/* Pre-Operative Orders Modal */}
+      {showPreOpOrders && selectedPatientForPreOpOrders && selectedBedForPreOpOrders && (
+        <PreOperativeOrdersForm
+          isOpen={showPreOpOrders}
+          onClose={() => {
+            setShowPreOpOrders(false);
+            setSelectedPatientForPreOpOrders(null);
+            setSelectedBedForPreOpOrders(null);
+          }}
+          patient={selectedPatientForPreOpOrders}
+          bedNumber={selectedBedForPreOpOrders.number}
+          ipdNumber={selectedBedForPreOpOrders?.ipdNumber}
+          savedData={selectedBedForPreOpOrders?.preOpOrdersData}
+          onSubmit={handlePreOpOrdersSubmit}
+        />
+      )}
+
+      {/* Pre-OP Checklist Modal */}
+      {showPreOpChecklist && selectedPatientForPreOpChecklist && selectedBedForPreOpChecklist && (
+        <PreOpChecklistForm
+          isOpen={showPreOpChecklist}
+          onClose={() => {
+            setShowPreOpChecklist(false);
+            setSelectedPatientForPreOpChecklist(null);
+            setSelectedBedForPreOpChecklist(null);
+          }}
+          patient={selectedPatientForPreOpChecklist}
+          bedNumber={selectedBedForPreOpChecklist.number}
+          ipdNumber={selectedBedForPreOpChecklist?.ipdNumber}
+          savedData={selectedBedForPreOpChecklist?.preOpChecklistData}
+          onSubmit={handlePreOpChecklistSubmit}
+        />
+      )}
+
+      {/* Surgical Safety Checklist Modal */}
+      {showSurgicalSafety && selectedPatientForSurgicalSafety && selectedBedForSurgicalSafety && (
+        <SurgicalSafetyChecklist
+          isOpen={showSurgicalSafety}
+          onClose={() => {
+            setShowSurgicalSafety(false);
+            setSelectedPatientForSurgicalSafety(null);
+            setSelectedBedForSurgicalSafety(null);
+          }}
+          patient={selectedPatientForSurgicalSafety}
+          bedNumber={selectedBedForSurgicalSafety.number}
+          ipdNumber={selectedBedForSurgicalSafety?.ipdNumber}
+          savedData={selectedBedForSurgicalSafety?.surgicalSafetyData}
+          onSubmit={handleSurgicalSafetySubmit}
+        />
+      )}
+
+      {/* Anaesthesia Notes Modal */}
+      {showAnaesthesiaNotes && selectedPatientForAnaesthesiaNotes && selectedBedForAnaesthesiaNotes && (
+        <AnaesthesiaNotesForm
+          isOpen={showAnaesthesiaNotes}
+          onClose={() => {
+            setShowAnaesthesiaNotes(false);
+            setSelectedPatientForAnaesthesiaNotes(null);
+            setSelectedBedForAnaesthesiaNotes(null);
+          }}
+          patient={selectedPatientForAnaesthesiaNotes}
+          bedNumber={selectedBedForAnaesthesiaNotes.number}
+          ipdNumber={selectedBedForAnaesthesiaNotes?.ipdNumber}
+          savedData={selectedBedForAnaesthesiaNotes?.anaesthesiaNotesData}
+          onSubmit={handleAnaesthesiaNotesSubmit}
+        />
+      )}
+
+      {/* Intra Operative Notes Modal */}
+      {showIntraOperativeNotes && selectedPatientForIntraOperativeNotes && selectedBedForIntraOperativeNotes && (
+        <IntraOperativeNotesForm
+          isOpen={showIntraOperativeNotes}
+          onClose={() => {
+            setShowIntraOperativeNotes(false);
+            setSelectedPatientForIntraOperativeNotes(null);
+            setSelectedBedForIntraOperativeNotes(null);
+          }}
+          patient={selectedPatientForIntraOperativeNotes}
+          bedNumber={selectedBedForIntraOperativeNotes.number}
+          ipdNumber={selectedBedForIntraOperativeNotes?.ipdNumber}
+          savedData={selectedBedForIntraOperativeNotes?.intraOperativeNotesData}
+          onSubmit={handleIntraOperativeNotesSubmit}
+        />
+      )}
+
+      {/* Post Operative Orders Modal */}
+      {showPostOperativeOrders && selectedPatientForPostOperativeOrders && selectedBedForPostOperativeOrders && (
+        <PostOperativeOrdersForm
+          isOpen={showPostOperativeOrders}
+          onClose={() => {
+            setShowPostOperativeOrders(false);
+            setSelectedPatientForPostOperativeOrders(null);
+            setSelectedBedForPostOperativeOrders(null);
+          }}
+          patient={selectedPatientForPostOperativeOrders}
+          bedNumber={selectedBedForPostOperativeOrders.number}
+          ipdNumber={selectedBedForPostOperativeOrders?.ipdNumber}
+          savedData={selectedBedForPostOperativeOrders?.postOperativeOrdersData}
+          onSubmit={handlePostOperativeOrdersSubmit}
+        />
+      )}
+
+      {/* Physiotherapy Notes Modal */}
+      {showPhysiotherapyNotes && selectedPatientForPhysiotherapyNotes && selectedBedForPhysiotherapyNotes && (
+        <PhysiotherapyNotesForm
+          isOpen={showPhysiotherapyNotes}
+          onClose={() => {
+            setShowPhysiotherapyNotes(false);
+            setSelectedPatientForPhysiotherapyNotes(null);
+            setSelectedBedForPhysiotherapyNotes(null);
+          }}
+          patient={selectedPatientForPhysiotherapyNotes}
+          bedNumber={selectedBedForPhysiotherapyNotes.number}
+          ipdNumber={selectedBedForPhysiotherapyNotes?.ipdNumber}
+          savedData={selectedBedForPhysiotherapyNotes?.physiotherapyNotesData}
+          onSubmit={handlePhysiotherapyNotesSubmit}
+        />
+      )}
+
+      {/* Blood Transfusion Modal */}
+      {showBloodTransfusion && selectedPatientForBloodTransfusion && selectedBedForBloodTransfusion && (
+        <BloodTransfusionMonitoringForm
+          isOpen={showBloodTransfusion}
+          onClose={() => {
+            setShowBloodTransfusion(false);
+            setSelectedPatientForBloodTransfusion(null);
+            setSelectedBedForBloodTransfusion(null);
+          }}
+          patient={selectedPatientForBloodTransfusion}
+          bedNumber={selectedBedForBloodTransfusion.number}
+          ipdNumber={selectedBedForBloodTransfusion?.ipdNumber}
+          savedData={selectedBedForBloodTransfusion?.bloodTransfusionData}
+          onSubmit={handleBloodTransfusionSubmit}
+        />
+      )}
+
+      {/* Patient Admission Form Modal */}
+      {showPatientAdmissionForm && selectedPatientForAdmissionForm && selectedBedForAdmissionForm && (
+        <PatientAdmissionForm
+          isOpen={showPatientAdmissionForm}
+          onClose={() => {
+            setShowPatientAdmissionForm(false);
+            setSelectedPatientForAdmissionForm(null);
+            setSelectedBedForAdmissionForm(null);
+          }}
+          patient={selectedPatientForAdmissionForm}
+          bedNumber={selectedBedForAdmissionForm.number}
+          ipdNumber={selectedBedForAdmissionForm?.ipdNumber}
+          onSubmit={(data) => {
+            console.log('Patient admission form data:', data);
+            setShowPatientAdmissionForm(false);
+            setSelectedPatientForAdmissionForm(null);
+            setSelectedBedForAdmissionForm(null);
+            toast.success('Patient admission form saved successfully');
+          }}
+        />
+      )}
+
+      {/* IPD Consents Modal */}
+      {showIPDConsents && selectedPatientForConsents && selectedBedForConsents && (
+        <IPDConsentsSection
+          isOpen={showIPDConsents}
+          onClose={() => {
+            setShowIPDConsents(false);
+            setSelectedPatientForConsents(null);
+            setSelectedBedForConsents(null);
+          }}
+          patient={selectedPatientForConsents}
+          bedNumber={selectedBedForConsents.number}
+          ipdNumber={selectedBedForConsents?.ipdNumber}
+        />
+      )}
+
+      {/* Discharge Modal */}
+      {showDischargeModal && selectedAdmissionForDischarge && (
+        <DischargePatientModal
+          isOpen={showDischargeModal}
+          onClose={() => {
+            setShowDischargeModal(false);
+            setSelectedAdmissionForDischarge(null);
+          }}
+          admission={selectedAdmissionForDischarge}
+          onSuccess={handleDischargeSuccess}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import { exportToExcel, formatCurrency, formatDateTime } from '../utils/excelExport';
@@ -61,8 +61,16 @@ const OperationsLedger: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'REVENUE' | 'EXPENSE' | 'REFUND'>('all');
   const [filterPatientTag, setFilterPatientTag] = useState<string>('all');
   const [availablePatientTags, setAvailablePatientTags] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'patient' | 'type' | 'time'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('🔧 Sort state changed:', { sortBy, sortOrder });
+  }, [sortBy, sortOrder]);
 
   useEffect(() => {
+    console.log('🚀 OperationsLedger component mounted with sorting enabled');
     loadLedgerEntries();
   }, [dateFrom, dateTo]);
 
@@ -541,11 +549,107 @@ const OperationsLedger: React.FC = () => {
   };
 
   const filteredEntries = getFilteredEntries();
+  
+  // Apply sorting with useMemo to ensure re-sorting when sort options change
+  const sortedEntries = useMemo(() => {
+    console.log('🚀 SORTING DEBUG START');
+    console.log('📊 Current sort settings:', { sortBy, sortOrder });
+    console.log('📋 Entries to sort:', filteredEntries.length);
+    
+    if (filteredEntries.length === 0) {
+      console.log('⚠️ No entries to sort');
+      return [];
+    }
+    
+    // Log first few entries before sorting
+    console.log('🔍 Sample entries before sorting:', filteredEntries.slice(0, 3).map(e => ({
+      id: e.id,
+      date: e.date,
+      time: e.time,
+      amount: e.amount,
+      patient: e.patient_name,
+      type: e.type
+    })));
+    
+    const sorted = [...filteredEntries].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          // Sort by date first, then by time
+          try {
+            // Convert DD/MM/YYYY format to a parseable format (MM/DD/YYYY)
+            const convertDate = (ddmmyyyy: string, time: string) => {
+              const [day, month, year] = ddmmyyyy.split('/');
+              const convertedDate = `${month}/${day}/${year} ${time}`;
+              console.log(`🔄 Converting date: ${ddmmyyyy} ${time} → ${convertedDate}`);
+              return new Date(convertedDate).getTime();
+            };
+            
+            const dateA = convertDate(a.date, a.time);
+            const dateB = convertDate(b.date, b.time);
+            comparison = dateA - dateB;
+            console.log(`📅 Date compare: ${a.date} ${a.time} vs ${b.date} ${b.time} = ${comparison}`);
+            
+            if (isNaN(dateA) || isNaN(dateB)) {
+              console.error('❌ Date conversion failed:', { 
+                a: { date: a.date, time: a.time, converted: dateA },
+                b: { date: b.date, time: b.time, converted: dateB }
+              });
+              comparison = 0;
+            }
+          } catch (error) {
+            console.error('❌ Date parsing error:', error, { 
+              a: a.date + ' ' + a.time, 
+              b: b.date + ' ' + b.time 
+            });
+            comparison = 0;
+          }
+          break;
+        case 'amount':
+          const amountA = a.net_amount || a.amount;
+          const amountB = b.net_amount || b.amount;
+          comparison = amountA - amountB;
+          console.log(`💰 Amount compare: ${amountA} vs ${amountB} = ${comparison}`);
+          break;
+        case 'patient':
+          const nameA = a.patient_name || '';
+          const nameB = b.patient_name || '';
+          comparison = nameA.localeCompare(nameB);
+          console.log(`👤 Patient compare: "${nameA}" vs "${nameB}" = ${comparison}`);
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type);
+          console.log(`🏷️ Type compare: ${a.type} vs ${b.type} = ${comparison}`);
+          break;
+        default:
+          console.log('❓ Unknown sort criteria:', sortBy);
+          comparison = 0;
+      }
+      
+      const result = sortOrder === 'asc' ? comparison : -comparison;
+      return result;
+    });
+    
+    // Log first few entries after sorting
+    console.log('✅ Sample entries after sorting:', sorted.slice(0, 3).map(e => ({
+      id: e.id,
+      date: e.date,
+      time: e.time,
+      amount: e.amount,
+      patient: e.patient_name,
+      type: e.type
+    })));
+    
+    console.log('🏁 SORTING DEBUG END - Returning', sorted.length, 'sorted entries');
+    return sorted;
+  }, [filteredEntries, sortBy, sortOrder]);
+  
   const totals = calculateTotals(filteredEntries);
 
   const exportOperationsToExcel = () => {
     try {
-      const exportData = filteredEntries.map(entry => {
+      const exportData = sortedEntries.map(entry => {
         // Calculate proper amounts with negative signs for expenses/refunds
         const originalAmount = entry.original_amount || entry.amount;
         const discountAmount = entry.discount_amount || 0;
@@ -618,17 +722,17 @@ const OperationsLedger: React.FC = () => {
     console.log('🖨️ Print function called');
     
     try {
-      if (filteredEntries.length === 0) {
+      if (sortedEntries.length === 0) {
         toast.error('No data to print');
         return;
       }
 
-      console.log('📊 Filtered entries length:', filteredEntries.length);
+      console.log('📊 Sorted entries length:', sortedEntries.length);
 
-      const totals = calculateTotals(filteredEntries);
-      const revenueEntries = filteredEntries.filter(e => e.type === 'REVENUE');
-      const expenseEntries = filteredEntries.filter(e => e.type === 'EXPENSE');
-      const refundEntries = filteredEntries.filter(e => e.type === 'REFUND');
+      const totals = calculateTotals(sortedEntries);
+      const revenueEntries = sortedEntries.filter(e => e.type === 'REVENUE');
+      const expenseEntries = sortedEntries.filter(e => e.type === 'EXPENSE');
+      const refundEntries = sortedEntries.filter(e => e.type === 'REFUND');
       
       const printContent = `
         <html>
@@ -692,7 +796,7 @@ const OperationsLedger: React.FC = () => {
               <h2>Complete Transaction Details & Revenue Analysis</h2>
               <p><strong>Raj Hospital & Maternity Center</strong></p>
               <p>Period: <strong>${dateFrom}</strong> to <strong>${dateTo}</strong></p>
-              <p>Report Generated: ${new Date().toLocaleString()} | Total Transactions: ${filteredEntries.length}</p>
+              <p>Report Generated: ${new Date().toLocaleString()} | Total Transactions: ${sortedEntries.length}</p>
             </div>
             
             <div class="summary">
@@ -708,7 +812,7 @@ const OperationsLedger: React.FC = () => {
                 </div>
                 <div class="summary-item">
                   <strong>TOTAL REFUNDS</strong>
-                  <span style="color: orange;">${formatCurrency(filteredEntries.filter(e => e.type === 'REFUND').reduce((sum, e) => sum + (e.net_amount || e.amount), 0))}</span>
+                  <span style="color: orange;">${formatCurrency(refundEntries.reduce((sum, e) => sum + (e.net_amount || e.amount), 0))}</span>
                 </div>
               </div>
               <div class="net-revenue">
@@ -971,7 +1075,7 @@ const OperationsLedger: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           <div>
             <ModernDatePicker
               label="From Date"
@@ -1036,30 +1140,67 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-end space-x-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+            <div className="flex space-x-1">
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  const newSortBy = e.target.value as any;
+                  console.log('📊 Sort criteria changing from', sortBy, 'to', newSortBy);
+                  setSortBy(newSortBy);
+                }}
+                className="flex-1 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="date">Date & Time</option>
+                <option value="amount">Amount</option>
+                <option value="patient">Patient Name</option>
+                <option value="type">Type</option>
+              </select>
+              <button
+                onClick={() => {
+                  const newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+                  console.log('🔄 Sort order changing from', sortOrder, 'to', newSortOrder);
+                  setSortOrder(newSortOrder);
+                }}
+                className={`px-2 py-2 border rounded-md text-sm transition-colors ${
+                  sortOrder === 'asc' 
+                    ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' 
+                    : 'border-red-300 bg-red-50 hover:bg-red-100'
+                }`}
+                title={`Currently: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'} - Click to toggle`}
+              >
+                {sortOrder === 'asc' ? '⬆️ ASC' : '⬇️ DESC'}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-end space-x-2 md:col-span-1">
             <button
               onClick={loadLedgerEntries}
               disabled={loading}
-              className="flex-1 bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+              className="w-full bg-blue-600 text-white px-2 py-8 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm mb-1"
             >
               {loading ? '🔄 Loading...' : '🔍 Search'}
             </button>
-            <button
-              onClick={exportOperationsToExcel}
-              disabled={loading || filteredEntries.length === 0}
-              className="bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 disabled:opacity-50 whitespace-nowrap text-sm"
-              title="Export to Excel"
-            >
-              📊 Export
-            </button>
-            <button
-              onClick={printOperationsReport}
-              disabled={loading || filteredEntries.length === 0}
-              className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap text-sm"
-              title="Print Operations Report"
-            >
-              🖨️ Print
-            </button>
+            <div className="flex flex-col space-y-1">
+              <button
+                onClick={printOperationsReport}
+                disabled={loading || sortedEntries.length === 0}
+                className="w-full bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 text-xs"
+                title="Print Operations Report"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={exportOperationsToExcel}
+                disabled={loading || sortedEntries.length === 0}
+                className="w-full bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 disabled:opacity-50 text-xs"
+                title="Export to Excel"
+              >
+                📊 Export
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1105,7 +1246,7 @@ const OperationsLedger: React.FC = () => {
       {/* Ledger Table */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden operations-print-area">
         <div className="p-4 bg-gray-50 border-b">
-          <h2 className="text-lg font-semibold">Transaction Details ({filteredEntries.length} entries)</h2>
+          <h2 className="text-lg font-semibold">Transaction Details ({sortedEntries.length} entries)</h2>
         </div>
 
         {loading ? (
@@ -1113,7 +1254,7 @@ const OperationsLedger: React.FC = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading transactions...</p>
           </div>
-        ) : filteredEntries.length > 0 ? (
+        ) : sortedEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-50 border-b">
@@ -1133,7 +1274,7 @@ const OperationsLedger: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.map((entry, index) => {
+                {sortedEntries.map((entry, index) => {
                   // Use the parsed values from the entry
                   const originalAmount = entry.original_amount || entry.amount;
                   const discountAmount = entry.discount_amount || 0;
