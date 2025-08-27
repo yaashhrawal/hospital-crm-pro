@@ -53,8 +53,8 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
     const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
     const localDoctorInfo = getDoctorWithDegree(doctorName);
     
-    // Prioritize database specialty over local degree if available
-    const degree = doctorDetails.specialty || localDoctorInfo.degree;
+    // Prioritize local degree (with formatting) over database specialty
+    const degree = localDoctorInfo.degree || doctorDetails.specialty;
     
     const result = {
       name: localDoctorInfo.name,
@@ -324,10 +324,9 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
             .doctor-details {
               position: absolute;
               bottom: 384px;
-              right: 120px;
+              right: 48px;
               text-align: left;
-              max-width: 450px;
-              padding-left: 20px;
+              max-width: 500px;
             }
 
             .doctor-name {
@@ -902,7 +901,7 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
           </div>
 
           {/* Doctor Details - Bottom Right Above Signature */}
-          <div className="absolute bottom-[24rem] right-16 text-left max-w-md" style={{ paddingLeft: '1rem' }}>
+          <div className="absolute bottom-[24rem] right-12 text-left max-w-lg">
             {/* Doctor Name */}
             <div className="font-bold text-2xl uppercase leading-tight" style={{ fontFamily: 'Canva Sans, sans-serif', color: '#4E1BB2' }}>
               {getDoctorInfo().name}
