@@ -875,6 +875,7 @@ export class HospitalService {
         payment_mode: data.payment_mode,
         doctor_id: data.doctor_id || null,
         doctor_name: data.doctor_name || null,
+        department: data.department || null, // Add department field
         status: data.status || 'COMPLETED',
         transaction_reference: data.transaction_reference || null,
         transaction_date: data.transaction_date || new Date().toISOString().split('T')[0], // FIX: Include transaction_date

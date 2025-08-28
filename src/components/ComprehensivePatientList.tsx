@@ -35,18 +35,67 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
   const [showTransactionPrescription, setShowTransactionPrescription] = useState(false);
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
   const [selectedTransactionForPrescription, setSelectedTransactionForPrescription] = useState<any>(null);
+  const [selectedPrescriptionType, setSelectedPrescriptionType] = useState<'VH' | 'VALANT'>('VH');
 
-  const printPrescriptionForTransaction = (patient: PatientWithRelations, transaction: any) => {
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.prescription-dropdown-container')) {
+        // Close all dropdowns
+        const dropdowns = document.querySelectorAll('[id^="prescription-dropdown-"]');
+        dropdowns.forEach(dropdown => {
+          (dropdown as HTMLElement).style.display = 'none';
+        });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const printPrescriptionForTransaction = (patient: PatientWithRelations, transaction: any, prescriptionType: 'VH' | 'VALANT') => {
+    // Debug: Log transaction data to see available fields
+    console.log('🔍 Transaction data for prescription:', transaction);
+    console.log('🏥 Available transaction fields:', Object.keys(transaction));
+    
+    // Extract doctor information - transaction.doctor_name takes priority
+    const transactionDoctorName = transaction.doctor_name || transaction.doctorName;
+    const finalDoctorName = transactionDoctorName || patient.assigned_doctor || patient.doctor_name;
+    
+    // For department, use transaction's department if available, otherwise patient's department
+    const finalDepartment = transaction.department || patient.assigned_department;
+    
+    console.log('🎯 Doctor resolution:', {
+      transaction_doctor_name: transactionDoctorName,
+      patient_assigned_doctor: patient.assigned_doctor,
+      final_doctor_name: finalDoctorName,
+      final_department: finalDepartment
+    });
+    
     const patientForPrescription = {
       ...patient,
       currentTransactionId: transaction.id,
       currentTransactionDate: transaction.created_at || transaction.transaction_date,
       currentTransactionType: transaction.transaction_type,
-      currentTransactionAmount: transaction.amount
+      currentTransactionAmount: transaction.amount,
+      // Override doctor details with transaction-specific information
+      assigned_doctor: finalDoctorName,
+      doctor_name: finalDoctorName, // For compatibility with different prescription templates
+      assigned_department: finalDepartment
     };
+    
+    console.log('🎯 Final patient data for prescription:', {
+      assigned_doctor: patientForPrescription.assigned_doctor,
+      doctor_name: patientForPrescription.doctor_name,
+      assigned_department: patientForPrescription.assigned_department
+    });
     
     setSelectedPatientForPrescription(patientForPrescription);
     setSelectedTransactionForPrescription(transaction);
+    setSelectedPrescriptionType(prescriptionType);
     setShowTransactionPrescription(true);
   };
   
@@ -833,13 +882,45 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                             </button>
                           )}
                           {transaction.status === 'COMPLETED' && (
-                            <button
-                              onClick={() => printPrescriptionForTransaction(patient, transaction)}
-                              className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
-                              title="Print Prescription"
-                            >
-                              📋
-                            </button>
+                            <div className="relative inline-block prescription-dropdown-container">
+                              <button
+                                onClick={() => {
+                                  const dropdownId = `prescription-dropdown-${transaction.id}`;
+                                  const dropdown = document.getElementById(dropdownId);
+                                  if (dropdown) {
+                                    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                                  }
+                                }}
+                                className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 flex items-center"
+                                title="Print Prescription"
+                              >
+                                📋 ▼
+                              </button>
+                              <div
+                                id={`prescription-dropdown-${transaction.id}`}
+                                className="absolute top-8 left-0 bg-white border border-gray-300 rounded shadow-lg z-50"
+                                style={{ display: 'none', minWidth: '80px' }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    printPrescriptionForTransaction(patient, transaction, 'VH');
+                                    document.getElementById(`prescription-dropdown-${transaction.id}`)!.style.display = 'none';
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 border-b"
+                                >
+                                  VH
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    printPrescriptionForTransaction(patient, transaction, 'VALANT');
+                                    document.getElementById(`prescription-dropdown-${transaction.id}`)!.style.display = 'none';
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                                >
+                                  V
+                                </button>
+                              </div>
+                            </div>
                           )}
                           {transaction.status !== 'CANCELLED' && user?.email !== 'frontdesk@valant.com' && (
                             <button
@@ -869,14 +950,27 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
       {/* Transaction-specific Prescription Modal */}
       {showTransactionPrescription && selectedPatientForPrescription && (
-        <ValantPrescription
-          patient={selectedPatientForPrescription}
-          onClose={() => {
-            setShowTransactionPrescription(false);
-            setSelectedPatientForPrescription(null);
-            setSelectedTransactionForPrescription(null);
-          }}
-        />
+        <>
+          {selectedPrescriptionType === 'VH' ? (
+            <VHPrescription
+              patient={selectedPatientForPrescription}
+              onClose={() => {
+                setShowTransactionPrescription(false);
+                setSelectedPatientForPrescription(null);
+                setSelectedTransactionForPrescription(null);
+              }}
+            />
+          ) : (
+            <ValantPrescription
+              patient={selectedPatientForPrescription}
+              onClose={() => {
+                setShowTransactionPrescription(false);
+                setSelectedPatientForPrescription(null);
+                setSelectedTransactionForPrescription(null);
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );
