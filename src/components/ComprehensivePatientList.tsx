@@ -98,14 +98,15 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       return `${typeCode}${timestamp}${random}`;
     };
 
-    // Default hospital information (same as useReceiptPrinting)
+    // Default hospital information (same as main receipt)
     const DEFAULT_HOSPITAL_INFO = {
-      name: 'Healthcare Management System',
-      address: 'Medical Center, Healthcare District, City - 400001', 
-      phone: '+91 98765 43210',
-      email: 'info@healthcarecms.com',
-      registration: 'MH/HC/2024/001',
-      gst: '27ABCDE1234F1Z5'
+      name: '',
+      address: '10, Madhav Vihar Shobhagpura, Udaipur (313001)', 
+      phone: '+91 9119118000',
+      email: 'valanthospital@gmail.com',
+      registration: '',
+      gst: '',
+      website: 'www.valanthospital.com'
     };
 
     // Prepare receipt data with all selected transactions
@@ -128,11 +129,42 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
         address: patient.address,
         bloodGroup: patient.blood_group
       },
-      charges: selectedTransactionsData.map(transaction => ({
-        description: `${transaction.description || transaction.transaction_type} (${new Date(transaction.created_at).toLocaleDateString('en-IN')})`,
-        amount: transaction.amount,
-        quantity: 1
-      })),
+      charges: selectedTransactionsData.map(transaction => {
+        // Extract original amount and discount from description if present
+        const description = transaction.description || transaction.transaction_type;
+        let originalAmount = transaction.amount;
+        let discountPercentage = transaction.discount_percentage || 0;
+        
+        // Extract original amount from description like "Original: ₹750"
+        const originalMatch = description.match(/Original:\s*₹?([\d,]+(?:\.\d{2})?)/);
+        if (originalMatch) {
+          originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+        }
+        
+        // Extract discount percentage from description like "Discount: 100%"
+        const discountMatch = description.match(/Discount:\s*(\d+)%/);
+        if (discountMatch) {
+          discountPercentage = parseInt(discountMatch[1]);
+        }
+        
+        // Clean description - remove discount details and just keep service name and date
+        let cleanDescription = description
+          .replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '')
+          .replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '')
+          .trim();
+        
+        // Add just the date to the service name
+        const dateStr = new Date(transaction.created_at).toLocaleDateString('en-IN');
+        cleanDescription = cleanDescription + ` (${dateStr})`;
+        
+        return {
+          description: cleanDescription,
+          amount: transaction.amount, // Net amount after discount
+          rate: originalAmount, // Original amount before discount
+          quantity: 1,
+          discountPercentage: discountPercentage
+        };
+      }),
       payments: selectedTransactionsData.map(transaction => ({
         mode: transaction.payment_mode || 'CASH',
         amount: transaction.amount,
@@ -153,49 +185,305 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       isOriginal: true
     };
 
-    // Create and show the combined receipt using the same modal system
+    // Print receipt in new window (same logic as prescriptions)
     const printCombinedReceipt = (data: ReceiptData) => {
-      // Create modal container
-      const modalContainer = document.createElement('div');
-      modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
-      document.body.appendChild(modalContainer);
+      // Create a temporary container to render the ReceiptTemplate to HTML
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      document.body.appendChild(tempContainer);
       
-      const root = createRoot(modalContainer);
+      const root = createRoot(tempContainer);
       
-      const handlePrint = () => {
-        window.print();
-      };
+      // Render the ReceiptTemplate to get HTML
+      root.render(<ReceiptTemplate data={data} />);
       
-      const handleClose = () => {
+      // Wait for rendering to complete, then create custom HTML
+      setTimeout(() => {
+        // Clean up the temporary container
         root.unmount();
-        document.body.removeChild(modalContainer);
-      };
-
-      // Render modal with receipt (same as useReceiptPrinting)
-      root.render(
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-          {/* Print and Close buttons */}
-          <div className="flex justify-end gap-2 p-4 border-b print:hidden">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
-            >
-              <span>🖨️</span> Print Receipt
-            </button>
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            >
-              Close
-            </button>
+        document.body.removeChild(tempContainer);
+        
+        // Create custom receipt HTML with logo and proper columns
+        const receiptHTML = `
+          <div class="receipt-template bg-white p-6 max-w-4xl mx-auto">
+            <div class="receipt-header">
+              <img src="/logo.png" alt="Hospital Logo" class="receipt-logo">
+              <div class="receipt-title">SERVICE RECEIPT</div>
+              <div class="hospital-details">
+                ${data.hospital.address}<br>
+                Phone: ${data.hospital.phone} | Email: ${data.hospital.email}<br>
+                Website: ${data.hospital.website}
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <div class="font-semibold mb-2">Patient Details:</div>
+                <div class="space-y-1 text-sm">
+                  <div><strong>Name:</strong> ${data.patient.name}</div>
+                  <div><strong>Phone:</strong> ${data.patient.phone || 'N/A'}</div>
+                  <div><strong>Age:</strong> ${data.patient.age || 'N/A'} | <strong>Gender:</strong> ${data.patient.gender || 'N/A'}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="font-semibold mb-2">Receipt Details:</div>
+                <div class="space-y-1 text-sm">
+                  <div><strong>Receipt No:</strong> ${data.receiptNumber}</div>
+                  <div><strong>Date:</strong> ${data.date}</div>
+                  <div><strong>Time:</strong> ${data.time}</div>
+                </div>
+              </div>
+            </div>
+            
+            <table class="w-full border mb-4">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="border px-2 py-2 text-left">S.No.</th>
+                  <th class="border px-2 py-2 text-left">Service</th>
+                  <th class="border px-2 py-2 text-center">Qty</th>
+                  <th class="border px-2 py-2 text-right">Rate (₹)</th>
+                  <th class="border px-2 py-2 text-right">Discount</th>
+                  <th class="border px-2 py-2 text-right">Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.charges.map((charge, index) => `
+                  <tr>
+                    <td class="border px-2 py-2 text-center">${index + 1}</td>
+                    <td class="border px-2 py-2">${charge.description}</td>
+                    <td class="border px-2 py-2 text-center">${charge.quantity || 1}</td>
+                    <td class="border px-2 py-2 text-right">₹${(charge.rate || charge.amount).toLocaleString()}</td>
+                    <td class="border px-2 py-2 text-right">${charge.discountPercentage ? charge.discountPercentage + '%' : '-'}</td>
+                    <td class="border px-2 py-2 text-right">₹${charge.amount.toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            
+            <div class="flex justify-end mb-4">
+              <div class="w-64">
+                <div class="flex justify-between py-1 text-sm">
+                  <span>Subtotal:</span>
+                  <span>₹${data.totals.subtotal.toLocaleString()}</span>
+                </div>
+                ${data.totals.discount > 0 ? `
+                <div class="flex justify-between py-1 text-sm">
+                  <span>Total Discount:</span>
+                  <span>₹${data.totals.discount.toLocaleString()}</span>
+                </div>
+                ` : ''}
+                <div class="flex justify-between py-2 text-lg font-bold border-t">
+                  <span>Total Amount:</span>
+                  <span>₹${data.totals.netAmount.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="text-center text-sm text-gray-600 mt-6">
+              ${data.notes || 'Thank you for choosing our services!'}
+            </div>
           </div>
+        `;
+        
+        // Create the complete HTML for the new window with full CSS
+        const printContent = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Receipt - ${data.receiptNumber}</title>
+            <style>
+              /* Base styles */
+              * {
+                box-sizing: border-box;
+              }
+              body {
+                margin: 0;
+                padding: 20px;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: white;
+                color: #1f2937;
+                line-height: 1.5;
+              }
+              
+              /* Tailwind-like utility classes */
+              .bg-white { background-color: white; }
+              .p-6 { padding: 16px; }
+              .max-w-4xl { max-width: 896px; }
+              .mx-auto { margin-left: auto; margin-right: auto; }
+              .text-center { text-align: center; }
+              .text-left { text-align: left; }
+              .text-right { text-align: right; }
+              .font-bold { font-weight: 700; }
+              .font-semibold { font-weight: 600; }
+              .text-sm { font-size: 12px; }
+              .text-xs { font-size: 11px; }
+              .text-lg { font-size: 16px; }
+              .text-xl { font-size: 18px; }
+              .text-2xl { font-size: 20px; }
+              .text-gray-600 { color: #4b5563; }
+              .text-gray-800 { color: #1f2937; }
+              .border { border: 1px solid #d1d5db; }
+              .border-t { border-top: 1px solid #d1d5db; }
+              .border-b { border-bottom: 1px solid #d1d5db; }
+              .border-black { border-color: #000; }
+              .mb-1 { margin-bottom: 2px; }
+              .mb-2 { margin-bottom: 6px; }
+              .mb-4 { margin-bottom: 12px; }
+              .mb-6 { margin-bottom: 16px; }
+              .mt-4 { margin-top: 12px; }
+              .mt-6 { margin-top: 16px; }
+              .py-1 { padding-top: 3px; padding-bottom: 3px; }
+              .py-2 { padding-top: 6px; padding-bottom: 6px; }
+              .px-2 { padding-left: 6px; padding-right: 6px; }
+              .px-4 { padding-left: 12px; padding-right: 12px; }
+              .w-full { width: 100%; }
+              .w-64 { width: 256px; }
+              .flex { display: flex; }
+              .justify-between { justify-content: space-between; }
+              .justify-end { justify-content: flex-end; }
+              .items-center { align-items: center; }
+              .space-y-1 > * + * { margin-top: 2px; }
+              .space-y-2 > * + * { margin-top: 6px; }
+              .grid { display: grid; }
+              .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+              .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+              .gap-4 { gap: 12px; }
+              .uppercase { text-transform: uppercase; }
+              .bg-gray-50 { background-color: #f9fafb; }
+              
+              /* Table styles */
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+              }
+              th, td {
+                padding: 4px 6px;
+                text-align: left;
+                border: 1px solid #d1d5db;
+                font-size: 11px;
+              }
+              th {
+                background-color: #f9fafb;
+                font-weight: 600;
+              }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              
+              /* Receipt specific styles */
+              .receipt-header {
+                text-align: center;
+                border-bottom: 2px solid #000;
+                padding-bottom: 12px;
+                margin-bottom: 16px;
+              }
+              .receipt-logo {
+                max-width: 150px;
+                height: auto;
+                margin: 0 auto 8px auto;
+                display: block;
+              }
+              .receipt-title {
+                font-size: 20px;
+                font-weight: bold;
+                margin: 4px 0;
+              }
+              .hospital-details {
+                font-size: 11px;
+                color: #4b5563;
+                line-height: 1.3;
+              }
+              
+              /* Print buttons */
+              .print-buttons {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              .btn {
+                padding: 8px 16px;
+                margin: 0 5px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              }
+              .btn-primary {
+                background-color: #0056b3;
+                color: white;
+              }
+              .btn-secondary {
+                background-color: #6c757d;
+                color: white;
+              }
+              .btn:hover {
+                opacity: 0.8;
+              }
+              
+              /* Print styles */
+              @media print {
+                @page {
+                  margin: 0.5in;
+                  size: A4;
+                }
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                .print-buttons {
+                  display: none !important;
+                }
+                .receipt-template {
+                  page-break-before: always;
+                  background: white !important;
+                  padding: 20px !important;
+                }
+                body * {
+                  visibility: hidden;
+                }
+                .receipt-template, .receipt-template * {
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                }
+                .receipt-template {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="print-buttons">
+              <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+              <button class="btn btn-secondary" onclick="window.close()">Close</button>
+            </div>
+            ${receiptHTML}
+            <script>
+              window.focus();
+            </script>
+          </body>
+          </html>
+        `;
 
-          {/* Receipt Content */}
-          <div className="p-8 print:p-6" id="receipt-content">
-            <ReceiptTemplate data={data} />
-          </div>
-        </div>
-      );
+        // Open in new window (same as prescriptions)
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(printContent);
+          printWindow.document.close();
+        } else {
+          toast.error('Please allow popups to print receipts');
+        }
+      }, 100);
     };
 
     printCombinedReceipt(receiptData);
@@ -432,6 +720,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                     <th className="text-left p-2">Type</th>
                     <th className="text-left p-2">Description</th>
                     <th className="text-left p-2">Amount</th>
+                    <th className="text-left p-2">Discount</th>
                     <th className="text-left p-2">Payment</th>
                     <th className="text-left p-2">Status</th>
                     <th className="text-left p-2">Actions</th>
@@ -499,12 +788,29 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                           {transaction.transaction_type}
                         </span>
                       </td>
-                      <td className="p-2">{transaction.description}</td>
+                      <td className="p-2">{(() => {
+                        // Clean description by removing discount information
+                        let cleanDescription = transaction.description || '';
+                        // Remove patterns like "| Original: ₹750 | Discount: 100% (₹750.00) | Net: ₹0.00"
+                        cleanDescription = cleanDescription.replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '');
+                        // Remove patterns like "(Original: ₹1,500, Discount: 10%, Final: ₹1,350)"
+                        cleanDescription = cleanDescription.replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '');
+                        return cleanDescription.trim();
+                      })()}</td>
                       <td className="p-2">
                         <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
                           ₹{Math.abs(transaction.amount).toLocaleString()}
                         </span>
                       </td>
+                      <td className="p-2">{(() => {
+                        // Use discount_percentage field if available, otherwise extract from description
+                        if (transaction.discount_percentage !== undefined && transaction.discount_percentage > 0) {
+                          return `${transaction.discount_percentage}%`;
+                        }
+                        const description = transaction.description || '';
+                        const discountMatch = description.match(/Discount:\s*(\d+)%/);
+                        return discountMatch ? `${discountMatch[1]}%` : '-';
+                      })()}</td>
                       <td className="p-2">{transaction.payment_mode}</td>
                       <td className="p-2">
                         <span className={`px-2 py-1 rounded text-xs ${
