@@ -502,14 +502,27 @@ const IPDBedManagement: React.FC = () => {
       
       // Transform database beds to match component interface
       const transformedBeds: BedData[] = dbBeds.map(dbBed => {
-        console.log(`🔍 Bed ${dbBed.bed_number} - IPD Number from DB:`, dbBed.ipd_number);
+        console.log(`🔍 Bed ${dbBed.bed_number} - Status: ${dbBed.status}, Patient: ${dbBed.patient_id ? 'Yes' : 'No'}, IPD: ${dbBed.ipd_number || 'None'}`);
+        
+        // Determine actual status based on both status field and patient presence
+        let actualStatus: 'occupied' | 'vacant' = 'vacant';
+        if (dbBed.status === 'OCCUPIED' || dbBed.status === 'occupied') {
+          actualStatus = 'occupied';
+        }
+        // Double-check: if status is vacant but there's still patient data, clear it
+        if (actualStatus === 'vacant' && dbBed.patient_id) {
+          console.warn(`⚠️ Bed ${dbBed.bed_number} marked as vacant but has patient data - will be treated as vacant`);
+          dbBed.patients = null;
+          dbBed.patient_id = null;
+        }
+        
         return {
           ...dbBed,
           number: parseInt(dbBed.bed_number),
-          status: (dbBed.status === 'OCCUPIED' || dbBed.status === 'occupied') ? 'occupied' : 'vacant',
-          patient: dbBed.patients as PatientWithRelations,
-          admissionDate: dbBed.admission_date,
-          ipdNumber: dbBed.ipd_number,
+          status: actualStatus,
+          patient: actualStatus === 'occupied' ? (dbBed.patients as PatientWithRelations) : undefined,
+          admissionDate: actualStatus === 'occupied' ? dbBed.admission_date : undefined,
+          ipdNumber: actualStatus === 'occupied' ? dbBed.ipd_number : undefined,
         tatStartTime: dbBed.tat_start_time,
         tatStatus: dbBed.tat_status || 'idle',
         tatRemainingSeconds: dbBed.tat_remaining_seconds || 1800,
@@ -565,14 +578,20 @@ const IPDBedManagement: React.FC = () => {
     // Apply search filter
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(bed => 
-        `bed ${bed.number}`.toLowerCase().includes(search) ||
-        bed.patient?.first_name?.toLowerCase().includes(search) ||
-        bed.patient?.last_name?.toLowerCase().includes(search) ||
-        bed.patient?.patient_id?.toLowerCase().includes(search)
-      );
+      filtered = filtered.filter(bed => {
+        // Only search in patient data if bed is actually occupied
+        if (bed.status === 'occupied' && bed.patient) {
+          return `bed ${bed.number}`.toLowerCase().includes(search) ||
+            bed.patient.first_name?.toLowerCase().includes(search) ||
+            bed.patient.last_name?.toLowerCase().includes(search) ||
+            bed.patient.patient_id?.toLowerCase().includes(search);
+        } else {
+          return `bed ${bed.number}`.toLowerCase().includes(search);
+        }
+      });
     }
 
+    console.log(`🔍 Filtered ${filtered.length} beds from ${beds.length} total beds`);
     setFilteredBeds(filtered);
   };
 
@@ -1576,58 +1595,45 @@ const IPDBedManagement: React.FC = () => {
   };
 
   const handleDischargeSuccess = async () => {
+    console.log('🚪 handleDischargeSuccess called');
+    
     // Refresh the beds data after successful discharge
     const bedId = selectedAdmissionForDischarge?.bed_id;
     const patientId = selectedAdmissionForDischarge?.patient_id;
     
-    if (bedId) {
-      // Update bed status to vacant
-      setBeds(prevBeds => 
-        prevBeds.map(b => {
-          if (b.id === bedId) {
-            return {
-              ...b,
-              status: 'vacant' as const,
-              patient: undefined,
-              admissionDate: undefined,
-              tatStatus: 'idle' as const,
-              tatStartTime: undefined,
-              tatRemainingSeconds: 30 * 60,
-              consentFormSubmitted: false,
-              clinicalRecordSubmitted: false,
-              progressSheetSubmitted: false,
-              consentFormData: undefined,
-              clinicalRecordData: undefined,
-              progressSheetData: undefined,
-              preOpChecklistSubmitted: false,
-              preOpChecklistData: undefined,
-              surgicalSafetySubmitted: false,
-              surgicalSafetyData: undefined
-            };
-          }
-          return b;
-        })
-      );
-      
-      // Update patient's IPD status to DISCHARGED in database
-      if (patientId) {
-        try {
-          await HospitalService.updatePatient(patientId, {
-            ipd_status: 'DISCHARGED',
-            ipd_bed_number: null
-          });
-          console.log('✅ Patient IPD status updated to DISCHARGED after discharge');
-          toast.success('Patient discharged and status updated successfully');
-        } catch (updateError) {
-          console.warn('⚠️ Patient IPD status update failed after discharge:', updateError);
-          toast.warning('Patient discharged but status update failed - please refresh patient list');
-        }
+    console.log('📋 Discharge details:', { bedId, patientId });
+    
+    // Update patient's IPD status to DISCHARGED in database
+    if (patientId) {
+      try {
+        await HospitalService.updatePatient(patientId, {
+          ipd_status: 'DISCHARGED',
+          ipd_bed_number: null
+        });
+        console.log('✅ Patient IPD status updated to DISCHARGED after discharge');
+      } catch (updateError) {
+        console.warn('⚠️ Patient IPD status update failed after discharge:', updateError);
       }
     }
     
-    // Close the modal
+    // Close the modal first
     setShowDischargeModal(false);
     setSelectedAdmissionForDischarge(null);
+    
+    // Clear the current beds state to force a complete refresh
+    console.log('🔄 Clearing beds state before reload...');
+    setBeds([]);
+    setFilteredBeds([]);
+    
+    // Add a small delay to ensure state is cleared
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Reload beds from database to get the updated status
+    console.log('📥 Reloading beds from database...');
+    await loadBedsFromDatabase();
+    
+    console.log('✅ Discharge process completed and beds reloaded');
+    toast.success('Patient discharged successfully and bed is now available');
   };
 
   // Function to sync patient database with actual bed occupancy

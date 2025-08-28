@@ -5,34 +5,37 @@ import toast from 'react-hot-toast';
 interface PostOperativeOrdersFormProps {
   isOpen: boolean;
   onClose: () => void;
-  patientData: {
-    name: string;
-    age: string;
+  patient: {
+    first_name: string;
+    last_name?: string;
+    age: string | number;
     gender: string;
-    ipdNo: string;
-    roomWardNo?: string;
-    patientId?: string;
-    doctorName?: string;
+    patient_id: string;
+    assigned_doctor?: string;
   };
-  onSave?: (data: any) => void;
+  bedNumber: string;
+  ipdNumber?: string;
+  onSubmit?: (data: any) => void;
   savedData?: any; // Previously saved form data
 }
 
 const PostOperativeOrdersForm: React.FC<PostOperativeOrdersFormProps> = ({
   isOpen,
   onClose,
-  patientData,
-  onSave,
+  patient,
+  bedNumber,
+  ipdNumber,
+  onSubmit,
   savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    patientId: savedData?.patientId || patientData.patientId || '',
-    ipNo: savedData?.ipNo || patientData.ipdNo || '',
-    patientName: savedData?.patientName || patientData.name || '',
-    ageSex: savedData?.ageSex || `${patientData.age || ''} / ${patientData.gender || ''}`,
+    patientId: savedData?.patientId || patient.patient_id || '',
+    ipNo: savedData?.ipNo || ipdNumber || patient.patient_id || '',
+    patientName: savedData?.patientName || `${patient.first_name} ${patient.last_name || ''}`.trim() || '',
+    ageSex: savedData?.ageSex || `${patient.age || ''} / ${patient.gender || ''}`,
     date: savedData?.date || new Date().toISOString().split('T')[0],
-    consultantName: savedData?.consultantName || patientData.doctorName || '',
+    consultantName: savedData?.consultantName || patient.assigned_doctor || '',
     
     // Main Orders Section
     nbmTillChecked: savedData?.nbmTillChecked || false,
@@ -62,7 +65,7 @@ const PostOperativeOrdersForm: React.FC<PostOperativeOrdersFormProps> = ({
     ],
     
     // Signature Section
-    doctorName: savedData?.doctorName || patientData.doctorName || '',
+    doctorName: savedData?.doctorName || patient.assigned_doctor || '',
     doctorDate: savedData?.doctorDate || new Date().toISOString().split('T')[0],
     doctorTime: savedData?.doctorTime || '',
     nurseName: savedData?.nurseName || '',
@@ -104,11 +107,11 @@ const PostOperativeOrdersForm: React.FC<PostOperativeOrdersFormProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSave) {
-      onSave({
+    if (onSubmit) {
+      onSubmit({
         ...formData,
         createdAt: new Date().toISOString(),
-        patientId: patientData.ipdNo
+        patientId: ipdNumber || patient.patient_id
       });
     }
     toast.success('Post Operative Orders saved successfully');

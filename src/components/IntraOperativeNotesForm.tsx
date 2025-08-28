@@ -5,37 +5,40 @@ import toast from 'react-hot-toast';
 interface IntraOperativeNotesFormProps {
   isOpen: boolean;
   onClose: () => void;
-  patientData: {
-    name: string;
-    age: string;
+  patient: {
+    first_name: string;
+    last_name?: string;
+    age: string | number;
     gender: string;
-    ipdNo: string;
-    roomWardNo?: string;
-    patientId?: string;
-    doctorName?: string;
+    patient_id: string;
+    assigned_doctor?: string;
   };
-  onSave?: (data: any) => void;
+  bedNumber: string;
+  ipdNumber?: string;
+  onSubmit?: (data: any) => void;
   savedData?: any; // Previously saved form data
 }
 
 const IntraOperativeNotesForm: React.FC<IntraOperativeNotesFormProps> = ({
   isOpen,
   onClose,
-  patientData,
-  onSave,
+  patient,
+  bedNumber,
+  ipdNumber,
+  onSubmit,
   savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    patientId: savedData?.patientId || patientData.patientId || '',
-    ipNo: savedData?.ipNo || patientData.ipdNo || '',
-    patientName: savedData?.patientName || patientData.name || '',
-    ageSex: savedData?.ageSex || `${patientData.age || ''} / ${patientData.gender || ''}`,
+    patientId: savedData?.patientId || patient.patient_id || '',
+    ipNo: savedData?.ipNo || ipdNumber || patient.patient_id || '',
+    patientName: savedData?.patientName || `${patient.first_name} ${patient.last_name || ''}`.trim() || '',
+    ageSex: savedData?.ageSex || `${patient.age || ''} / ${patient.gender || ''}`,
     date: savedData?.date || new Date().toISOString().split('T')[0],
     
     // Patient and Surgical Details
     prePostOperativeDiagnosis: savedData?.prePostOperativeDiagnosis || '',
-    nameOfSurgeon: savedData?.nameOfSurgeon || patientData.doctorName || '',
+    nameOfSurgeon: savedData?.nameOfSurgeon || patient.assigned_doctor || '',
     nameOfSurgery: savedData?.nameOfSurgery || '',
     dateOfSurgery: savedData?.dateOfSurgery || new Date().toISOString().split('T')[0],
     typeOfAnaesthesia: savedData?.typeOfAnaesthesia || '',
@@ -62,7 +65,7 @@ const IntraOperativeNotesForm: React.FC<IntraOperativeNotesFormProps> = ({
     implantDetails: savedData?.implantDetails || '',
     
     // Signature and Date
-    consultantSurgeonName: savedData?.consultantSurgeonName || patientData.doctorName || '',
+    consultantSurgeonName: savedData?.consultantSurgeonName || patient.assigned_doctor || '',
     signatureDate: savedData?.signatureDate || new Date().toISOString().split('T')[0],
     signatureTime: savedData?.signatureTime || ''
   });
@@ -75,11 +78,11 @@ const IntraOperativeNotesForm: React.FC<IntraOperativeNotesFormProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSave) {
-      onSave({
+    if (onSubmit) {
+      onSubmit({
         ...formData,
         createdAt: new Date().toISOString(),
-        patientId: patientData.ipdNo
+        patientId: ipdNumber || patient.patient_id
       });
     }
     toast.success('Intra Operative Notes saved successfully');

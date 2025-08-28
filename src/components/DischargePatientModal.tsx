@@ -8,7 +8,7 @@ interface DischargeModalProps {
   admission: PatientAdmissionWithRelations | null;
   isOpen: boolean;
   onClose: () => void;
-  onDischargeSuccess: () => void;
+  onSuccess: () => void;
 }
 
 interface DischargeFormData {
@@ -38,7 +38,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
   admission,
   isOpen,
   onClose,
-  onDischargeSuccess
+  onSuccess
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<DischargeFormData>({
@@ -127,7 +127,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       } else {
         console.log('✅ Simple discharge successful');
         toast.success('Patient discharged successfully!');
-        onDischargeSuccess();
+        onSuccess();
       }
     } catch (error) {
       console.error('❌ Discharge error:', error);
@@ -305,13 +305,13 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         console.log('✅ Patient ipd_status updated to DISCHARGED');
       }
 
-      // 4. Update bed status to available and clear patient data
+      // 4. Update bed status to vacant and clear patient data
       if (admission.bed_id) {
-        console.log('🛏️ Clearing bed and updating status to available...');
+        console.log('🛏️ Clearing bed and updating status to vacant...');
         const { error: bedError } = await supabase
           .from('beds')
           .update({ 
-            status: 'AVAILABLE',
+            status: 'vacant',
             patient_id: null,
             ipd_number: null,
             admission_date: null,
@@ -335,13 +335,17 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
           console.warn('⚠️ Failed to clear bed data:', bedError);
           // Don't throw error as the main discharge process succeeded
         } else {
-          console.log('✅ Bed cleared and status updated to AVAILABLE');
+          console.log('✅ Bed cleared and status updated to vacant');
         }
       }
 
       console.log('🎉 Discharge process completed successfully!');
       toast.success('Patient discharged successfully with complete documentation');
-      onDischargeSuccess();
+      
+      // Call the success callback first
+      await onSuccess();
+      
+      // Then close the modal
       onClose();
 
     } catch (error: any) {
@@ -366,7 +370,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       // STOP THE PROCESS - don't continue if there's an error
       toast.error(`❌ DISCHARGE FAILED: ${errorMessage}`);
       
-      // Don't call onDischargeSuccess() or onClose() if there's an error
+      // Don't call onSuccess() or onClose() if there's an error
       // Keep the modal open so user can see what went wrong
       
     } finally {

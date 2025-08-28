@@ -4,30 +4,34 @@ import { X } from 'lucide-react';
 interface PACRecordFormProps {
   isOpen: boolean;
   onClose: () => void;
-  patientData: {
-    name: string;
-    age: string;
+  patient: {
+    first_name: string;
+    last_name?: string;
+    age: string | number;
     gender: string;
-    ipdNo: string;
-    roomWardNo?: string;
+    patient_id: string;
   };
-  onSave?: (data: any) => void;
+  bedNumber: string;
+  ipdNumber?: string;
+  onSubmit?: (data: any) => void;
   savedData?: any; // Previously saved form data
 }
 
 const PACRecordForm: React.FC<PACRecordFormProps> = ({
   isOpen,
   onClose,
-  patientData,
-  onSave,
+  patient,
+  bedNumber,
+  ipdNumber,
+  onSubmit,
   savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    name: patientData.name || '',
-    ageSex: `${patientData.age || ''} / ${patientData.gender || ''}`,
-    ipdNo: patientData.ipdNo || '',
-    roomWardNo: patientData.roomWardNo || '',
+    name: `${patient.first_name} ${patient.last_name || ''}`.trim() || '',
+    ageSex: `${patient.age || ''} / ${patient.gender || ''}`,
+    ipdNo: ipdNumber || patient.patient_id || '',
+    roomWardNo: bedNumber || '',
     operation: savedData?.operation || '',
     alertAllergiesMedications: savedData?.alertAllergiesMedications || '',
     anaestheticPlan: savedData?.anaestheticPlan || '',
@@ -124,11 +128,11 @@ const PACRecordForm: React.FC<PACRecordFormProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSave) {
-      onSave({
+    if (onSubmit) {
+      onSubmit({
         ...formData,
         createdAt: new Date().toISOString(),
-        patientId: patientData.ipdNo
+        patientId: patient.patient_id
       });
     }
     onClose();

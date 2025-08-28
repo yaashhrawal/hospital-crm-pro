@@ -498,11 +498,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
           
           // Build description with discount info if applicable
           let description = `Consultation with ${doctor.doctor_name} - ${doctor.department}`;
-          if (formData.discount_percentage > 0) {
-            description += ` | Original: ₹${originalAmount} | Discount: ${formData.discount_percentage}% (₹${discountAmount.toFixed(2)}) | Net: ₹${finalAmount.toFixed(2)}`;
-            if (formData.discount_reason) {
-              description += ` | Reason: ${formData.discount_reason}`;
-            }
+          if (formData.discount_reason) {
+            description += ` | Reason: ${formData.discount_reason}`;
           }
           
           const transactionData: CreateTransactionData = {

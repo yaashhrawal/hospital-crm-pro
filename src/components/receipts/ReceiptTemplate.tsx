@@ -200,6 +200,11 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
               margin: 0.5in;
               size: A4;
             }
+            /* Force new page for receipt */
+            .receipt-template {
+              page-break-before: always;
+            }
+            /* Hide everything else when printing */
             body * {
               visibility: hidden;
             }
@@ -213,7 +218,22 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
               top: 0;
               width: 100%;
               background: white !important;
+              padding: 20px !important;
             }
+            /* Hide browser print headers/footers */
+            @page {
+              margin: 0.5in;
+              size: A4;
+              /* Remove default browser headers/footers */
+              @top-left { content: none; }
+              @top-center { content: none; }
+              @top-right { content: none; }
+              @bottom-left { content: none; }
+              @bottom-center { content: none; }
+              @bottom-right { content: none; }
+            }
+            /* Override browser title */
+            title { display: none !important; }
             .receipt-template img {
               display: block !important;
               visibility: visible !important;
@@ -284,18 +304,12 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
       {/* Header */}
       <div className="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black">
         <div className="flex flex-col items-center justify-center mb-4">
-          {/* Hospital Name - Only show if provided */}
-          {data.hospital.name && (
-            <h1 className="text-2xl font-bold text-blue-600 mb-2 print:text-black print:block">
-              {data.hospital.name}
-            </h1>
-          )}
           {/* Logo - Optional */}
           <img 
             src="/logo.png" 
             alt="Hospital Logo" 
-            className="h-12 w-auto print:block"
-            style={{ maxHeight: '48px', height: 'auto', width: 'auto' }}
+            className="h-16 w-auto print:block"
+            style={{ maxHeight: '64px', height: 'auto', width: 'auto' }}
             onError={(e) => {
               // Hide image if it fails to load
               const target = e.target as HTMLImageElement;
@@ -306,7 +320,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         <div className="text-sm text-gray-700 mt-4 print:text-black">
           <p className="print:text-black">{data.hospital.address}</p>
           <p className="print:text-black">Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
-          <p className="print:text-black">Website: www.valanthospital.com</p>
+          {data.hospital.website && <p className="print:text-black">Website: {data.hospital.website}</p>}
         </div>
       </div>
 
@@ -459,8 +473,8 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
                 <tr className="bg-gray-100 font-bold print:bg-gray-200">
                   <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
                     <div className="text-center">
-                      <p className="mb-1">Consultation Fee: ₹{totals.subtotal.toFixed(2)}</p>
-                      <p className="mb-1">Subtotal: ₹{totals.subtotal.toFixed(2)}</p>
+                      <p className="mb-1">Total Amount: ₹{totals.subtotal.toFixed(2)}</p>
+                      {totals.discount > 0 && <p className="mb-1">Discount: ₹{totals.discount.toFixed(2)}</p>}
                       <p className="text-lg font-bold">Net Amount Payable: ₹{totals.netAmount.toFixed(2)}</p>
                       <p className="text-sm mt-1">Amount in Words: {convertToWords(totals.netAmount)}</p>
                     </div>

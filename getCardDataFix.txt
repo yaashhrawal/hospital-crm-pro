@@ -1,0 +1,89 @@
+  // COMPREHENSIVE CARD DATA CALCULATION - FIXED FOR ALL CARDS
+  const getCardData = () => {
+    console.log('🔧 COMPREHENSIVE CARD FIX - All cards now use consistent data:', {
+      filter: dateFilter,
+      patientsCount: patientsData?.length || 0,
+      revenueCount: operationsData?.revenue?.length || 0,
+      expensesCount: operationsData?.expenses?.length || 0
+    });
+    
+    // PATIENTS & REVENUE: Use pre-filtered data from operations queries
+    const totalPatients = patientsData?.length || 0;
+    const totalRevenue = operationsData?.revenue.reduce((sum: number, transaction: any) => 
+      sum + (transaction.amount || 0), 0) || 0;
+    
+    // ADMISSIONS: Filter beds based on admission dates
+    let filteredAdmissions = 0;
+    if (dateFilter === 'all') {
+      // For 'all', show currently occupied beds
+      filteredAdmissions = bedsData?.filter(bed => 
+        bed.status === 'occupied' || bed.status === 'OCCUPIED'
+      ).length || 0;
+    } else {
+      // For date filters, count admissions within date range
+      const dateRange = getDateRange();
+      if (dateRange && bedsData) {
+        filteredAdmissions = bedsData.filter(bed => {
+          if (bed.status !== 'occupied' && bed.status !== 'OCCUPIED') return false;
+          if (!bed.admission_date) return false;
+          
+          const admissionDate = new Date(bed.admission_date);
+          return admissionDate >= dateRange.start && admissionDate <= dateRange.end;
+        }).length;
+      }
+    }
+    
+    // AVAILABLE BEDS: Always current status (not affected by date filter)
+    const availableBeds = bedsData?.filter(bed => 
+      bed.status === 'vacant' || bed.status === 'AVAILABLE'
+    ).length || 0;
+    
+    // EXPENSES: Use pre-filtered expense data from operations query
+    const totalExpenses = (operationsData?.expenses || []).reduce((sum: number, expense: any) => 
+      sum + (expense.amount || 0), 0) || 0;
+    
+    const totalRefunds = operationsData?.refunds?.reduce((sum: number, refund: any) => 
+      sum + (refund.amount || 0), 0) || 0;
+      
+    // Debug calculation
+    const today = new Date().toISOString().split('T')[0];
+    console.log('💸 Expenses Card Debug:', {
+      today,
+      allExpensesCount: operationsData?.expenses?.length || 0,
+      totalExpenses: totalExpenses,
+      expensesSample: (operationsData?.expenses || []).slice(0, 3)
+    });
+    
+    // Calculate net revenue
+    const netRevenue = totalRevenue - totalExpenses - totalRefunds;
+    
+    console.log('📊 Dashboard Totals:', {
+      filter: dateFilter,
+      totalRevenue,
+      totalExpenses,
+      totalRefunds,
+      netRevenue,
+      transactionCount: operationsData?.revenue?.length || 0,
+      expenseCount: operationsData?.expenses?.length || 0,
+      refundCount: operationsData?.refunds?.length || 0
+    });
+
+    // FINAL CARD DATA - All using consistent sources
+    console.log('✅ FINAL CARD DATA SUMMARY:', {
+      filter: dateFilter,
+      totalPatients,
+      filteredAdmissions,
+      availableBeds,
+      totalRevenue,
+      totalExpenses,
+      dataConsistency: 'All cards now use pre-filtered operations data'
+    });
+
+    return {
+      totalPatients,
+      admissions: filteredAdmissions,
+      availableBeds,
+      revenue: totalRevenue,
+      expenses: totalExpenses,
+    };
+  };

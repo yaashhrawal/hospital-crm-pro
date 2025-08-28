@@ -1229,51 +1229,333 @@ Description: ${bill.description || 'N/A'}
     console.log('View transaction:', bill);
   };
 
-  // Handler for Print Bill button
+  // Handler for Print Bill button with exact ReceiptTemplate format
   const handlePrintBill = (bill: any) => {
     const printWindow = window.open('', '_blank');
+    
+    // Parse bill description to extract services if available
+    const services = [];
+    if (bill.description) {
+      // Extract services from description - format: "Room: ₹1000, Medicine: ₹500, etc."
+      const serviceRegex = /([^:,]+):\s*₹([\d,]+(?:\.\d{2})?)/g;
+      let match;
+      let serviceIndex = 1;
+      
+      while ((match = serviceRegex.exec(bill.description)) !== null) {
+        const serviceName = match[1].trim();
+        const serviceAmount = parseFloat(match[2].replace(/,/g, ''));
+        services.push({
+          sr: serviceIndex,
+          service: serviceName,
+          qty: 1,
+          rate: serviceAmount,
+          amount: serviceAmount
+        });
+        serviceIndex++;
+      }
+    }
+    
+    // If no services found, add a general IPD service
+    if (services.length === 0) {
+      services.push({
+        sr: 1,
+        service: 'IPD Services & Treatment',
+        qty: 1,
+        rate: bill.amount || 0,
+        amount: bill.amount || 0
+      });
+    }
+    
+    // Function to convert number to words
+    const convertToWords = (num) => {
+      if (num === 0) return 'Zero Rupees Only';
+      
+      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+      const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+      
+      const convertHundreds = (n) => {
+        let result = '';
+        if (n >= 100) {
+          result += ones[Math.floor(n / 100)] + ' Hundred ';
+          n %= 100;
+        }
+        if (n >= 20) {
+          result += tens[Math.floor(n / 10)] + ' ';
+          n %= 10;
+        } else if (n >= 10) {
+          result += teens[n - 10] + ' ';
+          return result;
+        }
+        if (n > 0) {
+          result += ones[n] + ' ';
+        }
+        return result;
+      };
+      
+      let result = '';
+      const crores = Math.floor(num / 10000000);
+      if (crores > 0) {
+        result += convertHundreds(crores) + 'Crore ';
+        num %= 10000000;
+      }
+      
+      const lakhs = Math.floor(num / 100000);
+      if (lakhs > 0) {
+        result += convertHundreds(lakhs) + 'Lakh ';
+        num %= 100000;
+      }
+      
+      const thousands = Math.floor(num / 1000);
+      if (thousands > 0) {
+        result += convertHundreds(thousands) + 'Thousand ';
+        num %= 1000;
+      }
+      
+      if (num > 0) {
+        result += convertHundreds(num);
+      }
+      
+      return result.trim() + ' Rupees Only';
+    };
+
+    const getCurrentTime = () => {
+      return new Date().toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      });
+    };
+
+    const totals = {
+      subtotal: bill.amount || 0,
+      discount: 0,
+      insurance: 0,
+      netAmount: bill.amount || 0,
+      amountPaid: bill.amount || 0,
+      balance: 0
+    };
+    
     const billHTML = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>IPD Bill - ${bill.transaction_reference || bill.id}</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-            .details { margin: 20px 0; }
-            .row { display: flex; justify-content: space-between; margin: 5px 0; }
-            .amount { font-size: 18px; font-weight: bold; color: #2563eb; }
+            @media print {
+              @page {
+                margin: 0.5in;
+                size: A4;
+              }
+              body * {
+                visibility: hidden;
+              }
+              .receipt-template, .receipt-template * {
+                visibility: visible !important;
+                opacity: 1 !important;
+              }
+              .receipt-template {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+              }
+              .receipt-template img {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                max-height: 64px !important;
+                height: auto !important;
+                width: auto !important;
+              }
+              .print\\:hidden {
+                display: none !important;
+              }
+              .receipt-template p, 
+              .receipt-template span, 
+              .receipt-template div, 
+              .receipt-template h1, 
+              .receipt-template h2, 
+              .receipt-template h3, 
+              .receipt-template table, 
+              .receipt-template td, 
+              .receipt-template th {
+                color: black !important;
+                border-color: #333 !important;
+              }
+              .receipt-template .border-t-2 {
+                border-top: 2px solid #333 !important;
+              }
+              .bg-gray-50, .bg-blue-50, .bg-yellow-50, .bg-gray-100 {
+                background-color: #f8f9fa !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              .receipt-template .font-bold {
+                font-weight: bold !important;
+              }
+              .receipt-template .text-lg {
+                font-size: 1.125rem !important;
+              }
+              .receipt-template table, 
+              .receipt-template th, 
+              .receipt-template td {
+                border-color: #333 !important;
+              }
+              .receipt-template .text-right {
+                text-align: right !important;
+              }
+              .receipt-template p,
+              .receipt-template strong {
+                color: black !important;
+              }
+              .receipt-template .bg-gray-50 {
+                background-color: #f8f9fa !important;
+              }
+              .receipt-template * {
+                color: black !important;
+              }
+            }
+            
+            body {
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: white;
+            }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>IPD Bill</h1>
-            <p>Bill Reference: ${bill.transaction_reference || bill.id}</p>
-          </div>
-          <div class="details">
-            <div class="row">
-              <span><strong>Patient:</strong></span>
-              <span>${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</span>
+          <div class="receipt-template bg-white p-6 max-w-4xl mx-auto print:p-0 print:max-w-none" style="background: white; padding: 24px; max-width: 64rem; margin: 0 auto;">
+            
+            <!-- Header -->
+            <div class="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black" style="text-align: center; border-bottom: 2px solid #d1d5db; padding-bottom: 16px; margin-bottom: 24px;">
+              <div class="flex flex-col items-center justify-center mb-4" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <!-- Logo -->
+                <img 
+                  src="/logo.png" 
+                  alt="Hospital Logo" 
+                  class="h-12 w-auto print:block"
+                  style="height: 48px; width: auto; max-height: 48px; display: block;"
+                  onerror="this.style.display='none'"
+                />
+              </div>
+              <div class="text-sm text-gray-700 mt-4 print:text-black" style="font-size: 14px; color: #374151; margin-top: 16px;">
+                <p class="print:text-black" style="color: black; margin: 0;">10, Madhav Vihar Shobhagpura, Udaipur (313001)</p>
+                <p class="print:text-black" style="color: black; margin: 0;">Phone: +91 9119118000 | Email: valanthospital@gmail.com</p>
+                <p class="print:text-black" style="color: black; margin: 0;">Website: www.valanthospital.com</p>
+              </div>
             </div>
-            <div class="row">
-              <span><strong>Date:</strong></span>
-              <span>${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : 'N/A'}</span>
+
+            <!-- Bill Header -->
+            <div class="mb-6" style="margin-bottom: 24px;">
+              <div class="text-center mb-4" style="text-align: center; margin-bottom: 16px;">
+                <h2 class="text-xl font-bold text-gray-800" style="font-size: 20px; font-weight: bold; color: #1f2937; margin: 0;">IPD PAYMENT RECEIPT</h2>
+              </div>
+              <div class="grid grid-cols-2 gap-4 text-sm" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 14px;">
+                <div>
+                  <p style="margin: 4px 0; color: black;"><strong>RECEIPT NO:</strong> ${bill.transaction_reference || bill.id || 'N/A'}</p>
+                  <p style="margin: 4px 0; color: black;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                  <p style="margin: 4px 0; color: black;"><strong>TIME:</strong> ${getCurrentTime()}</p>
+                </div>
+                <div class="text-right" style="text-align: right;">
+                  <p style="margin: 4px 0; color: black;"><strong>Patient ID:</strong> ${bill.patients?.patient_id || 'N/A'}</p>
+                  <p style="margin: 4px 0; color: black;"><strong>PAYMENT MODE:</strong> ${bill.payment_mode || 'CASH'}</p>
+                </div>
+              </div>
             </div>
-            <div class="row">
-              <span><strong>Doctor:</strong></span>
-              <span>${bill.doctor_name || 'N/A'}</span>
+
+            <!-- Patient Information -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-6 print:bg-gray-100 print:p-4" style="background-color: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+              <h3 class="font-semibold mb-3 text-gray-800 print:text-black print:font-bold" style="font-weight: 600; margin-bottom: 12px; color: black; font-weight: bold;">Patient Information</h3>
+              <div class="grid grid-cols-2 gap-4 text-sm print:grid-cols-2 print:gap-4" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 14px;">
+                <div>
+                  <p class="print:text-black" style="color: black; margin: 4px 0;"><strong>NAME:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</p>
+                  <p class="print:text-black" style="color: black; margin: 4px 0;"><strong>AGE/SEX:</strong> ${bill.patients?.age || 'N/A'} years / ${bill.patients?.gender || 'N/A'}</p>
+                  <p class="print:text-black" style="color: black; margin: 4px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p class="print:text-black" style="color: black; margin: 4px 0;"><strong>SERVICE DATE:</strong> ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p class="print:text-black" style="color: black; margin: 4px 0;"><strong>PROCESSED BY:</strong> IPD Billing Department</p>
+                </div>
+              </div>
             </div>
-            <div class="row">
-              <span><strong>Status:</strong></span>
-              <span>${bill.status || 'UNKNOWN'}</span>
+
+            <!-- Services Table -->
+            <div class="mb-6 print:block" style="margin-bottom: 24px;">
+              <h3 class="font-semibold mb-3 text-gray-800 print:text-black" style="font-weight: 600; margin-bottom: 12px; color: black;">Services & Charges</h3>
+              <table class="w-full border-collapse border border-gray-300 print:border-black" style="width: 100%; border-collapse: collapse; border: 1px solid #333;">
+                <thead>
+                  <tr class="bg-gray-100 print:bg-gray-200" style="background-color: #f3f4f6;">
+                    <th class="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: left; color: black; font-weight: bold;">Sr</th>
+                    <th class="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: left; color: black; font-weight: bold;">Service</th>
+                    <th class="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: center; color: black; font-weight: bold;">Qty</th>
+                    <th class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black; font-weight: bold;">Rate (₹)</th>
+                    <th class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black; font-weight: bold;">Discount</th>
+                    <th class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black; font-weight: bold;">Amount (₹)</th>
+                    <th class="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: center; color: black; font-weight: bold;">Payment Mode</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${services.map((service, index) => `
+                    <tr key="${service.sr}">
+                      <td class="border border-gray-300 px-3 py-2 print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; color: black;">${service.sr}</td>
+                      <td class="border border-gray-300 px-3 py-2 print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; color: black;">${service.service}</td>
+                      <td class="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: center; color: black;">${service.qty}</td>
+                      <td class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black;">₹${service.rate.toFixed(2)}</td>
+                      <td class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black;">
+                        ${totals.discount > 0 && index === 0 ? `₹${totals.discount.toFixed(2)}` : '-'}
+                      </td>
+                      <td class="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: right; color: black;">₹${service.amount.toFixed(2)}</td>
+                      <td class="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: center; color: black;">
+                        ${bill.payment_mode || 'CASH'}
+                      </td>
+                    </tr>
+                  `).join('')}
+                  <!-- Bill Summary Row -->
+                  <tr class="bg-gray-100 font-bold print:bg-gray-200" style="background-color: #f3f4f6; font-weight: bold;">
+                    <td colspan="7" class="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black" style="border: 1px solid #333; padding: 8px 12px; text-align: center; color: black;">
+                      <div class="text-center" style="text-align: center;">
+                        <p class="text-lg font-bold" style="font-size: 18px; font-weight: bold; color: black;">Net Amount Payable: ₹${totals.netAmount.toFixed(2)}</p>
+                        <p class="text-sm mt-1" style="font-size: 12px; margin-top: 4px; color: black;">Amount in Words: ${convertToWords(totals.netAmount)}</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="row">
-              <span><strong>Description:</strong></span>
-              <span>${bill.description || 'N/A'}</span>
+
+            <!-- Notes -->
+            ${bill.description ? `
+            <div class="mb-6 bg-yellow-50 p-4 rounded-lg" style="margin-bottom: 24px; background-color: #fefce8; padding: 16px; border-radius: 8px;">
+              <h3 class="font-semibold mb-2 text-gray-800" style="font-weight: 600; margin-bottom: 8px; color: black;">Notes:</h3>
+              <p class="text-sm text-gray-700" style="font-size: 14px; color: black;">${bill.description}</p>
             </div>
-            <div class="row amount">
-              <span><strong>Total Amount:</strong></span>
-              <span>₹${bill.amount?.toLocaleString() || '0'}</span>
+            ` : ''}
+
+            <!-- Signature Section -->
+            <div class="grid grid-cols-2 gap-8 mb-6" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 24px;">
+              <div class="text-center" style="text-align: center;">
+                <div class="border-t border-gray-400 mt-12 pt-2" style="border-top: 1px solid #9ca3af; margin-top: 48px; padding-top: 8px;">
+                  <p class="text-sm" style="font-size: 14px; color: black;">Patient/Guardian Signature</p>
+                </div>
+              </div>
+              <div class="text-center" style="text-align: center;">
+                <div class="border-t border-gray-400 mt-12 pt-2" style="border-top: 1px solid #9ca3af; margin-top: 48px; padding-top: 8px;">
+                  <p class="text-sm" style="font-size: 14px; color: black;">Authorized Signature</p>
+                  <p class="text-xs text-gray-600 mt-1" style="font-size: 12px; color: #4b5563; margin-top: 4px;">Hospital Administrator</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500" style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280;">
+              <p style="color: black; margin: 0;">Thank you for choosing VALANT HOSPITAL</p>
+              <p class="mt-1" style="margin-top: 4px; color: black;">A unit of Neuorth Medicare Pvt Ltd</p>
+              <p class="font-bold mt-2" style="font-weight: bold; margin-top: 8px; color: black;">** ORIGINAL COPY **</p>
             </div>
           </div>
         </body>
@@ -1288,7 +1570,7 @@ Description: ${bill.description || 'N/A'}
       toast.error('Unable to open print window');
     }
     
-    console.log('Print bill:', bill);
+    console.log('Print bill with proper receipt format:', bill);
   };
 
   // Handler for Delete Bill button

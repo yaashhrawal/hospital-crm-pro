@@ -5,34 +5,37 @@ import toast from 'react-hot-toast';
 interface PreOperativeOrdersFormProps {
   isOpen: boolean;
   onClose: () => void;
-  patientData: {
-    name: string;
-    age: string;
+  patient: {
+    first_name: string;
+    last_name?: string;
+    age: string | number;
     gender: string;
-    ipdNo: string;
-    roomWardNo?: string;
-    patientId?: string;
-    doctorName?: string;
+    patient_id: string;
+    assigned_doctor?: string;
   };
-  onSave?: (data: any) => void;
+  bedNumber: string;
+  ipdNumber?: string;
+  onSubmit?: (data: any) => void;
   savedData?: any; // Previously saved form data
 }
 
 const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
   isOpen,
   onClose,
-  patientData,
-  onSave,
+  patient,
+  bedNumber,
+  ipdNumber,
+  onSubmit,
   savedData
 }) => {
   const [formData, setFormData] = useState({
     // Patient Header Section
-    patientId: patientData.patientId || '',
-    ipNo: patientData.ipdNo || '',
-    patientName: patientData.name || '',
-    ageSex: `${patientData.age || ''} / ${patientData.gender || ''}`,
+    patientId: patient.patient_id || '',
+    ipNo: ipdNumber || patient.patient_id || '',
+    patientName: `${patient.first_name} ${patient.last_name || ''}`.trim() || '',
+    ageSex: `${patient.age || ''} / ${patient.gender || ''}`,
     date: new Date().toISOString().split('T')[0],
-    consultantName: patientData.doctorName || '',
+    consultantName: patient.assigned_doctor || '',
     
     // Orders Section
     writtenConsent: savedData?.writtenConsent || false,
@@ -73,11 +76,11 @@ const PreOperativeOrdersForm: React.FC<PreOperativeOrdersFormProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSave) {
-      onSave({
+    if (onSubmit) {
+      onSubmit({
         ...formData,
         createdAt: new Date().toISOString(),
-        patientId: patientData.ipdNo
+        patientId: patient.patient_id
       });
     }
     toast.success('Pre-Operative Orders saved successfully');

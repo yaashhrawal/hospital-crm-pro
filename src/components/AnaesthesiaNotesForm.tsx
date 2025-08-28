@@ -5,34 +5,37 @@ import toast from 'react-hot-toast';
 interface AnaesthesiaNotesFormProps {
   isOpen: boolean;
   onClose: () => void;
-  patientData: {
-    name: string;
-    age: string;
+  patient: {
+    first_name: string;
+    last_name?: string;
+    age: string | number;
     gender: string;
-    ipdNo: string;
-    roomWardNo?: string;
-    patientId?: string;
-    doctorName?: string;
+    patient_id: string;
+    assigned_doctor?: string;
   };
+  bedNumber: string;
+  ipdNumber?: string;
   savedData?: any; // Previously saved form data
-  onSave?: (data: any) => void;
+  onSubmit?: (data: any) => void;
 }
 
 const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
   isOpen,
   onClose,
-  patientData,
+  patient,
+  bedNumber,
+  ipdNumber,
   savedData,
-  onSave
+  onSubmit
 }) => {
   const [formData, setFormData] = useState({
     // Patient Information
-    patientName: savedData?.patientName || patientData.name || '',
-    ageSex: savedData?.ageSex || `${patientData.age || ''} / ${patientData.gender || ''}`,
+    patientName: savedData?.patientName || `${patient.first_name} ${patient.last_name || ''}`.trim() || '',
+    ageSex: savedData?.ageSex || `${patient.age || ''} / ${patient.gender || ''}`,
     date: savedData?.date || new Date().toISOString().split('T')[0],
-    patientId: savedData?.patientId || patientData.patientId || '',
-    ipdNo: savedData?.ipdNo || patientData.ipdNo || '',
-    consultantName: savedData?.consultantName || patientData.doctorName || '',
+    patientId: savedData?.patientId || patient.patient_id || '',
+    ipdNo: savedData?.ipdNo || ipdNumber || patient.patient_id || '',
+    consultantName: savedData?.consultantName || patient.assigned_doctor || '',
     
     // Form 5A - Pre-Op Details
     timeIn: savedData?.timeIn || '',
@@ -223,11 +226,11 @@ const AnaesthesiaNotesForm: React.FC<AnaesthesiaNotesFormProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSave) {
-      onSave({
+    if (onSubmit) {
+      onSubmit({
         ...formData,
         createdAt: new Date().toISOString(),
-        patientId: patientData.patientId
+        patientId: patient.patient_id
       });
     }
     toast.success('Anaesthesia Notes saved successfully');

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Heart, Shield, Users, Activity, Loader2, Stethoscope, HeartHandshake } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export const Login: React.FC = () => {
+export const AnimatedLogin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -474,3 +474,5 @@ export const Login: React.FC = () => {
     </div>
   );
 };
+
+export default AnimatedLogin;

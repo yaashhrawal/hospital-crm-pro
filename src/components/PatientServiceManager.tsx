@@ -201,10 +201,11 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         patient_id: patient.id,
         transaction_type: newService.category,
         amount: finalAmount,
-        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.discount > 0 ? ` (Original: ₹${(newService.price * newService.quantity).toLocaleString()}, Discount: ${newService.discount}%, Final: ₹${finalAmount.toLocaleString()})` : ''}${newService.serviceDate ? ` [Date: ${newService.serviceDate}]` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
+        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.serviceDate ? ` [Date: ${newService.serviceDate}]` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
         payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const,
-        transaction_date: finalServiceDate // 🔍 CRITICAL FIX: Set actual transaction_date field
+        transaction_date: finalServiceDate, // 🔍 CRITICAL FIX: Set actual transaction_date field
+        discount_percentage: newService.discount || 0
       };
       
       console.log('📤 SENDING TRANSACTION DATA:', {
@@ -282,7 +283,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         const discountAmount = originalAmount * (editingService.discount / 100);
         const finalAmount = originalAmount - discountAmount;
         
-        const updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}${editingService.discount > 0 ? ` (Original: ₹${originalAmount.toLocaleString()}, Discount: ${editingService.discount}%, Final: ₹${finalAmount.toLocaleString()})` : ''}${editingService.serviceDate ? ` [Date: ${editingService.serviceDate}]` : ''}${editingService.notes ? ` - ${editingService.notes}` : ''}`;
+        const updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}${editingService.serviceDate ? ` [Date: ${editingService.serviceDate}]` : ''}${editingService.notes ? ` - ${editingService.notes}` : ''}`;
         
         console.log('📝 Updated description with date:', updatedDescription);
         
@@ -291,7 +292,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
           amount: finalAmount,
           description: updatedDescription,
           payment_mode: editingService.paymentMode,
-          transaction_date: finalUpdateDate // 🔥 CRITICAL FIX: Update transaction_date field
+          transaction_date: finalUpdateDate, // 🔥 CRITICAL FIX: Update transaction_date field
+          discount_percentage: editingService.discount || 0
         });
         
         console.log('🔥 UPDATED TRANSACTION_DATE:', editingService.serviceDate);
