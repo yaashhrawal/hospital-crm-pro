@@ -18,6 +18,7 @@ import { createRoot } from 'react-dom/client';
 import ReceiptTemplate from './receipts/ReceiptTemplate';
 import type { ReceiptData } from './receipts/ReceiptTemplate';
 import { usePermissions, useAuth } from '../contexts/AuthContext';
+import { supabase } from '../config/supabase';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -56,25 +57,82 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
     };
   }, []);
 
-  const printPrescriptionForTransaction = (patient: PatientWithRelations, transaction: any, prescriptionType: 'VH' | 'VALANT') => {
+  const printPrescriptionForTransaction = async (patient: PatientWithRelations, transaction: any, prescriptionType: 'VH' | 'VALANT') => {
     // Debug: Log transaction data to see available fields
     console.log('🔍 Transaction data for prescription:', transaction);
     console.log('🏥 Available transaction fields:', Object.keys(transaction));
     
-    // Extract doctor information - transaction.doctor_name takes priority
-    const transactionDoctorName = transaction.doctor_name || transaction.doctorName;
-    const finalDoctorName = transactionDoctorName || patient.assigned_doctor || patient.doctor_name;
+    // Enhanced doctor information resolution
+    let finalDoctorName = '';
+    let finalDepartment = '';
+    let doctorDegree = '';
+    let doctorSpecialization = '';
     
-    // For department, use transaction's department if available, otherwise patient's department
-    const finalDepartment = transaction.department || patient.assigned_department;
+    // Priority 1: Use transaction doctor_name and department if available
+    if (transaction.doctor_name && transaction.doctor_name.trim()) {
+      finalDoctorName = transaction.doctor_name.trim();
+      console.log('✅ Using transaction doctor_name:', finalDoctorName);
+    }
     
-    console.log('🎯 Doctor resolution:', {
-      transaction_doctor_name: transactionDoctorName,
+    if (transaction.department && transaction.department.trim()) {
+      finalDepartment = transaction.department.trim();
+      console.log('✅ Using transaction department:', finalDepartment);
+    }
+    
+    // Priority 2: If transaction has doctor_id, try to get complete doctor info
+    if (transaction.doctor_id && (!finalDoctorName || !finalDepartment)) {
+      try {
+        console.log('🔍 Fetching doctor details for doctor_id:', transaction.doctor_id);
+        const { data: doctorInfo, error } = await supabase
+          .from('doctors')
+          .select('name, department, degree, specialization')
+          .eq('id', transaction.doctor_id)
+          .single();
+          
+        if (doctorInfo && !error) {
+          finalDoctorName = finalDoctorName || doctorInfo.name || '';
+          finalDepartment = finalDepartment || doctorInfo.department || '';
+          doctorDegree = doctorInfo.degree || '';
+          doctorSpecialization = doctorInfo.specialization || '';
+          console.log('✅ Enhanced with doctor table data:', doctorInfo);
+        } else if (error) {
+          console.log('⚠️ Error fetching doctor details:', error);
+        }
+      } catch (error) {
+        console.log('⚠️ Could not fetch doctor details from doctor_id:', error);
+      }
+    }
+    
+    // Priority 3: Fall back to patient assigned doctor/department
+    if (!finalDoctorName && patient.assigned_doctor) {
+      finalDoctorName = patient.assigned_doctor;
+      console.log('🔄 Fallback to patient assigned_doctor:', finalDoctorName);
+    }
+    
+    if (!finalDepartment && patient.assigned_department) {
+      finalDepartment = patient.assigned_department;
+      console.log('🔄 Fallback to patient assigned_department:', finalDepartment);
+    }
+    
+    // Priority 4: Final fallback to patient doctor_name field
+    if (!finalDoctorName && patient.doctor_name) {
+      finalDoctorName = patient.doctor_name;
+      console.log('🔄 Final fallback to patient doctor_name:', finalDoctorName);
+    }
+    
+    console.log('🎯 FINAL Doctor resolution:', {
+      transaction_doctor_name: transaction.doctor_name,
+      transaction_department: transaction.department,
+      transaction_doctor_id: transaction.doctor_id,
       patient_assigned_doctor: patient.assigned_doctor,
-      final_doctor_name: finalDoctorName,
-      final_department: finalDepartment
+      patient_assigned_department: patient.assigned_department,
+      FINAL_doctor_name: finalDoctorName,
+      FINAL_department: finalDepartment,
+      doctor_degree: doctorDegree,
+      doctor_specialization: doctorSpecialization
     });
     
+    // Create enhanced patient object with transaction-specific doctor details
     const patientForPrescription = {
       ...patient,
       currentTransactionId: transaction.id,
@@ -84,13 +142,24 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       // Override doctor details with transaction-specific information
       assigned_doctor: finalDoctorName,
       doctor_name: finalDoctorName, // For compatibility with different prescription templates
-      assigned_department: finalDepartment
+      assigned_department: finalDepartment,
+      doctor_degree: doctorDegree,
+      doctor_specialization: doctorSpecialization,
+      // Add the transaction info for reference
+      transaction_details: {
+        type: transaction.transaction_type,
+        date: transaction.transaction_date,
+        amount: transaction.amount,
+        description: transaction.description
+      }
     };
     
     console.log('🎯 Final patient data for prescription:', {
       assigned_doctor: patientForPrescription.assigned_doctor,
       doctor_name: patientForPrescription.doctor_name,
-      assigned_department: patientForPrescription.assigned_department
+      assigned_department: patientForPrescription.assigned_department,
+      doctor_degree: patientForPrescription.doctor_degree,
+      doctor_specialization: patientForPrescription.doctor_specialization
     });
     
     setSelectedPatientForPrescription(patientForPrescription);
@@ -902,8 +971,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                                 style={{ display: 'none', minWidth: '80px' }}
                               >
                                 <button
-                                  onClick={() => {
-                                    printPrescriptionForTransaction(patient, transaction, 'VH');
+                                  onClick={async () => {
+                                    await printPrescriptionForTransaction(patient, transaction, 'VH');
                                     document.getElementById(`prescription-dropdown-${transaction.id}`)!.style.display = 'none';
                                   }}
                                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 border-b"
@@ -911,8 +980,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                                   VH
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    printPrescriptionForTransaction(patient, transaction, 'VALANT');
+                                  onClick={async () => {
+                                    await printPrescriptionForTransaction(patient, transaction, 'VALANT');
                                     document.getElementById(`prescription-dropdown-${transaction.id}`)!.style.display = 'none';
                                   }}
                                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
