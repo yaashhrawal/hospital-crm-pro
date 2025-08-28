@@ -88,15 +88,39 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
 
   // Get the correct doctor name and degree from patient data
   const getDoctorInfo = () => {
-    const doctorName = patient.assigned_doctor || '';
+    console.log('🩺 VALANT Patient data for prescription:', patient);
+    console.log('👨‍⚕️ VALANT assigned_doctor:', patient.assigned_doctor);
+    console.log('👨‍⚕️ VALANT doctor_name:', (patient as any).doctor_name);
+    console.log('👨‍⚕️ VALANT doctor_degree:', (patient as any).doctor_degree);
+    console.log('👨‍⚕️ VALANT doctor_specialization:', (patient as any).doctor_specialization);
+    console.log('🏥 VALANT assigned_department:', patient.assigned_department);
+    console.log('📋 VALANT Current doctorDetails state:', doctorDetails);
+    console.log('🔍 VALANT Transaction details:', (patient as any).transaction_details);
+    
+    // Use enhanced doctor fields from transaction-specific data first
+    const doctorName = patient.assigned_doctor || (patient as any).doctor_name || '';
+    const transactionDegree = (patient as any).doctor_degree;
+    const transactionSpecialization = (patient as any).doctor_specialization;
+    
     const localDoctorInfo = getDoctorWithDegree(doctorName);
     
-    // Prioritize database specialty over local degree if available
-    const degree = doctorDetails.specialty || localDoctorInfo.degree;
+    // Prioritize transaction-specific degree, then database specialty, then local degree
+    let degree = '';
+    if (transactionDegree && transactionDegree.trim()) {
+      degree = transactionDegree;
+      console.log('✅ VALANT Using transaction doctor_degree:', degree);
+    } else if (doctorDetails.specialty) {
+      degree = doctorDetails.specialty;
+      console.log('✅ VALANT Using database specialty as degree:', degree);
+    } else if (localDoctorInfo.degree) {
+      degree = localDoctorInfo.degree;
+      console.log('✅ VALANT Using local doctor degree:', degree);
+    }
     
     const result = {
       name: localDoctorInfo.name,
       degree: degree,
+      specialization: transactionSpecialization || '',
       specialty: '', // Don't show specialty separately since it's now the degree
       hospital_experience: doctorDetails.hospital_experience || ''
     };
@@ -104,13 +128,20 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
   };
 
   const getDepartmentName = () => {
+    // Prioritize transaction-specific department over patient's assigned department
     let dept = patient.assigned_department || 'GENERAL PHYSICIAN';
+    
+    console.log('🏥 VALANT Department resolution:', {
+      patient_assigned_department: patient.assigned_department,
+      final_department: dept
+    });
     
     // Fix any ORTHOPEDIC spelling issues
     if (dept.toUpperCase().includes('ORTHOPEDIC')) {
       dept = dept.replace(/ORTHOPEDIC/gi, 'ORTHOPAEDIC');
     }
     
+    console.log('🏥 VALANT FINAL department:', dept);
     return dept;
   };
 

@@ -45,20 +45,39 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
 
   // Get the correct doctor name and degree from patient data
   const getDoctorInfo = () => {
-    console.log('🩺 VH Patient data:', patient);
+    console.log('🩺 VH Patient data for prescription:', patient);
     console.log('👨‍⚕️ VH assigned_doctor:', patient.assigned_doctor);
+    console.log('👨‍⚕️ VH doctor_name:', (patient as any).doctor_name);
+    console.log('👨‍⚕️ VH doctor_degree:', (patient as any).doctor_degree);
+    console.log('👨‍⚕️ VH doctor_specialization:', (patient as any).doctor_specialization);
     console.log('🏥 VH assigned_department:', patient.assigned_department);
     console.log('📋 VH Current doctorDetails state:', doctorDetails);
+    console.log('🔍 VH Transaction details:', (patient as any).transaction_details);
     
-    const doctorName = patient.assigned_doctor || 'DR. BATUL PEEPAWALA';
+    // Use enhanced doctor fields from transaction-specific data first
+    const doctorName = patient.assigned_doctor || (patient as any).doctor_name || 'DR. BATUL PEEPAWALA';
+    const transactionDegree = (patient as any).doctor_degree;
+    const transactionSpecialization = (patient as any).doctor_specialization;
+    
     const localDoctorInfo = getDoctorWithDegree(doctorName);
     
-    // Prioritize local degree (with formatting) over database specialty
-    const degree = localDoctorInfo.degree || doctorDetails.specialty;
+    // Prioritize transaction-specific degree, then local degree, then database specialty
+    let degree = '';
+    if (transactionDegree && transactionDegree.trim()) {
+      degree = transactionDegree;
+      console.log('✅ VH Using transaction doctor_degree:', degree);
+    } else if (localDoctorInfo.degree) {
+      degree = localDoctorInfo.degree;
+      console.log('✅ VH Using local doctor degree:', degree);
+    } else if (doctorDetails.specialty) {
+      degree = doctorDetails.specialty;
+      console.log('✅ VH Using database specialty as degree:', degree);
+    }
     
     const result = {
       name: localDoctorInfo.name,
       degree: degree,
+      specialization: transactionSpecialization || '',
       specialty: '', // Don't show specialty separately since it's now the degree
       hospital_experience: doctorDetails.hospital_experience || ''
     };
@@ -67,13 +86,20 @@ const VHPrescription: React.FC<VHPrescriptionProps> = ({ patient, onClose }) => 
   };
 
   const getDepartmentName = () => {
+    // Prioritize transaction-specific department over patient's assigned department
     let dept = patient.assigned_department || 'GENERAL PHYSICIAN';
+    
+    console.log('🏥 VH Department resolution:', {
+      patient_assigned_department: patient.assigned_department,
+      final_department: dept
+    });
     
     // Fix any ORTHOPEDIC spelling issues
     if (dept.toUpperCase().includes('ORTHOPEDIC')) {
       dept = dept.replace(/ORTHOPEDIC/gi, 'ORTHOPAEDIC');
     }
     
+    console.log('🏥 VH FINAL department:', dept);
     return dept;
   };
 
