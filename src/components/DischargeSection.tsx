@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { supabase } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { exportToExcel, formatDate } from '../utils/excelExport';
@@ -285,27 +286,63 @@ const DischargeSection: React.FC = () => {
     return sortOrder === 'asc' ? '↑' : '↓';
   };
 
-  const deletePatient = async (patientId: string) => {
+  const deleteDischargeRecord = async (patientId: string) => {
     const patient = dischargedPatients.find(p => p.id === patientId);
     if (!patient) {
       toast.error('Patient not found');
       return;
     }
 
-    if (!confirm(`Are you sure you want to permanently delete ${patient.first_name} ${patient.last_name}? This action cannot be undone and will remove all patient data from the system.`)) {
+    if (!confirm(`Are you sure you want to remove the discharge record for ${patient.first_name} ${patient.last_name}? This will remove them from the discharged patients list but keep their patient data in the system.`)) {
       return;
     }
 
     try {
+      // Delete discharge summary record instead of the entire patient
+      if (patient.discharge_summary?.id) {
+        const { error: summaryError } = await supabase
+          .from('discharge_summaries')
+          .delete()
+          .eq('id', patient.discharge_summary.id);
+          
+        if (summaryError) {
+          console.error('Error deleting discharge summary:', summaryError);
+          toast.error('Failed to delete discharge summary');
+          return;
+        }
+      }
+
+      // Update patient IPD status back to ADMITTED if they should be re-admitted
+      // or set to null if they're completely done
+      await HospitalService.updatePatient(patientId, {
+        ipd_status: null // or 'ADMITTED' if they should be re-admitted
+      });
+
+      // Update admission status back to ADMITTED if needed
+      // Find and update related admission record
+      const dischargedAdmissions = await HospitalService.getDischargedAdmissions();
+      const relatedAdmission = dischargedAdmissions.find(admission => 
+        admission.patient_id === patientId || admission.patient?.id === patientId
+      );
       
-      await HospitalService.deletePatient(patientId);
+      if (relatedAdmission) {
+        const { error: admissionError } = await supabase
+          .from('patient_admissions')
+          .update({ status: 'ADMITTED' })
+          .eq('id', relatedAdmission.id);
+          
+        if (admissionError) {
+          console.warn('Warning: Could not update admission status:', admissionError);
+        }
+      }
       
       setDischargedPatients(prev => prev.filter(p => p.id !== patientId));
       
-      toast.success(`${patient.first_name} ${patient.last_name} has been permanently deleted`);
+      toast.success(`Discharge record for ${patient.first_name} ${patient.last_name} has been removed. Patient data remains in the system.`);
       
     } catch (error: any) {
-      toast.error(`Failed to delete patient: ${error.message}`);
+      console.error('Error deleting discharge record:', error);
+      toast.error(`Failed to remove discharge record: ${error.message}`);
     }
   };
 
@@ -551,11 +588,11 @@ const DischargeSection: React.FC = () => {
                     </td>
                     <td className="p-4 text-center">
                       <button
-                        onClick={() => deletePatient(patient.id)}
-                        className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 text-sm font-medium"
-                        title="Delete patient permanently"
+                        onClick={() => deleteDischargeRecord(patient.id)}
+                        className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200 text-sm font-medium"
+                        title="Remove discharge record (patient data will remain in system)"
                       >
-                        🗑️ Delete
+                        📝 Remove Discharge
                       </button>
                     </td>
                   </tr>
