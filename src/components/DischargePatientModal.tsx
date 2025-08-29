@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import type { PatientAdmissionWithRelations } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DischargeModalProps {
   admission: PatientAdmissionWithRelations | null;
@@ -41,6 +42,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
   onSuccess
 }) => {
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const [formData, setFormData] = useState<DischargeFormData>({
     final_diagnosis: '',
     primary_consultant: '',
@@ -175,7 +177,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       console.log('🔍 Validation check:');
       console.log('- Admission ID:', admission.id);
       console.log('- Patient ID:', admission.patient?.id);
-      console.log('- Current User ID:', currentUser.id);
+      console.log('- Current User ID:', user?.id || 'No user');
       console.log('- Final Diagnosis:', formData.final_diagnosis);
       console.log('- Primary Consultant:', formData.primary_consultant);
       
@@ -247,8 +249,8 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         attendant_contact: formData.attendant_contact?.trim() || null,
         documents_handed_over: formData.documents_handed_over || false,
         discharge_notes: formData.discharge_notes?.trim() || null,
-        created_by: validUserId,
-        hospital_id: admission.hospital_id
+        created_by: user?.id || 'system',
+        hospital_id: admission.hospital_id || 'b8a8c5e2-5c4d-4a8b-9e6f-3d2c1a0b9c8d'
       };
       
       console.log('📋 Prepared discharge summary data:', dischargeSummaryData);

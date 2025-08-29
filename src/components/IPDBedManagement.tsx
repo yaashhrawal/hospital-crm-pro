@@ -1603,6 +1603,18 @@ const IPDBedManagement: React.FC = () => {
     
     console.log('📋 Discharge details:', { bedId, patientId });
     
+    try {
+      // Ensure bed is properly cleared using BedService
+      if (bedId) {
+        console.log('🛏️ Ensuring bed is properly cleared using BedService...');
+        await BedService.dischargePatientFromBed(bedId);
+        console.log('✅ Bed cleared using BedService');
+      }
+    } catch (bedError) {
+      console.warn('⚠️ BedService discharge failed, bed might already be cleared:', bedError);
+      // Continue with the process even if bed service fails
+    }
+    
     // Update patient's IPD status to DISCHARGED in database
     if (patientId) {
       try {
