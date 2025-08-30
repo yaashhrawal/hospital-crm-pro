@@ -430,8 +430,9 @@ class DataService {
         
         console.log(`🔍 DataService - Checking transaction ${t.id}: Patient="${t.patients?.first_name} ${t.patients?.last_name}", Dept="${patientDept}", Doc="${patientDoc}"`);
         
-        if (patientDept === 'ORTHO' && (patientDoc === 'DR HEMANT' || patientDoc === 'DR. HEMANT' || patientDoc.includes('HEMANT'))) {
-          console.log(`🚫 DataService - Excluding transaction for ORTHO/HEMANT patient - Transaction ID: ${t.id}, Patient: "${t.patients?.first_name} ${t.patients?.last_name}", Dept: "${patientDept}", Doc: "${patientDoc}"`);
+        // Exclude if department is ORTHO AND doctor name contains HEMANT (but not KHAJJA)
+        if (patientDept === 'ORTHO' && patientDoc.includes('HEMANT') && !patientDoc.includes('KHAJJA')) {
+          console.log(`🚫 DataService - Excluding transaction for ORTHO/DR HEMANT patient - Transaction ID: ${t.id}, Patient: "${t.patients?.first_name} ${t.patients?.last_name}", Dept: "${patientDept}", Doc: "${patientDoc}"`);
           return false;
         }
         
@@ -505,19 +506,37 @@ class DataService {
   async getExpensesByDate(date: string): Promise<DailyExpense[]> {
     console.log('📡 Fetching expenses by date directly from Supabase:', date);
     try {
-      const { data, error } = await supabase
+      // First get all expenses then filter by date to handle different date formats
+      const { data: allExpenses, error } = await supabase
         .from('daily_expenses')
         .select('*')
         .eq('hospital_id', HOSPITAL_ID)
-        .gte('expense_date', date + 'T00:00:00.000Z')
-        .lte('expense_date', date + 'T23:59:59.999Z')
         .order('expense_date', { ascending: false });
+      
       if (error) {
-        console.error('❌ Supabase expenses by date fetch error:', error);
+        console.error('❌ Supabase expenses fetch error:', error);
         throw error;
       }
-      console.log('✅ Expenses by date fetched successfully from Supabase:', data?.length || 0, 'records');
-      return data || [];
+      
+      // Filter expenses for the specific date
+      const data = allExpenses?.filter(expense => {
+        if (!expense.expense_date) return false;
+        
+        // Handle both date formats (YYYY-MM-DD and YYYY-MM-DDTHH:MM:SS)
+        const expenseDate = expense.expense_date.includes('T') 
+          ? expense.expense_date.split('T')[0] 
+          : expense.expense_date;
+        
+        return expenseDate === date;
+      }) || [];
+      
+      console.log('✅ Expenses by date fetched successfully from Supabase:', {
+        requestedDate: date,
+        totalExpenses: allExpenses?.length || 0,
+        filteredExpenses: data.length,
+        expenses: data.map(e => ({ id: e.id, amount: e.amount, date: e.expense_date, category: e.expense_category }))
+      });
+      return data;
     } catch (error) {
       console.error('🚨 Expenses by date fetch failed:', error);
       throw error;
@@ -534,24 +553,17 @@ class DataService {
     console.log('📡 Calculating daily revenue directly from Supabase for date:', date);
     try {
       // Fetch data directly from Supabase
+      // Note: getTransactionsByDate already filters out ORTHO/DR HEMANT transactions
       const transactions = await this.getTransactionsByDate(date);
       const expenses = await this.getExpensesByDate(date);
 
-      // Exclude ORTHO/DR. HEMANT patients from revenue
-      const totalIncome = transactions.reduce((sum, t) => {
-        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
-          return sum;
-        }
-        return sum + t.amount;
-      }, 0);
+      // Calculate total income - transactions are already filtered by getTransactionsByDate
+      const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
       const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
       const netRevenue = totalIncome - totalExpenses;
 
+      // Build transaction breakdown - transactions are already filtered
       const transactionBreakdown = transactions.reduce((breakdown, t) => {
-        // Exclude ORTHO/DR. HEMANT patients from breakdown
-        if (t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT') {
-          return breakdown;
-        }
         breakdown[t.transaction_type] = (breakdown[t.transaction_type] || 0) + t.amount;
         return breakdown;
       }, {} as Record<string, number>);
@@ -563,7 +575,13 @@ class DataService {
         transactionBreakdown,
       };
 
-      console.log('✅ Daily revenue calculated successfully from Supabase:', result);
+      console.log('✅ Daily revenue calculated successfully from Supabase:', {
+        date,
+        totalTransactions: transactions.length,
+        totalIncome,
+        totalExpenses,
+        netRevenue
+      });
       return result;
     } catch (error) {
       console.error('🚨 Daily revenue calculation failed:', error);

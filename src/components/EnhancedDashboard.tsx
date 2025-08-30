@@ -68,6 +68,159 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Helper function to fetch all transactions with pagination
+  const fetchAllTransactions = async () => {
+    try {
+      let allTransactions: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        console.log(`📄 Fetching transactions page ${page + 1}: rows ${from} to ${to}`);
+
+        const { data, error } = await supabase
+          .from('patient_transactions')
+          .select(`
+            id,
+            amount,
+            payment_mode,
+            transaction_type,
+            description,
+            status,
+            created_at,
+            transaction_date,
+            patient:patients!inner(id, patient_id, first_name, last_name, date_of_entry, assigned_department, assigned_doctor)
+          `)
+          .neq('status', 'CANCELLED')  // Changed to match hospitalService.ts logic
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.error(`❌ Error fetching transactions page ${page + 1}:`, error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allTransactions = [...allTransactions, ...data];
+          console.log(`✅ Fetched ${data.length} transactions in page ${page + 1}, total so far: ${allTransactions.length}`);
+          
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`📊 Total transactions fetched: ${allTransactions.length}`);
+      return allTransactions;
+    } catch (error) {
+      console.error('Error fetching all transactions:', error);
+      throw error;
+    }
+  };
+
+  // Helper function to fetch all expenses with pagination
+  const fetchAllExpenses = async () => {
+    try {
+      let allExpenses: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        console.log(`📄 Fetching expenses page ${page + 1}: rows ${from} to ${to}`);
+
+        const { data, error } = await supabase
+          .from('daily_expenses')
+          .select('*')
+          .order('expense_date', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.error(`❌ Error fetching expenses page ${page + 1}:`, error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allExpenses = [...allExpenses, ...data];
+          console.log(`✅ Fetched ${data.length} expenses in page ${page + 1}, total so far: ${allExpenses.length}`);
+          
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`📊 Total expenses fetched: ${allExpenses.length}`);
+      return allExpenses;
+    } catch (error) {
+      console.error('Error fetching all expenses:', error);
+      throw error;
+    }
+  };
+
+  // Helper function to fetch all refunds with pagination
+  const fetchAllRefunds = async () => {
+    try {
+      let allRefunds: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        console.log(`📄 Fetching refunds page ${page + 1}: rows ${from} to ${to}`);
+
+        const { data, error } = await supabase
+          .from('patient_refunds')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.warn(`⚠️ Patient refunds table not accessible (page ${page + 1}):`, error.message);
+          // If table doesn't exist or has permission issues, return empty array
+          return [];
+        }
+
+        if (data && data.length > 0) {
+          allRefunds = [...allRefunds, ...data];
+          console.log(`✅ Fetched ${data.length} refunds in page ${page + 1}, total so far: ${allRefunds.length}`);
+          
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`📊 Total refunds fetched: ${allRefunds.length}`);
+      return allRefunds;
+    } catch (error) {
+      console.warn('⚠️ Refunds query failed, using empty array:', error);
+      return [];
+    }
+  };
+
   // Fetch dashboard data
   const { data: dashboardStats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: queryKeys.dashboardStats,
@@ -275,8 +428,8 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
     queryKey: ['all-patients'],
     queryFn: async () => {
       try {
-        // Get ALL patients without any date filtering
-        const allPatients = await HospitalService.getPatients(1000);
+        // Get ALL patients without any date filtering - using high limit for pagination
+        const allPatients = await HospitalService.getPatients(50000, true, true); // skipOrthoFilter=true, includeInactive=true for complete data
         console.log('📋 Fetched all patients for dashboard:', allPatients?.length || 0);
         return allPatients || [];
       } catch (error) {
@@ -384,30 +537,18 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         // Get date range for filtering
         const dateRange = getDateRange();
         
-        // Build revenue query with date filtering
-        let revenueQuery = supabase
-          .from('patient_transactions')
-          .select(`
-            id,
-            amount,
-            payment_mode,
-            transaction_type,
-            description,
-            status,
-            created_at,
-            transaction_date,
-            patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry, assigned_department, assigned_doctor)
-          `)
-          .eq('status', 'COMPLETED')
-          .eq('patient.hospital_id', HOSPITAL_ID);
-
-        // Get ALL transactions - we'll filter in JavaScript to match hospitalService.ts logic
-        const { data: allRevenueData, error: revenueQueryError } = await revenueQuery;
+        // Get ALL transactions using pagination - we'll filter in JavaScript to match hospitalService.ts logic
+        const allRevenueData = await fetchAllTransactions();
+        const revenueQueryError = null; // No error since we handle errors in fetchAllTransactions
         
         // 🚨 CRITICAL DEBUG: Log the raw database query results
-        console.log('🔍 RAW DATABASE QUERY RESULTS:', {
+        console.log('🔍 RAW DATABASE QUERY RESULTS (FIXED - using pagination):', {
           queryError: revenueQueryError,
           totalTransactions: allRevenueData?.length || 0,
+          transactionStatuses: allRevenueData?.reduce((statuses: any, t: any) => {
+            statuses[t.status] = (statuses[t.status] || 0) + 1;
+            return statuses;
+          }, {}) || {},
           sampleTransactions: allRevenueData?.slice(0, 5).map(t => ({
             id: t.id,
             amount: t.amount,
@@ -419,12 +560,12 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
             patient: {
               id: t.patient?.id,
               name: `${t.patient?.first_name} ${t.patient?.last_name}`,
-              hospital_id: t.patient?.hospital_id,
               date_of_entry: t.patient?.date_of_entry,
               assigned_department: t.patient?.assigned_department,
               assigned_doctor: t.patient?.assigned_doctor
             }
-          })) || []
+          })) || [],
+          totalAmount: allRevenueData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
         });
         
         // 🔍 CRITICAL FIX: Apply JavaScript filtering with same priority logic as hospitalService.ts
@@ -438,10 +579,8 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           const department = patient.assigned_department?.toUpperCase()?.trim() || '';
           const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
           
-          const isOrtho = department === 'ORTHO' || department === 'ORTHOPAEDIC';
-          const isHemant = doctor.includes('HEMANT') || doctor === 'DR HEMANT' || doctor === 'DR. HEMANT';
-          
-          if (isOrtho && isHemant) {
+          // Exclude if ORTHO department AND doctor name contains HEMANT (but not KHAJJA)
+          if (department === 'ORTHO' && doctor.includes('HEMANT') && !doctor.includes('KHAJJA')) {
             console.log(`🚫 EnhancedDashboard - Excluding ORTHO/HEMANT transaction: ${patient.first_name} ${patient.last_name}`);
             return false;
           }
@@ -478,9 +617,12 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         }
         
         // Debug revenue calculation
-        const excludedCount = (allRevenueData?.length || 0) - (allRevenueData?.filter(t => 
-          !(t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT')
-        )?.length || 0);
+        const excludedCount = (allRevenueData?.length || 0) - (allRevenueData?.filter(t => {
+          const dept = t.patient?.assigned_department?.toUpperCase()?.trim() || '';
+          const doc = t.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
+          // Exclude if ORTHO department AND doctor contains HEMANT (but not KHAJJA)
+          return !(dept === 'ORTHO' && doc.includes('HEMANT') && !doc.includes('KHAJJA'));
+        })?.length || 0);
         
         // 🔍 DEBUG: Check for today's transactions specifically
         const todayStr = new Date().toISOString().split('T')[0];
@@ -561,53 +703,46 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
               transactionDate: t.transaction_date,
               createdAt: t.created_at.split('T')[0],
               type: t.transaction_type,
-              excludedFromRevenue: t.patient?.assigned_department === 'ORTHO' || t.patient?.assigned_doctor === 'DR. HEMANT'
+              excludedFromRevenue: (() => {
+                const dept = t.patient?.assigned_department?.toUpperCase()?.trim() || '';
+                const doc = t.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
+                return dept === 'ORTHO' && doc.includes('HEMANT') && !doc.includes('KHAJJA');
+              })()
             };
           })
         });
 
-        // Build expenses query with date filtering
-        let expenseQuery = supabase
-          .from('daily_expenses')
-          .select('*')
-          .eq('hospital_id', HOSPITAL_ID);
-
+        // Get ALL expenses using pagination - we'll filter in JavaScript for consistency
+        let allExpenseData = await fetchAllExpenses();
+        
         // Apply date filtering for expenses if not 'all'
+        let expenseData = allExpenseData;
         if (dateRange) {
-          expenseQuery = expenseQuery
-            .gte('expense_date', dateRange.start.toISOString().split('T')[0])
-            .lte('expense_date', dateRange.end.toISOString().split('T')[0]);
+          const startDateStr = dateRange.start.toISOString().split('T')[0];
+          const endDateStr = dateRange.end.toISOString().split('T')[0];
+          
+          expenseData = allExpenseData.filter(expense => {
+            if (!expense.expense_date) return false;
+            const expenseDate = expense.expense_date.includes('T') 
+              ? expense.expense_date.split('T')[0] 
+              : expense.expense_date;
+            return expenseDate >= startDateStr && expenseDate <= endDateStr;
+          });
         }
-
-        const { data: expenseData } = await expenseQuery;
         
-        // ADDED: Query refunds to match operations ledger calculation
-        let refunds: any[] = [];
+        // ADDED: Query refunds to match operations ledger calculation using pagination
+        let allRefundData = await fetchAllRefunds();
         
-        try {
-          let refundQuery = supabase
-            .from('patient_refunds')
-            .select(`*`)
-            .eq('hospital_id', HOSPITAL_ID);
+        // Apply date filtering for refunds if not 'all'
+        let refunds = allRefundData;
+        if (dateRange) {
+          const startDate = dateRange.start.toISOString();
+          const endDate = dateRange.end.toISOString();
           
-          // Apply date filtering for refunds if not 'all'
-          if (dateRange) {
-            refundQuery = refundQuery
-              .gte('created_at', dateRange.start.toISOString())
-              .lte('created_at', dateRange.end.toISOString());
-          }
-          
-          const { data: refundData, error: refundError } = await refundQuery;
-          
-          if (refundError) {
-            console.warn('⚠️ Patient refunds table not accessible:', refundError.message);
-            refunds = []; // Use empty array as fallback
-          } else {
-            refunds = refundData || [];
-          }
-        } catch (error) {
-          console.warn('⚠️ Refunds query failed, using empty array');
-          refunds = [];
+          refunds = allRefundData.filter(refund => {
+            if (!refund.created_at) return false;
+            return refund.created_at >= startDate && refund.created_at <= endDate;
+          });
         }
         
         console.log('↩️ Dashboard Refunds Debug:', {
@@ -890,7 +1025,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
       
       // Get all patients to find the one with matching name
       console.log('📋 Fetching all patients to find match...');
-      const allPatients = await HospitalService.getPatients(1000);
+      const allPatients = await HospitalService.getPatients(50000, true, true);
       console.log(`📊 Total patients in database: ${allPatients.length}`);
       
       const matchingPatients = allPatients.filter((patient: any) => 

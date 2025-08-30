@@ -29,6 +29,8 @@ import DischargeSection from './components/DischargeSection';
 // import TableInspector from './components/TableInspector'; // Removed debug component
 import { Login } from './pages/Login/Login'; // Import 3D Login component
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
+// import RemoveTriggerComponent from './components/RemoveTriggerComponent'; // Not needed - backend issue
+import TransactionDateDebugger from './components/TransactionDateDebugger'; // Temporary debugger
 
 // Login Component - Replaced with 3D animated version from ./pages/Login/Login
 // The old LoginPage component has been commented out and replaced with the imported Login component
@@ -42,7 +44,22 @@ const App: React.FC = () => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // const [showTriggerFix, setShowTriggerFix] = useState(false);
+  const [showDebugger, setShowDebugger] = useState(false);
   
+  // Removed trigger fix logic - issue is in backend code
+  
+  // Show debugger with Ctrl+Shift+D
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        setShowDebugger(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editedProfile, setEditedProfile] = useState({
@@ -1947,6 +1964,11 @@ const App: React.FC = () => {
           }
         }}
       />
+      
+      {/* Database Trigger Fix Component - Removed */}
+      
+      {/* Transaction Date Debugger */}
+      {showDebugger && <TransactionDateDebugger />}
     </div>
   );
 };

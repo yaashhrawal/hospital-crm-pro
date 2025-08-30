@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase, HOSPITAL_ID } from '../config/supabaseNew';
 import type { DashboardStats, ChartData } from '../config/supabase';
 import type { HospitalStats, RevenueBreakdown, DashboardMetrics, PaymentModeBreakdown, TransactionBreakdown } from '../types/api';
 
@@ -30,6 +30,66 @@ export interface TopPerformers {
 
 class DashboardService {
   /**
+   * Fetch all patients with pagination to handle Supabase 1000 row limit
+   */
+  private async fetchAllPatients(filters: any = {}): Promise<any[]> {
+    try {
+      let allPatients: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        let query = supabase
+          .from('patients')
+          .select('assigned_department, assigned_doctor, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        // Apply filters
+        if (filters.is_active !== undefined) {
+          query = query.eq('is_active', filters.is_active);
+        }
+        if (filters.gte_created_at) {
+          query = query.gte('created_at', filters.gte_created_at);
+        }
+        if (filters.lt_created_at) {
+          query = query.lt('created_at', filters.lt_created_at);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error(`❌ Error fetching patients page ${page + 1}:`, error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allPatients = [...allPatients, ...data];
+          console.log(`✅ Fetched ${data.length} patients in page ${page + 1}, total so far: ${allPatients.length}`);
+          
+          // If we got less than a full page, we've reached the end
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`📊 Total patients fetched: ${allPatients.length}`);
+      return allPatients;
+    } catch (error) {
+      console.error('Error fetching all patients:', error);
+      throw error;
+    }
+  }
+  /**
    * Get dashboard statistics
    */
   async getDashboardStats(): Promise<HospitalStats> {
@@ -44,21 +104,34 @@ class DashboardService {
       const endOfDay = new Date(today);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Get basic counts (excluding ORTHO/DR HEMANT patients)
+      // Get basic counts (excluding ORTHO/DR HEMANT patients) - using pagination for patient data
       const [
         totalPatientsResult,
+        currentMonthPatientsResult,
+        lastMonthPatientsResult,
         { count: totalDoctors },
         { count: todayAppointments },
         { count: pendingBills },
-        currentMonthPatientsResult,
-        lastMonthPatientsResult,
         { count: totalAppointments },
         { count: completedAppointments },
         monthlyRevenueResult,
         lastMonthRevenueResult,
       ] = await Promise.all([
-        // Total patients (excluding ORTHO/DR HEMANT)
-        supabase.from('patients').select('assigned_department, assigned_doctor').eq('is_active', true),
+        // Total patients (excluding ORTHO/DR HEMANT) - with pagination
+        this.fetchAllPatients({ is_active: true }),
+        
+        // Current month patients (excluding ORTHO/DR HEMANT) - with pagination
+        this.fetchAllPatients({ 
+          is_active: true, 
+          gte_created_at: startOfMonth.toISOString() 
+        }),
+        
+        // Last month patients (excluding ORTHO/DR HEMANT) - with pagination
+        this.fetchAllPatients({ 
+          is_active: true, 
+          gte_created_at: lastMonth.toISOString(),
+          lt_created_at: startOfMonth.toISOString()
+        }),
         
         // Total doctors
         supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'DOCTOR').eq('is_active', true),
@@ -70,17 +143,6 @@ class DashboardService {
         
         // Pending bills
         supabase.from('bills').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
-        
-        // Current month patients (excluding ORTHO/DR HEMANT)
-        supabase.from('patients').select('assigned_department, assigned_doctor')
-          .eq('is_active', true)
-          .gte('created_at', startOfMonth.toISOString()),
-        
-        // Last month patients (excluding ORTHO/DR HEMANT)
-        supabase.from('patients').select('assigned_department, assigned_doctor')
-          .eq('is_active', true)
-          .gte('created_at', lastMonth.toISOString())
-          .lt('created_at', startOfMonth.toISOString()),
         
         // Total appointments
         supabase.from('appointments').select('id', { count: 'exact', head: true })
@@ -103,16 +165,16 @@ class DashboardService {
           .lt('payment_date', startOfMonth.toISOString()),
       ]);
 
-      // Filter out ORTHO/DR HEMANT patients from patient counts
-      const totalPatients = totalPatientsResult.data?.filter(patient => {
+      // Filter out ORTHO/DR HEMANT patients from patient counts (data is already paginated array)
+      const totalPatients = totalPatientsResult?.filter(patient => {
         return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
       }).length || 0;
 
-      const currentMonthPatients = currentMonthPatientsResult.data?.filter(patient => {
+      const currentMonthPatients = currentMonthPatientsResult?.filter(patient => {
         return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
       }).length || 0;
 
-      const lastMonthPatients = lastMonthPatientsResult.data?.filter(patient => {
+      const lastMonthPatients = lastMonthPatientsResult?.filter(patient => {
         return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
       }).length || 0;
 
@@ -213,13 +275,11 @@ class DashboardService {
         .gte('payment_date', sixMonthsAgo.toISOString())
         .order('payment_date', { ascending: true });
 
-      // Get patients by month (last 6 months, excluding ORTHO/DR HEMANT)
-      const { data: allPatientData } = await supabase
-        .from('patients')
-        .select('created_at, assigned_department, assigned_doctor')
-        .eq('is_active', true)
-        .gte('created_at', sixMonthsAgo.toISOString())
-        .order('created_at', { ascending: true });
+      // Get patients by month (last 6 months, excluding ORTHO/DR HEMANT) - with pagination
+      const allPatientData = await this.fetchAllPatients({
+        is_active: true,
+        gte_created_at: sixMonthsAgo.toISOString()
+      });
 
       // Filter out ORTHO/DR HEMANT patients
       const patientData = allPatientData?.filter(patient => {

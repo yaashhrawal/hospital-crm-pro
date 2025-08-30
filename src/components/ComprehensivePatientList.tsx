@@ -652,10 +652,13 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       }
       
       // Don't close the modal - let user continue viewing/managing transactions
-      toast.info('You can continue managing transactions or close this window.');
+      toast('You can continue managing transactions or close this window.', {
+        icon: 'ℹ️',
+        duration: 3000
+      });
       
     } catch (error: any) {
-      toast.error(`Failed to delete transaction: ${error.message}`);
+      toast.error(`Failed to delete transaction: ${error.message || error}`);
     } finally {
       setDeletingTransactionId(null);
     }
@@ -862,16 +865,16 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                         />
                       </td>
                       <td className="p-2">{(() => {
-                        // FIXED: Use the SAME logic as Last Visit section - patient.date_of_entry first
-                        const patient = transaction.patient;
+                        // FIXED: Use ACTUAL transaction date first, not patient entry date
                         let displayDate = null;
                         
-                        if (patient?.date_of_entry && patient.date_of_entry.trim() !== '') {
-                          displayDate = patient.date_of_entry;
-                        } else if (transaction.transaction_date) {
+                        // Priority: 1. transaction_date (actual service date) 2. created_at 3. patient entry date (fallback only)
+                        if (transaction.transaction_date) {
                           displayDate = transaction.transaction_date;
-                        } else {
+                        } else if (transaction.created_at) {
                           displayDate = transaction.created_at;
+                        } else if (transaction.patient?.date_of_entry && transaction.patient.date_of_entry.trim() !== '') {
+                          displayDate = transaction.patient.date_of_entry;
                         }
                         
                         try {
@@ -1201,6 +1204,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         setStartDate(getLocalDateString(monthStart));
         setEndDate(getLocalDateString(monthEnd));
         break;
+      case 'all':
+        // For 'all', set a very wide date range or clear the dates
+        const veryOldDate = new Date('2000-01-01');
+        const futureDate = new Date('2100-12-31');
+        setStartDate(getLocalDateString(veryOldDate));
+        setEndDate(getLocalDateString(futureDate));
+        console.log('📅 All Time selected - clearing date filters');
+        break;
     }
   }, [dateRange]);
 
@@ -1229,8 +1240,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         // For custom date, use NEW exact date service to avoid cumulative results
         patientsData = await ExactDateService.getPatientsForExactDate(startDate, 500);
       } else {
-        // For date ranges and 'all', load all patients and apply frontend filtering
-        patientsData = await HospitalService.getPatients(1000);
+        // For date ranges and 'all', load all patients and apply frontend filtering  
+        // Skip ORTHO filtering for "All Time" to show truly all patients
+        console.log('🔍 DEBUG: dateRange =', dateRange, ', loading with else block');
+        const skipOrthoFilter = dateRange === 'all';
+        const includeInactive = dateRange === 'all'; // Include inactive patients for All Time
+        console.log('🔍 About to call HospitalService.getPatients with limit=50000, skipOrthoFilter=', skipOrthoFilter, ', includeInactive=', includeInactive);
+        patientsData = await HospitalService.getPatients(50000, skipOrthoFilter, includeInactive);
+        console.log('📋 Loaded', patientsData.length, 'total patients for dateRange:', dateRange);
       }
       
       // Filter out patients who have PENDING appointments (not confirmed/completed ones)
@@ -1415,114 +1432,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           }
           
         }
-        
-        // Simplified and more reliable filtering logic
-        
-        const filtered = [];
-        
-        for (let i = 0; i < patientsData.length; i++) {
-          const patient = patientsData[i];
-          
-          // Get patient date - standardized YYYY-MM-DD format like patient entry forms
-          let patientDateStr = null;
-          
-          // Try date_of_entry first (usually set by user) - ensure YYYY-MM-DD format
-          if (patient.date_of_entry) {
-            if (typeof patient.date_of_entry === 'string') {
-              // Handle both date strings and datetime strings
-              if (patient.date_of_entry.includes('T')) {
-                patientDateStr = patient.date_of_entry.split('T')[0]; // Extract YYYY-MM-DD from datetime
-              } else {
-                patientDateStr = patient.date_of_entry; // Already in YYYY-MM-DD format
-              }
-            }
-          }
-          
-          // Fall back to created_at - ensure YYYY-MM-DD format
-          if (!patientDateStr && patient.created_at) {
-            if (typeof patient.created_at === 'string') {
-              patientDateStr = patient.created_at.split('T')[0]; // Extract YYYY-MM-DD from datetime
-            }
-          }
-          
-          // Debug EVERY patient when using today filter to find the issue
-          const shouldDebug = dateRange === 'today' || (patient.first_name?.toUpperCase().includes('ASHOK') && patient.last_name?.toUpperCase().includes('KUMAR')) || i < 5;
-          
-          if (shouldDebug) {
-          }
-          
-          // Validate date format and exclude invalid dates
-          if (!patientDateStr) {
-            if (shouldDebug) {
-            }
-            // For today filter, be strict - only include patients with exact dates
-            if (dateRange !== 'today') {
-              filtered.push(patient); // Include for other filters
-            }
-            continue;
-          }
-          
-          // Ensure date is in YYYY-MM-DD format (same validation as patient entry forms)
-          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-          if (!dateRegex.test(patientDateStr)) {
-            if (shouldDebug) {
-            }
-            // Try to convert to YYYY-MM-DD format
-            try {
-              const dateObj = new Date(patientDateStr);
-              if (!isNaN(dateObj.getTime())) {
-                patientDateStr = getLocalDateString(dateObj);
-                if (shouldDebug) {
-                }
-              } else {
-                if (shouldDebug) {
-                }
-                continue;
-              }
-            } catch (error) {
-              if (shouldDebug) {
-              }
-              continue;
-            }
-          }
-          
-          // Smart date comparison using standardized YYYY-MM-DD format (same as patient entry)
-          let isInRange;
-          if (dateRange === 'today') {
-            // For today filter, use STRICT exact date matching in YYYY-MM-DD format
-            isInRange = patientDateStr === currentStartDate;
-            
-            // Double check with explicit comparison
-            if (shouldDebug) {
-            }
-          } else if (dateRange === 'custom') {
-            // Custom dates are now handled by backend, this shouldn't be reached
-            isInRange = patientDateStr === currentStartDate;
-          } else {
-            // For date ranges (week, month, custom range), use range matching in YYYY-MM-DD format
-            isInRange = patientDateStr >= currentStartDate && patientDateStr <= currentEndDate;
-            
-            if (shouldDebug) {
-            }
-          }
-          
-          if (shouldDebug) {
-          }
-          
-          if (isInRange) {
-            filtered.push(patient);
-            if (shouldDebug) {
-            }
-            // Special alert for problematic dates
-            if (dateRange === 'today' && patientDateStr !== currentStartDate) {
-            }
-          } else {
-            if (shouldDebug) {
-            }
-          }
-        }
-        
-        patientsData = filtered;
+      }
         
         // Show final filtered patients for today filter
         if (dateRange === 'today') {
@@ -1532,9 +1442,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         // Debug week filter specifically
         if (dateRange === 'week') {
         }
-      } else if (dateRange === 'today') {
-      } else {
-      }
       
       // Debug patient_tag data (minimal logging)
       if (patientsData.length > 0) {
@@ -1590,7 +1497,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           .filter(note => note && note.trim() !== ''),
         'Community', 'Camp'
       ])].sort();
-      
+
       // Debug logging for patient tags
       console.log('🏷️ Patient List Debug - Total patients:', patientsData.length);
       const patientsWithTags = patientsData.filter(p => p.patient_tag && p.patient_tag.trim() !== '');
@@ -1602,8 +1509,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       })));
       console.log('🏷️ Unique tags in patient list:', uniqueTags);
       setAvailableTags(uniqueTags);
-    } catch (error: any) {
-      toast.error(`Failed to load patients: ${error.message}`);
+    } catch (error) {
+      toast.error(`Failed to load patients: ${(error as any).message}`);
     } finally {
       setLoading(false);
     }
@@ -1781,89 +1688,184 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
     }
   };
 
-  const exportPatientsToExcel = () => {
+  const exportPatientsToExcel = async () => {
     try {
+      console.log('📊 Starting Excel Export - Creating separate rows for each consultation...');
       
-      const exportData = filteredPatients.map(patient => {
+      // Create export data with separate rows for each consultation within date range
+      const exportData: any[] = [];
+      
+      for (const patient of filteredPatients) {
+        console.log(`📊 Processing patient: ${patient.first_name} ${patient.last_name}`);
         
-        // Debug patient_tag data
-        console.log(`📊 Excel Export Debug - Patient: ${patient.first_name} ${patient.last_name}`, {
-          patient_tag: patient.patient_tag,
-          patient_tag_type: typeof patient.patient_tag,
-          patient_tag_exists: patient.patient_tag !== undefined,
-          patient_tag_value: patient.patient_tag || 'EMPTY/NULL'
-        });
+        // Get all transactions for this patient within the selected date range
+        const transactions = patient.transactions || [];
         
-        // Debug registration date formatting
-        const regDate = patient.created_at || '';
-        const formattedRegDate = formatDate(regDate);
+        // Filter transactions by date range if date filters are active
+        let consultationsInRange = transactions;
         
-        // Get doctor information
-        const doctorName = patient.assigned_doctor || 
-                          (patient.assigned_doctors && patient.assigned_doctors.length > 0 ? 
-                           patient.assigned_doctors[0].name : '') || '';
-        const department = patient.assigned_department || 
-                          (patient.assigned_doctors && patient.assigned_doctors.length > 0 ? 
-                           patient.assigned_doctors[0].department : '') || '';
-
-        // Format dates with better handling
-        const lastVisitDate = patient.lastVisit || patient.date_of_entry || patient.created_at || '';
-        const registrationDate = patient.created_at || patient.date_of_entry || '';
-
-        return {
-          patient_id: patient.patient_id,
-          first_name: patient.first_name,
-          last_name: patient.last_name || "",
-          phone: patient.phone || "",
-          doctor_name: doctorName,
-          department: department,
-          gender: patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : patient.gender || "",
-          age: patient.age || "",
-          address: patient.address || "",
-          patient_tag: patient.patient_tag || patient.notes || "",
-          visit_count: patient.visitCount || 0,
-          department_status: (() => {
-            const deptStatus = getDepartmentStatus(patient);
-            return deptStatus.status;
-          })(),
-          total_spent: patient.totalSpent || 0,
-          last_visit: lastVisitDate ? formatDate(lastVisitDate) : "No visits",
-          registration_date: registrationDate ? formatDate(registrationDate) : "Unknown",
-        };
-      });
+        if (dateRange !== 'all') {
+          consultationsInRange = transactions.filter(transaction => {
+            const transactionDate = transaction.transaction_date || transaction.created_at?.split('T')[0];
+            if (!transactionDate) return false;
+            
+            const transDate = new Date(transactionDate);
+            const rangeStart = new Date(startDate);
+            const rangeEnd = new Date(endDate);
+            
+            return transDate >= rangeStart && transDate <= rangeEnd;
+          });
+        }
+        
+        // If patient has consultations in the date range, create separate rows for each
+        if (consultationsInRange.length > 0) {
+          
+          // Group consultations by date and doctor to avoid duplicates
+          const consultationMap = new Map();
+          
+          consultationsInRange.forEach(transaction => {
+            const transactionDate = transaction.transaction_date || transaction.created_at?.split('T')[0];
+            
+            // Get doctor name from transaction or patient
+            let doctorName = transaction.doctor_name || transaction.doctor || patient.assigned_doctor || 'Unknown Doctor';
+            
+            // Get department - try multiple sources
+            let department = transaction.department || transaction.assigned_department;
+            
+            // If no department in transaction, try to infer from doctor name or patient data
+            if (!department) {
+              // Check if doctor name contains department info (like "DR SMITH - CARDIOLOGY")
+              if (typeof doctorName === 'string' && doctorName.includes(' - ')) {
+                const parts = doctorName.split(' - ');
+                if (parts.length > 1) {
+                  department = parts[1].trim();
+                  doctorName = parts[0].trim(); // Clean doctor name
+                }
+              } else {
+                // Use patient's assigned department as fallback
+                department = patient.assigned_department || 'General';
+              }
+            }
+            
+            // Clean up department name
+            if (department) {
+              department = department.toUpperCase().trim();
+            }
+            
+            const consultationKey = `${transactionDate}-${doctorName}-${department}`;
+            
+            console.log(`👨‍⚕️ Processing consultation for ${patient.first_name}:`, {
+              date: transactionDate,
+              doctor: doctorName,
+              department: department,
+              transactionType: transaction.transaction_type,
+              originalDoctorName: transaction.doctor_name,
+              originalDepartment: transaction.department,
+              patientAssignedDoctor: patient.assigned_doctor,
+              patientAssignedDept: patient.assigned_department
+            });
+            
+            if (!consultationMap.has(consultationKey)) {
+              consultationMap.set(consultationKey, {
+                date: transactionDate,
+                doctor: doctorName,
+                department: department,
+                amount: transaction.amount,
+                type: transaction.transaction_type
+              });
+            } else {
+              // If same consultation exists, add the amount
+              const existing = consultationMap.get(consultationKey);
+              existing.amount += transaction.amount;
+            }
+          });
+          
+          // Create a row for each unique consultation
+          consultationMap.forEach((consultation, key) => {
+            exportData.push({
+              patient_id: patient.patient_id,
+              first_name: patient.first_name,
+              last_name: patient.last_name || "",
+              phone: patient.phone || "",
+              consultation_date: consultation.date ? formatDate(consultation.date) : "Unknown",
+              doctor_name: consultation.doctor,
+              department: consultation.department,
+              consultation_amount: consultation.amount,
+              consultation_type: consultation.type,
+              gender: patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : patient.gender || "",
+              age: patient.age || "",
+              address: patient.address || "",
+              patient_tag: patient.patient_tag || patient.notes || "",
+              total_patient_spent: patient.totalSpent || 0,
+              registration_date: patient.created_at ? formatDate(patient.created_at) : "Unknown"
+            });
+          });
+          
+        } else {
+          // If no consultations in range, still show the patient with empty consultation data
+          exportData.push({
+            patient_id: patient.patient_id,
+            first_name: patient.first_name,
+            last_name: patient.last_name || "",
+            phone: patient.phone || "",
+            consultation_date: "No consultations in date range",
+            doctor_name: patient.assigned_doctor || "Not assigned",
+            department: patient.assigned_department || "General",
+            consultation_amount: 0,
+            consultation_type: "None",
+            gender: patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : patient.gender || "",
+            age: patient.age || "",
+            address: patient.address || "",
+            patient_tag: patient.patient_tag || patient.notes || "",
+            total_patient_spent: patient.totalSpent || 0,
+            registration_date: patient.created_at ? formatDate(patient.created_at) : "Unknown"
+          });
+        }
+      }
       
       // Debug final export data
       console.log('📊 Final Excel Export Data Sample:', exportData.slice(0, 2));
 
+      console.log(`📊 Created ${exportData.length} rows for Excel export`);
+      
+      const dateRangeText = dateRange === 'all' ? 'All_Time' : 
+                           dateRange === 'today' ? 'Today' :
+                           dateRange === 'week' ? 'This_Week' :
+                           dateRange === 'month' ? 'This_Month' :
+                           `${startDate}_to_${endDate}`;
+      
       const success = exportToExcel({
-        filename: `Patient_List_${getLocalDateString()}`,
+        filename: `Patient_Consultations_${dateRangeText}_${getLocalDateString()}`,
         headers: [
           "Patient ID",
           "First Name", 
           "Last Name",
           "Phone",
+          "Consultation Date",
           "Doctor Name",
           "Department",
+          "Consultation Amount",
+          "Consultation Type",
           "Gender",
           "Age",
           "Address", 
           "Patient Tag",
-          "Visit Count",
-          "Department Status",
-          "Total Spent",
-          "Last Visit",
+          "Total Patient Spent",
           "Registration Date"
         ],
         data: exportData,
         formatters: {
-          total_spent: (value) => formatCurrencyForExcel(value),
-          last_visit: (value) => value ? formatDate(value) : "Never",
-          registration_date: (value) => value ? formatDate(value) : "N/A"
+          consultation_amount: (value) => formatCurrencyForExcel(value),
+          total_patient_spent: (value) => formatCurrencyForExcel(value),
+          consultation_date: (value) => value,
+          registration_date: (value) => value
         }
       });
 
       if (success) {
-        toast.success(`Exported ${filteredPatients.length} patients to Excel!`);
+        const consultationCount = exportData.length;
+        const patientCount = new Set(exportData.map(row => row.patient_id)).size;
+        toast.success(`Exported ${consultationCount} consultations from ${patientCount} patients to Excel!`);
       } else {
         toast.error('Failed to export patient list');
       }

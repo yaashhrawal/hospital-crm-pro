@@ -115,12 +115,17 @@ const RevenueDashboard: React.FC = () => {
           
           if (!isFromSelectedDate) return false;
           
-          // Apply the same filtering as OperationsLedger: Skip only DR HEMANT with ORTHO department
-          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase() || '';
-          const filterDepartment = trans.patient?.assigned_department?.toUpperCase() || '';
+          // Apply the same filtering as OperationsLedger: Skip DR HEMANT (not KHAJJA) with ORTHO department
+          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
+          const filterDepartment = trans.patient?.assigned_department?.toUpperCase()?.trim() || '';
           
-          // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
-          if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
+          // Skip if it's ORTHO department AND doctor name contains HEMANT (but not KHAJJA)
+          if (filterDepartment === 'ORTHO' && filterDoctorName.includes('HEMANT') && !filterDoctorName.includes('KHAJJA')) {
+            console.log(`🚫 RevenueDashboard - Excluding ORTHO/HEMANT transaction:`, {
+              patient: `${trans.patient?.first_name} ${trans.patient?.last_name}`,
+              department: filterDepartment,
+              doctor: filterDoctorName
+            });
             return false;
           }
           

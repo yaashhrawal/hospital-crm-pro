@@ -622,33 +622,88 @@ export class HospitalService {
     }
   }
 
-  static async getPatients(limit = 100): Promise<PatientWithRelations[]> {
+  static async getPatients(limit = 5000, skipOrthoFilter = false, includeInactive = false): Promise<PatientWithRelations[]> {
     try {
       const timestamp = new Date().toISOString();
-      console.log(`📋 Fetching patients from new schema at ${timestamp}...`);
+      console.log(`📋 Fetching patients with limit=${limit}, skipOrthoFilter=${skipOrthoFilter}, includeInactive=${includeInactive} at ${timestamp}...`);
       
-      // Add cache-busting to ensure fresh data
-      // Temporary fix: Remove patient_admissions join to avoid relationship errors
-      const { data: patients, error } = await supabase
+      // First, get the total count to debug
+      const { count: totalCount } = await supabase
         .from('patients')
-        .select(`
-          *,
-          transactions:patient_transactions(*)
-        `)
+        .select('*', { count: 'exact', head: true })
         .eq('hospital_id', HOSPITAL_ID)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        .eq('is_active', true);
       
-      if (error) {
-        console.error('❌ Fetch patients error:', error);
-        throw error;
+      const { count: totalInactiveCount } = await supabase
+        .from('patients')
+        .select('*', { count: 'exact', head: true })
+        .eq('hospital_id', HOSPITAL_ID);
+      
+      console.log(`📊 Total ACTIVE patients: ${totalCount}, Total ALL patients: ${totalInactiveCount}`);
+      
+      // If requesting more than 1000, we need to paginate
+      let allPatients: any[] = [];
+      const pageSize = 1000; // Supabase max
+      
+      // Calculate actual patients to fetch based on what's available
+      const actualPatientCount = includeInactive ? (totalInactiveCount || 0) : (totalCount || 0);
+      const targetCount = Math.min(limit, actualPatientCount);
+      const numPages = Math.ceil(targetCount / pageSize);
+      
+      console.log(`📄 Need to fetch ${numPages} pages to get ${targetCount} patients (requested: ${limit}, available: ${actualPatientCount})`);
+      
+      for (let page = 0; page < numPages; page++) {
+        const from = page * pageSize;
+        const to = Math.min(from + pageSize - 1, targetCount - 1);
+        
+        console.log(`📄 Fetching page ${page + 1}/${numPages}: rows ${from} to ${to}`);
+        
+        let query = supabase
+          .from('patients')
+          .select(`
+            *,
+            transactions:patient_transactions(*)
+          `)
+          .eq('hospital_id', HOSPITAL_ID);
+        
+        // Only filter by is_active if not including inactive
+        if (!includeInactive) {
+          query = query.eq('is_active', true);
+        }
+        
+        query = query
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        
+        const { data: pageData, error } = await query;
+        
+        if (error) {
+          console.error(`❌ Error fetching page ${page + 1}:`, error);
+          throw error;
+        }
+        
+        if (pageData) {
+          allPatients = [...allPatients, ...pageData];
+          console.log(`✅ Fetched ${pageData.length} patients in page ${page + 1}, total so far: ${allPatients.length}`);
+        }
+        
+        // If we got less than a full page, we've reached the end
+        if (!pageData || pageData.length < pageSize) {
+          break;
+        }
       }
       
-      console.log(`✅ Fetched ${patients?.length || 0} patients`);
+      const patients = allPatients;
       
-      // Filter out ORTHO/DR HEMANT patients
-      const filteredPatients = patients?.filter(patient => {
+      console.log(`✅ Total fetched ${patients?.length || 0} patients from database`);
+      
+      // Debug: Check if we're hitting a Supabase limit
+      if (patients?.length === 1000 || patients?.length === 100) {
+        console.warn(`⚠️ WARNING: Received exactly ${patients.length} patients - might be hitting a default Supabase limit!`);
+      }
+      
+      // Filter out ORTHO/DR HEMANT patients (unless skipOrthoFilter is true)
+      const filteredPatients = skipOrthoFilter ? (patients || []) : patients?.filter(patient => {
         const department = patient.assigned_department?.toUpperCase()?.trim() || '';
         const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
         
@@ -663,7 +718,7 @@ export class HospitalService {
         return true;
       }) || [];
       
-      console.log(`📊 HospitalService - Filtered ${patients?.length || 0} to ${filteredPatients.length} patients (excluded ${(patients?.length || 0) - filteredPatients.length} ORTHO/HEMANT)`);
+      console.log(`📊 HospitalService - Filtered ${patients?.length || 0} to ${filteredPatients.length} patients (excluded ${(patients?.length || 0) - filteredPatients.length} ORTHO/HEMANT, skipOrthoFilter=${skipOrthoFilter})`);
       
       // Debug: Log all patient dates to identify the issue
       if (filteredPatients && filteredPatients.length > 0) {
@@ -921,6 +976,25 @@ export class HospitalService {
       
       console.log('✅ Transaction created:', transaction);
       
+      // 🔄 UPDATE PATIENT'S LAST VISIT DATE
+      const updateLastVisitDate = transactionData.transaction_date;
+      console.log('📅 Updating patient last_visit_date to:', updateLastVisitDate);
+      
+      const { error: updateError } = await supabase
+        .from('patients')
+        .update({ 
+          last_visit_date: updateLastVisitDate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data.patient_id);
+      
+      if (updateError) {
+        console.error('⚠️ Failed to update patient last_visit_date:', updateError);
+        // Don't throw error - transaction is already created
+      } else {
+        console.log('✅ Patient last_visit_date updated successfully');
+      }
+      
       // 🔍 VERIFY: Check if transaction was actually inserted with correct data
       const verifyQuery = await supabase
         .from('patient_transactions')
@@ -933,7 +1007,7 @@ export class HospitalService {
           created_at,
           transaction_date,
           hospital_id,
-          patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry)
+          patient:patients!inner(id, patient_id, first_name, last_name, hospital_id, date_of_entry, last_visit_date)
         `)
         .eq('id', transaction.id)
         .single();
@@ -944,8 +1018,10 @@ export class HospitalService {
         verificationError: verifyQuery.error,
         hospitalIdMatch: verifyQuery.data?.hospital_id === HOSPITAL_ID,
         patientHospitalId: verifyQuery.data?.patient?.hospital_id,
+        patientLastVisitDate: verifyQuery.data?.patient?.last_visit_date,
         todayDate: new Date().toISOString().split('T')[0],
-        transactionCreatedDate: verifyQuery.data?.created_at?.split('T')[0]
+        transactionCreatedDate: verifyQuery.data?.created_at?.split('T')[0],
+        transactionDate: verifyQuery.data?.transaction_date
       });
       
       return transaction as PatientTransaction;

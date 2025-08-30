@@ -107,7 +107,10 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         // Try to extract discount from description if it exists
         let discount = 0;
         let originalPrice = t.amount;
-        let serviceDate = t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+        // FIX: Use transaction_date if available, otherwise fall back to created_at
+        let serviceDate = t.transaction_date 
+          ? (t.transaction_date.includes('T') ? t.transaction_date.split('T')[0] : t.transaction_date)
+          : (t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
         
         const discountMatch = t.description?.match(/Discount:\s*(\d+)%/);
         if (discountMatch) {

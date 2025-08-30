@@ -239,7 +239,6 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
             payment_mode: paymentData.payment_mode === 'ONLINE' ? paymentData.online_payment_method : paymentData.payment_mode,
             doctor_name: finalDoctorName,
             department: finalDepartmentName,
-            discount_percentage: paymentData.discount_percentage || 0,
             updated_at: new Date().toISOString()
           })
           .eq('id', selectedPaymentId);
@@ -259,8 +258,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
           status: 'COMPLETED' as any,
           doctor_name: finalDoctorName,
           hospital_id: '550e8400-e29b-41d4-a716-446655440000',
-          created_by: 'system',
-          discount_percentage: paymentData.discount_percentage || 0
+          created_by: 'system'
         };
         
         await HospitalService.createTransaction(mainTransaction as any);
