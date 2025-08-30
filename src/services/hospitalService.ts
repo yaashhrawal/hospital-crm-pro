@@ -647,10 +647,28 @@ export class HospitalService {
       
       console.log(`✅ Fetched ${patients?.length || 0} patients`);
       
+      // Filter out ORTHO/DR HEMANT patients
+      const filteredPatients = patients?.filter(patient => {
+        const department = patient.assigned_department?.toUpperCase()?.trim() || '';
+        const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
+        
+        const isOrtho = department === 'ORTHO' || department === 'ORTHOPAEDIC';
+        const isHemant = doctor.includes('HEMANT') || doctor === 'DR HEMANT' || doctor === 'DR. HEMANT';
+        
+        if (isOrtho && isHemant) {
+          console.log(`🚫 HospitalService - Excluding ORTHO/HEMANT patient: ${patient.first_name} ${patient.last_name}`);
+          return false;
+        }
+        
+        return true;
+      }) || [];
+      
+      console.log(`📊 HospitalService - Filtered ${patients?.length || 0} to ${filteredPatients.length} patients (excluded ${(patients?.length || 0) - filteredPatients.length} ORTHO/HEMANT)`);
+      
       // Debug: Log all patient dates to identify the issue
-      if (patients && patients.length > 0) {
-        console.log('🔍 Backend: All patient dates (first 10):');
-        patients.slice(0, 10).forEach((p, i) => {
+      if (filteredPatients && filteredPatients.length > 0) {
+        console.log('🔍 Backend: All filtered patient dates (first 10):');
+        filteredPatients.slice(0, 10).forEach((p, i) => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
           console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
@@ -660,13 +678,13 @@ export class HospitalService {
         const todayStr = new Date().toISOString().split('T')[0];
         const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        const todayPatients = patients.filter(p => {
+        const todayPatients = filteredPatients.filter(p => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
           return createdDate === todayStr || entryDate === todayStr;
         });
         
-        const yesterdayPatients = patients.filter(p => {
+        const yesterdayPatients = filteredPatients.filter(p => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
           return createdDate === yesterdayStr || entryDate === yesterdayStr;
@@ -685,7 +703,7 @@ export class HospitalService {
       }
       
       // Enhance patients with calculated fields
-      const enhancedPatients = patients?.map(patient => {
+      const enhancedPatients = filteredPatients?.map(patient => {
         const transactions = patient.transactions || [];
         const admissions = []; // Temporarily empty until patient_admissions is fixed
         

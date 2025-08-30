@@ -430,12 +430,26 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         // 🔍 CRITICAL FIX: Apply JavaScript filtering with same priority logic as hospitalService.ts
         let revenueData = allRevenueData || [];
         
-        // 🚫 EXCLUDE DR. HEMANT & ORTHO patients from revenue calculations
+        // 🚫 EXCLUDE ORTHO/DR HEMANT patients from revenue calculations (matching OperationsLedger logic)
         revenueData = revenueData?.filter(transaction => {
           const patient = transaction.patient;
-          const isExcluded = patient?.assigned_department === 'ORTHO' || patient?.assigned_doctor === 'DR. HEMANT';
-          return !isExcluded;
+          if (!patient) return true;
+          
+          const department = patient.assigned_department?.toUpperCase()?.trim() || '';
+          const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
+          
+          const isOrtho = department === 'ORTHO' || department === 'ORTHOPAEDIC';
+          const isHemant = doctor.includes('HEMANT') || doctor === 'DR HEMANT' || doctor === 'DR. HEMANT';
+          
+          if (isOrtho && isHemant) {
+            console.log(`🚫 EnhancedDashboard - Excluding ORTHO/HEMANT transaction: ${patient.first_name} ${patient.last_name}`);
+            return false;
+          }
+          
+          return true;
         }) || [];
+
+        console.log(`📊 EnhancedDashboard - Filtered ${allRevenueData?.length || 0} to ${revenueData.length} transactions (excluded ${(allRevenueData?.length || 0) - revenueData.length} ORTHO/HEMANT)`);
         
         if (dateRange) {
           const startDateStr = dateRange.start.toISOString().split('T')[0];
@@ -579,8 +593,8 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
           // Apply date filtering for refunds if not 'all'
           if (dateRange) {
             refundQuery = refundQuery
-              .gte('transaction_date', dateRange.start.toISOString().split('T')[0])
-              .lte('transaction_date', dateRange.end.toISOString().split('T')[0]);
+              .gte('created_at', dateRange.start.toISOString())
+              .lte('created_at', dateRange.end.toISOString());
           }
           
           const { data: refundData, error: refundError } = await refundQuery;

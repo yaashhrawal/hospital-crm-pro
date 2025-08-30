@@ -44,21 +44,21 @@ class DashboardService {
       const endOfDay = new Date(today);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Get basic counts
+      // Get basic counts (excluding ORTHO/DR HEMANT patients)
       const [
-        { count: totalPatients },
+        totalPatientsResult,
         { count: totalDoctors },
         { count: todayAppointments },
         { count: pendingBills },
-        { count: currentMonthPatients },
-        { count: lastMonthPatients },
+        currentMonthPatientsResult,
+        lastMonthPatientsResult,
         { count: totalAppointments },
         { count: completedAppointments },
         monthlyRevenueResult,
         lastMonthRevenueResult,
       ] = await Promise.all([
-        // Total patients
-        supabase.from('patients').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        // Total patients (excluding ORTHO/DR HEMANT)
+        supabase.from('patients').select('assigned_department, assigned_doctor').eq('is_active', true),
         
         // Total doctors
         supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'DOCTOR').eq('is_active', true),
@@ -71,12 +71,14 @@ class DashboardService {
         // Pending bills
         supabase.from('bills').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
         
-        // Current month patients
-        supabase.from('patients').select('id', { count: 'exact', head: true })
+        // Current month patients (excluding ORTHO/DR HEMANT)
+        supabase.from('patients').select('assigned_department, assigned_doctor')
+          .eq('is_active', true)
           .gte('created_at', startOfMonth.toISOString()),
         
-        // Last month patients
-        supabase.from('patients').select('id', { count: 'exact', head: true })
+        // Last month patients (excluding ORTHO/DR HEMANT)
+        supabase.from('patients').select('assigned_department, assigned_doctor')
+          .eq('is_active', true)
           .gte('created_at', lastMonth.toISOString())
           .lt('created_at', startOfMonth.toISOString()),
         
@@ -100,6 +102,19 @@ class DashboardService {
           .gte('payment_date', lastMonth.toISOString())
           .lt('payment_date', startOfMonth.toISOString()),
       ]);
+
+      // Filter out ORTHO/DR HEMANT patients from patient counts
+      const totalPatients = totalPatientsResult.data?.filter(patient => {
+        return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
+      }).length || 0;
+
+      const currentMonthPatients = currentMonthPatientsResult.data?.filter(patient => {
+        return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
+      }).length || 0;
+
+      const lastMonthPatients = lastMonthPatientsResult.data?.filter(patient => {
+        return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
+      }).length || 0;
 
       // Calculate monthly revenue (excluding ORTHO/HMT patients)
       const monthlyRevenue = monthlyRevenueResult.data?.reduce((sum, bill) => {
@@ -158,7 +173,7 @@ class DashboardService {
       const { count: occupiedBeds } = await supabase.from('beds').select('id', { count: 'exact', head: true }).in('status', ['occupied', 'OCCUPIED']);
 
       return {
-        totalPatients: totalPatients || 0,
+        totalPatients: totalPatients,
         totalDoctors: totalDoctors || 0,
         todayAppointments: todayAppointments || 0,
         pendingBills: pendingBills || 0,
@@ -170,7 +185,7 @@ class DashboardService {
         todayExpenses: 0,
         netRevenue: monthlyRevenue,
         revenue: monthlyRevenue,
-        count: totalPatients || 0,
+        count: totalPatients,
         patientGrowthRate: Math.round(patientGrowthRate * 100) / 100,
         appointmentCompletionRate: Math.round(appointmentCompletionRate * 100) / 100,
         averageWaitTime: Math.round(averageWaitTime * 100) / 100,
@@ -198,13 +213,18 @@ class DashboardService {
         .gte('payment_date', sixMonthsAgo.toISOString())
         .order('payment_date', { ascending: true });
 
-      // Get patients by month (last 6 months)
-      const { data: patientData } = await supabase
+      // Get patients by month (last 6 months, excluding ORTHO/DR HEMANT)
+      const { data: allPatientData } = await supabase
         .from('patients')
-        .select('created_at')
+        .select('created_at, assigned_department, assigned_doctor')
         .eq('is_active', true)
         .gte('created_at', sixMonthsAgo.toISOString())
         .order('created_at', { ascending: true });
+
+      // Filter out ORTHO/DR HEMANT patients
+      const patientData = allPatientData?.filter(patient => {
+        return !(patient.assigned_department === 'ORTHO' && patient.assigned_doctor === 'DR HEMANT');
+      }) || [];
 
       // Get appointments by status
       const { data: appointmentStatusData } = await supabase

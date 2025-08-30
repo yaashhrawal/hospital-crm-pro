@@ -370,12 +370,19 @@ class DataService {
         endOfDay 
       });
       
-      // First try to get all transactions (removed hospital_id filter as it may not exist)
-      // FIXED: Order by transaction_date first (business date), then created_at
+      // Get all transactions with patient data - using more explicit join
       const { data: allTransactions, error } = await supabase
         .from('patient_transactions')
-        .select('*, patient:patients!patient_transactions_patient_id_fkey(assigned_department, assigned_doctor)')
-        // .eq('hospital_id', HOSPITAL_ID) // Commented out as hospital may not exist
+        .select(`
+          *,
+          patients!inner(
+            id,
+            assigned_department,
+            assigned_doctor,
+            first_name,
+            last_name
+          )
+        `)
         .order('transaction_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
       
@@ -384,37 +391,51 @@ class DataService {
         throw error;
       }
       
-      // Then filter in JavaScript for the specific date
+      // Then filter in JavaScript for the specific date AND exclude ORTHO/DR HEMANT
       console.log('🔍 Filtering transactions. Sample of first 3 transactions:', 
         allTransactions?.slice(0, 3).map(t => ({
           id: t.id,
           transaction_date: t.transaction_date,
           created_at: t.created_at,
           amount: t.amount,
-          patient_id: t.patient_id
+          patient_id: t.patient_id,
+          patient_dept: t.patients?.assigned_department,
+          patient_doctor: t.patients?.assigned_doctor,
+          patient_name: `${t.patients?.first_name} ${t.patients?.last_name}`
         }))
       );
       
       const data = allTransactions?.filter((t, index) => {
-        // Check transaction_date first
+        // First check date
+        let dateMatches = false;
         if (t.transaction_date) {
           const txnDate = t.transaction_date.split('T')[0] || t.transaction_date.split(' ')[0];
-          const matches = txnDate === date;
+          dateMatches = txnDate === date;
           if (index < 5) { // Log first 5 for debugging
-            console.log(`Transaction ${index}: transaction_date=${t.transaction_date}, extracted=${txnDate}, requested=${date}, matches=${matches}`);
+            console.log(`Transaction ${index}: transaction_date=${t.transaction_date}, extracted=${txnDate}, requested=${date}, matches=${dateMatches}`);
           }
-          return matches;
-        }
-        // Fall back to created_at if no transaction_date
-        if (t.created_at) {
+        } else if (t.created_at) {
           const createdDate = t.created_at.split('T')[0];
-          const matches = createdDate === date;
+          dateMatches = createdDate === date;
           if (index < 5) { // Log first 5 for debugging
-            console.log(`Transaction ${index}: NO transaction_date, created_at=${t.created_at}, extracted=${createdDate}, requested=${date}, matches=${matches}`);
+            console.log(`Transaction ${index}: NO transaction_date, created_at=${t.created_at}, extracted=${createdDate}, requested=${date}, matches=${dateMatches}`);
           }
-          return matches;
         }
-        return false;
+        
+        if (!dateMatches) return false;
+        
+        // Then check if we should exclude ORTHO/DR HEMANT patients
+        const patientDept = t.patients?.assigned_department?.toUpperCase()?.trim() || '';
+        const patientDoc = t.patients?.assigned_doctor?.toUpperCase()?.trim() || '';
+        
+        console.log(`🔍 DataService - Checking transaction ${t.id}: Patient="${t.patients?.first_name} ${t.patients?.last_name}", Dept="${patientDept}", Doc="${patientDoc}"`);
+        
+        if (patientDept === 'ORTHO' && (patientDoc === 'DR HEMANT' || patientDoc === 'DR. HEMANT' || patientDoc.includes('HEMANT'))) {
+          console.log(`🚫 DataService - Excluding transaction for ORTHO/HEMANT patient - Transaction ID: ${t.id}, Patient: "${t.patients?.first_name} ${t.patients?.last_name}", Dept: "${patientDept}", Doc: "${patientDoc}"`);
+          return false;
+        }
+        
+        return true;
       });
       
       // Log raw data for debugging

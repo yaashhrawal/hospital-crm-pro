@@ -32,6 +32,19 @@ interface DailyStats {
   completedJourneys: number;
 }
 
+// Utility function to check if a patient should be excluded (ORTHO/DR HEMANT)
+const shouldExcludePatient = (patient: any): boolean => {
+  if (!patient) return false;
+  
+  const department = patient.assigned_department?.toUpperCase()?.trim() || '';
+  const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
+  
+  const isOrtho = department === 'ORTHO' || department === 'ORTHOPAEDIC';
+  const isHemant = doctor.includes('HEMANT') || doctor === 'DR HEMANT' || doctor === 'DR. HEMANT';
+  
+  return isOrtho && isHemant;
+};
+
 const DailyOperationsView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [patientJourneys, setPatientJourneys] = useState<PatientJourney[]>([]);
@@ -53,33 +66,45 @@ const DailyOperationsView: React.FC = () => {
   const loadDailyOperations = async () => {
     setLoading(true);
     try {
-      // Load all required data
-      console.log('🏥 DailyOperationsView - Fetching transactions for date:', selectedDate);
+      // Load data - transactions already filtered at database level
+      console.log('🏥 DailyOperationsView - Fetching filtered data for date:', selectedDate);
       const [transactions, patients, admissions, dailyExpenses] = await Promise.all([
-        dataService.getTransactionsByDate(selectedDate),
+        dataService.getTransactionsByDate(selectedDate), // Already excludes ORTHO/DR HEMANT
         dataService.getPatients(),
         dataService.getActiveAdmissions(),
         dataService.getExpensesByDate(selectedDate),
       ]);
       
-      console.log('🏥 DailyOperationsView - Fetched transactions:', {
+      console.log('🏥 DailyOperationsView - Data fetched:', {
         date: selectedDate,
-        count: transactions.length,
-        transactions: transactions.map(t => ({
+        transactionCount: transactions.length,
+        patientCount: patients.length,
+        sampleTransactions: transactions.slice(0, 3).map(t => ({
           id: t.id,
           patient_id: t.patient_id,
           type: t.transaction_type,
           amount: t.amount,
-          transaction_date: t.transaction_date,
-          created_at: t.created_at
+          hasPatientData: !!t.patients,
+          patientName: t.patients ? `${t.patients.first_name} ${t.patients.last_name}` : 'No patient data'
         }))
       });
       
       setExpenses(dailyExpenses);
 
-      // Group transactions by patient
+      // Transactions are already filtered at the database level
+      // No need to filter again here - dataService already excludes ORTHO/DR HEMANT
+      console.log('✅ Using pre-filtered transactions (ORTHO/DR HEMANT already excluded at DB level)');
+      const filteredTransactions = transactions;
+
+      console.log('📊 Transaction filtering results:', {
+        originalCount: transactions.length,
+        filteredCount: filteredTransactions.length,
+        excludedCount: transactions.length - filteredTransactions.length
+      });
+
+      // Group filtered transactions by patient
       const patientTransactionMap = new Map<string, PatientTransaction[]>();
-      transactions.forEach(transaction => {
+      filteredTransactions.forEach(transaction => {
         const patientId = transaction.patient_id;
         if (!patientTransactionMap.has(patientId)) {
           patientTransactionMap.set(patientId, []);
@@ -91,8 +116,22 @@ const DailyOperationsView: React.FC = () => {
       const journeys: PatientJourney[] = [];
       
       for (const [patientId, patientTransactions] of patientTransactionMap.entries()) {
-        const patient = patients.find(p => p.id === patientId);
-        if (!patient) continue;
+        // Get patient data from the first transaction (since transactions come with patient data)
+        const firstTransaction = patientTransactions[0];
+        let patient = firstTransaction.patients || patients.find(p => p.id === patientId);
+        
+        if (!patient) {
+          console.log(`⚠️ No patient data found for patient ID: ${patientId}`);
+          continue;
+        }
+
+        // Final safety check using utility function
+        if (shouldExcludePatient(patient)) {
+          console.log(`🚫 SAFETY CHECK: Excluding patient ${patient.first_name} ${patient.last_name} - ORTHO/HEMANT (this should not happen if DB filtering worked)`);
+          continue;
+        }
+        
+        console.log(`✅ Including patient ${patient.first_name} ${patient.last_name} - Dept: ${patient.assigned_department}, Doc: ${patient.assigned_doctor}`);
 
         const patientAdmission = admissions.find(a => a.patient_id === patientId);
         const totalPaid = patientTransactions.reduce((sum, t) => sum + t.amount, 0);
@@ -194,16 +233,16 @@ const DailyOperationsView: React.FC = () => {
 
       setPatientJourneys(journeys);
 
-      // Calculate daily stats
-      const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
+      // Calculate daily stats using filtered transactions (excluding ORTHO/DR HEMANT)
+      const totalIncome = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
       const totalExpenses = dailyExpenses.reduce((sum, e) => sum + e.amount, 0);
       const netRevenue = totalIncome - totalExpenses;
 
-      const cashPayments = transactions
+      const cashPayments = filteredTransactions
         .filter(t => t.payment_mode === 'cash' && t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
       
-      const digitalPayments = transactions
+      const digitalPayments = filteredTransactions
         .filter(t => ['online', 'card', 'upi'].includes(t.payment_mode) && t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
 

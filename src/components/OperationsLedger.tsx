@@ -108,15 +108,30 @@ const OperationsLedger: React.FC = () => {
       } else if (transactions) {
         console.log(`📊 Retrieved ${transactions.length} transactions, now filtering by date range ${dateFrom} to ${dateTo}`);
         
-        transactions.forEach((trans: any) => {
-          // FILTER: Skip only DR HEMANT with ORTHO department (not DR HEMANT KHAJJA with ORTHOPAEDIC)
-          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase() || '';
-          const filterDepartment = trans.patient?.assigned_department?.toUpperCase() || '';
+        // First filter out ORTHO/DR HEMANT transactions
+        const filteredTransactions = transactions.filter((trans: any) => {
+          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
+          const filterDepartment = trans.patient?.assigned_department?.toUpperCase()?.trim() || '';
           
-          // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
-          if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
-            return; // Skip this specific combination
+          console.log(`🔍 OperationsLedger - Checking transaction ${trans.id}:`, {
+            patient: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'No patient',
+            department: filterDepartment,
+            doctor: filterDoctorName,
+            amount: trans.amount
+          });
+          
+          // Exclude if it's ORTHO department with any HEMANT doctor
+          if (filterDepartment === 'ORTHO' && filterDoctorName.includes('HEMANT')) {
+            console.log(`🚫 OperationsLedger - EXCLUDING transaction for ORTHO/HEMANT: ${trans.patient?.first_name} ${trans.patient?.last_name}`);
+            return false; // Exclude this transaction
           }
+          
+          return true; // Include this transaction
+        });
+
+        console.log(`📊 Filtered ${transactions.length} to ${filteredTransactions.length} transactions (excluded ${transactions.length - filteredTransactions.length} ORTHO/HEMANT)`);
+
+        filteredTransactions.forEach((trans: any) => {
           
           let cleanDescription = trans.description || `${trans.transaction_type} Payment`;
           let originalAmount = trans.amount;
