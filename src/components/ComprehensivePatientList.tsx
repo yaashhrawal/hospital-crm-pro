@@ -1164,7 +1164,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   };
 
   useEffect(() => {
-    console.log('🔄 PatientList useEffect triggered:', { dateRange, startDate, endDate, selectedDate });
+    console.log('🔄 PatientList useEffect triggered:', { dateRange, selectedDate });
     console.log('📊 Current component state:', {
       dateRange,
       isDefaultToday: dateRange === 'today',
@@ -1173,8 +1173,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       startDate,
       endDate
     });
-    loadPatients();
-  }, [dateRange, startDate, endDate, selectedDate]);
+    if (dateRange !== 'custom') {
+      loadPatients();
+    }
+  }, [dateRange, selectedDate]);
 
   useEffect(() => {
     console.log('📅 PatientList dateRange changed to:', dateRange);
@@ -1212,6 +1214,9 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         setEndDate(getLocalDateString(futureDate));
         console.log('📅 All Time selected - clearing date filters');
         break;
+      case 'custom':
+        // Now we do nothing here, user will set the dates
+        break;
     }
   }, [dateRange]);
 
@@ -1237,8 +1242,17 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         // Debug the returned patients
         console.log('✅ Loaded', patientsData.length, 'patients for today');
       } else if (dateRange === 'custom') {
+        console.log('🔴 CUSTOM DATE RANGE SELECTED');
+        console.log('🔴 startDate state value:', startDate);
+        console.log('🔴 endDate state value:', endDate);
+        console.log('🔴 Calling ExactDateService.getPatientsForDateRange with:', {
+          startDate,
+          endDate,
+          startType: typeof startDate,
+          endType: typeof endDate
+        });
         // For custom date, use NEW exact date service to avoid cumulative results
-        patientsData = await ExactDateService.getPatientsForExactDate(startDate, 500);
+        patientsData = await ExactDateService.getPatientsForDateRange(startDate, endDate);
       } else {
         // For date ranges and 'all', load all patients and apply frontend filtering  
         // Skip ORTHO filtering for "All Time" to show truly all patients
@@ -1465,7 +1479,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
               const targetDate = selectedDate || getLocalDateString();
               return transactionDate === targetDate;
             } else if (dateRange === 'custom') {
-              return transactionDate === startDate;
+              return transactionDate >= startDate && transactionDate <= endDate;
             } else if (dateRange === 'week' || dateRange === 'month') {
               return transactionDate >= startDate && transactionDate <= endDate;
             }
@@ -1706,14 +1720,25 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         
         if (dateRange !== 'all') {
           consultationsInRange = transactions.filter(transaction => {
-            const transactionDate = transaction.transaction_date || transaction.created_at?.split('T')[0];
-            if (!transactionDate) return false;
+            // Get transaction date - prioritize transaction_date, then created_at
+            let transactionDateStr = null;
             
-            const transDate = new Date(transactionDate);
-            const rangeStart = new Date(startDate);
-            const rangeEnd = new Date(endDate);
+            if (transaction.transaction_date) {
+              transactionDateStr = transaction.transaction_date.includes('T') 
+                ? transaction.transaction_date.split('T')[0] 
+                : transaction.transaction_date;
+            } else if (transaction.created_at) {
+              transactionDateStr = transaction.created_at.split('T')[0];
+            }
             
-            return transDate >= rangeStart && transDate <= rangeEnd;
+            if (!transactionDateStr) return false;
+            
+            // Use string comparison for consistent date filtering (same as main filter)
+            const isInDateRange = transactionDateStr >= startDate && transactionDateStr <= endDate;
+            
+            console.log(`Transaction ${transaction.id} - Date: ${transactionDateStr}, In Range: ${isInDateRange}`);
+            
+            return isInDateRange;
           });
         }
         
@@ -1724,7 +1749,16 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           const consultationMap = new Map();
           
           consultationsInRange.forEach(transaction => {
-            const transactionDate = transaction.transaction_date || transaction.created_at?.split('T')[0];
+            // Get properly formatted transaction date
+            let transactionDate = null;
+            
+            if (transaction.transaction_date) {
+              transactionDate = transaction.transaction_date.includes('T') 
+                ? transaction.transaction_date.split('T')[0] 
+                : transaction.transaction_date;
+            } else if (transaction.created_at) {
+              transactionDate = transaction.created_at.split('T')[0];
+            }
             
             // Get doctor name from transaction or patient
             let doctorName = transaction.doctor_name || transaction.doctor || patient.assigned_doctor || 'Unknown Doctor';
@@ -1797,7 +1831,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
               address: patient.address || "",
               patient_tag: patient.patient_tag || patient.notes || "",
               total_patient_spent: patient.totalSpent || 0,
-              registration_date: patient.created_at ? formatDate(patient.created_at) : "Unknown"
+              registration_date: patient.created_at ? formatDate(patient.created_at.split('T')[0]) : "Unknown",
+              // Add raw dates for proper sorting
+              _consultation_date_raw: consultation.date,
+              _registration_date_raw: patient.created_at ? patient.created_at.split('T')[0] : null
             });
           });
           
@@ -1818,11 +1855,50 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             address: patient.address || "",
             patient_tag: patient.patient_tag || patient.notes || "",
             total_patient_spent: patient.totalSpent || 0,
-            registration_date: patient.created_at ? formatDate(patient.created_at) : "Unknown"
+            registration_date: patient.created_at ? formatDate(patient.created_at.split('T')[0]) : "Unknown"
           });
         }
       }
       
+      // Sort export data by consultation date (newest first) for proper sequencing
+      exportData.sort((a, b) => {
+        const dateA = a._consultation_date_raw;
+        const dateB = b._consultation_date_raw;
+        
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        
+        // Convert to proper Date objects for comparison
+        const parseDateStr = (dateStr: string): Date => {
+          if (dateStr.includes('T')) {
+            return new Date(dateStr);
+          } else {
+            // YYYY-MM-DD format
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return new Date(year, month - 1, day);
+          }
+        };
+        
+        const dateObjA = parseDateStr(dateA);
+        const dateObjB = parseDateStr(dateB);
+        
+        // Sort by date descending (newest first)
+        return dateObjB.getTime() - dateObjA.getTime();
+      });
+      
+      console.log('📊 Export data sorted. First few entries:', exportData.slice(0, 3).map(row => ({
+        patient: row.first_name + ' ' + row.last_name,
+        consultation_date: row.consultation_date,
+        raw_date: row._consultation_date_raw
+      })));
+      
+      // Remove raw sorting fields from final export
+      exportData.forEach(row => {
+        delete row._consultation_date_raw;
+        delete row._registration_date_raw;
+      });
+
       // Debug final export data
       console.log('📊 Final Excel Export Data Sample:', exportData.slice(0, 2));
 
@@ -2159,16 +2235,31 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
                 {/* Inline Date Picker for Custom */}
                 {dateRange === 'custom' && (
-                  <div className="flex items-center">
+                  <div className="flex items-center space-x-2">
                     <ModernDatePicker
-                      label=""
+                      label="From"
                       value={startDate}
                       onChange={(date) => {
+                        console.log('🔴 START DATE CHANGED:', date);
                         setStartDate(date);
+                      }}
+                      placeholder="DD/MM/YYYY"
+                    />
+                    <ModernDatePicker
+                      label="To"
+                      value={endDate}
+                      onChange={(date) => {
+                        console.log('🔴 END DATE CHANGED:', date);
                         setEndDate(date);
                       }}
                       placeholder="DD/MM/YYYY"
                     />
+                    <button
+                      onClick={() => loadPatients()}
+                      className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 whitespace-nowrap"
+                    >
+                      Go
+                    </button>
                   </div>
                 )}
               </div>
