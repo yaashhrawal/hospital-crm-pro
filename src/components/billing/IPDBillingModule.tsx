@@ -123,7 +123,7 @@ const IPDBillingModule: React.FC = () => {
       setLoading(true);
       
       // Load actual patients from HospitalService
-      const actualPatients = await HospitalService.getPatients(1000);
+      const actualPatients = await HospitalService.getPatients(50000, true, true);
       console.log('🏥 Loaded patients for IPD billing:', actualPatients.length);
 
       // Filter patients who have IPD status or admissions

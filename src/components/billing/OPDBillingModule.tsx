@@ -90,7 +90,7 @@ const OPDBillingModule: React.FC = () => {
       setLoading(true);
       
       // Load actual patients from HospitalService
-      const actualPatients = await HospitalService.getPatients(1000);
+      const actualPatients = await HospitalService.getPatients(50000, true, true);
       console.log('📋 Loaded patients for OPD billing:', actualPatients.length);
 
       // Load actual doctors from DoctorService (same as patient entry)

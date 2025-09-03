@@ -85,7 +85,7 @@ const PatientSelectionModal: React.FC<PatientSelectionModalProps> = ({
   const loadPatients = async () => {
     try {
       setLoading(true);
-      const patientData = await HospitalService.getPatients(200);
+      const patientData = await HospitalService.getPatients(50000, true, true);
       // Filter to show all patients (since IPD status tracking may not be implemented yet)
       // TODO: Once IPD status columns are added, filter out already admitted patients
       const opdPatients = patientData; // Show all patients for now
@@ -1652,7 +1652,7 @@ const IPDBedManagement: React.FC = () => {
   const syncPatientIPDStatus = async () => {
     try {
       // Get all patients with IPD status = ADMITTED (using high limit to get all)
-      const admittedPatients = await HospitalService.getPatients(1000);
+      const admittedPatients = await HospitalService.getPatients(50000, true, true);
       const ipdPatients = admittedPatients.filter(p => p.ipd_status === 'ADMITTED');
       
       // Get all patients actually in beds
@@ -1690,7 +1690,7 @@ const IPDBedManagement: React.FC = () => {
   const clearAllIPDEntries = async () => {
     try {
       // Get all patients with any IPD status
-      const allPatients = await HospitalService.getPatients(1000);
+      const allPatients = await HospitalService.getPatients(50000, true, true);
       const ipdPatients = allPatients.filter(p => 
         p.ipd_status === 'ADMITTED' || 
         p.ipd_status === 'DISCHARGED' || 

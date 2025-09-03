@@ -109,7 +109,7 @@ const DischargeSection: React.FC = () => {
       
       // Approach 2: Also check patients table for ipd_status = 'DISCHARGED'
       try {
-        const allPatients = await HospitalService.getPatients(1000);
+        const allPatients = await HospitalService.getPatients(50000, true, true);
         const patientsWithDischargedStatus = allPatients.filter(patient => 
           patient.ipd_status === 'DISCHARGED'
         );

@@ -4,6 +4,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
 import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
+import { supabase } from '../config/supabaseNew';
 import { 
   User, 
   Stethoscope, 
@@ -139,6 +140,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [selectedExistingPatient, setSelectedExistingPatient] = useState<any>(null);
   const [isNewVisit, setIsNewVisit] = useState(false);
+  const [patientsLastLoaded, setPatientsLastLoaded] = useState<number>(0);
 
   // Check connection status on mount
   useEffect(() => {
@@ -153,23 +155,35 @@ const NewFlexiblePatientEntry: React.FC = () => {
   const handlePatientNameChange = (name: string) => {
     setFormData({ ...formData, full_name: name });
     
-    if (name.length >= 1) { // Reduced from 2 to 1 for better search experience
+    if (name.length >= 1) { // Show results from first character
       const searchTerm = name.toLowerCase().trim();
+      console.log(`🔍 Searching for: "${searchTerm}" in ${existingPatients.length} patients`);
+      
       const filtered = existingPatients.filter(patient => {
-        const firstName = patient.first_name?.toLowerCase() || '';
-        const lastName = patient.last_name?.toLowerCase() || '';
+        // Handle null/undefined values more robustly
+        const firstName = (patient.first_name || '').toString().toLowerCase().trim();
+        const lastName = (patient.last_name || '').toString().toLowerCase().trim();
         const fullName = `${firstName} ${lastName}`.trim();
-        const patientId = patient.patient_id?.toLowerCase() || '';
-        const phone = patient.phone || '';
+        const patientId = (patient.patient_id || '').toString().toLowerCase().trim();
+        const phone = (patient.phone || '').toString().trim();
         
-        return firstName.includes(searchTerm) ||
-               lastName.includes(searchTerm) ||
-               fullName.includes(searchTerm) ||
-               patientId.includes(searchTerm) ||
-               phone.includes(searchTerm) ||
-               firstName.startsWith(searchTerm) ||
-               lastName.startsWith(searchTerm) ||
-               fullName.startsWith(searchTerm);
+        // More comprehensive matching - including partial matches
+        const matches = [
+          firstName.includes(searchTerm),
+          lastName.includes(searchTerm),
+          fullName.includes(searchTerm),
+          patientId.includes(searchTerm),
+          phone.includes(searchTerm),
+          firstName.startsWith(searchTerm),
+          lastName.startsWith(searchTerm),
+          fullName.startsWith(searchTerm),
+          // Also try searching without spaces
+          firstName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, '')),
+          lastName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, '')),
+          fullName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, ''))
+        ];
+        
+        return matches.some(match => match);
       });
       
       // Sort filtered results by relevance (exact matches first, then starts with, then contains)
@@ -195,6 +209,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
         // Alphabetical order for the rest
         return aFullName.localeCompare(bFullName);
       });
+      
+      console.log(`🎯 Found ${filtered.length} patients matching "${searchTerm}"`);
+      if (filtered.length > 0) {
+        console.log(`📋 First few results:`, filtered.slice(0, 3).map(p => `${p.first_name} ${p.last_name} (${p.patient_id})`));
+      }
       
       setFilteredPatients(filtered);
       setShowPatientDropdown(filtered.length > 0);
@@ -273,34 +292,106 @@ const NewFlexiblePatientEntry: React.FC = () => {
     toast.success('Cleared form for new patient entry');
   };
 
-  // Load existing patients for appointment search
-  useEffect(() => {
-    const loadExistingPatients = async () => {
-      try {
-        console.log('🔍 Loading existing patients for search...');
-        const patients = await HospitalService.getPatients(1000); // Increased from 100 to 1000
-        console.log('✅ Loaded patients for search:', patients?.length || 0);
-        setExistingPatients(patients || []);
-      } catch (error) {
-        console.error('❌ Error loading existing patients:', error);
+  // Function to load/refresh existing patients
+  const loadExistingPatients = async (forceRefresh = false) => {
+    try {
+      const now = Date.now();
+      
+      // Only load if we haven't loaded in the last 30 seconds, or if forced refresh
+      if (!forceRefresh && existingPatients.length > 0 && (now - patientsLastLoaded) < 30000) {
+        console.log('🔄 Using cached patient data (loaded', Math.round((now - patientsLastLoaded) / 1000), 'seconds ago)');
+        return;
       }
-    };
+
+      console.log('🔍 Loading existing patients for search...');
+      // Get ALL patients including inactive ones for comprehensive search
+      // Using even higher limit to ensure we get ALL patients
+      const patients = await HospitalService.getPatients(50000, true, true); // limit=50000, skipOrthoFilter=TRUE, includeInactive=true
+      console.log('✅ Loaded patients for search:', patients?.length || 0);
+      console.log('🏥 First few patient hospital_ids:', patients?.slice(0, 5).map(p => `${p.first_name} ${p.last_name} - Hospital ID: ${p.hospital_id} - Active: ${p.is_active}`));
+      
+      // Log first few patients to verify they're newest
+      if (patients && patients.length > 0) {
+        console.log('📅 Latest patients:', patients.slice(0, 3).map(p => 
+          `${p.first_name} ${p.last_name} (Created: ${p.created_at || 'Unknown'})`
+        ));
+      }
+      
+      setExistingPatients(patients || []);
+      setPatientsLastLoaded(now);
+    } catch (error) {
+      console.error('❌ Error loading existing patients:', error);
+      // Set empty array on error to prevent crashes
+      setExistingPatients([]);
+    }
+  };
+
+  // Load existing patients on mount and set up periodic refresh
+  useEffect(() => {
     loadExistingPatients();
+    
+    // Refresh patient list every 2 minutes to catch new patients
+    const refreshInterval = setInterval(() => {
+      loadExistingPatients(true);
+    }, 120000); // 2 minutes
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Filter existing patients based on search
   useEffect(() => {
-    if (formData.existing_patient_search) {
-      const searchTerm = formData.existing_patient_search.toLowerCase();
-      const filtered = existingPatients.filter(patient => 
-        patient.first_name?.toLowerCase().includes(searchTerm) ||
-        patient.last_name?.toLowerCase().includes(searchTerm) ||
-        patient.patient_id?.toLowerCase().includes(searchTerm) ||
-        patient.phone?.includes(searchTerm)
-      );
+    if (formData.existing_patient_search && formData.existing_patient_search.trim().length > 0) {
+      const searchTerm = formData.existing_patient_search.toLowerCase().trim();
+      const filtered = existingPatients.filter(patient => {
+        // Handle null/undefined values more robustly
+        const firstName = (patient.first_name || '').toString().toLowerCase().trim();
+        const lastName = (patient.last_name || '').toString().toLowerCase().trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        const patientId = (patient.patient_id || '').toString().toLowerCase().trim();
+        const phone = (patient.phone || '').toString().trim();
+        
+        // More comprehensive matching
+        const matches = [
+          firstName.includes(searchTerm),
+          lastName.includes(searchTerm),
+          fullName.includes(searchTerm),
+          patientId.includes(searchTerm),
+          phone.includes(searchTerm),
+          // Also try searching without spaces
+          firstName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, '')),
+          lastName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, '')),
+          fullName.replace(/\s+/g, '').includes(searchTerm.replace(/\s+/g, ''))
+        ];
+        
+        return matches.some(match => match);
+      });
+      
+      // Sort by relevance - exact matches first, then starts with, then contains
+      filtered.sort((a, b) => {
+        const aFirstName = a.first_name?.toLowerCase() || '';
+        const bFirstName = b.first_name?.toLowerCase() || '';
+        const aFullName = `${aFirstName} ${a.last_name?.toLowerCase() || ''}`.trim();
+        const bFullName = `${bFirstName} ${b.last_name?.toLowerCase() || ''}`.trim();
+        
+        // Exact matches first
+        if (aFullName === searchTerm && bFullName !== searchTerm) return -1;
+        if (bFullName === searchTerm && aFullName !== searchTerm) return 1;
+        
+        // First name starts with search term
+        if (aFirstName.startsWith(searchTerm) && !bFirstName.startsWith(searchTerm)) return -1;
+        if (bFirstName.startsWith(searchTerm) && !aFirstName.startsWith(searchTerm)) return 1;
+        
+        // Full name starts with search term
+        if (aFullName.startsWith(searchTerm) && !bFullName.startsWith(searchTerm)) return -1;
+        if (bFullName.startsWith(searchTerm) && !aFullName.startsWith(searchTerm)) return 1;
+        
+        return aFullName.localeCompare(bFullName);
+      });
+      
       setFilteredPatients(filtered);
     } else {
-      setFilteredPatients([]);
+      // Show all patients if search is empty (but limit to first 50 for performance)
+      setFilteredPatients(existingPatients.slice(0, 50));
     }
   }, [formData.existing_patient_search, existingPatients]);
 
@@ -385,6 +476,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
             newPatient = { ...selectedExistingPatient, ...updateData };
             console.log('✅ Updated patient date_of_entry and doctor info for new visit');
             toast.success(`New visit recorded for ${selectedExistingPatient.first_name} ${selectedExistingPatient.last_name}`);
+            // Refresh patient list to update last visit info
+            loadExistingPatients(true);
           } else {
             throw new Error('Failed to update patient for new visit');
           }
@@ -598,6 +691,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
       } else {
         toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toFixed(2)}`);
       }
+      
+      // Refresh patient list to include the new patient in search results
+      loadExistingPatients(true);
       
       // Reset form and states
       setSelectedExistingPatient(null);
@@ -897,9 +993,116 @@ const NewFlexiblePatientEntry: React.FC = () => {
                     </select>
                   </div>
                   <div className="col-span-3">
-                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                      Full Name <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                        Full Name <span style={{ color: '#EF4444' }}>*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          console.log('🔄 Manually refreshing patient list...');
+                          loadExistingPatients(true);
+                          toast.success('Patient list refreshed!');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0056B3',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          textDecoration: 'underline',
+                          padding: '0',
+                          marginBottom: '6px'
+                        }}
+                        title="Refresh patient list to show latest patients"
+                      >
+                        🔄 Refresh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          console.log('🔍 DEBUG: Searching for MANISH CHHAJED specifically...');
+                          
+                          // Search for MANISH CHHAJED in different ways
+                          const [directSearch, currentList, noFiltersQuery] = await Promise.all([
+                            // Direct search in database
+                            supabase.from('patients').select('*').or('first_name.ilike.%MANISH%,last_name.ilike.%CHHAJED%,first_name.ilike.%manish%,last_name.ilike.%chhajed%'),
+                            // Current loaded patients
+                            existingPatients,
+                            // All patients without any filters
+                            supabase.from('patients').select('*').limit(1000)
+                          ]);
+                          
+                          console.log('🎯 MANISH CHHAJED DEBUG Results:');
+                          console.log('- Direct DB search results:', directSearch?.data?.length || 0);
+                          console.log('- Currently loaded patients:', currentList?.length || 0);
+                          console.log('- All patients (no filter):', noFiltersQuery?.data?.length || 0);
+                          
+                          if (directSearch?.data && directSearch.data.length > 0) {
+                            console.log('✅ MANISH CHHAJED found in database:');
+                            directSearch.data.forEach((p: any, index: number) => {
+                              console.log(`${index + 1}. ${p.first_name} ${p.last_name}`);
+                              console.log(`   - Patient ID: ${p.patient_id}`);
+                              console.log(`   - Hospital ID: ${p.hospital_id}`);
+                              console.log(`   - Active: ${p.is_active}`);
+                              console.log(`   - Created: ${p.created_at}`);
+                              console.log(`   - Phone: ${p.phone}`);
+                              console.log(`   - Department: ${p.assigned_department}`);
+                              console.log(`   - Doctor: ${p.assigned_doctor}`);
+                              console.log('   ---');
+                            });
+                          } else {
+                            console.log('❌ MANISH CHHAJED NOT found in direct database search');
+                          }
+                          
+                          // Check if MANISH CHHAJED is in current loaded list
+                          const inCurrentList = currentList?.filter((p: any) => 
+                            (p.first_name || '').toLowerCase().includes('manish') || 
+                            (p.last_name || '').toLowerCase().includes('chhajed')
+                          ) || [];
+                          
+                          console.log(`📋 MANISH CHHAJED in current loaded list: ${inCurrentList.length} matches`);
+                          if (inCurrentList.length > 0) {
+                            inCurrentList.forEach((p: any, index: number) => {
+                              console.log(`${index + 1}. ${p.first_name} ${p.last_name} - ${p.patient_id}`);
+                            });
+                          }
+                          
+                          // Test search function directly
+                          const testSearch = 'manish';
+                          const searchResults = currentList?.filter((patient: any) => {
+                            const firstName = (patient.first_name || '').toString().toLowerCase().trim();
+                            const lastName = (patient.last_name || '').toString().toLowerCase().trim();
+                            const fullName = `${firstName} ${lastName}`.trim();
+                            
+                            const matches = [
+                              firstName.includes(testSearch),
+                              lastName.includes(testSearch),
+                              fullName.includes(testSearch)
+                            ];
+                            
+                            return matches.some(match => match);
+                          }) || [];
+                          
+                          console.log(`🔍 Search test for "${testSearch}": ${searchResults.length} results`);
+                          
+                          toast.success('MANISH CHHAJED debug complete - check console');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#FF6B35',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          textDecoration: 'underline',
+                          padding: '0',
+                          marginBottom: '6px'
+                        }}
+                        title="Debug patient loading issues"
+                      >
+                        🐛 Debug
+                      </button>
+                    </div>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="text"
@@ -932,7 +1135,11 @@ const NewFlexiblePatientEntry: React.FC = () => {
                           outline: 'none'
                         }}
                         placeholder="Start typing patient name to search existing patients..."
-                        onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#0056B3';
+                          // Refresh patient list when focusing to get latest patients
+                          loadExistingPatients();
+                        }}
                         onBlur={(e) => {
                           e.currentTarget.style.borderColor = '#CCCCCC';
                           // Hide dropdown with delay to allow click

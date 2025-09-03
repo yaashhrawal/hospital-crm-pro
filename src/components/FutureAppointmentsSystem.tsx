@@ -60,7 +60,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
   const loadPatientsAndDoctors = async () => {
     try {
       const [patientsData, currentUser] = await Promise.all([
-        HospitalService.getPatients(100),
+        HospitalService.getPatients(50000, true, true),
         HospitalService.getCurrentUser()
       ]);
       

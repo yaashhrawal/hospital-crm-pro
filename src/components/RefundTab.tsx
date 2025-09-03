@@ -40,7 +40,9 @@ const RefundTab: React.FC = () => {
 
   const loadPatients = async () => {
     try {
-      const patientsData = await HospitalService.getPatients(200);
+      // Load ALL patients including ORTHO/inactive ones for comprehensive refund search
+      const patientsData = await HospitalService.getPatients(50000, true, true); // limit=50000, skipOrthoFilter=true, includeInactive=true
+      console.log('✅ Refunds - Loaded patients for search:', patientsData?.length || 0);
       setPatients(patientsData);
     } catch (error: any) {
       toast.error(`Failed to load patients: ${error.message}`);
