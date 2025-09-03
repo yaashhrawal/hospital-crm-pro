@@ -4,7 +4,6 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
 import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
-import { supabase } from '../config/supabaseNew';
 import { 
   User, 
   Stethoscope, 
@@ -1017,90 +1016,6 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         title="Refresh patient list to show latest patients"
                       >
                         🔄 Refresh
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          console.log('🔍 DEBUG: Searching for MANISH CHHAJED specifically...');
-                          
-                          // Search for MANISH CHHAJED in different ways
-                          const [directSearch, currentList, noFiltersQuery] = await Promise.all([
-                            // Direct search in database
-                            supabase.from('patients').select('*').or('first_name.ilike.%MANISH%,last_name.ilike.%CHHAJED%,first_name.ilike.%manish%,last_name.ilike.%chhajed%'),
-                            // Current loaded patients
-                            existingPatients,
-                            // All patients without any filters
-                            supabase.from('patients').select('*').limit(1000)
-                          ]);
-                          
-                          console.log('🎯 MANISH CHHAJED DEBUG Results:');
-                          console.log('- Direct DB search results:', directSearch?.data?.length || 0);
-                          console.log('- Currently loaded patients:', currentList?.length || 0);
-                          console.log('- All patients (no filter):', noFiltersQuery?.data?.length || 0);
-                          
-                          if (directSearch?.data && directSearch.data.length > 0) {
-                            console.log('✅ MANISH CHHAJED found in database:');
-                            directSearch.data.forEach((p: any, index: number) => {
-                              console.log(`${index + 1}. ${p.first_name} ${p.last_name}`);
-                              console.log(`   - Patient ID: ${p.patient_id}`);
-                              console.log(`   - Hospital ID: ${p.hospital_id}`);
-                              console.log(`   - Active: ${p.is_active}`);
-                              console.log(`   - Created: ${p.created_at}`);
-                              console.log(`   - Phone: ${p.phone}`);
-                              console.log(`   - Department: ${p.assigned_department}`);
-                              console.log(`   - Doctor: ${p.assigned_doctor}`);
-                              console.log('   ---');
-                            });
-                          } else {
-                            console.log('❌ MANISH CHHAJED NOT found in direct database search');
-                          }
-                          
-                          // Check if MANISH CHHAJED is in current loaded list
-                          const inCurrentList = currentList?.filter((p: any) => 
-                            (p.first_name || '').toLowerCase().includes('manish') || 
-                            (p.last_name || '').toLowerCase().includes('chhajed')
-                          ) || [];
-                          
-                          console.log(`📋 MANISH CHHAJED in current loaded list: ${inCurrentList.length} matches`);
-                          if (inCurrentList.length > 0) {
-                            inCurrentList.forEach((p: any, index: number) => {
-                              console.log(`${index + 1}. ${p.first_name} ${p.last_name} - ${p.patient_id}`);
-                            });
-                          }
-                          
-                          // Test search function directly
-                          const testSearch = 'manish';
-                          const searchResults = currentList?.filter((patient: any) => {
-                            const firstName = (patient.first_name || '').toString().toLowerCase().trim();
-                            const lastName = (patient.last_name || '').toString().toLowerCase().trim();
-                            const fullName = `${firstName} ${lastName}`.trim();
-                            
-                            const matches = [
-                              firstName.includes(testSearch),
-                              lastName.includes(testSearch),
-                              fullName.includes(testSearch)
-                            ];
-                            
-                            return matches.some(match => match);
-                          }) || [];
-                          
-                          console.log(`🔍 Search test for "${testSearch}": ${searchResults.length} results`);
-                          
-                          toast.success('MANISH CHHAJED debug complete - check console');
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#FF6B35',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          textDecoration: 'underline',
-                          padding: '0',
-                          marginBottom: '6px'
-                        }}
-                        title="Debug patient loading issues"
-                      >
-                        🐛 Debug
                       </button>
                     </div>
                     <div style={{ position: 'relative' }}>
