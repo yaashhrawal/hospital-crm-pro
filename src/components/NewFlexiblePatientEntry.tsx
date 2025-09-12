@@ -105,7 +105,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
     consultation_mode: 'single', // 'single' or 'multiple'
     // Transaction data
     consultation_fee: 0,
-    discount_percentage: 0,
+    discount_type: 'PERCENTAGE',
+    discount_value: 0,
     discount_reason: '',
     payment_mode: 'CASH',
     online_payment_method: 'UPI',
@@ -585,7 +586,12 @@ const NewFlexiblePatientEntry: React.FC = () => {
         for (const doctor of assignedDoctorsData) {
           // Calculate discounted amount
           const originalAmount = doctor.consultation_fee || 0;
-          const discountAmount = originalAmount * (formData.discount_percentage / 100);
+          let discountAmount = 0;
+          if (formData.discount_type === 'PERCENTAGE') {
+            discountAmount = originalAmount * (formData.discount_value / 100);
+          } else {
+            discountAmount = formData.discount_value;
+          }
           const finalAmount = originalAmount - discountAmount;
           
           // Build description with discount info if applicable
@@ -598,7 +604,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
             patient_id: newPatient.id,  // Use UUID id, not patient_id string
             amount: finalAmount, // Use discounted amount
             description: description,
-            discount_percentage: formData.discount_percentage,
+            discount_type: formData.discount_type,
+            discount_value: formData.discount_value,
             discount_reason: formData.discount_reason || undefined,
             payment_mode: formData.payment_mode as 'CASH' | 'ONLINE' | 'CARD' | 'UPI' | 'INSURANCE',
             online_payment_method: formData.payment_mode === 'ONLINE' ? formData.online_payment_method : undefined,
@@ -680,11 +687,20 @@ const NewFlexiblePatientEntry: React.FC = () => {
       }
 
       // Calculate total amount
-      const totalAmount = formData.consultation_mode === 'single' 
-        ? formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))
-        : selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) - 
-          (selectedDoctors.reduce((total, doctor) => total + (doctor.consultationFee || 0), 0) * (formData.discount_percentage / 100));
-      
+      const totalAmount = (() => {
+        const total = formData.consultation_mode === 'single'
+          ? formData.consultation_fee
+          : selectedDoctors.reduce((sum, doctor) => sum + (doctor.consultationFee || 0), 0);
+
+        const discount = formData.discount_value > 0
+          ? (formData.discount_type === 'PERCENTAGE'
+              ? total * (formData.discount_value / 100)
+              : formData.discount_value)
+          : 0;
+
+        return Math.max(0, total - discount);
+      })();
+
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
       } else {
@@ -725,7 +741,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
         custom_department_name: '',
         consultation_mode: 'single',
         consultation_fee: 0,
-        discount_percentage: 0,
+        discount_type: 'PERCENTAGE',
+        discount_value: 0,
         discount_reason: '',
         payment_mode: 'CASH',
         online_payment_method: 'UPI',
@@ -1828,12 +1845,36 @@ const NewFlexiblePatientEntry: React.FC = () => {
                   )}
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
-                      Discount (%)
+                      Discount Type
+                    </label>
+                    <select
+                      value={formData.discount_type}
+                      onChange={(e) => setFormData({ ...formData, discount_type: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
+                    >
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="AMOUNT">Amount (₹)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Discount Value
                     </label>
                     <input
                       type="number"
-                      value={formData.discount_percentage}
-                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
+                      value={formData.discount_value}
+                      onChange={(e) => setFormData({ ...formData, discount_value: parseInt(e.target.value) || 0 })}
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -1843,9 +1884,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
                         color: '#333333',
                         outline: 'none'
                       }}
-                      placeholder="0-100"
+                      placeholder="Enter discount"
                       min="0"
-                      max="100"
                       onFocus={(e) => e.currentTarget.style.borderColor = '#0056B3'}
                       onBlur={(e) => e.currentTarget.style.borderColor = '#CCCCCC'}
                     />
@@ -1907,7 +1947,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
                   )}
                 </div>
 
-                {formData.discount_percentage > 0 && (
+                {/* Show Discount Reason when a discount value is provided */}
+                {formData.discount_value > 0 && (
                   <div className="mt-4">
                     <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
                       Discount Reason
@@ -2295,15 +2336,27 @@ const NewFlexiblePatientEntry: React.FC = () => {
                     ? `Consultation Fee: ₹${formData.consultation_fee || 0}`
                     : `Multiple Doctors: ${selectedDoctors.length} selected`
                   }
-                  {formData.discount_percentage > 0 && ` (${formData.discount_percentage}% discount)`}
+                  {/* Display discount info correctly */}
+                  {formData.discount_value > 0 && (formData.discount_type === 'PERCENTAGE'
+                    ? ` (${formData.discount_value}% discount)`
+                    : ` (₹${formData.discount_value} discount)`)}
                 </p>
               </div>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#0056B3' }}>
-                ₹{formData.consultation_mode === 'single' 
-                  ? (formData.consultation_fee - (formData.consultation_fee * (formData.discount_percentage / 100))).toFixed(2)
-                  : (selectedDoctors.reduce((total, doc) => total + (doc.consultationFee || 0), 0) - 
-                     (selectedDoctors.reduce((total, doc) => total + (doc.consultationFee || 0), 0) * (formData.discount_percentage / 100))).toFixed(2)
-                }
+                ₹{(() => {
+                    const total = formData.consultation_mode === 'single'
+                      ? formData.consultation_fee
+                      : selectedDoctors.reduce((total, doc) => total + (doc.consultationFee || 0), 0);
+
+                    // compute discount based on type
+                    const discount = formData.discount_value > 0
+                      ? (formData.discount_type === 'PERCENTAGE'
+                          ? (total * (formData.discount_value / 100))
+                          : formData.discount_value)
+                      : 0;
+
+                    return (total - discount).toFixed(2);
+                  })()}
               </div>
             </div>
 
