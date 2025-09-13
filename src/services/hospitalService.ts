@@ -596,11 +596,6 @@ export class HospitalService {
           t.transaction_type === 'XRAY' ||
           t.transaction_type === 'PROCEDURE')
         ).length;
-        // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
-        const visitCount = registrationVisits > 0 ? registrationVisits : 1;
-        const lastVisit = allActiveTransactions.length > 0 
-          ? allActiveTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
-          : null;
         
         // Check IPD status to determine department
         const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
@@ -784,11 +779,6 @@ export class HospitalService {
           t.transaction_type === 'XRAY' ||
           t.transaction_type === 'PROCEDURE')
         ).length;
-        // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
-        const visitCount = registrationVisits > 0 ? registrationVisits : 1;
-        const lastVisit = allActiveTransactions.length > 0 
-          ? allActiveTransactions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
-          : null;
         
         // Check IPD status to determine department
         const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
