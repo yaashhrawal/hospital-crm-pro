@@ -10,9 +10,11 @@ import Receipt from './Receipt';
 import ValantPrescription from './ValantPrescription';
 import VHPrescription from './VHPrescription';
 import MultiplePrescriptionGenerator from './MultiplePrescriptionGenerator';
+import SimpleEnhancedPatientRecord from './SimpleEnhancedPatientRecord';
 import PatientServiceManager from './PatientServiceManager';
 import VisitAgainModal from './VisitAgainModal';
 import { exportToExcel, formatCurrency, formatCurrencyForExcel, formatDate } from '../utils/excelExport';
+import { startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 import useReceiptPrinting from '../hooks/useReceiptPrinting';
 import { createRoot } from 'react-dom/client';
 import ReceiptTemplate from './receipts/ReceiptTemplate';
@@ -1052,6 +1054,7 @@ interface ComprehensivePatientListProps {
   onNavigate?: (tab: string) => void;
 }
 
+import DoctorService from '../services/doctorService';
 const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onNavigate }) => {
   const { hasPermission } = usePermissions();
   const { user } = useAuth();
@@ -1064,22 +1067,51 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterTag, setFilterTag] = useState<string>('all');
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [filterDoctor, setFilterDoctor] = useState<string>('all');
   // Helper function to get local date in YYYY-MM-DD format
   const getLocalDateString = (date = new Date()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    const result = `${year}-${month}-${day}`;
-    
-    // Debug logging
-    
-    return result;
+    return `${year}-${month}-${day}`;
+  };
+
+  // Normalize various date inputs to YYYY-MM-DD (accepts Date, ISO, "DD-MM-YYYY", "DD/MM/YYYY", "YYYY-MM-DD" etc.)
+  const normalizeToYYYYMMDD = (input: string | Date | null | undefined): string => {
+    if (!input) return getLocalDateString();
+    if (input instanceof Date) {
+      return getLocalDateString(input);
+    }
+    const s = String(input).trim();
+    // If ISO datetime, take date part
+    if (/\d{4}-\d{2}-\d{2}T/.test(s)) {
+      return s.split('T')[0];
+    }
+    // If already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      return s;
+    }
+    // If DD-MM-YYYY or DD/MM/YYYY
+    const dmy = s.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+    if (dmy) {
+      const [, dd, mm, yyyy] = dmy;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    // Fallback: try Date parse
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) {
+      return getLocalDateString(parsed);
+    }
+    // Last resort: return today
+    return getLocalDateString();
   };
 
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('today');
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  // REMOVED: selectedDate is redundant, derive from startDate or dateRange
+  // const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1087,6 +1119,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   const [selectedPatientForReceipt, setSelectedPatientForReceipt] = useState<PatientWithRelations | null>(null);
   const [showValantPrescription, setShowValantPrescription] = useState(false);
   const [showVHPrescription, setShowVHPrescription] = useState(false);
+  const [showEnhancedPatientRecord, setShowEnhancedPatientRecord] = useState(false);
   const [showMultiplePrescription, setShowMultiplePrescription] = useState(false);
   const [multiplePrescriptionType, setMultiplePrescriptionType] = useState<'valant' | 'vh'>('valant');
   const [selectedPatientForPrescription, setSelectedPatientForPrescription] = useState<PatientWithRelations | null>(null);
@@ -1164,105 +1197,59 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   };
 
   useEffect(() => {
-    console.log('🔄 PatientList useEffect triggered:', { dateRange, selectedDate });
-    console.log('📊 Current component state:', {
-      dateRange,
-      isDefaultToday: dateRange === 'today',
-      todayDate: getLocalDateString(),
-      selectedDate,
-      startDate,
-      endDate
-    });
-    if (dateRange !== 'custom') {
-      loadPatients();
-    }
-  }, [dateRange, selectedDate]);
+    const today = startOfDay(new Date());
+    let newStartDate = today;
+    let newEndDate = today;
 
-  useEffect(() => {
-    console.log('📅 PatientList dateRange changed to:', dateRange);
-    // Update date range when dateRange changes
-    const today = new Date();
     switch (dateRange) {
       case 'today':
-        const todayStr = getLocalDateString(today);
-        console.log('📅 Setting today date to:', todayStr);
-        setSelectedDate(todayStr);
-        setStartDate(todayStr);
-        setEndDate(todayStr);
+        // Already set
         break;
       case 'week':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        const weekStartStr = getLocalDateString(weekStart);
-        const weekEndStr = getLocalDateString(weekEnd);
-        setStartDate(weekStartStr);
-        setEndDate(weekEndStr);
+        newStartDate = startOfWeek(today);
+        newEndDate = endOfWeek(today);
         break;
       case 'month':
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        setStartDate(getLocalDateString(monthStart));
-        setEndDate(getLocalDateString(monthEnd));
+        newStartDate = startOfMonth(today);
+        newEndDate = endOfMonth(today);
         break;
       case 'all':
-        // For 'all', set a very wide date range or clear the dates
-        const veryOldDate = new Date('2000-01-01');
-        const futureDate = new Date('2100-12-31');
-        setStartDate(getLocalDateString(veryOldDate));
-        setEndDate(getLocalDateString(futureDate));
-        console.log('📅 All Time selected - clearing date filters');
+        newStartDate = new Date('2000-01-01');
+        newEndDate = new Date('2100-12-31');
         break;
       case 'custom':
-        // Now we do nothing here, user will set the dates
-        break;
+        // For custom, we don't change the dates here, they are managed by the date picker components
+        return;
     }
+
+    setStartDate(format(newStartDate, 'yyyy-MM-dd'));
+    setEndDate(format(newEndDate, 'yyyy-MM-dd'));
   }, [dateRange]);
 
   useEffect(() => {
-    filterAndSortPatients();
-  }, [patients, searchTerm, sortBy, sortOrder, filterGender, filterTag]);
+    loadPatients(startDate, endDate);
+  }, [startDate, endDate]);
 
-  const loadPatients = async () => {
+  useEffect(() => {
+    filterAndSortPatients();
+  }, [patients, searchTerm, sortBy, sortOrder, filterGender, filterTag, filterDoctor]);
+
+  const loadPatients = async (currentStartDate: string, currentEndDate: string) => {
     try {
-      console.log('🔄 loadPatients called with:', { dateRange, selectedDate, startDate, endDate });
+      // Normalize incoming dates to YYYY-MM-DD to avoid mismatches from different pickers/formats
+      const normStart = normalizeToYYYYMMDD(currentStartDate);
+      const normEnd = normalizeToYYYYMMDD(currentEndDate);
+      console.log('🔄 loadPatients called with (normalized):', { normStart, normEnd });
       setLoading(true);
       
       let patientsData;
+
+      // Always use the backend method with error handling
+      patientsData = await ExactDateService.getPatientsForDateRange(normStart, normEnd);
+      console.log('Number of patients fetched:', patientsData.length);
       
-      // Use backend filtering for 'today' and single custom dates to get exact results
-      if (dateRange === 'today') {
-        const todayStr = selectedDate || getLocalDateString();
-        console.log('📅 Loading TODAY patients for date:', todayStr);
-        
-        // Always use the backend method with error handling
-        patientsData = await HospitalService.getPatientsForDate(todayStr, 500);
-        
-        // Debug the returned patients
-        console.log('✅ Loaded', patientsData.length, 'patients for today');
-      } else if (dateRange === 'custom') {
-        console.log('🔴 CUSTOM DATE RANGE SELECTED');
-        console.log('🔴 startDate state value:', startDate);
-        console.log('🔴 endDate state value:', endDate);
-        console.log('🔴 Calling ExactDateService.getPatientsForDateRange with:', {
-          startDate,
-          endDate,
-          startType: typeof startDate,
-          endType: typeof endDate
-        });
-        // For custom date, use NEW exact date service to avoid cumulative results
-        patientsData = await ExactDateService.getPatientsForDateRange(startDate, endDate);
-      } else {
-        // For date ranges and 'all', load all patients and apply frontend filtering  
-        // Skip ORTHO filtering for "All Time" to show truly all patients
-        console.log('🔍 DEBUG: dateRange =', dateRange, ', loading with else block');
-        const skipOrthoFilter = dateRange === 'all';
-        const includeInactive = dateRange === 'all'; // Include inactive patients for All Time
-        console.log('🔍 About to call HospitalService.getPatients with limit=50000, skipOrthoFilter=', skipOrthoFilter, ', includeInactive=', includeInactive);
-        patientsData = await HospitalService.getPatients(50000, skipOrthoFilter, includeInactive);
-        console.log('📋 Loaded', patientsData.length, 'total patients for dateRange:', dateRange);
-      }
+      // Debug the returned patients
+      console.log('✅ Loaded', patientsData.length, 'patients for the date range');
       
       // Filter out patients who have PENDING appointments (not confirmed/completed ones)
       patientsData = patientsData.filter(patient => {
@@ -1291,237 +1278,72 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         return true; // Show this patient (no pending appointments)
       });
       
-      // Debug: Check if backend or frontend filtering was used
-      if (dateRange === 'today' || dateRange === 'custom') {
-        
-        // CUSTOM DATE SPECIFIC DEBUG: Check all returned patients
-        if (dateRange === 'custom') {
-          
-          patientsData.forEach((p, i) => {
-            const createdDate = p.created_at ? p.created_at.split('T')[0] : 'NO_CREATED';
-            const entryDate = p.date_of_entry ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry) : 'NO_ENTRY';
-            
-            const matchesExpected = (createdDate === startDate || entryDate === startDate);
-            
-            
-            if (!matchesExpected) {
-            }
-          });
-        }
-      } else {
-      }
-      
-      // Debug specific patient ROSHAN MEHTA in patient list
-      const roshanPatient = patientsData.find(p => 
-        p.first_name?.toUpperCase().includes('ROSHAN') && 
-        p.last_name?.toUpperCase().includes('MEHTA')
-      );
-      if (roshanPatient) {
-        // Find last visit date using same logic as the table display
-        let lastVisitDate = null;
-        if (roshanPatient.date_of_entry && roshanPatient.date_of_entry.trim() !== '') {
-          lastVisitDate = roshanPatient.date_of_entry;
-        } else if (roshanPatient.transactions && roshanPatient.transactions.length > 0) {
-          const activeTransactions = roshanPatient.transactions
-            .filter(t => t.status !== 'CANCELLED' && t.created_at)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          if (activeTransactions.length > 0) {
-            lastVisitDate = activeTransactions[0].created_at;
-          }
-        } else if (roshanPatient.lastVisit) {
-          lastVisitDate = roshanPatient.lastVisit;
-        } else if (roshanPatient.created_at) {
-          lastVisitDate = roshanPatient.created_at;
-        }
-        
-        console.log('🔍 ROSHAN MEHTA Debug - Patient List:', {
-          patient_name: `${roshanPatient.first_name} ${roshanPatient.last_name}`,
-          date_of_entry: roshanPatient.date_of_entry,
-          created_at: roshanPatient.created_at,
-          lastVisit: roshanPatient.lastVisit,
-          calculated_last_visit_date: lastVisitDate,
-          patient_list_date: (() => {
-            if (!lastVisitDate) return 'Never';
-            try {
-              let date;
-              if (typeof lastVisitDate === 'string' && lastVisitDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const [year, month, day] = lastVisitDate.split('-').map(Number);
-                date = new Date(year, month - 1, day);
-              } else {
-                date = new Date(lastVisitDate);
-              }
-              if (isNaN(date.getTime())) return 'Invalid Date';
-              return date.toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              });
-            } catch (error) {
-              return 'Date Error';
-            }
-          })(),
-          raw_transactions: roshanPatient.transactions?.map(t => ({
-            id: t.id,
-            created_at: t.created_at,
-            status: t.status
-          }))
-        });
-      }
-      
-      // Quick debug: Show all patient dates to help identify the issue
-      
-      // Apply date filtering if not 'all' and not using backend filtering
-      // Exclude custom dates since they're now handled by backend (always single dates)
-      if (dateRange !== 'all' && dateRange !== 'today' && dateRange !== 'custom') {
-        const originalCount = patientsData.length;
-        // Calculate dates based on current dateRange - don't rely on state
-        let currentStartDate, currentEndDate;
-        const today = getLocalDateString();
-        
-        switch (dateRange) {
-          case 'today':
-            currentStartDate = selectedDate || today;
-            currentEndDate = selectedDate || today;
-            break;
-          case 'week':
-            const todayObj = new Date();
-            const weekStart = new Date(todayObj);
-            weekStart.setDate(todayObj.getDate() - todayObj.getDay());
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            currentStartDate = getLocalDateString(weekStart);
-            currentEndDate = getLocalDateString(weekEnd);
-            break;
-          case 'month':
-            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-            currentStartDate = getLocalDateString(monthStart);
-            currentEndDate = getLocalDateString(monthEnd);
-            break;
-          case 'custom':
-            currentStartDate = startDate;
-            currentEndDate = endDate;
-            break;
-          default:
-            currentStartDate = today;
-            currentEndDate = today;
-        }
-        
-        // Debug today's date info
-        const todaysDateInfo = {
-          jsToday: getLocalDateString(),
-          selectedDate: selectedDate,
-          startDate: startDate,
-          endDate: endDate,
-          currentStartDate,
-          currentEndDate,
-          dateRange,
-          dateTime: new Date().toLocaleString()
-        };
-        
-        
-        // Find the specific patient to debug
-        const ashokPatient = patientsData.find(p => 
-          p.first_name?.toUpperCase().includes('ASHOK') && 
-          p.last_name?.toUpperCase().includes('KUMAR')
-        );
-        
-        if (ashokPatient) {
-          // Use the same date parsing logic as in the filter
-          let debugCreatedDate = null;
-          let debugEntryDate = null;
-          
-          if (ashokPatient.created_at) {
-            debugCreatedDate = new Date(ashokPatient.created_at).toISOString().split('T')[0];
-          }
-          
-          if (ashokPatient.date_of_entry) {
-            let entryDate;
-            if (typeof ashokPatient.date_of_entry === 'string' && ashokPatient.date_of_entry.includes('T')) {
-              entryDate = new Date(ashokPatient.date_of_entry);
-            } else {
-              entryDate = new Date(ashokPatient.date_of_entry + 'T00:00:00');
-            }
-            debugEntryDate = entryDate.toISOString().split('T')[0];
-          }
-          
-        }
-      }
-        
-        // Show final filtered patients for today filter
-        if (dateRange === 'today') {
-        }
-        
-        
-        // Debug week filter specifically
-        if (dateRange === 'week') {
-        }
-      
-      // Debug patient_tag data (minimal logging)
-      if (patientsData.length > 0) {
-        console.log('🔍 Patients loaded:', patientsData.length);
-        console.log('✅ SUCCESS: Today filter loaded', patientsData.length, 'patients for date:', dateRange === 'today' ? selectedDate : 'NOT TODAY');
-      } else {
-        console.log('⚠️ WARNING: No patients found for today filter');
-      }
-
       // Calculate totalSpent based on selected date filter
       const filteredPatientsData = patientsData.map(patient => {
         const transactions = patient.transactions || [];
+        // Always exclude CANCELLED transactions.
+        // Only apply date-range filtering when a date filter other than "all" is active.
         let filteredTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
-        
-        // Filter transactions based on the selected date range
         if (dateRange !== 'all') {
           filteredTransactions = filteredTransactions.filter((t: any) => {
-            const transactionDate = t.transaction_date || new Date(t.created_at).toISOString().split('T')[0];
-            
-            if (dateRange === 'today') {
-              const targetDate = selectedDate || getLocalDateString();
-              return transactionDate === targetDate;
-            } else if (dateRange === 'custom') {
-              return transactionDate >= startDate && transactionDate <= endDate;
-            } else if (dateRange === 'week' || dateRange === 'month') {
-              return transactionDate >= startDate && transactionDate <= endDate;
+            // Normalize transaction date to YYYY-MM-DD
+            let transactionDateRaw = t.transaction_date || t.created_at || '';
+            if (typeof transactionDateRaw === 'string' && transactionDateRaw.includes('T')) {
+              transactionDateRaw = transactionDateRaw.split('T')[0];
             }
-            return true;
+            const transactionDate = normalizeToYYYYMMDD(transactionDateRaw);
+            return transactionDate >= normStart && transactionDate <= normEnd;
           });
         }
         
         // Recalculate totalSpent based on filtered transactions
         const filteredTotalSpent = filteredTransactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+        // Recalculate visitCount based on filtered transactions (count consultations/entry fees)
+        const visitCountFromFiltered = filteredTransactions.reduce((cnt: number, t: any) => {
+          const type = (t.transaction_type || '').toString().toUpperCase();
+          if (type === 'ENTRY_FEE' || type === 'CONSULTATION' || type === 'LAB_TEST' || type === 'XRAY' || type === 'PROCEDURE') return cnt + 1;
+          return cnt;
+        }, 0);
+        
+        // Determine lastVisit from filtered transactions (latest date) or fallback to existing fields
+        let lastVisitFromFiltered: string | null = null;
+        if (filteredTransactions.length > 0) {
+          lastVisitFromFiltered = filteredTransactions
+            .map((t: any) => {
+              const raw = t.transaction_date || t.created_at || '';
+              return normalizeToYYYYMMDD(typeof raw === 'string' ? (raw.includes('T') ? raw.split('T')[0] : raw) : raw);
+            })
+            .sort((a: string, b: string) => (a > b ? -1 : 1))[0] || null;
+        }
         
         return {
           ...patient,
-          totalSpent: filteredTotalSpent // Override with filtered total
+          transactions: filteredTransactions,         // show only date-filtered transactions everywhere
+          totalSpent: filteredTotalSpent,            // Override with filtered total
+          visitCount: visitCountFromFiltered || 0,  // Update visits to reflect filtered range
+          lastVisit: lastVisitFromFiltered || patient.lastVisit || patient.created_at
         };
       });
       
-      setPatients(filteredPatientsData);
+      // When a date filter is active (not 'all'), remove patients with zero transactions in range
+      const finalPatients = dateRange === 'all'
+        ? filteredPatientsData
+        : filteredPatientsData.filter(p => Array.isArray(p.transactions) && p.transactions.length > 0);
       
-      // Force re-sorting after patients are loaded to ensure date-based order is correct
-      // This is important when back-dated entries are loaded
+      setPatients(finalPatients);
       
-      // Extract unique tags from patients for filter dropdown (check both patient_tag and notes)
+      // Extract unique tags from finalPatients (only show tags relevant to the current view)
       const uniqueTags = [...new Set([
-        ...patientsData
+        ...finalPatients
           .map(p => p.patient_tag)
-          .filter(tag => tag && tag.trim() !== ''),
-        ...patientsData
+          .filter(tag => tag && tag.toString().trim() !== ''),
+        ...finalPatients
           .map(p => p.notes)
-          .filter(note => note && note.trim() !== ''),
+          .filter(note => note && note.toString().trim() !== ''),
         'Community', 'Camp'
       ])].sort();
-
-      // Debug logging for patient tags
-      console.log('🏷️ Patient List Debug - Total patients:', patientsData.length);
-      const patientsWithTags = patientsData.filter(p => p.patient_tag && p.patient_tag.trim() !== '');
-      console.log('🏷️ Patients with tags:', patientsWithTags.length);
-      console.log('🏷️ Tagged patients sample:', patientsWithTags.slice(0, 3).map(p => ({
-        name: `${p.first_name} ${p.last_name}`,
-        tag: p.patient_tag,
-        id: p.patient_id
-      })));
-      console.log('🏷️ Unique tags in patient list:', uniqueTags);
+      
       setAvailableTags(uniqueTags);
     } catch (error) {
       toast.error(`Failed to load patients: ${(error as any).message}`);
@@ -1529,6 +1351,11 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const allDoctors = DoctorService.getAllDoctors();
+    setDoctors(allDoctors);
+  }, []);
 
   const filterAndSortPatients = () => {
     let filtered = [...patients];
@@ -1625,7 +1452,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   };
 
   const handlePatientUpdated = () => {
-    loadPatients(); // Reload patients after update
+    loadPatients(startDate, endDate); // Reload patients after update
   };
 
   const handleShiftToIPD = (patient: PatientWithRelations) => {
@@ -1693,7 +1520,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       await HospitalService.deletePatient(patientId);
       
       toast.success('Patient deleted successfully');
-      await loadPatients(); // Reload the patients list
+      await loadPatients(startDate, endDate); // Reload the patients list
       
     } catch (error: any) {
       toast.error(`Failed to delete patient: ${error.message}`);
@@ -1887,7 +1714,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         return dateObjB.getTime() - dateObjA.getTime();
       });
       
-      console.log('📊 Export data sorted. First few entries:', exportData.slice(0, 3).map(row => ({
+      console.log('📊 Export data sorted. Entries:', exportData.map(row => ({
         patient: row.first_name + ' ' + row.last_name,
         consultation_date: row.consultation_date,
         raw_date: row._consultation_date_raw
@@ -1900,8 +1727,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       });
 
       // Debug final export data
-      console.log('📊 Final Excel Export Data Sample:', exportData.slice(0, 2));
-
+      console.log('📊 Final Excel Export Data Sample (all rows):', exportData);
+      
       console.log(`📊 Created ${exportData.length} rows for Excel export`);
       
       const dateRangeText = dateRange === 'all' ? 'All_Time' : 
@@ -1948,8 +1775,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
     } catch (error: any) {
       toast.error('Failed to export: ' + error.message);
     }
-  };
-
+ };
+  
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -1973,7 +1800,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           {dateRange !== 'all' && (
             <div className="mt-3 text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-full inline-block">
               📅 Showing patients from: {
-                dateRange === 'today' ? new Date(selectedDate).toLocaleDateString('en-IN', { 
+                dateRange === 'today' ? new Date(startDate).toLocaleDateString('en-IN', { 
                   timeZone: 'Asia/Kolkata',
                   day: '2-digit',
                   month: '2-digit', 
@@ -2082,7 +1909,6 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                 console.log('🔄 REFRESH BUTTON CLICKED - Patient list refresh: reloading page...');
                 console.log('📊 Current state before refresh:', {
                   dateRange,
-                  selectedDate,
                   startDate,
                   endDate,
                   patientsCount: filteredPatients.length
@@ -2206,32 +2032,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                   Custom Range
                 </button>
 
-                {/* Inline Date Picker for Today */}
-                {dateRange === 'today' && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <ModernDatePicker
-                        label=""
-                        value={selectedDate}
-                        onChange={(date) => setSelectedDate(date)}
-                        placeholder="DD/MM/YYYY"
-                      />
-                      <button
-                        onClick={() => {
-                          const todayDate = getLocalDateString();
-                          setSelectedDate(todayDate);
-                          setTimeout(() => {
-                            loadPatients();
-                          }, 100);
-                        }}
-                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 whitespace-nowrap"
-                        title="Set to today's date"
-                      >
-                        📅 Today
-                      </button>
-                    </div>
-                  </>
-                )}
+                
 
                 {/* Inline Date Picker for Custom */}
                 {dateRange === 'custom' && (
@@ -2240,8 +2041,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                       label="From"
                       value={startDate}
                       onChange={(date) => {
-                        console.log('🔴 START DATE CHANGED:', date);
-                        setStartDate(date);
+                        const norm = normalizeToYYYYMMDD(date);
+                        setStartDate(norm);
                       }}
                       placeholder="DD/MM/YYYY"
                     />
@@ -2249,17 +2050,25 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                       label="To"
                       value={endDate}
                       onChange={(date) => {
-                        console.log('🔴 END DATE CHANGED:', date);
-                        setEndDate(date);
+                        const norm = normalizeToYYYYMMDD(date);
+                        setEndDate(norm);
                       }}
                       placeholder="DD/MM/YYYY"
                     />
-                    <button
-                      onClick={() => loadPatients()}
-                      className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 whitespace-nowrap"
-                    >
-                      Go
-                    </button>
+                  </div>
+                )}
+                {dateRange === 'today' && (
+                  <div className="flex items-center space-x-2">
+                    <ModernDatePicker
+                      label="Date"
+                      value={startDate}
+                      onChange={(date) => {
+                        const norm = normalizeToYYYYMMDD(date);
+                        setStartDate(norm);
+                        setEndDate(norm);
+                      }}
+                      placeholder="DD/MM/YYYY"
+                    />
                   </div>
                 )}
               </div>
@@ -2484,7 +2293,10 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         onChange={(e) => {
                           e.stopPropagation();
                           const selectedTemplate = e.target.value;
-                          if (selectedTemplate === 'valant') {
+                          if (selectedTemplate === 'enhanced') {
+                            setSelectedPatientForPrescription(patient);
+                            setShowEnhancedPatientRecord(true);
+                          } else if (selectedTemplate === 'valant') {
                             handlePrescription(patient, 'valant');
                           } else if (selectedTemplate === 'vh') {
                             handlePrescription(patient, 'vh');
@@ -2495,6 +2307,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
                         title="Generate Prescription"
                       >
                         <option value="">📝 Presc.</option>
+                        <option value="enhanced">🏥 Complete Patient Record</option>
                         <option value="valant">Valant Template</option>
                         <option value="vh">V+H Template</option>
                       </select>
@@ -2626,7 +2439,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             setShowHistoryModal(false);
             setSelectedPatient(null);
           }}
-          onPatientUpdated={loadPatients}
+          onPatientUpdated={() => loadPatients(startDate, endDate)}
         />
       )}
 
@@ -2689,6 +2502,18 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         />
       )}
 
+      {/* Enhanced Patient Record Modal */}
+      {showEnhancedPatientRecord && selectedPatientForPrescription && (
+        <SimpleEnhancedPatientRecord
+          key={`enhanced-record-${selectedPatientForPrescription.patient_id}`}
+          patient={selectedPatientForPrescription}
+          onClose={() => {
+            setShowEnhancedPatientRecord(false);
+            setSelectedPatientForPrescription(null);
+          }}
+        />
+      )}
+
       {/* Patient Service Manager Modal */}
       {showServiceManager && selectedPatientForServices && (
         <PatientServiceManager
@@ -2698,7 +2523,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             setSelectedPatientForServices(null);
           }}
           onServicesUpdated={() => {
-            loadPatients(); // Reload to update totals
+            loadPatients(startDate, endDate); // Reload to update totals
           }}
         />
       )}
@@ -2712,7 +2537,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             setSelectedPatientForVisitAgain(null);
           }}
           onVisitCreated={() => {
-            loadPatients(); // Reload to update patient data and totals
+            loadPatients(startDate, endDate); // Reload to update patient data and totals
           }}
         />
       )}

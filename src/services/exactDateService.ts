@@ -15,7 +15,7 @@ export class ExactDateService {
         `)
         .eq('hospital_id', HOSPITAL_ID)
         .order('created_at', { ascending: false })
-        .limit(1000);
+        .limit(10000);
 
       if (error) {
         throw error;
@@ -117,7 +117,10 @@ export class ExactDateService {
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation') &&
+          t.transaction_type === 'consultation' ||
+          t.transaction_type === 'LAB_TEST' ||
+          t.transaction_type === 'XRAY' ||
+          t.transaction_type === 'PROCEDURE') &&
           t.status !== 'CANCELLED'
         ).length;
         
@@ -146,65 +149,58 @@ export class ExactDateService {
     }
   }
 
-  static async getPatientsForDateRange(startDateStr: string, endDateStr: string): Promise<PatientWithRelations[]> {
+    static async getPatientsForDateRange(startDateStr: string, endDateStr: string): Promise<PatientWithRelations[]> {
     try {
       console.log('🔍 getPatientsForDateRange - Input:', { startDateStr, endDateStr });
       
-      // Convert dates to proper format for Supabase (add time component for proper range)
-      const startDateTime = `${startDateStr}T00:00:00`;
-      const endDateTime = `${endDateStr}T23:59:59`;
-      
-      console.log('📅 Using date range:', { startDateTime, endDateTime });
+      let allPatients: PatientWithRelations[] = [];
+      let page = 0;
+      const pageSize = 1000;
 
-      // Get all patients and filter client-side for precise control
-      const { data: allPatients, error } = await supabase
-        .from('patients')
-        .select(`
-          *,
-          transactions:patient_transactions(*),
-          admissions:patient_admissions(*)
-        `)
-        .eq('hospital_id', HOSPITAL_ID)
-        .order('created_at', { ascending: false });
+      while (true) {
+        let query = supabase
+          .from('patients')
+          .select(`
+            *,
+            transactions:patient_transactions(*),
+            admissions:patient_admissions(*)
+          `)
+          .eq('hospital_id', HOSPITAL_ID)
 
-      if (error) {
-        throw error;
+        if (startDateStr !== '2000-01-01') {
+          const startDateTime = `${startDateStr}T00:00:00`;
+          const endDateTime = `${endDateStr}T23:59:59`;
+          
+          console.log('📅 Using date range:', { startDateTime, endDateTime });
+          query = query.or(`created_at.gte.${startDateTime},created_at.lte.${endDateTime},date_of_entry.gte.${startDateTime},date_of_entry.lte.${endDateTime}`)
+        }
+
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          allPatients = allPatients.concat(data);
+        }
+
+        if (!data || data.length < pageSize) {
+          break;
+        }
+
+        page++;
       }
 
       if (!allPatients || allPatients.length === 0) {
         return [];
       }
       
-      // Filter patients by date range on client side for precise control
-      const filteredPatients = allPatients.filter(patient => {
-        // Get patient date (prioritize date_of_entry over created_at)
-        let patientDateStr = null;
-        
-        if (patient.date_of_entry && patient.date_of_entry.trim() !== '') {
-          patientDateStr = patient.date_of_entry.includes('T') 
-            ? patient.date_of_entry.split('T')[0] 
-            : patient.date_of_entry;
-        } else if (patient.created_at) {
-          patientDateStr = patient.created_at.split('T')[0];
-        }
-        
-        if (!patientDateStr) return false;
-        
-        // Check if patient date is within the range (inclusive)
-        const isInRange = patientDateStr >= startDateStr && patientDateStr <= endDateStr;
-        
-        if (isInRange) {
-          console.log(`✅ Including patient: ${patient.first_name} ${patient.last_name} (${patientDateStr})`);
-        }
-        
-        return isInRange;
-      });
-      
-      console.log(`📊 Filtered ${filteredPatients.length} patients from ${allPatients.length} total patients`);
-      
-      const data = filteredPatients;
+      console.log(`📊 Filtered ${allPatients.length} patients from db`);
 
-      const enhancedPatients = data.map(patient => {
+      const enhancedPatients = allPatients.map(patient => {
         const transactions = patient.transactions || [];
         const admissions = patient.admissions || [];
         
@@ -216,7 +212,10 @@ export class ExactDateService {
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation') &&
+          t.transaction_type === 'consultation' ||
+          t.transaction_type === 'LAB_TEST' ||
+          t.transaction_type === 'XRAY' ||
+          t.transaction_type === 'PROCEDURE') &&
           t.status !== 'CANCELLED'
         ).length;
         

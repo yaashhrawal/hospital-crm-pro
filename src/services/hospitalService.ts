@@ -279,7 +279,7 @@ export class HospitalService {
         
         console.log('👤 Searching by name:', { normalizedFirstName, normalizedLastName });
         
-        let nameQuery = supabase
+        const nameQuery = supabase
           .from('patients')
           .select('*')
           .eq('hospital_id', HOSPITAL_ID)
@@ -489,7 +489,7 @@ export class HospitalService {
         .eq('hospital_id', HOSPITAL_ID)
         .gte('created_at', recentDate)
         .order('created_at', { ascending: false })
-        .limit(1000);
+        .limit(10000);
       
       if (error) {
         console.error('❌ Query error:', error);
@@ -591,7 +591,10 @@ export class HospitalService {
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation')
+          t.transaction_type === 'consultation' ||
+          t.transaction_type === 'LAB_TEST' ||
+          t.transaction_type === 'XRAY' ||
+          t.transaction_type === 'PROCEDURE')
         ).length;
         // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
         const visitCount = registrationVisits > 0 ? registrationVisits : 1;
@@ -643,7 +646,7 @@ export class HospitalService {
       
       // If requesting more than 1000, we need to paginate
       let allPatients: any[] = [];
-      const pageSize = 1000; // Supabase max
+      const pageSize = 10000; // Supabase max
       
       // Calculate actual patients to fetch based on what's available
       const actualPatientCount = includeInactive ? (totalInactiveCount || 0) : (totalCount || 0);
@@ -776,7 +779,10 @@ export class HospitalService {
           (t.transaction_type === 'ENTRY_FEE' || 
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
-          t.transaction_type === 'consultation')
+          t.transaction_type === 'consultation' ||
+          t.transaction_type === 'LAB_TEST' ||
+          t.transaction_type === 'XRAY' ||
+          t.transaction_type === 'PROCEDURE')
         ).length;
         // If patient exists but has no registration transactions, count as 1 visit (they were registered with 0 fee)
         const visitCount = registrationVisits > 0 ? registrationVisits : 1;
@@ -1548,7 +1554,7 @@ export class HospitalService {
       if (allTransactions) {
         allTransactions.forEach(transaction => {
           // Use transaction_date if available, otherwise fall back to created_at
-          let transactionDate = transaction.transaction_date 
+          const transactionDate = transaction.transaction_date 
             ? (transaction.transaction_date.includes('T') ? transaction.transaction_date.split('T')[0] : transaction.transaction_date)
             : transaction.created_at.split('T')[0];
           
