@@ -291,6 +291,14 @@ class DataService {
       if (dataToInsert.created_at) {
         delete dataToInsert.created_at;
       }
+
+      // Explicitly add discount fields if present
+      if (transactionData.discount_type) {
+        dataToInsert.discount_type = transactionData.discount_type;
+      }
+      if (transactionData.discount_value) {
+        dataToInsert.discount_value = transactionData.discount_value;
+      }
       
       console.log('📊 Transaction data to insert:', dataToInsert);
       

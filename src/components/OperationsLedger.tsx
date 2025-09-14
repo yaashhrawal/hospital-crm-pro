@@ -197,7 +197,7 @@ const OperationsLedger: React.FC = () => {
           // CRITICAL FIX: Always prioritize transaction_date (this is the service date selected by user)
           let effectiveDate = new Date();
           let effectiveDateStr = '';
-          let transactionDateTime = new Date(trans.created_at); // Use created_at for time display
+          const transactionDateTime = new Date(trans.created_at); // Use created_at for time display
           
           // Debug logging for date issues
           console.log('📅 OPERATIONS DATE DEBUG:', {
@@ -394,7 +394,7 @@ const OperationsLedger: React.FC = () => {
         refunds.forEach((refund: any) => {
           // CRITICAL FIX: Use patient's date_of_entry for refunds too
           let effectiveDate = new Date();
-          let refundDateTime = new Date(refund.created_at); // Always use refund time for time display
+          const refundDateTime = new Date(refund.created_at); // Always use refund time for time display
           
           if (refund.patient?.date_of_entry && refund.patient.date_of_entry.trim() !== '') {
             // Priority 1: Patient's date_of_entry (for backdated entries)

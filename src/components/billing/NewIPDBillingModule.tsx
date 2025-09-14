@@ -20,6 +20,15 @@ interface BillingRow {
   total: number;
 }
 
+// Helper function to get correct local date without timezone issues
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const NewIPDBillingModule: React.FC = () => {
   // Main state for showing/hiding the IPD bill creation form
   const [showCreateBill, setShowCreateBill] = useState(false);
@@ -27,7 +36,7 @@ const NewIPDBillingModule: React.FC = () => {
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
-  const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [billingDate, setBillingDate] = useState(getLocalDateString());
   const [wardCategory, setWardCategory] = useState('Emergency');
   
   // Section navigation states
@@ -105,6 +114,10 @@ const NewIPDBillingModule: React.FC = () => {
   const [ipdBills, setIpdBills] = useState<any[]>([]);
   const [billsLoading, setBillsLoading] = useState(false);
   
+  // Patient IPD History State
+  const [patientHistory, setPatientHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  
   // Debug: Track state changes
   useEffect(() => {
     console.log('🔄 IPD BILLS STATE CHANGED:', ipdBills.length, 'bills');
@@ -120,8 +133,15 @@ const NewIPDBillingModule: React.FC = () => {
   const [staySegments, setStaySegments] = useState([{
     id: Date.now(),
     roomType: 'General Ward',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to tomorrow
+    startDate: getLocalDateString(),
+    endDate: (() => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const year = tomorrow.getFullYear();
+      const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const day = String(tomorrow.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    })(), // Default to tomorrow
     bedChargePerDay: 1000,
     nursingChargePerDay: 200,
     rmoChargePerDay: 100,
@@ -195,7 +215,9 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const calculateBalanceAfterDeposits = () => {
-    return calculateNetPayable() - advancePayments;
+    // Use the UI calculation system instead of the old pharmacy-based system
+    const correctNetPayable = Math.max(0, (admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal()) - discount + tax);
+    return correctNetPayable - advancePayments;
   };
 
   // Custom field management functions
@@ -457,7 +479,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Room Charge',
       emergency: 'Yes',
       doctor: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -470,7 +492,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Nursing Charge',
       emergency: 'Yes',
       doctor: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -483,7 +505,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Surgery',
       emergency: 'No',
       doctor: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -496,7 +518,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Admission Fee',
       emergency: 'Yes',
       doctor: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -509,7 +531,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Visit Charge',
       emergency: 'Yes',
       doctor: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -522,7 +544,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'CBC MP',
       emergency: 'Yes',
       doctor: 'Lab',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -554,6 +576,15 @@ const NewIPDBillingModule: React.FC = () => {
   useEffect(() => {
     calculateSummary();
   }, [billingRows, advancePayments]);
+  
+  // Load patient history when patient is selected
+  useEffect(() => {
+    if (selectedPatient) {
+      loadPatientIPDHistory();
+    } else {
+      setPatientHistory([]);
+    }
+  }, [selectedPatient]);
 
   const loadPatients = async () => {
     try {
@@ -593,6 +624,56 @@ const NewIPDBillingModule: React.FC = () => {
     }
   };
 
+  // Load patient IPD history since admission
+  const loadPatientIPDHistory = async () => {
+    if (!selectedPatient) return;
+    
+    try {
+      setHistoryLoading(true);
+      console.log('📋 Loading patient IPD history for:', selectedPatient.patient_id);
+      
+      // Get patient's admission date to filter transactions
+      const admissionDate = selectedPatient.admissions?.[0]?.admission_date;
+      console.log('📅 Patient admission date:', admissionDate);
+      
+      if (!admissionDate) {
+        console.log('⚠️ No admission date found, loading all transactions');
+      }
+      
+      // Load all transactions for this patient since admission
+      const { data: transactions, error } = await supabase
+        .from('patient_transactions')
+        .select(`
+          *,
+          patient:patients(
+            first_name,
+            last_name,
+            patient_id
+          )
+        `)
+        .eq('patient_id', selectedPatient.id)
+        .neq('status', 'DELETED')
+        .gte('transaction_date', admissionDate || '1970-01-01') // Filter from admission date
+        .order('transaction_date', { ascending: false })
+        .limit(100);
+        
+      if (error) {
+        console.error('❌ Error loading patient history:', error);
+        setPatientHistory([]);
+        return;
+      }
+      
+      console.log(`✅ Loaded ${transactions?.length || 0} transactions since admission`);
+      setPatientHistory(transactions || []);
+      
+    } catch (error: any) {
+      console.error('❌ Error loading patient IPD history:', error);
+      setPatientHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const loadIPDBills = async () => {
     try {
       setBillsLoading(true);
@@ -606,16 +687,26 @@ const NewIPDBillingModule: React.FC = () => {
         
       console.log('🔗 Database connection test:', { count: connectionTest, error: connectionError });
       
-      // Load all IPD-related transactions (both bills and deposits)
-      console.log('🔍 Loading IPD transactions (SERVICE and ADMISSION_FEE types)...');
+      // Load all IPD-related transactions (bills, deposits, and services)
+      console.log('🔍 Loading IPD transactions (all deposit and service types)...');
       
       const { data: ipdTransactions, error: transactionError } = await supabase
         .from('patient_transactions')
-        .select('*')
-        .in('transaction_type', ['SERVICE', 'ADMISSION_FEE']) // Include both bills and deposits
+        .select(`
+          *,
+          patient:patients(
+            id,
+            first_name,
+            last_name,
+            phone
+          )
+        `)
+        .in('transaction_type', ['SERVICE', 'ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT']) // Include all possible deposit and service types
         .neq('status', 'DELETED')
+        // Temporarily removing hospital_id filter to show all deposits
+        // .eq('hospital_id', HOSPITAL_ID)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(200);
       
       if (transactionError) {
         console.error('❌ Error loading IPD transactions:', transactionError);
@@ -627,44 +718,37 @@ const NewIPDBillingModule: React.FC = () => {
       console.log('✅ Loaded IPD transactions:', ipdTransactions?.length || 0);
       console.log('📊 Transaction breakdown:', {
         total: ipdTransactions?.length || 0,
-        services: ipdTransactions?.filter(t => t.transaction_type === 'SERVICE').length || 0,
+        ipdBills: ipdTransactions?.filter(t => t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]')).length || 0,
+        services: ipdTransactions?.filter(t => t.transaction_type === 'SERVICE' && !t.description?.includes('[IPD_BILL]')).length || 0,
         deposits: ipdTransactions?.filter(t => t.transaction_type === 'ADMISSION_FEE').length || 0
       });
 
       if (ipdTransactions && ipdTransactions.length > 0) {
-        // Enrich transactions with patient data
-        const enrichedTransactions = await Promise.all(
-          ipdTransactions.map(async (transaction) => {
-            try {
-              const { data: patientData } = await supabase
-                .from('patients')
-                .select('id, patient_id, first_name, last_name, phone')
-                .eq('id', transaction.patient_id)
-                .single();
-              
-              return {
-                ...transaction,
-                patients: patientData,
-                // Add display type for UI
-                display_type: transaction.transaction_type === 'SERVICE' ? 'IPD Bill' : 'Deposit',
-                display_icon: transaction.transaction_type === 'SERVICE' ? '🧾' : '💰'
-              };
-            } catch (patientError) {
-              console.warn('⚠️ Could not load patient data for transaction:', transaction.id);
-              return {
-                ...transaction,
-                patients: null,
-                display_type: transaction.transaction_type === 'SERVICE' ? 'IPD Bill' : 'Deposit',
-                display_icon: transaction.transaction_type === 'SERVICE' ? '🧾' : '💰'
-              };
-            }
-          })
-        );
+        // Process transactions with patient data already joined
+        const enrichedTransactions = ipdTransactions.map((transaction) => {
+          return {
+            ...transaction,
+            patients: transaction.patient, // Patient data already joined
+            // Add display type for UI - check description for IPD bills
+            display_type: (transaction.transaction_type === 'SERVICE' && transaction.description?.includes('[IPD_BILL]')) ? 'IPD Bill' : 
+                         transaction.transaction_type === 'SERVICE' ? 'Service Bill' : 'Deposit',
+            display_icon: transaction.transaction_type === 'SERVICE' ? '🧾' : '💰'
+          };
+        });
         
-        console.log('💾 Enriched IPD transactions with patient data:', enrichedTransactions);
+        console.log('💾 Processed IPD transactions with patient data:', enrichedTransactions);
         console.log('🔄 Setting IPD bills state with:', enrichedTransactions.length, 'transactions');
+        
+        // Sort by date descending to show latest first
+        enrichedTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
         setIpdBills([...enrichedTransactions]); // Include both bills and deposits
-        toast.success(`Loaded ${enrichedTransactions.length} IPD transactions (${enrichedTransactions.filter(t => t.transaction_type === 'SERVICE').length} bills, ${enrichedTransactions.filter(t => t.transaction_type === 'ADMISSION_FEE').length} deposits)`);
+        const ipdBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]')).length;
+        const serviceBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && !t.description?.includes('[IPD_BILL]')).length;
+        const depositCount = enrichedTransactions.filter(t => ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(t.transaction_type)).length;
+        
+        console.log('📋 Final transaction counts:', { ipdBillCount, serviceBillCount, depositCount });
+        toast.success(`Loaded ${enrichedTransactions.length} IPD transactions (${ipdBillCount} IPD bills, ${serviceBillCount} service bills, ${depositCount} deposits)`);
       } else {
         console.log('ℹ️ No IPD transactions found');
         setIpdBills([]);
@@ -816,10 +900,13 @@ const NewIPDBillingModule: React.FC = () => {
       }
 
       // Save to database - patient_transactions table
-      // Note: Removing hospital_id as it may not exist in the database
+      // Use the billing date directly to avoid timezone issues
+      const formattedDepositDate = billingDate || getLocalDateString();
+      
       const transactionData = {
         patient_id: selectedPatient.id,
-        transaction_type: 'ADMISSION_FEE', // Changed to uppercase to match database constraint
+        hospital_id: HOSPITAL_ID,
+        transaction_type: 'ADMISSION_FEE',
         description: `IPD Advance Payment - Receipt: ${newReceiptNo}${referenceNo ? ` - Ref: ${referenceNo}` : ''}`,
         amount: amount,
         payment_mode: newPaymentMode.toUpperCase(),
@@ -827,8 +914,9 @@ const NewIPDBillingModule: React.FC = () => {
         doctor_name: null,
         status: 'COMPLETED',
         transaction_reference: referenceNo || newReceiptNo,
-        transaction_date: billingDate
-        // Removed hospital_id to avoid foreign key constraint issues
+        transaction_date: formattedDepositDate,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       console.log('💾 Attempting to save transaction:', transactionData);
@@ -923,7 +1011,7 @@ const NewIPDBillingModule: React.FC = () => {
     setShowPatientModal(false);
     
     // Reset billing date to today when selecting a patient (for new services)
-    setBillingDate(new Date().toISOString().split('T')[0]);
+    setBillingDate(getLocalDateString());
     
     // Update doctor names in billing rows
     updateDoctorNamesForPatient(patient);
@@ -1072,14 +1160,21 @@ const NewIPDBillingModule: React.FC = () => {
       return;
     }
 
-    const grossTotal = calculateGrossTotal();
-    const netPayable = calculateNetPayable();
-    const balanceAfterDeposits = calculateBalanceAfterDeposits();
+    // Use the same calculation system as UI display (not the old pharmacy system)
+    const grossTotal = admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal();
+    const netPayable = Math.max(0, grossTotal - discount + tax);
+    const balanceAfterDeposits = netPayable - advancePayments;
 
-    console.log('💵 Generating IPD Bill:', {
+    console.log('💵 Generating IPD Bill (CORRECTED CALCULATION):', {
       patient: selectedPatient.first_name + ' ' + (selectedPatient.last_name || ''),
+      admissionFee,
+      stayCharges: calculateTotalStayCharges(),
+      serviceCharges: calculateSelectedServicesTotal(),
       grossTotal,
+      discount,
+      tax,
       netPayable,
+      advancePayments,
       balanceAfterDeposits
     });
 
@@ -1093,18 +1188,24 @@ const NewIPDBillingModule: React.FC = () => {
 
       // Create a transaction record for the IPD bill
       const billReceiptNo = `IPD-${Date.now().toString().slice(-6)}`;
+      
+      // Use the billing date directly to avoid timezone issues
+      const formattedBillingDate = billingDate || getLocalDateString();
+      
       const transactionData = {
         patient_id: selectedPatient.id,
-        transaction_type: 'SERVICE', // Changed to uppercase to match database constraint
-        description: `IPD Bill - ${billReceiptNo} | Room: ₹${calculateRoomCharges()} | Medical: ₹${calculateMedicalCharges()} | Diagnostics: ₹${calculateDiagnosticCharges()} | Treatment: ₹${calculateTreatmentCharges()} | Pharmacy: ₹${calculatePharmacyCharges()} | Other: ₹${calculateOtherCharges()}`,
+        hospital_id: HOSPITAL_ID,
+        transaction_type: 'SERVICE',
+        description: `[IPD_BILL] IPD Comprehensive Bill - ${billReceiptNo} | Admission: ₹${admissionFee} | Stay: ₹${calculateTotalStayCharges()} | Services: ₹${calculateSelectedServicesTotal()} | Discount: ₹${discount} | Tax: ₹${tax}`,
         amount: netPayable,
         payment_mode: finalPaymentMode.toUpperCase(),
         doctor_id: null,
         doctor_name: null,
         status: balanceAfterDeposits <= 0 ? 'PAID' : 'PENDING',
         transaction_reference: billReceiptNo,
-        transaction_date: billingDate
-        // Removed hospital_id to avoid foreign key constraint issues
+        transaction_date: formattedBillingDate,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       console.log('💾 Saving IPD bill transaction to Supabase:', transactionData);
@@ -1114,6 +1215,8 @@ const NewIPDBillingModule: React.FC = () => {
         hospital_id: transactionData.hospital_id,
         amount: transactionData.amount,
         billingDate: transactionData.transaction_date,
+        originalBillingDate: billingDate,
+        formattedBillingDate: formattedBillingDate,
         payment_mode: transactionData.payment_mode
       });
 
@@ -1157,13 +1260,22 @@ const NewIPDBillingModule: React.FC = () => {
       // Refresh the IPD bills list
       await loadIPDBills();
       
-      // Print the bill
-      setTimeout(() => {
-        handlePrint();
-      }, 500);
-
       // Reset form or redirect
       setShowCreateBill(false);
+      
+      // Show success message with print option
+      toast.success(
+        <div>
+          <p>IPD Bill saved successfully!</p>
+          <button 
+            onClick={() => handlePrintBill(savedTransaction)}
+            className="mt-2 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+          >
+            Print Bill
+          </button>
+        </div>,
+        { duration: 5000 }
+      );
       
     } catch (error) {
       console.error('❌ Error generating bill:', error);
@@ -1213,9 +1325,49 @@ const NewIPDBillingModule: React.FC = () => {
     console.log('View receipt for:', receiptId);
   };
 
+  // Handler for Mark Bill as Completed
+  const handleMarkCompleted = async (bill: any) => {
+    if (!bill?.id) {
+      toast.error('Invalid bill selected');
+      return;
+    }
+
+    try {
+      console.log('✅ Marking bill as completed:', bill.id);
+      
+      const { data: updatedBill, error } = await supabase
+        .from('patient_transactions')
+        .update({ 
+          status: 'COMPLETED',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bill.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error updating bill status:', error);
+        toast.error(`Failed to mark bill as completed: ${error.message}`);
+        return;
+      }
+
+      console.log('✅ Bill marked as completed:', updatedBill);
+      toast.success(`Bill #${bill.transaction_reference || bill.id} marked as completed!`);
+      
+      // Refresh the bills list
+      await loadIPDBills();
+      
+    } catch (error: any) {
+      console.error('❌ Error in handleMarkCompleted:', error);
+      toast.error(`Failed to mark bill as completed: ${error?.message || 'Unknown error'}`);
+    }
+  };
+
   // Handler for View Bill button
   const handleViewBill = (bill: any) => {
-    const transactionType = bill.display_type || (bill.transaction_type === 'SERVICE' ? 'IPD Bill' : 'Deposit');
+    const transactionType = bill.display_type || 
+      ((bill.transaction_type === 'SERVICE' && bill.description?.includes('[IPD_BILL]')) ? 'IPD Bill' : 
+       bill.transaction_type === 'SERVICE' ? 'Service Bill' : 'Deposit');
     const billDetails = `
 ${transactionType} Details:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1938,14 +2090,19 @@ Description: ${bill.description || 'N/A'}
                                 ? 'bg-blue-100 text-blue-800' 
                                 : 'bg-green-100 text-green-800'
                             }`}>
-                              {bill.display_type || (bill.transaction_type === 'SERVICE' ? 'IPD Bill' : 'Deposit')}
+                              {bill.display_type || 
+                               ((bill.transaction_type === 'SERVICE' && bill.description?.includes('[IPD_BILL]')) ? 'IPD Bill' : 
+                                bill.transaction_type === 'SERVICE' ? 'Service Bill' : 
+                                ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(bill.transaction_type) ? 'Deposit' : bill.transaction_type)}
                             </span>
                             ₹{bill.amount?.toLocaleString() || '0'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            bill.status === 'PAID' 
+                            bill.status === 'COMPLETED' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : bill.status === 'PAID' 
                               ? 'bg-green-100 text-green-800' 
                               : bill.status === 'PENDING'
                               ? 'bg-yellow-100 text-yellow-800'
@@ -1970,6 +2127,15 @@ Description: ${bill.description || 'N/A'}
                           >
                             Print
                           </button>
+                          {(bill.status === 'PENDING' || bill.status === 'PAID') && bill.status !== 'COMPLETED' && (
+                            <button 
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                              onClick={() => handleMarkCompleted(bill)}
+                              title="Mark as Completed"
+                            >
+                              ✓ Complete
+                            </button>
+                          )}
                           <button 
                             className="text-red-600 hover:text-red-900"
                             onClick={() => handleDeleteBill(bill)}
@@ -2151,7 +2317,10 @@ Description: ${bill.description || 'N/A'}
                                 ? 'bg-blue-100 text-blue-700' 
                                 : 'bg-green-100 text-green-700'
                             }`}>
-                              {bill.display_type || (bill.transaction_type === 'SERVICE' ? 'IPD Bill' : 'Deposit')}
+                              {bill.display_type || 
+                               ((bill.transaction_type === 'SERVICE' && bill.description?.includes('[IPD_BILL]')) ? 'IPD Bill' : 
+                                bill.transaction_type === 'SERVICE' ? 'Service Bill' : 
+                                ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(bill.transaction_type) ? 'Deposit' : bill.transaction_type)}
                             </span>
                           </div>
                         </div>
@@ -2164,7 +2333,9 @@ Description: ${bill.description || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          bill.status === 'PAID' 
+                          bill.status === 'COMPLETED' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : bill.status === 'PAID' 
                             ? 'bg-green-100 text-green-800' 
                             : bill.status === 'PENDING'
                             ? 'bg-yellow-100 text-yellow-800'
@@ -2189,6 +2360,15 @@ Description: ${bill.description || 'N/A'}
                         >
                           Print
                         </button>
+                        {(bill.status === 'PENDING' || bill.status === 'PAID') && bill.status !== 'COMPLETED' && (
+                          <button 
+                            className="text-blue-600 hover:text-blue-900 mr-3"
+                            onClick={() => handleMarkCompleted(bill)}
+                            title="Mark as Completed"
+                          >
+                            ✓ Complete
+                          </button>
+                        )}
                         <button 
                           className="text-red-600 hover:text-red-900"
                           onClick={() => handleDeleteBill(bill)}
@@ -2254,26 +2434,133 @@ Description: ${bill.description || 'N/A'}
                   )}
                 </div>
 
-                {/* Patient Details */}
+                {/* IPD Patient History */}
                 {selectedPatient && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="text-md font-semibold text-gray-800 mb-3">Patient Information</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div><span className="font-medium">Ward:</span> {getPatientDisplayData().wardName}</div>
-                      <div><span className="font-medium">Bed:</span> {getPatientDisplayData().bedNo}</div>
-                      <div><span className="font-medium">UHIID:</span> {getPatientDisplayData().uhiid}</div>
-                      <div><span className="font-medium">IPD No:</span> {getPatientDisplayData().ipdNo}</div>
-                      <div><span className="font-medium">Ref. Doctor:</span> {getPatientDisplayData().refDoctor}</div>
-                      <div><span className="font-medium">Admitting Doctor:</span> {getPatientDisplayData().admittingDoctor}</div>
+                  <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="px-4 py-3 border-b border-gray-200 bg-blue-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-md font-semibold text-gray-800">
+                            📈 IPD History - {selectedPatient.first_name} {selectedPatient.last_name}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            IPD No: {getPatientDisplayData().ipdNo} | 
+                            Admitted: {selectedPatient.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="text-right text-sm">
+                          <div className="text-green-600 font-medium">Deposits: ₹{advancePayments.toFixed(2)}</div>
+                          <div className="text-red-600 font-medium">Due: ₹{summary.netPayable.toFixed(2)}</div>
+                        </div>
+                      </div>
                     </div>
                     
-                    <div className="mt-4 flex justify-between items-center pt-3 border-t border-gray-200">
-                      <div className="text-sm">
-                        <span className="font-medium text-green-600">Total Deposits: ₹{advancePayments.toFixed(2)}</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium text-red-600">Total Due: ₹{summary.netPayable.toFixed(2)}</span>
-                      </div>
+                    <div className="p-4">
+                      {historyLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="text-gray-500">Loading IPD history...</div>
+                        </div>
+                      ) : patientHistory.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-gray-700 mb-3">
+                            All Services & Transactions Since IPD Admission ({patientHistory.length} records)
+                          </div>
+                          <div className="max-h-60 overflow-y-auto border rounded-md">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service/Description</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {patientHistory.map((transaction, index) => (
+                                  <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                    <td className="px-3 py-2 text-xs text-gray-900">
+                                      {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'N/A'}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <div className="font-medium text-gray-900">
+                                        {transaction.description || 'Service/Transaction'}
+                                      </div>
+                                      {transaction.transaction_reference && (
+                                        <div className="text-gray-500 text-xs">Ref: {transaction.transaction_reference}</div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                        transaction.transaction_type === 'SERVICE' || (transaction.transaction_type === 'SERVICE' && transaction.description?.includes('[IPD_BILL]')) 
+                                          ? 'bg-blue-100 text-blue-800' 
+                                          : transaction.transaction_type === 'ADMISSION_FEE'
+                                          ? 'bg-green-100 text-green-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {transaction.transaction_type === 'SERVICE' && transaction.description?.includes('[IPD_BILL]') ? 'IPD Bill' :
+                                         transaction.transaction_type === 'SERVICE' ? 'Service' :
+                                         transaction.transaction_type === 'ADMISSION_FEE' ? 'Deposit' :
+                                         transaction.transaction_type}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-right font-medium">
+                                      ₹{transaction.amount?.toLocaleString() || '0'}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                        transaction.status === 'COMPLETED' 
+                                          ? 'bg-blue-100 text-blue-800' 
+                                          : transaction.status === 'PAID' 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : transaction.status === 'PENDING'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {transaction.status || 'UNKNOWN'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          
+                          {/* Summary Footer */}
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div className="bg-blue-50 px-3 py-2 rounded">
+                                <div className="font-medium text-blue-800">
+                                  Total Services: {patientHistory.filter(t => t.transaction_type === 'SERVICE').length}
+                                </div>
+                              </div>
+                              <div className="bg-green-50 px-3 py-2 rounded">
+                                <div className="font-medium text-green-800">
+                                  Total Deposits: {patientHistory.filter(t => t.transaction_type === 'ADMISSION_FEE').length}
+                                </div>
+                              </div>
+                              <div className="bg-purple-50 px-3 py-2 rounded">
+                                <div className="font-medium text-purple-800">
+                                  Total Amount: ₹{patientHistory.reduce((sum, t) => sum + (t.amount || 0), 0).toLocaleString()}
+                                </div>
+                              </div>
+                              <div className="bg-orange-50 px-3 py-2 rounded">
+                                <div className="font-medium text-orange-800">
+                                  Pending: {patientHistory.filter(t => t.status === 'PENDING').length} items
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center py-8 text-gray-500">
+                          <div className="text-center">
+                            <div className="text-4xl mb-2">📊</div>
+                            <div>No IPD services recorded yet</div>
+                            <div className="text-sm mt-1">Services and transactions will appear here once recorded</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

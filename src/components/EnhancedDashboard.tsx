@@ -713,7 +713,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         });
 
         // Get ALL expenses using pagination - we'll filter in JavaScript for consistency
-        let allExpenseData = await fetchAllExpenses();
+        const allExpenseData = await fetchAllExpenses();
         
         // Apply date filtering for expenses if not 'all'
         let expenseData = allExpenseData;
@@ -731,7 +731,7 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         }
         
         // ADDED: Query refunds to match operations ledger calculation using pagination
-        let allRefundData = await fetchAllRefunds();
+        const allRefundData = await fetchAllRefunds();
         
         // Apply date filtering for refunds if not 'all'
         let refunds = allRefundData;

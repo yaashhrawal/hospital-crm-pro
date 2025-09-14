@@ -63,7 +63,7 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
       let discountPercentage = 0;
       let discountReason = '';
       let otherServices = 0;
-      let consultationTransactions = [];
+      const consultationTransactions = [];
 
       // Filter out cancelled transactions
       const activeTransactions = transactions.filter(t => t.status !== 'CANCELLED');

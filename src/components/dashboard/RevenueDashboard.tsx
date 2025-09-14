@@ -205,10 +205,10 @@ const RevenueDashboard: React.FC = () => {
         
         let totalIncome = 0;
         let totalExpenses = 0;
-        let transactionBreakdown: Record<string, number> = {};
-        let paymentModeBreakdown: Record<string, number> = {};
-        let departmentBreakdown: Record<string, number> = {};
-        let doctorBreakdown: Record<string, number> = {};
+        const transactionBreakdown: Record<string, number> = {};
+        const paymentModeBreakdown: Record<string, number> = {};
+        const departmentBreakdown: Record<string, number> = {};
+        const doctorBreakdown: Record<string, number> = {};
 
         // Iterate through each date in the range
         for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {

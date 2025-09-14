@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { getDoctorWithDegree } from '../data/doctorDegrees';
 import { supabase } from '../config/supabaseNew';
+import * as CompletePatientRecordService from '../services/completePatientRecordService';
 import MedicineDropdown from './MedicineDropdown';
 
 interface Valant2PrescriptionProps {
@@ -398,6 +400,122 @@ const Valant2Prescription: React.FC<Valant2PrescriptionProps> = ({ patient, onCl
     
     fetchDepartmentDetails();
   }, [patient.assigned_department, doctorDetails.specialty, doctorDetails.hospital_experience]);
+
+  // Load Complete Patient Record data if available
+  useEffect(() => {
+    const loadPatientRecordData = async () => {
+      try {
+        // Load data from Complete Patient Record database
+        const savedPatientRecord = await CompletePatientRecordService.getCompletePatientRecord(patient.patient_id);
+        
+        if (savedPatientRecord) {
+          console.log('✅ Valant2 Found Complete Patient Record data in database:', savedPatientRecord);
+          
+          // Map Complete Patient Record data to Valant2 prescription format
+          let mappedChiefComplaints = '';
+          let mappedDiagnosis = '';
+          let mappedAdvice = '';
+          let mappedPrescriptionText: string[] = [];
+          
+          // Map Chief Complaints from database patient record
+          if (savedPatientRecord.chiefComplaints && savedPatientRecord.chiefComplaints.length > 0) {
+            mappedChiefComplaints = savedPatientRecord.chiefComplaints.map((complaint: any) => 
+              `${complaint.complaint} (${complaint.period}): ${complaint.duration || complaint.presentHistory || complaint.notes || 'No additional details'}`
+            ).join('\n\n');
+          }
+          
+          // Add High Risk data to chief complaints if available
+          if (savedPatientRecord.highRisk) {
+            const highRiskInfo = [];
+            if (savedPatientRecord.highRisk.risk_factors?.length > 0) {
+              highRiskInfo.push(`High Risk Factors: ${savedPatientRecord.highRisk.risk_factors.join(', ')}`);
+            }
+            if (savedPatientRecord.highRisk.allergy_drug || savedPatientRecord.highRisk.allergy_food) {
+              const allergies = [savedPatientRecord.highRisk.allergy_drug, savedPatientRecord.highRisk.allergy_food].filter(Boolean);
+              highRiskInfo.push(`Allergies: ${allergies.join(', ')}`);
+            }
+            if (savedPatientRecord.highRisk.current_medications) {
+              highRiskInfo.push(`Current Medications: ${savedPatientRecord.highRisk.current_medications}`);
+            }
+            if (savedPatientRecord.highRisk.surgical_history) {
+              highRiskInfo.push(`Surgical History: ${savedPatientRecord.highRisk.surgical_history}`);
+            }
+            if (savedPatientRecord.highRisk.family_history) {
+              highRiskInfo.push(`Family History: ${savedPatientRecord.highRisk.family_history}`);
+            }
+            
+            if (highRiskInfo.length > 0) {
+              mappedChiefComplaints = mappedChiefComplaints + 
+                (mappedChiefComplaints ? '\n\n' : '') + 
+                highRiskInfo.join('\n');
+            }
+          }
+          
+          // Map Diagnosis from database patient record
+          if (savedPatientRecord.diagnosis) {
+            mappedDiagnosis = `${savedPatientRecord.diagnosis.primary_diagnosis}${savedPatientRecord.diagnosis.secondary_diagnosis ? '\n' + savedPatientRecord.diagnosis.secondary_diagnosis : ''} - ${savedPatientRecord.diagnosis.notes || 'Standard treatment'}`;
+          }
+          
+          // Map Examinations and Investigations to advice - comprehensive mapping
+          let examinationText = '';
+          if (savedPatientRecord.examination) {
+            const examDetails = [];
+            if (savedPatientRecord.examination.general_appearance) examDetails.push(`General Appearance: ${savedPatientRecord.examination.general_appearance}`);
+            if (savedPatientRecord.examination.vital_signs) examDetails.push(`Vital Signs: ${savedPatientRecord.examination.vital_signs}`);
+            if (savedPatientRecord.examination.systemic_examination) examDetails.push(`Systemic Exam: ${savedPatientRecord.examination.systemic_examination}`);
+            if (savedPatientRecord.examination.local_examination) examDetails.push(`Local Exam: ${savedPatientRecord.examination.local_examination}`);
+            if (savedPatientRecord.examination.cardiovascular_examination) examDetails.push(`CVS: ${savedPatientRecord.examination.cardiovascular_examination}`);
+            if (savedPatientRecord.examination.respiratory_examination) examDetails.push(`RS: ${savedPatientRecord.examination.respiratory_examination}`);
+            if (savedPatientRecord.examination.abdominal_examination) examDetails.push(`Abdomen: ${savedPatientRecord.examination.abdominal_examination}`);
+            
+            if (examDetails.length > 0) {
+              examinationText = 'Examination Findings:\n- ' + examDetails.join('\n- ');
+            }
+          }
+          
+          let investigationText = '';
+          if (savedPatientRecord.investigation) {
+            const investigations = [];
+            if (savedPatientRecord.investigation.laboratory_tests) investigations.push(`Lab Tests: ${savedPatientRecord.investigation.laboratory_tests}`);
+            if (savedPatientRecord.investigation.imaging_studies) investigations.push(`Imaging: ${savedPatientRecord.investigation.imaging_studies}`);
+            if (savedPatientRecord.investigation.special_tests) investigations.push(`Special Tests: ${savedPatientRecord.investigation.special_tests}`);
+            if (savedPatientRecord.investigation.results) investigations.push(`Results: ${savedPatientRecord.investigation.results}`);
+            if (savedPatientRecord.investigation.interpretation) investigations.push(`Interpretation: ${savedPatientRecord.investigation.interpretation}`);
+            
+            if (investigations.length > 0) {
+              investigationText = 'Investigations:\n- ' + investigations.join('\n- ');
+            }
+          }
+          
+          mappedAdvice = [examinationText, investigationText].filter(Boolean).join('\n\n');
+          
+          // Map Prescriptions to prescription text
+          if (savedPatientRecord.prescription?.medications && savedPatientRecord.prescription.medications.length > 0) {
+            mappedPrescriptionText = savedPatientRecord.prescription.medications.map((med: any) => 
+              `${med.medicineName} ${med.dosage} - ${med.frequency} for ${med.duration} (${med.whenTaken})${med.specialInstructions ? '\n  Note: ' + med.specialInstructions : ''}`
+            );
+          }
+          
+          // Update state with mapped data
+          setChiefComplaints(mappedChiefComplaints);
+          setDiagnosis(mappedDiagnosis);
+          setAdvice(mappedAdvice);
+          setPrescriptionText(mappedPrescriptionText);
+          
+          toast.success('✅ Valant2: Loaded data from Complete Patient Record database!');
+          console.log('✅ Valant2: Successfully mapped Complete Patient Record database to prescription format');
+        } else {
+          console.log('ℹ️ Valant2: No Complete Patient Record found for patient:', patient.patient_id);
+        }
+        
+      } catch (error) {
+        console.error('❌ Valant2: Error loading Complete Patient Record:', error);
+        toast.error('Valant2: Error loading Complete Patient Record data');
+      }
+    };
+    
+    loadPatientRecordData();
+  }, [patient.patient_id]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

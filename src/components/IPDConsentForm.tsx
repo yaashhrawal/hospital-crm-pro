@@ -202,6 +202,42 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
     
     if (isOpen && patient) {
       console.log('📝 Setting form data with patient:', patient);
+      console.log('🔍 Patient admissions data:', patient.admissions);
+      
+      // Get admission date and time from patient data, fallback to current if not available
+      const admissionData = patient.admissions?.[0]; // Get the latest admission
+      console.log('🔍 Latest admission data:', admissionData);
+      let admissionDate: string;
+      let admissionTime: string;
+      
+      if (admissionData?.admission_date) {
+        console.log('🔍 Raw admission_date from database:', admissionData.admission_date);
+        // Parse the admission date - handle potential timezone issues
+        const admissionDateTime = new Date(admissionData.admission_date);
+        console.log('🕰️ Parsed admission DateTime object:', admissionDateTime);
+        
+        // Use local date formatting to avoid timezone shifts
+        const year = admissionDateTime.getFullYear();
+        const month = String(admissionDateTime.getMonth() + 1).padStart(2, '0');
+        const day = String(admissionDateTime.getDate()).padStart(2, '0');
+        admissionDate = `${year}-${month}-${day}`;
+        
+        admissionTime = admissionDateTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        });
+        console.log('🕰️ Formatted admission date/time:', { admissionDate, admissionTime });
+        console.log('✅ Using patient admission date/time:', { admissionDate, admissionTime });
+      } else {
+        // Fallback to current date/time if no admission data
+        const now = new Date();
+        admissionDate = now.toISOString().split('T')[0];
+        admissionTime = getCurrentTime12Hour();
+        console.log('⚠️ No admission data found, using current date/time:', { admissionDate, admissionTime });
+      }
+      
+      // For signature dates, use current date/time (when form is being filled)
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime12Hour = getCurrentTime12Hour();
@@ -213,8 +249,8 @@ const IPDConsentForm: React.FC<IPDConsentFormProps> = ({
         ipdNo: ipdNumber || 'IPD Number Not Generated',
         consentName1: `${patient.first_name} ${patient.last_name}`,
         patientAddress: patient.address || '',
-        admissionDate: today,
-        admissionTime: currentTime12Hour,
+        admissionDate: admissionDate,
+        admissionTime: admissionTime,
         patientSignatureName: `${patient.first_name} ${patient.last_name}`,
         patientSignatureDate: today,
         patientSignatureTime: currentTime12Hour,

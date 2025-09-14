@@ -60,6 +60,8 @@ export interface PatientTransaction {
   department: string;
   description: string;
   created_at: string;
+  discount_type?: 'PERCENTAGE' | 'AMOUNT';
+  discount_value?: number;
 }
 
 export interface PatientAdmission {

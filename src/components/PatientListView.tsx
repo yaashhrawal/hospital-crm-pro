@@ -94,7 +94,7 @@ const PatientListView: React.FC = () => {
   };
 
   const filterAndSortPatients = () => {
-    let filtered = patients.filter(patient => {
+    const filtered = patients.filter(patient => {
       const searchLower = searchTerm.toLowerCase();
       return (
         patient.first_name?.toLowerCase().includes(searchLower) ||

@@ -4,6 +4,7 @@ import { getDoctorWithDegree } from '../data/doctorDegrees';
 import { supabase } from '../config/supabaseNew';
 import { MEDICAL_SERVICES, type MedicalService } from '../data/medicalServices';
 import HospitalService from '../services/hospitalService';
+import * as CompletePatientRecordService from '../services/completePatientRecordService';
 import MedicineDropdown from './MedicineDropdown';
 import toast from 'react-hot-toast';
 
@@ -181,26 +182,240 @@ const ValantPrescription: React.FC<ValantPrescriptionProps> = ({ patient, onClos
         const locationsList = await HospitalService.getLocations();
         setLocations(locationsList);
         
-        // Load saved prescriptions for this patient
-        const prescriptions = await HospitalService.getPrescriptions(patient.patient_id);
-        setSavedPrescriptions(prescriptions);
+        // PRIORITY 1: Load data from Complete Patient Record database if available
+        const savedPatientRecord = await CompletePatientRecordService.getCompletePatientRecord(patient.patient_id);
         
-        // If there are saved prescriptions, load the most recent one
-        if (prescriptions && prescriptions.length > 0) {
-          const latestPrescription = prescriptions[0]; // First item is most recent due to ordering
-          setPrescriptionData({
-            chiefComplaints: latestPrescription.chief_complaints || { painComplaint: '', location: '', duration: '' },
-            presentHistory: latestPrescription.present_history || '',
-            pastHistory: latestPrescription.past_history || '',
-            drugHistory: latestPrescription.drug_history || '',
-            localExamination: latestPrescription.local_examination || '',
-            investigation: latestPrescription.investigations || [],
-            investigationReference: latestPrescription.investigation_reference || '',
-            generalAdvise: latestPrescription.general_advise || '',
-            medicalAdvise: Array.isArray(latestPrescription.medical_advise) ? latestPrescription.medical_advise : 
-                            latestPrescription.medical_advise ? [latestPrescription.medical_advise] : []
-          });
-          console.log('✅ Loaded latest prescription data for patient:', patient.patient_id);
+        if (savedPatientRecord) {
+          try {
+            console.log('✅ Found Complete Patient Record data in database:', savedPatientRecord);
+            
+            // COMPREHENSIVE MAPPING - Map Complete Patient Record data to show ALL sections
+            const mappedChiefComplaints = { painComplaint: '', location: '', duration: '' };
+            let mappedPresentHistory = '';
+            let mappedInvestigations: string[] = [];
+            
+            // Build comprehensive present history with ALL Complete Patient Record sections
+            const presentHistorySections = [];
+            
+            // 1. CHIEF COMPLAINTS SECTION
+            if (savedPatientRecord.chiefComplaints && savedPatientRecord.chiefComplaints.length > 0) {
+              const complaintsText = savedPatientRecord.chiefComplaints.map((complaint, index) => 
+                `${index + 1}. ${complaint.complaint} (${complaint.period || complaint.duration || 'Unknown duration'}) - ${complaint.presentHistory || complaint.notes || 'No additional details'}`
+              ).join('\n');
+              presentHistorySections.push(`CHIEF COMPLAINTS:\n${complaintsText}`);
+              
+              // Also map to individual chief complaints fields
+              const firstComplaint = savedPatientRecord.chiefComplaints[0];
+              mappedChiefComplaints.painComplaint = firstComplaint.complaint || '';
+              mappedChiefComplaints.duration = firstComplaint.duration || firstComplaint.period || '';
+              mappedChiefComplaints.location = firstComplaint.location || '';
+            }
+            
+            // 2. HIGH RISK CONDITIONS & MEDICAL HISTORY SECTION
+            if (savedPatientRecord.highRisk) {
+              const highRiskDetails = [];
+              if (savedPatientRecord.highRisk.risk_factors?.length > 0) {
+                highRiskDetails.push(`Risk Factors: ${savedPatientRecord.highRisk.risk_factors.join(', ')}`);
+              }
+              if (savedPatientRecord.highRisk.allergy_drug) {
+                highRiskDetails.push(`Drug Allergies: ${savedPatientRecord.highRisk.allergy_drug}`);
+              }
+              if (savedPatientRecord.highRisk.allergy_food) {
+                highRiskDetails.push(`Food Allergies: ${savedPatientRecord.highRisk.allergy_food}`);
+              }
+              if (savedPatientRecord.highRisk.current_medications) {
+                highRiskDetails.push(`Current Medications: ${savedPatientRecord.highRisk.current_medications}`);
+              }
+              if (savedPatientRecord.highRisk.surgical_history) {
+                highRiskDetails.push(`Surgical History: ${savedPatientRecord.highRisk.surgical_history}`);
+              }
+              if (savedPatientRecord.highRisk.family_history) {
+                highRiskDetails.push(`Family History: ${savedPatientRecord.highRisk.family_history}`);
+              }
+              if (savedPatientRecord.highRisk.social_history) {
+                highRiskDetails.push(`Social History: ${savedPatientRecord.highRisk.social_history}`);
+              }
+              if (savedPatientRecord.highRisk.notes) {
+                highRiskDetails.push(`High Risk Notes: ${savedPatientRecord.highRisk.notes}`);
+              }
+              
+              if (highRiskDetails.length > 0) {
+                presentHistorySections.push(`HIGH RISK CONDITIONS & MEDICAL HISTORY:\n${highRiskDetails.join('\n')}`);
+              }
+            }
+            
+            // 3. EXAMINATION FINDINGS SECTION
+            if (savedPatientRecord.examination) {
+              const examDetails = [];
+              if (savedPatientRecord.examination.general_appearance) examDetails.push(`General Appearance: ${savedPatientRecord.examination.general_appearance}`);
+              if (savedPatientRecord.examination.vital_signs) examDetails.push(`Vital Signs: ${savedPatientRecord.examination.vital_signs}`);
+              if (savedPatientRecord.examination.systemic_examination) examDetails.push(`Systemic Exam: ${savedPatientRecord.examination.systemic_examination}`);
+              if (savedPatientRecord.examination.local_examination) examDetails.push(`Local Exam: ${savedPatientRecord.examination.local_examination}`);
+              if (savedPatientRecord.examination.neurological_examination) examDetails.push(`Neurological: ${savedPatientRecord.examination.neurological_examination}`);
+              if (savedPatientRecord.examination.cardiovascular_examination) examDetails.push(`Cardiovascular: ${savedPatientRecord.examination.cardiovascular_examination}`);
+              if (savedPatientRecord.examination.respiratory_examination) examDetails.push(`Respiratory: ${savedPatientRecord.examination.respiratory_examination}`);
+              if (savedPatientRecord.examination.abdominal_examination) examDetails.push(`Abdominal: ${savedPatientRecord.examination.abdominal_examination}`);
+              if (savedPatientRecord.examination.musculoskeletal_examination) examDetails.push(`Musculoskeletal: ${savedPatientRecord.examination.musculoskeletal_examination}`);
+              
+              if (examDetails.length > 0) {
+                presentHistorySections.push(`EXAMINATION FINDINGS:\n${examDetails.join('\n')}`);
+              }
+            }
+            
+            // 4. DIAGNOSIS SECTION
+            if (savedPatientRecord.diagnosis) {
+              const diagnosisDetails = [];
+              if (savedPatientRecord.diagnosis.primary_diagnosis) diagnosisDetails.push(`Primary Diagnosis: ${savedPatientRecord.diagnosis.primary_diagnosis}`);
+              if (savedPatientRecord.diagnosis.secondary_diagnosis) diagnosisDetails.push(`Secondary Diagnosis: ${savedPatientRecord.diagnosis.secondary_diagnosis}`);
+              if (savedPatientRecord.diagnosis.differential_diagnosis) diagnosisDetails.push(`Differential Diagnosis: ${savedPatientRecord.diagnosis.differential_diagnosis}`);
+              if (savedPatientRecord.diagnosis.icd_codes) diagnosisDetails.push(`ICD Codes: ${savedPatientRecord.diagnosis.icd_codes}`);
+              if (savedPatientRecord.diagnosis.confidence_level) diagnosisDetails.push(`Confidence Level: ${savedPatientRecord.diagnosis.confidence_level}`);
+              if (savedPatientRecord.diagnosis.notes) diagnosisDetails.push(`Diagnosis Notes: ${savedPatientRecord.diagnosis.notes}`);
+              
+              if (diagnosisDetails.length > 0) {
+                presentHistorySections.push(`DIAGNOSIS:\n${diagnosisDetails.join('\n')}`);
+              }
+            }
+            
+            // Combine all sections into present history
+            mappedPresentHistory = presentHistorySections.join('\n\n═══════════════════\n\n');
+            
+            // Map Investigations comprehensively - include ALL investigation types
+            if (savedPatientRecord.investigation) {
+              const investigations = [];
+              if (savedPatientRecord.investigation.laboratory_tests) investigations.push(`Lab Tests: ${savedPatientRecord.investigation.laboratory_tests}`);
+              if (savedPatientRecord.investigation.imaging_studies) investigations.push(`Imaging: ${savedPatientRecord.investigation.imaging_studies}`);
+              if (savedPatientRecord.investigation.special_tests) investigations.push(`Special Tests: ${savedPatientRecord.investigation.special_tests}`);
+              if (savedPatientRecord.investigation.biopsy_results) investigations.push(`Biopsy: ${savedPatientRecord.investigation.biopsy_results}`);
+              if (savedPatientRecord.investigation.pathology_reports) investigations.push(`Pathology: ${savedPatientRecord.investigation.pathology_reports}`);
+              if (savedPatientRecord.investigation.results) investigations.push(`Results: ${savedPatientRecord.investigation.results}`);
+              if (savedPatientRecord.investigation.interpretation) investigations.push(`Interpretation: ${savedPatientRecord.investigation.interpretation}`);
+              mappedInvestigations = investigations.filter(inv => inv && inv.trim());
+            }
+            
+            // Map Examination data to local examination - comprehensive formatting
+            let localExaminationText = '';
+            if (savedPatientRecord.examination) {
+              const examFields = [];
+              if (savedPatientRecord.examination.general_appearance) examFields.push(`General: ${savedPatientRecord.examination.general_appearance}`);
+              if (savedPatientRecord.examination.vital_signs) examFields.push(`Vitals: ${savedPatientRecord.examination.vital_signs}`);
+              if (savedPatientRecord.examination.systemic_examination) examFields.push(`Systemic: ${savedPatientRecord.examination.systemic_examination}`);
+              if (savedPatientRecord.examination.local_examination) examFields.push(`Local: ${savedPatientRecord.examination.local_examination}`);
+              if (savedPatientRecord.examination.neurological_examination) examFields.push(`Neuro: ${savedPatientRecord.examination.neurological_examination}`);
+              if (savedPatientRecord.examination.cardiovascular_examination) examFields.push(`CVS: ${savedPatientRecord.examination.cardiovascular_examination}`);
+              if (savedPatientRecord.examination.respiratory_examination) examFields.push(`RS: ${savedPatientRecord.examination.respiratory_examination}`);
+              if (savedPatientRecord.examination.abdominal_examination) examFields.push(`Abdomen: ${savedPatientRecord.examination.abdominal_examination}`);
+              if (savedPatientRecord.examination.musculoskeletal_examination) examFields.push(`MSK: ${savedPatientRecord.examination.musculoskeletal_examination}`);
+              
+              localExaminationText = examFields.join('\n') || '';
+            }
+            
+            // Map Prescriptions to medical advise - comprehensive medication formatting
+            let medicalAdviseList: string[] = [];
+            if (savedPatientRecord.prescription?.medications && savedPatientRecord.prescription.medications.length > 0) {
+              medicalAdviseList = savedPatientRecord.prescription.medications.map((med: any, index: number) => {
+                const parts = [`${index + 1}.`];
+                if (med.medicineName || med.name) parts.push(med.medicineName || med.name);
+                if (med.dosage || med.dose) parts.push(`- Dose: ${med.dosage || med.dose}`);
+                if (med.frequency) parts.push(`- Frequency: ${med.frequency}`);
+                if (med.duration) parts.push(`- Duration: ${med.duration}`);
+                if (med.whenTaken || med.timing) parts.push(`- Timing: ${med.whenTaken || med.timing}`);
+                if (med.specialInstructions) parts.push(`- Instructions: ${med.specialInstructions}`);
+                if (med.route) parts.push(`- Route: ${med.route}`);
+                return parts.join(' ');
+              }).filter(med => med.trim());
+              
+              // Add prescription-level instructions
+              if (savedPatientRecord.prescription.dosage_instructions) {
+                medicalAdviseList.push(`\nGeneral Dosage Instructions: ${savedPatientRecord.prescription.dosage_instructions}`);
+              }
+              if (savedPatientRecord.prescription.special_instructions) {
+                medicalAdviseList.push(`Special Instructions: ${savedPatientRecord.prescription.special_instructions}`);
+              }
+              if (savedPatientRecord.prescription.follow_up_date) {
+                medicalAdviseList.push(`Follow-up Date: ${savedPatientRecord.prescription.follow_up_date}`);
+              }
+            }
+            
+            // COMPREHENSIVE PAST HISTORY - All historical data including high risk, surgical, family history
+            const pastHistorySections = [];
+            if (savedPatientRecord.highRisk) {
+              if (savedPatientRecord.highRisk.surgical_history) pastHistorySections.push(`Surgical History: ${savedPatientRecord.highRisk.surgical_history}`);
+              if (savedPatientRecord.highRisk.family_history) pastHistorySections.push(`Family History: ${savedPatientRecord.highRisk.family_history}`);
+              if (savedPatientRecord.highRisk.social_history) pastHistorySections.push(`Social History: ${savedPatientRecord.highRisk.social_history}`);
+              if (savedPatientRecord.highRisk.notes) pastHistorySections.push(`Additional Notes: ${savedPatientRecord.highRisk.notes}`);
+            }
+            const mappedPastHistory = pastHistorySections.join('\n') || '';
+            
+            // COMPREHENSIVE DRUG HISTORY - All medication and allergy information
+            const drugHistorySections = [];
+            if (savedPatientRecord.highRisk) {
+              if (savedPatientRecord.highRisk.current_medications) drugHistorySections.push(`Current Medications: ${savedPatientRecord.highRisk.current_medications}`);
+              if (savedPatientRecord.highRisk.allergy_drug) drugHistorySections.push(`Drug Allergies: ${savedPatientRecord.highRisk.allergy_drug}`);
+              if (savedPatientRecord.highRisk.allergy_food) drugHistorySections.push(`Food Allergies: ${savedPatientRecord.highRisk.allergy_food}`);
+            }
+            const mappedDrugHistory = drugHistorySections.join('\n') || '';
+            
+            // COMPREHENSIVE GENERAL ADVISE - All diagnosis and prescription advice
+            const generalAdviseSections = [];
+            if (savedPatientRecord.diagnosis) {
+              if (savedPatientRecord.diagnosis.primary_diagnosis) generalAdviseSections.push(`Primary Diagnosis: ${savedPatientRecord.diagnosis.primary_diagnosis}`);
+              if (savedPatientRecord.diagnosis.secondary_diagnosis) generalAdviseSections.push(`Secondary Diagnosis: ${savedPatientRecord.diagnosis.secondary_diagnosis}`);
+              if (savedPatientRecord.diagnosis.differential_diagnosis) generalAdviseSections.push(`Differential Diagnosis: ${savedPatientRecord.diagnosis.differential_diagnosis}`);
+              if (savedPatientRecord.diagnosis.notes) generalAdviseSections.push(`Clinical Notes: ${savedPatientRecord.diagnosis.notes}`);
+            }
+            if (savedPatientRecord.prescription?.dosage_instructions) {
+              generalAdviseSections.push(`Dosage Instructions: ${savedPatientRecord.prescription.dosage_instructions}`);
+            }
+            if (savedPatientRecord.prescription?.special_instructions) {
+              generalAdviseSections.push(`Special Instructions: ${savedPatientRecord.prescription.special_instructions}`);
+            }
+            if (savedPatientRecord.prescription?.follow_up_date) {
+              generalAdviseSections.push(`Follow-up Date: ${savedPatientRecord.prescription.follow_up_date}`);
+            }
+            const mappedGeneralAdvise = generalAdviseSections.join('\n') || '';
+
+            setPrescriptionData({
+              chiefComplaints: mappedChiefComplaints,
+              presentHistory: mappedPresentHistory,
+              pastHistory: mappedPastHistory,
+              drugHistory: mappedDrugHistory,
+              localExamination: localExaminationText,
+              investigation: mappedInvestigations,
+              investigationReference: savedPatientRecord.investigation?.interpretation || '',
+              generalAdvise: mappedGeneralAdvise,
+              medicalAdvise: medicalAdviseList
+            });
+            
+            toast.success('✅ Loaded data from Complete Patient Record database!');
+            console.log('✅ Successfully mapped Complete Patient Record database to prescription format');
+            
+          } catch (error) {
+            console.error('❌ Error parsing Complete Patient Record:', error);
+            toast.error('Error loading Complete Patient Record data');
+          }
+        } else {
+          // PRIORITY 2: Load saved prescriptions for this patient (fallback)
+          const prescriptions = await HospitalService.getPrescriptions(patient.patient_id);
+          setSavedPrescriptions(prescriptions);
+          
+          // If there are saved prescriptions, load the most recent one
+          if (prescriptions && prescriptions.length > 0) {
+            const latestPrescription = prescriptions[0]; // First item is most recent due to ordering
+            setPrescriptionData({
+              chiefComplaints: latestPrescription.chief_complaints || { painComplaint: '', location: '', duration: '' },
+              presentHistory: latestPrescription.present_history || '',
+              pastHistory: latestPrescription.past_history || '',
+              drugHistory: latestPrescription.drug_history || '',
+              localExamination: latestPrescription.local_examination || '',
+              investigation: latestPrescription.investigations || [],
+              investigationReference: latestPrescription.investigation_reference || '',
+              generalAdvise: latestPrescription.general_advise || '',
+              medicalAdvise: Array.isArray(latestPrescription.medical_advise) ? latestPrescription.medical_advise : 
+                              latestPrescription.medical_advise ? [latestPrescription.medical_advise] : []
+            });
+            console.log('✅ Loaded latest prescription data for patient:', patient.patient_id);
+          }
         }
         
       } catch (error) {

@@ -21,10 +21,11 @@ const FlexiblePatientEntry: React.FC = () => {
     selected_department: '',
     entry_fee: 0,
     consultation_fee: 0,
-    discount_amount: 0,
     discount_reason: '',
     notes: '',
     email: '',
+    discount_type: 'amount' as 'amount' | 'percentage',
+    discount_value: 0,
   });
 
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -32,6 +33,12 @@ const FlexiblePatientEntry: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isDraft, setIsDraft] = useState(false);
   const [showOptionalFields, setShowOptionalFields] = useState(false);
+
+  // Patient filter states (new)
+  const [filterFromDate, setFilterFromDate] = useState<string>('');
+  const [filterToDate, setFilterToDate] = useState<string>('');
+  const [filteredPatientsList, setFilteredPatientsList] = useState<any[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -48,6 +55,111 @@ const FlexiblePatientEntry: React.FC = () => {
     };
     loadData();
   }, []);
+
+  // Helper: parse flexible date strings (YYYY-MM-DD or DD-MM-YYYY) to Date at midnight
+  const parseDateFlexible = (input: string | Date | undefined | null): Date | null => {
+    if (!input) return null;
+    if (input instanceof Date && !isNaN(input.getTime())) {
+      // clone at midnight
+      const d = new Date(input.getTime());
+      d.setHours(0,0,0,0);
+      return d;
+    }
+
+    const s = String(input).trim();
+    // If already ISO-like YYYY-MM-DD
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [_, y, m, d] = isoMatch;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      dt.setHours(0,0,0,0);
+      return dt;
+    }
+    // If DD-MM-YYYY
+    const dmYMatch = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (dmYMatch) {
+      const [_, d, m, y] = dmYMatch;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      dt.setHours(0,0,0,0);
+      return dt;
+    }
+    // Fallback: Date parse
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) {
+      parsed.setHours(0,0,0,0);
+      return parsed;
+    }
+    return null;
+  };
+
+  // Apply inclusive date filter on patients by date_of_entry or created_at
+  const applyPatientDateFilter = async () => {
+    setLoadingPatients(true);
+    try {
+      // Try to fetch all patients; dataService.getPatients may exist in your codebase
+      let patients: any[] = [];
+      if (typeof dataService.getPatients === 'function') {
+        patients = await dataService.getPatients?.(10000).catch(() => []);
+      } else if (typeof PatientService.getPatients === 'function') {
+        patients = await PatientService.getPatients?.(10000).catch(() => []);
+      } else {
+        patients = [];
+      }
+
+      const from = parseDateFlexible(filterFromDate);
+      const toRaw = parseDateFlexible(filterToDate);
+      // Make 'to' inclusive by setting to end of day if provided
+      let to: Date | null = null;
+      if (toRaw) {
+        const t = new Date(toRaw.getTime());
+        t.setHours(23,59,59,999);
+        to = t;
+      }
+
+      // If no dates provided, show first 50 patients
+      if (!from && !to) {
+        setFilteredPatientsList(patients.slice(0, 50));
+        return;
+      }
+
+      const filtered = patients.filter(p => {
+        // pick candidate date fields in order of preference
+        const dateCandidates = [p.date_of_entry, p.created_at, p.updated_at, p.date];
+        let patientDate: Date | null = null;
+        for (const c of dateCandidates) {
+          patientDate = parseDateFlexible(c);
+          if (patientDate) break;
+        }
+        if (!patientDate) return false;
+
+        // Compare
+        if (from && to) {
+          return patientDate.getTime() >= from.getTime() && patientDate.getTime() <= to.getTime();
+        }
+        if (from) {
+          return patientDate.getTime() >= from.getTime();
+        }
+        if (to) {
+          return patientDate.getTime() <= to.getTime();
+        }
+        return false;
+      });
+
+      // sort by date desc (most recent first) if possible
+      filtered.sort((a,b) => {
+        const da = parseDateFlexible(a.date_of_entry) || parseDateFlexible(a.created_at) || new Date(0);
+        const db = parseDateFlexible(b.date_of_entry) || parseDateFlexible(b.created_at) || new Date(0);
+        return db.getTime() - da.getTime();
+      });
+
+      setFilteredPatientsList(filtered.slice(0, 200)); // keep limited for UI
+    } catch (err) {
+      console.error('Error fetching/filtering patients:', err);
+      setFilteredPatientsList([]);
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent, saveAsDraft = false) => {
     e.preventDefault();
@@ -118,15 +230,26 @@ const FlexiblePatientEntry: React.FC = () => {
         });
       }
 
-      if (formData.discount_amount > 0) {
+      // Calculate discount amount based on type
+      let calculatedDiscountAmount = 0;
+      const totalFeesForDiscount = formData.entry_fee + formData.consultation_fee; // Base for percentage calculation
+      if (formData.discount_type === 'percentage' && formData.discount_value > 0) {
+        calculatedDiscountAmount = (totalFeesForDiscount * formData.discount_value) / 100;
+      } else if (formData.discount_type === 'amount' && formData.discount_value > 0) {
+        calculatedDiscountAmount = formData.discount_value;
+      }
+
+      if (calculatedDiscountAmount > 0) {
         transactions.push({
           patient_id: newPatient.id,
           transaction_type: 'discount' as const,
-          amount: -formData.discount_amount,
+          amount: -calculatedDiscountAmount, // Use calculated discount
           payment_mode: 'adjustment' as PaymentMode,
-          doctor_id: formData.selected_doctor === 'custom' ? 'custom' : formData.selected_doctor,
+          doctor_id: formData.selected_doctor || undefined,
           department: formData.selected_department || 'General',
-          description: `Discount: ${formData.discount_reason || 'General discount'}`,
+          description: `Discount (${formData.discount_type === 'percentage' ? `${formData.discount_value}%` : `₹${formData.discount_value}`}): ${formData.discount_reason || 'General discount'}`,
+          discount_type: formData.discount_type,
+          discount_value: formData.discount_value,
         });
       }
 
@@ -135,7 +258,7 @@ const FlexiblePatientEntry: React.FC = () => {
         await dataService.createTransaction(transaction);
       }
 
-      const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
+      const totalAmount = totalFeesForDiscount - calculatedDiscountAmount; // Update total amount calculation
       
       if (saveAsDraft) {
         toast.success(`Patient draft saved! ${formData.first_name} ${formData.last_name}`);
@@ -159,116 +282,10 @@ const FlexiblePatientEntry: React.FC = () => {
         selected_department: '',
         entry_fee: 0,
         consultation_fee: 0,
-        discount_amount: 0,
         discount_reason: '',
         notes: '',
         email: '',
-      });
-      setShowOptionalFields(false);
-    } catch (error) {
-      console.error('Error saving patient:', error);
-      toast.error('Failed to save patient information');
-    } finally {
-      setLoading(false);
-      setIsDraft(false);
-    }
-  };
-
-  const totalAmount = formData.entry_fee + formData.consultation_fee - formData.discount_amount;
-
-  return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">👤 Flexible Patient Entry</h2>
-        <p className="text-gray-600 mt-1">Quick patient registration with minimal required information</p>
-      </div>
-      
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-        {/* Essential Information - Always Visible */}
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">📋 Essential Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                First Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter first name"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-              <input
-                type="text"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter last name (optional)"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'OTHER' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="M">M</option>
-                <option value="F">F</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag (Community/Camp)</label>
-              <input
-                type="text"
-                value={formData.patient_tag}
-                onChange={(e) => setFormData({ ...formData, patient_tag: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter custom tag (e.g., Jain Community, Corporate Camp, etc.)"
-                list="patient-tags-suggestions"
-              />
-              <datalist id="patient-tags-suggestions">
-                <option value="Jain Community" />
-                <option value="Bohara Community" />
-                <option value="Corporate Camp" />
-                <option value="Medical Camp" />
-                <option value="School Camp" />
-                <option value="Senior Citizen" />
-                <option value="Insurance" />
-                <option value="Government Scheme" />
-                <option value="VIP" />
-                <option value="Regular" />
-              </datalist>
-              <div className="text-xs text-gray-500 mt-1">
-                💡 Start typing for suggestions or enter your own custom tag
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Charges - Optional */}
-        <div className="bg-green-50 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-green-800 mb-4">💰 Quick Charges (Optional)</h3>
+        discount_type: 'amount',
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>
@@ -295,11 +312,22 @@ const FlexiblePatientEntry: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+              <select
+                value={formData.discount_type}
+                onChange={(e) => setFormData({ ...formData, discount_type: e.target.value as 'amount' | 'percentage' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="amount">Amount (₹)</option>
+                <option value="percentage">Percentage (%)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value</label>
               <input
                 type="number"
-                value={formData.discount_amount}
-                onChange={(e) => setFormData({ ...formData, discount_amount: Number(e.target.value) || 0 })}
+                value={formData.discount_value}
+                onChange={(e) => setFormData({ ...formData, discount_value: Number(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="0"
                 min="0"
@@ -432,7 +460,7 @@ const FlexiblePatientEntry: React.FC = () => {
                 </div>
               )}
 
-              {formData.discount_amount > 0 && (
+              {formData.discount_value > 0 && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Discount Reason</label>
                   <input

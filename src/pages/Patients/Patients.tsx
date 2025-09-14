@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   Users, 
   Plus, 
@@ -41,8 +43,8 @@ const mockPatients: Patient[] = [
     },
     medicalHistory: ['Diabetes', 'Hypertension'],
     allergies: ['Penicillin'],
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
+    createdAt: new Date('2025-08-28'),
+    updatedAt: new Date('2025-08-28'),
   },
   {
     id: '2',
@@ -61,8 +63,8 @@ const mockPatients: Patient[] = [
     },
     medicalHistory: ['Asthma'],
     allergies: ['Dust'],
-    createdAt: new Date('2024-01-10'),
-    updatedAt: new Date('2024-01-10'),
+    createdAt: new Date('2025-09-10'),
+    updatedAt: new Date('2025-09-10'),
   },
   {
     id: '3',
@@ -81,8 +83,8 @@ const mockPatients: Patient[] = [
     },
     medicalHistory: ['Heart Disease'],
     allergies: [],
-    createdAt: new Date('2024-01-05'),
-    updatedAt: new Date('2024-01-05'),
+    createdAt: new Date('2025-09-25'),
+    updatedAt: new Date('2025-09-25'),
   },
 ];
 
@@ -93,6 +95,21 @@ export const Patients: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+
+  const filteredPatients = useMemo(() => {
+    return mockPatients.filter(patient => {
+      const patientDate = new Date(patient.createdAt);
+      if (startDate && patientDate < startDate) {
+        return false;
+      }
+      if (endDate && patientDate > endDate) {
+        return false;
+      }
+      return true;
+    });
+  }, [startDate, endDate]);
 
   const columns: Column<Patient>[] = [
     {
@@ -300,7 +317,29 @@ export const Patients: React.FC = () => {
           </p>
         </div>
         
-        <div className="mt-4 sm:mt-0 flex space-x-3">
+        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
+          <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
+            <span className="text-sm font-medium text-gray-700">Filter by date:</span>
+            <DatePicker
+              selected={startDate}
+              onChange={(date) => setStartDate(date)}
+              selectsStart
+              startDate={startDate}
+              endDate={endDate}
+              placeholderText="From"
+              className="w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+            <DatePicker
+              selected={endDate}
+              onChange={(date) => setEndDate(date)}
+              selectsEnd
+              startDate={startDate}
+              endDate={endDate}
+              minDate={startDate}
+              placeholderText="To"
+              className="w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          </div>
           <Button variant="secondary" leftIcon={<Upload className="h-4 w-4" />} onClick={handleImport}>
             Import
           </Button>
@@ -321,7 +360,7 @@ export const Patients: React.FC = () => {
               <Users className="h-8 w-8 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-2xl font-bold text-gray-900">{patients.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{filteredPatients.length}</p>
               <p className="text-sm text-gray-500">Total Patients</p>
             </div>
           </div>
@@ -334,7 +373,7 @@ export const Patients: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-2xl font-bold text-gray-900">
-                {patients.filter(p => {
+                {filteredPatients.filter(p => {
                   const today = new Date();
                   const createdAt = new Date(p.createdAt);
                   return createdAt.toDateString() === today.toDateString();
@@ -362,7 +401,7 @@ export const Patients: React.FC = () => {
 
       {/* Patients Table */}
       <Table
-        data={patients}
+        data={filteredPatients}
         columns={columns}
         searchable
         searchPlaceholder="Search patients..."

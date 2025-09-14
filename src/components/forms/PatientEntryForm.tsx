@@ -43,6 +43,8 @@ const patientEntrySchema = z.object({
   consultation_fee: z.number().min(300, 'Consultation fee must be at least ₹300'),
   entry_payment_mode: z.enum(['cash', 'online', 'card', 'upi', 'insurance']),
   consultation_payment_mode: z.enum(['cash', 'online', 'card', 'upi', 'insurance']),
+  discount_type: z.enum(['PERCENTAGE', 'AMOUNT']).optional(),
+  discount_value: z.number().optional(),
   admission_required: z.boolean().default(false),
   // Admission fields (conditional)
   bed_number: z.string().optional(),
@@ -82,6 +84,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
       admission_required: false,
       room_type: 'general',
       daily_rate: 1000,
+      discount_type: 'AMOUNT',
     },
   });
 
@@ -165,7 +168,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
       // Create Entry Fee Transaction
       await dataService.createTransaction({
         patient_id: newPatient.id,
-        transaction_type: 'ENTRY_FEE',
+        transaction_type: 'entry_fee',
         amount: data.entry_fee,
         payment_mode: data.entry_payment_mode.toUpperCase(),
         doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
@@ -178,7 +181,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
       // Create Consultation Fee Transaction
       await dataService.createTransaction({
         patient_id: newPatient.id,
-        transaction_type: 'CONSULTATION',
+        transaction_type: 'consultation',
         amount: data.consultation_fee,
         payment_mode: data.consultation_payment_mode.toUpperCase(),
         doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
@@ -187,6 +190,31 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         created_at: data.date_of_entry,
         transaction_date: data.date_of_entry,
       });
+
+      // Create Discount Transaction if applicable
+      const totalFees = data.entry_fee + data.consultation_fee + (data.admission_required ? data.daily_rate || 0 : 0);
+      let discountAmount = 0;
+      if (data.discount_type === 'PERCENTAGE' && data.discount_value) {
+        discountAmount = (totalFees * data.discount_value) / 100;
+      } else if (data.discount_type === 'AMOUNT' && data.discount_value) {
+        discountAmount = data.discount_value;
+      }
+
+      if (discountAmount > 0) {
+        await dataService.createTransaction({
+          patient_id: newPatient.id,
+          transaction_type: 'discount',
+          amount: -discountAmount, // Store discount as a negative value
+          payment_mode: 'adjustment', // No payment mode for discount
+          doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
+          department: finalDepartmentName,
+          description: `Discount (${data.discount_type === 'PERCENTAGE' ? `${data.discount_value}%` : `₹${data.discount_value}`})`,
+          created_at: data.date_of_entry,
+          transaction_date: data.date_of_entry,
+          discount_type: data.discount_type,
+          discount_value: data.discount_value,
+        });
+      }
 
       // Handle Admission if required
       if (data.admission_required && data.bed_number && data.room_type && data.daily_rate) {
@@ -204,7 +232,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
         // Create admission fee transaction
         await dataService.createTransaction({
           patient_id: newPatient.id,
-          transaction_type: 'ADMISSION_FEE',
+          transaction_type: 'admission',
           amount: data.daily_rate,
           payment_mode: data.consultation_payment_mode.toUpperCase(),
           doctor_id: data.selected_doctor === 'CUSTOM' ? 'CUSTOM' : data.selected_doctor,
@@ -217,7 +245,7 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
 
       toast.success(
         `Patient registered successfully! Total fees: ₹${
-          data.entry_fee + data.consultation_fee + (data.admission_required ? data.daily_rate || 0 : 0)
+          calculateTotalFees()
         }`
       );
 
@@ -238,7 +266,19 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
     const entryFee = watch('entry_fee') || 0;
     const consultationFee = watch('consultation_fee') || 0;
     const dailyRate = watchedAdmission ? (watch('daily_rate') || 0) : 0;
-    return entryFee + consultationFee + dailyRate;
+    const totalFees = entryFee + consultationFee + dailyRate;
+
+    const discountType = watch('discount_type');
+    const discountValue = watch('discount_value') || 0;
+
+    if (discountType === 'PERCENTAGE') {
+      const discountAmount = (totalFees * discountValue) / 100;
+      return totalFees - discountAmount;
+    } else if (discountType === 'AMOUNT') {
+      return totalFees - discountValue;
+    }
+
+    return totalFees;
   };
 
   const generateBedOptions = () => {
@@ -945,6 +985,53 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
                       <option value="upi">UPI</option>
                       <option value="insurance">Insurance</option>
                     </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Discount Type
+                    </label>
+                    <select
+                      {...register('discount_type')}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                    >
+                      <option value="">Select Discount Type</option>
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="AMOUNT">Amount (₹)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', color: '#333333', marginBottom: '6px', fontWeight: '500' }}>
+                      Discount Value
+                    </label>
+                    <input
+                      {...register('discount_value', { valueAsNumber: true })}
+                      type="number"
+                      placeholder="Enter discount"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CCCCCC',
+                        fontSize: '16px',
+                        color: '#333333',
+                        outline: 'none'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0056B3'}
+                      onBlur={(e) => e.target.style.borderColor = '#CCCCCC'}
+                    />
                   </div>
                 </div>
               </div>

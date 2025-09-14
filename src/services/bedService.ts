@@ -58,7 +58,8 @@ class BedService {
             assigned_doctor,
             assigned_department,
             assigned_doctors,
-            consultation_fees
+            consultation_fees,
+            admissions:patient_admissions(*)
           )
         `)
         .order('bed_number');

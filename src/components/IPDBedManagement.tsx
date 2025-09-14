@@ -3,7 +3,7 @@ import { Search, Bed, User, Users, Activity, AlertCircle, Plus, Clock, Play, Squ
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations, PatientAdmissionWithRelations, Patient } from '../config/supabaseNew';
-import { HOSPITAL_ID } from '../config/supabaseNew';
+import { HOSPITAL_ID, supabase } from '../config/supabaseNew';
 import ProcedureConsentForm from './ProcedureConsentForm';
 import IPDConsentForm from './IPDConsentForm';
 import ClinicalRecordForm from './ClinicalRecordForm';
@@ -302,6 +302,11 @@ const IPDBedManagement: React.FC = () => {
   const [showNursesNotes, setShowNursesNotes] = useState(false);
   const [showTatForm, setShowTatForm] = useState(false);
   const [selectedPatientForTat, setSelectedPatientForTat] = useState<PatientWithRelations | null>(null);
+  
+  // Patient History State for each bed
+  const [bedPatientHistory, setBedPatientHistory] = useState<Record<string, any[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({});
+  const [showHistoryForBed, setShowHistoryForBed] = useState<string | null>(null);
   const [selectedBedForTat, setSelectedBedForTat] = useState<BedData | null>(null);
   
   // PAC Record Form state
@@ -439,6 +444,21 @@ const IPDBedManagement: React.FC = () => {
   useEffect(() => {
     filterBeds();
   }, [beds, searchTerm, filterStatus]);
+  
+  // Reset history when beds change (but don't auto-load)
+  useEffect(() => {
+    // Close any open history when beds are reloaded
+    setShowHistoryForBed(null);
+    // Clear history for beds that are no longer occupied
+    const occupiedBedIds = beds.filter(bed => bed.status === 'occupied').map(bed => bed.id);
+    setBedPatientHistory(prev => {
+      const filtered: Record<string, any[]> = {};
+      occupiedBedIds.forEach(bedId => {
+        if (prev[bedId]) filtered[bedId] = prev[bedId];
+      });
+      return filtered;
+    });
+  }, [beds]);
 
   // DEBUG: Show exact database contents
   const debugDatabaseBeds = async () => {
@@ -565,6 +585,68 @@ const IPDBedManagement: React.FC = () => {
 
   const initializeBeds = async () => {
     await loadBedsFromDatabase();
+  };
+  
+  // Load patient history for a specific bed/patient
+  const loadPatientHistoryForBed = async (bed: BedData) => {
+    if (!bed.patient || !bed.patient.id) return;
+    
+    const bedKey = bed.id;
+    setHistoryLoading(prev => ({ ...prev, [bedKey]: true }));
+    
+    try {
+      console.log(`📊 Loading IPD history for bed ${bed.bed_number}, patient:`, bed.patient.patient_id);
+      
+      // Get patient's admission date to filter transactions
+      const admissionDate = bed.patient.admissions?.[0]?.admission_date || bed.admissionDate;
+      console.log('📅 Patient admission date:', admissionDate);
+      
+      // Load all transactions for this patient since admission
+      const { data: transactions, error } = await supabase
+        .from('patient_transactions')
+        .select(`
+          *,
+          patient:patients(
+            first_name,
+            last_name,
+            patient_id
+          )
+        `)
+        .eq('patient_id', bed.patient.id)
+        .neq('status', 'DELETED')
+        .gte('transaction_date', admissionDate || '1970-01-01')
+        .order('transaction_date', { ascending: false })
+        .limit(50);
+        
+      if (error) {
+        console.error('❌ Error loading patient history:', error);
+        setBedPatientHistory(prev => ({ ...prev, [bedKey]: [] }));
+        return;
+      }
+      
+      console.log(`✅ Loaded ${transactions?.length || 0} transactions for bed ${bed.bed_number}`);
+      setBedPatientHistory(prev => ({ ...prev, [bedKey]: transactions || [] }));
+      
+    } catch (error: any) {
+      console.error('❌ Error loading patient history for bed:', error);
+      setBedPatientHistory(prev => ({ ...prev, [bedKey]: [] }));
+    } finally {
+      setHistoryLoading(prev => ({ ...prev, [bedKey]: false }));
+    }
+  };
+  
+  // Handle history button click
+  const handleHistoryClick = async (bed: BedData) => {
+    if (showHistoryForBed === bed.id) {
+      // Close if already open
+      setShowHistoryForBed(null);
+    } else {
+      // Load history if not already loaded
+      if (!bedPatientHistory[bed.id]) {
+        await loadPatientHistoryForBed(bed);
+      }
+      setShowHistoryForBed(bed.id);
+    }
   };
 
   const filterBeds = () => {
@@ -1913,12 +1995,149 @@ const IPDBedManagement: React.FC = () => {
                       Admitted: {new Date(bed.admissionDate).toLocaleDateString('en-IN')}
                     </div>
                   )}
-                  {bed.status === 'occupied' && (
-                    <div className="mt-3 p-2 bg-blue-50 rounded-lg border border-blue-200 transition-all duration-300 hover:bg-blue-100">
-                      <div className="text-xs text-blue-700 font-medium flex items-center justify-center gap-1">
-                        <span className="animate-bounce">👆</span>
-                        <span>Click card for patient records</span>
-                      </div>
+                  {bed.status === 'occupied' && bed.patient && (
+                    <div className="mt-3">
+                      {/* History Button */}
+                      <button
+                        onClick={() => handleHistoryClick(bed)}
+                        className="w-full p-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg border border-blue-200 transition-all duration-300 hover:shadow-md"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">📊</span>
+                            <span className="text-xs font-medium text-blue-800">IPD History</span>
+                            {bedPatientHistory[bed.id] && bedPatientHistory[bed.id].length > 0 && (
+                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                                {bedPatientHistory[bed.id].length}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {historyLoading[bed.id] && (
+                              <div className="animate-spin w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                            )}
+                            <span className={`transform transition-transform duration-200 text-blue-600 ${
+                              showHistoryForBed === bed.id ? 'rotate-180' : ''
+                            }`}>
+                              ▼
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                      
+                      {/* Collapsible History Content */}
+                      {showHistoryForBed === bed.id && (
+                        <div className="mt-2 bg-white rounded-lg border border-gray-200 shadow-sm animate-fade-in">
+                          <div className="p-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-semibold text-gray-800">Service History</h4>
+                              <div className="text-xs text-gray-500">
+                                Since: {bed.admissionDate ? new Date(bed.admissionDate).toLocaleDateString() : 'N/A'}
+                              </div>
+                            </div>
+                            
+                            {historyLoading[bed.id] ? (
+                              <div className="flex items-center justify-center py-6 text-sm text-gray-500">
+                                <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full mr-2"></div>
+                                Loading history...
+                              </div>
+                            ) : bedPatientHistory[bed.id] && bedPatientHistory[bed.id].length > 0 ? (
+                              <div className="space-y-2">
+                                <div className="max-h-48 overflow-y-auto border rounded">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-gray-50 sticky top-0">
+                                      <tr>
+                                        <th className="px-2 py-2 text-left font-medium text-gray-500">Date</th>
+                                        <th className="px-2 py-2 text-left font-medium text-gray-500">Service</th>
+                                        <th className="px-2 py-2 text-center font-medium text-gray-500">Type</th>
+                                        <th className="px-2 py-2 text-right font-medium text-gray-500">Amount</th>
+                                        <th className="px-2 py-2 text-center font-medium text-gray-500">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {bedPatientHistory[bed.id].map((transaction, index) => (
+                                        <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                          <td className="px-2 py-2 text-gray-700">
+                                            {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'N/A'}
+                                          </td>
+                                          <td className="px-2 py-2">
+                                            <div className="font-medium text-gray-800 truncate max-w-32" title={transaction.description}>
+                                              {transaction.description?.length > 30 
+                                                ? transaction.description.substring(0, 30) + '...' 
+                                                : transaction.description || 'Service'}
+                                            </div>
+                                            {transaction.transaction_reference && (
+                                              <div className="text-gray-400 text-xs">Ref: {transaction.transaction_reference}</div>
+                                            )}
+                                          </td>
+                                          <td className="px-2 py-2 text-center">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                              transaction.transaction_type === 'SERVICE' && transaction.description?.includes('[IPD_BILL]') 
+                                                ? 'bg-purple-100 text-purple-700' 
+                                                : transaction.transaction_type === 'SERVICE' 
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : transaction.transaction_type === 'ADMISSION_FEE' 
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                              {transaction.transaction_type === 'SERVICE' && transaction.description?.includes('[IPD_BILL]') ? 'Bill' :
+                                               transaction.transaction_type === 'SERVICE' ? 'Service' :
+                                               transaction.transaction_type === 'ADMISSION_FEE' ? 'Deposit' :
+                                               transaction.transaction_type}
+                                            </span>
+                                          </td>
+                                          <td className="px-2 py-2 text-right font-semibold text-gray-900">
+                                            ₹{transaction.amount?.toLocaleString() || '0'}
+                                          </td>
+                                          <td className="px-2 py-2 text-center">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                              transaction.status === 'COMPLETED' 
+                                                ? 'bg-blue-100 text-blue-700' 
+                                                : transaction.status === 'PAID' 
+                                                ? 'bg-green-100 text-green-700' 
+                                                : transaction.status === 'PENDING'
+                                                ? 'bg-yellow-100 text-yellow-700'
+                                                : 'bg-red-100 text-red-700'
+                                            }`}>
+                                              {transaction.status || 'N/A'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                
+                                {/* Summary Footer */}
+                                <div className="grid grid-cols-4 gap-2 mt-3 text-xs">
+                                  <div className="bg-blue-50 text-blue-700 px-2 py-2 rounded text-center">
+                                    <div className="font-semibold">{bedPatientHistory[bed.id].filter(t => t.transaction_type === 'SERVICE').length}</div>
+                                    <div>Services</div>
+                                  </div>
+                                  <div className="bg-green-50 text-green-700 px-2 py-2 rounded text-center">
+                                    <div className="font-semibold">{bedPatientHistory[bed.id].filter(t => t.transaction_type === 'ADMISSION_FEE').length}</div>
+                                    <div>Deposits</div>
+                                  </div>
+                                  <div className="bg-purple-50 text-purple-700 px-2 py-2 rounded text-center">
+                                    <div className="font-semibold">₹{bedPatientHistory[bed.id].reduce((sum, t) => sum + (t.amount || 0), 0).toLocaleString()}</div>
+                                    <div>Total</div>
+                                  </div>
+                                  <div className="bg-orange-50 text-orange-700 px-2 py-2 rounded text-center">
+                                    <div className="font-semibold">{bedPatientHistory[bed.id].filter(t => t.status === 'PENDING').length}</div>
+                                    <div>Pending</div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-6 text-gray-500">
+                                <div className="text-2xl mb-2">📊</div>
+                                <div className="text-sm font-medium">No services recorded yet</div>
+                                <div className="text-xs mt-1">Services will appear here once recorded</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {/* Simplified view - complex sections moved to modal */}

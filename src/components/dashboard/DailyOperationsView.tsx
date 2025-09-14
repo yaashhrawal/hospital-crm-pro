@@ -118,7 +118,7 @@ const DailyOperationsView: React.FC = () => {
       for (const [patientId, patientTransactions] of patientTransactionMap.entries()) {
         // Get patient data from the first transaction (since transactions come with patient data)
         const firstTransaction = patientTransactions[0];
-        let patient = firstTransaction.patients || patients.find(p => p.id === patientId);
+        const patient = firstTransaction.patients || patients.find(p => p.id === patientId);
         
         if (!patient) {
           console.log(`⚠️ No patient data found for patient ID: ${patientId}`);
