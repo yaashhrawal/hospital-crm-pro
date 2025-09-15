@@ -587,8 +587,8 @@ export class HospitalService {
         const allActiveTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
         
         // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
-        const registrationVisits = allActiveTransactions.filter((t: any) => 
-          (t.transaction_type === 'ENTRY_FEE' || 
+        const visitCount = allActiveTransactions.filter((t: any) =>
+          (t.transaction_type === 'ENTRY_FEE' ||
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
           t.transaction_type === 'consultation' ||
@@ -596,10 +596,16 @@ export class HospitalService {
           t.transaction_type === 'XRAY' ||
           t.transaction_type === 'PROCEDURE')
         ).length;
-        
+
+        // Calculate last visit date
+        const lastVisit = allActiveTransactions.length > 0
+          ? new Date(Math.max(...allActiveTransactions.map((t: any) => new Date(t.created_at || t.transaction_date || '').getTime())))
+              .toISOString().split('T')[0]
+          : undefined;
+
         // Check IPD status to determine department
         const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
-        
+
         return {
           ...patient,
           totalSpent,
@@ -620,7 +626,7 @@ export class HospitalService {
     }
   }
 
-  static async getPatients(limit = 5000, skipOrthoFilter = false, includeInactive = false): Promise<PatientWithRelations[]> {
+  static async getPatients(limit = 5000, skipOrthoFilter = true, includeInactive = false): Promise<PatientWithRelations[]> {
     try {
       const timestamp = new Date().toISOString();
       console.log(`📋 Fetching patients with limit=${limit}, skipOrthoFilter=${skipOrthoFilter}, includeInactive=${includeInactive} at ${timestamp}...`);
@@ -770,8 +776,8 @@ export class HospitalService {
         const allActiveTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
         
         // Count patient entries/registrations and consultations (including 0 fee consultations, excluding cancelled)
-        const registrationVisits = allActiveTransactions.filter((t: any) => 
-          (t.transaction_type === 'ENTRY_FEE' || 
+        const visitCount = allActiveTransactions.filter((t: any) =>
+          (t.transaction_type === 'ENTRY_FEE' ||
           t.transaction_type === 'entry_fee' ||
           t.transaction_type === 'CONSULTATION' ||
           t.transaction_type === 'consultation' ||
@@ -779,10 +785,16 @@ export class HospitalService {
           t.transaction_type === 'XRAY' ||
           t.transaction_type === 'PROCEDURE')
         ).length;
-        
+
+        // Calculate last visit date
+        const lastVisit = allActiveTransactions.length > 0
+          ? new Date(Math.max(...allActiveTransactions.map((t: any) => new Date(t.created_at || t.transaction_date || '').getTime())))
+              .toISOString().split('T')[0]
+          : undefined;
+
         // Check IPD status to determine department
         const departmentStatus = patient.ipd_status === 'ADMITTED' || patient.ipd_status === 'DISCHARGED' ? 'IPD' : 'OPD';
-        
+
         return {
           ...patient,
           totalSpent,
