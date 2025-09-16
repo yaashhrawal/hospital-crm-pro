@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { 
-  Users, 
-  Plus, 
-  Download, 
+import {
+  Users,
+  Plus,
+  Download,
   Upload,
   Eye,
   Edit,
@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/Badge';
 import { SimplePatientForm } from '@/components/forms/SimplePatientForm';
 import type { Patient } from '@/types';
 import { formatDate, getInitials, formatPhone } from '@/utils';
+import dataService from '@/services/dataService';
 
 // Mock data
 const mockPatients: Patient[] = [
@@ -89,7 +90,7 @@ const mockPatients: Patient[] = [
 ];
 
 export const Patients: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>(mockPatients);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);

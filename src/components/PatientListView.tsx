@@ -24,6 +24,10 @@ const PatientListView: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'lastVisit' | 'totalSpent' | 'visitCount'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showQuickEntry, setShowQuickEntry] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'all' | 'today' | 'specific' | 'range'>('all');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
@@ -33,7 +37,7 @@ const PatientListView: React.FC = () => {
 
   useEffect(() => {
     filterAndSortPatients();
-  }, [patients, searchTerm, sortBy, sortOrder]);
+  }, [patients, searchTerm, sortBy, sortOrder, selectedDate, startDate, endDate, filterMode]);
 
   const loadPatients = async () => {
     try {
@@ -95,13 +99,44 @@ const PatientListView: React.FC = () => {
 
   const filterAndSortPatients = () => {
     const filtered = patients.filter(patient => {
+      // Text search filter
       const searchLower = searchTerm.toLowerCase();
-      return (
+      const matchesSearch = !searchTerm || (
         patient.first_name?.toLowerCase().includes(searchLower) ||
         patient.last_name?.toLowerCase().includes(searchLower) ||
         patient.phone?.includes(searchTerm) ||
         patient.id?.toLowerCase().includes(searchLower)
       );
+
+      if (!matchesSearch) return false;
+
+      // Date filter
+      const patientCreatedDate = patient.created_at ? new Date(patient.created_at) : null;
+
+      if (filterMode === 'today') {
+        // Filter for today's patients
+        const today = new Date().toISOString().split('T')[0];
+        if (patientCreatedDate) {
+          const patientDateStr = patientCreatedDate.toISOString().split('T')[0];
+          if (patientDateStr !== today) return false;
+        }
+      } else if (filterMode === 'specific' && selectedDate) {
+        // Filter by specific date
+        if (patientCreatedDate) {
+          const patientDateStr = patientCreatedDate.toISOString().split('T')[0];
+          if (patientDateStr !== selectedDate) return false;
+        }
+      } else if (filterMode === 'range' && (startDate || endDate)) {
+        // Filter by date range
+        if (patientCreatedDate) {
+          const patientDateStr = patientCreatedDate.toISOString().split('T')[0];
+
+          if (startDate && patientDateStr < startDate) return false;
+          if (endDate && patientDateStr > endDate) return false;
+        }
+      }
+
+      return true;
     });
 
     filtered.sort((a, b) => {
@@ -228,6 +263,85 @@ const PatientListView: React.FC = () => {
               <span>Total: {patients.length}</span>
               <span>Showing: {filteredPatients.length}</span>
             </div>
+          </div>
+
+          {/* Date Filters */}
+          <div className="flex flex-col md:flex-row gap-4 items-center mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Filter by:</label>
+              <select
+                value={filterMode}
+                onChange={(e) => {
+                  const mode = e.target.value as 'all' | 'today' | 'specific' | 'range';
+                  setFilterMode(mode);
+                  if (mode === 'all') {
+                    setSelectedDate('');
+                    setStartDate('');
+                    setEndDate('');
+                  } else if (mode === 'today') {
+                    setSelectedDate('');
+                    setStartDate('');
+                    setEndDate('');
+                  } else if (mode === 'specific') {
+                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                    setStartDate('');
+                    setEndDate('');
+                  } else if (mode === 'range') {
+                    setSelectedDate('');
+                  }
+                }}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Patients</option>
+                <option value="today">Today's Patients</option>
+                <option value="specific">Specific Date</option>
+                <option value="range">Date Range</option>
+              </select>
+            </div>
+
+            {filterMode === 'specific' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Date:</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {filterMode === 'range' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">From:</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <label className="text-sm font-medium text-gray-700">To:</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setFilterMode('all');
+                setSelectedDate('');
+                setStartDate('');
+                setEndDate('');
+                setSearchTerm('');
+              }}
+              className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm"
+            >
+              Clear Filters
+            </button>
           </div>
         </div>
 
