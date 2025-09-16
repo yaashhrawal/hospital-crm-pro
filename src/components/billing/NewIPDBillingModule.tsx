@@ -71,6 +71,7 @@ const NewIPDBillingModule: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [billingDate, setBillingDate] = useState(getLocalDateString());
+
   const [wardCategory, setWardCategory] = useState('Emergency');
   
   // Section navigation states
@@ -155,7 +156,7 @@ const NewIPDBillingModule: React.FC = () => {
   ]);
 
   // Services Management
-  const [selectedServices, setSelectedServices] = useState<Array<{id: string, name: string, amount: number, selected: boolean}>>([]);
+  const [selectedServices, setSelectedServices] = useState<Array<{id: string, name: string, amount: number, quantity: number, selected: boolean}>>([]);
   
   // IPD Bills List State
   const [ipdBills, setIpdBills] = useState<any[]>([]);
@@ -471,6 +472,7 @@ const NewIPDBillingModule: React.FC = () => {
         id: service.id,
         name: service.name,
         amount: service.basePrice,
+        quantity: 1, // Default quantity
         selected: true
       };
       setSelectedServices([...selectedServices, newService]);
@@ -487,8 +489,14 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const updateServiceAmount = (serviceId: string, amount: number) => {
-    setSelectedServices(selectedServices.map(s => 
+    setSelectedServices(selectedServices.map(s =>
       s.id === serviceId ? { ...s, amount } : s
+    ));
+  };
+
+  const updateServiceQuantity = (serviceId: string, quantity: number) => {
+    setSelectedServices(selectedServices.map(s =>
+      s.id === serviceId ? { ...s, quantity: Math.max(1, quantity) } : s // Minimum quantity of 1
     ));
   };
 
@@ -522,6 +530,7 @@ const NewIPDBillingModule: React.FC = () => {
         id: customService.id,
         name: customService.name,
         amount: customService.basePrice,
+        quantity: 1, // Default quantity
         selected: true
       };
       setSelectedServices([...selectedServices, newSelectedService]);
@@ -568,7 +577,8 @@ const NewIPDBillingModule: React.FC = () => {
       .filter(service => service.selected)
       .reduce((total, service) => {
         const amount = parseFloat(service.amount) || 0;
-        return total + (isNaN(amount) ? 0 : amount);
+        const quantity = parseInt(service.quantity) || 1;
+        return total + (isNaN(amount) ? 0 : amount * quantity);
       }, 0);
   };
 
@@ -1087,7 +1097,10 @@ const NewIPDBillingModule: React.FC = () => {
             id,
             first_name,
             last_name,
-            phone
+            phone,
+            age,
+            gender,
+            patient_id
           )
         `)
         .in('transaction_type', ['SERVICE', 'ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT']) // Include all possible deposit and service types
@@ -1126,6 +1139,20 @@ const NewIPDBillingModule: React.FC = () => {
         });
         
         console.log('💾 Processed IPD transactions with patient data:', enrichedTransactions.length);
+
+        // 🔍 DEBUG: Check if patient age and gender are loaded
+        const firstTransaction = enrichedTransactions[0];
+        if (firstTransaction?.patients) {
+          console.log('🔍 PATIENT DATA DEBUG - First transaction patient info:', {
+            'Patient name': `${firstTransaction.patients.first_name} ${firstTransaction.patients.last_name}`,
+            'Patient age': firstTransaction.patients.age,
+            'Patient gender': firstTransaction.patients.gender,
+            'Patient phone': firstTransaction.patients.phone,
+            'Patient ID': firstTransaction.patients.patient_id,
+            'Has age data?': firstTransaction.patients.age ? '✅ YES' : '❌ NO',
+            'Has gender data?': firstTransaction.patients.gender ? '✅ YES' : '❌ NO'
+          });
+        }
 
 
         console.log('🔄 Setting IPD bills state with:', enrichedTransactions.length, 'transactions');
@@ -1747,6 +1774,7 @@ const NewIPDBillingModule: React.FC = () => {
 
       // Use the billing date directly to avoid timezone issues
       const formattedBillingDate = billingDate || getLocalDateString();
+
       
       // Store ACTUAL services data that are being billed
       const actualServicesData = [];
@@ -1855,6 +1883,7 @@ const NewIPDBillingModule: React.FC = () => {
       };
 
       console.log(`💾 ${isEditing ? 'Updating' : 'Saving'} IPD bill transaction to Supabase:`, transactionData);
+
       console.log('🔍 Transaction details:', {
         patient_id: transactionData.patient_id,
         transaction_type: transactionData.transaction_type,
@@ -2101,14 +2130,14 @@ const NewIPDBillingModule: React.FC = () => {
               <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">PATIENT DETAILS</h3>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
-                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${selectedPatient?.first_name || ''} ${selectedPatient?.last_name || ''}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient?.age || 'N/A'} years / ${selectedPatient?.gender || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${selectedPatient?.phone || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${bill.patients?.age || 'N/A'} years / ${bill.patients?.gender || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
                 </div>
                 <div>
-                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient?.patient_id || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient?.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${selectedPatient?.admissions?.[0]?.bed_number || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${bill.patients?.patient_id || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${bill.patients?.admissions?.[0]?.admission_date ? new Date(bill.patients.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${bill.patients?.admissions?.[0]?.bed_number || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -2621,6 +2650,16 @@ Description: ${bill.description || 'N/A'}
   // Handler for Print Bill button with exact ReceiptTemplate format
   const handlePrintBill = (bill: any) => {
 
+    // 🔍 DEBUG: Check patient data available for printing
+    console.log('🖨️ PRINT BILL DEBUG - Patient data available:', {
+      'Bill ID': bill.id,
+      'Patient object exists?': !!bill.patients,
+      'Patient name': bill.patients ? `${bill.patients.first_name} ${bill.patients.last_name}` : 'N/A',
+      'Patient age': bill.patients?.age || 'MISSING',
+      'Patient gender': bill.patients?.gender || 'MISSING',
+      'Full patient object': bill.patients
+    });
+
     // Check if we can extract services from description directly
     if (bill.description?.includes('BILLING_ROWS:')) {
       const match = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?\])/);
@@ -2650,6 +2689,9 @@ Description: ${bill.description || 'N/A'}
 
     // Use actual billing rows data for services breakdown
     const printServices = [];
+
+    // Check if this is a deposit transaction
+    const isDepositTransaction = ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(bill.transaction_type);
 
     // Extract the exact services data from the saved bill
     let billRows = [];
@@ -2709,8 +2751,19 @@ Description: ${bill.description || 'N/A'}
       }
     }
 
-    // Process all individual services from BILLING_ROWS
-    if (billRows && billRows.length > 0) {
+    // Handle deposit transactions differently - override services display
+    if (isDepositTransaction) {
+      const paymentMode = bill.payment_mode || 'CASH';
+      printServices.push({
+        sr: 1,
+        service: `Advance Payment (${paymentMode})`,
+        qty: 1,
+        rate: bill.amount || 0,
+        amount: bill.amount || 0
+      });
+    }
+    // Process all individual services from BILLING_ROWS for non-deposit transactions
+    else if (billRows && billRows.length > 0) {
       billRows.forEach((row, index) => {
         const serviceName = row.particulars || row.serviceType || `Service ${index + 1}`;
         const quantity = parseInt(row.quantity) || 1;
@@ -2766,8 +2819,8 @@ Description: ${bill.description || 'N/A'}
           }
         }
       });
-    } else {
-      // Fallback: Try to extract basic amounts from description
+    } else if (!isDepositTransaction) {
+      // Fallback: Try to extract basic amounts from description (only for non-deposit transactions)
       const descriptionText = bill.description || '';
       let serviceIndex = 1;
 
@@ -3420,14 +3473,14 @@ Description: ${bill.description || 'N/A'}
               <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">PATIENT DETAILS</h3>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
-                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${selectedPatient?.first_name || ''} ${selectedPatient?.last_name || ''}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient?.age || 'N/A'} years / ${selectedPatient?.gender || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${selectedPatient?.phone || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${bill.patients?.age || 'N/A'} years / ${bill.patients?.gender || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
                 </div>
                 <div>
-                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient?.patient_id || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient?.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${selectedPatient?.admissions?.[0]?.bed_number || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${bill.patients?.patient_id || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${bill.patients?.admissions?.[0]?.admission_date ? new Date(bill.patients.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${bill.patients?.admissions?.[0]?.bed_number || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -4510,6 +4563,17 @@ Description: ${bill.description || 'N/A'}
                                 </div>
                                 <div className="flex items-center space-x-3">
                                   <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-600">Qty:</span>
+                                    <input
+                                      type="number"
+                                      value={service.quantity}
+                                      onChange={(e) => updateServiceQuantity(service.id, parseInt(e.target.value) || 1)}
+                                      className="w-16 px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                      min="1"
+                                      step="1"
+                                    />
+                                  </div>
+                                  <div className="flex items-center space-x-2">
                                     <span className="text-xs text-gray-600">₹</span>
                                     <input
                                       type="number"
@@ -4517,6 +4581,9 @@ Description: ${bill.description || 'N/A'}
                                       onChange={(e) => updateServiceAmount(service.id, parseFloat(e.target.value) || 0)}
                                       className="w-20 px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
                                     />
+                                  </div>
+                                  <div className="text-xs font-medium text-gray-700">
+                                    = ₹{(service.amount * service.quantity).toFixed(2)}
                                   </div>
                                   <button
                                     onClick={() => removeService(service.id)}
@@ -5014,8 +5081,8 @@ Description: ${bill.description || 'N/A'}
             <div>
               {selectedServices.filter(s => s.selected).map(service => (
                 <div key={service.id} className="print-row">
-                  <span>{service.name}:</span>
-                  <span>₹{service.amount.toFixed(2)}</span>
+                  <span>{service.name} (Qty: {service.quantity}):</span>
+                  <span>₹{service.amount.toFixed(2)} × {service.quantity} = ₹{(service.amount * service.quantity).toFixed(2)}</span>
                 </div>
               ))}
               <div className="print-row" style={{ fontWeight: 'bold', borderTop: '1px solid #ccc', paddingTop: '2px', marginBottom: '4px' }}>
