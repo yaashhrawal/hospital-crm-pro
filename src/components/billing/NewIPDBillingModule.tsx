@@ -26,12 +26,46 @@ const getLocalDateString = () => {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const dateString = `${year}-${month}-${day}`;
+
+
+  return dateString;
+};
+
+// Helper function to ensure date is in YYYY-MM-DD format for HTML date inputs
+const ensureDateFormat = (dateInput: string): string => {
+  if (!dateInput) return getLocalDateString();
+
+  // If already in YYYY-MM-DD format, return as is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return dateInput;
+  }
+
+  // Try to parse various date formats
+  try {
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) {
+      console.warn('⚠️ Invalid date, using today:', dateInput);
+      return getLocalDateString();
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formatted = `${year}-${month}-${day}`;
+
+    return formatted;
+  } catch (error) {
+    console.error('❌ Date parsing error:', error, 'Input:', dateInput);
+    return getLocalDateString();
+  }
 };
 
 const NewIPDBillingModule: React.FC = () => {
+
   // Main state for showing/hiding the IPD bill creation form
   const [showCreateBill, setShowCreateBill] = useState(false);
+  const [editingBill, setEditingBill] = useState<any>(null);
   
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
@@ -56,9 +90,22 @@ const NewIPDBillingModule: React.FC = () => {
   const [advancePayments, setAdvancePayments] = useState(0.00);
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentMode, setNewPaymentMode] = useState('Cash');
+  const [newPaymentDate, setNewPaymentDate] = useState('');
   const [depositHistory, setDepositHistory] = useState([]);
   const [referenceNo, setReferenceNo] = useState('');
   const [receivedBy, setReceivedBy] = useState('');
+
+  // Local mapping to ensure correct dates are shown
+  const [depositDateOverrides, setDepositDateOverrides] = useState({});
+
+  // Deposit editing states
+  const [editingDeposit, setEditingDeposit] = useState(null);
+  const [showEditDepositModal, setShowEditDepositModal] = useState(false);
+  const [editDepositAmount, setEditDepositAmount] = useState('');
+  const [editDepositDate, setEditDepositDate] = useState('');
+  const [editDepositPaymentMode, setEditDepositPaymentMode] = useState('CASH');
+  const [editDepositReference, setEditDepositReference] = useState('');
+  const [editDepositReceivedBy, setEditDepositReceivedBy] = useState('');
 
   // IPD Billing Form States
   // Room & Accommodation
@@ -120,8 +167,6 @@ const NewIPDBillingModule: React.FC = () => {
   
   // Debug: Track state changes
   useEffect(() => {
-    console.log('🔄 IPD BILLS STATE CHANGED:', ipdBills.length, 'bills');
-    console.log('🔄 Bills data:', ipdBills);
   }, [ipdBills]);
   const [serviceSearchTerm, setServiceSearchTerm] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
@@ -133,7 +178,7 @@ const NewIPDBillingModule: React.FC = () => {
   const [staySegments, setStaySegments] = useState([{
     id: Date.now(),
     roomType: 'General Ward',
-    startDate: getLocalDateString(),
+    startDate: billingDate,
     endDate: (() => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -181,6 +226,16 @@ const NewIPDBillingModule: React.FC = () => {
     physiotherapy, ambulanceServices, medicalCertificate, miscCharges,
     customFields, discount, tax, advancePayments
   ]);
+
+  // CRITICAL: Auto-sync deposit date whenever billing date changes
+  useEffect(() => {
+    setNewPaymentDate(billingDate);
+
+    // Also reload deposits to sync with new billing date
+    if (selectedPatient) {
+      loadPatientDeposits();
+    }
+  }, [billingDate, selectedPatient]);
 
   // Calculation functions
   const calculateRoomCharges = () => roomRate * stayDays;
@@ -241,23 +296,145 @@ const NewIPDBillingModule: React.FC = () => {
     setCustomFields(customFields.filter(item => item.id !== id));
   };
 
+  // Reset form function for new bills
+  const resetForm = () => {
+    setSelectedPatient(null);
+    setPatientSearchTerm('');
+    setEditingBill(null);
+    setBillingDate(getLocalDateString());
+    setWardCategory('Emergency');
+    setPaymentMode('CASH');
+    setSelectedPayer('');
+    setAdvancePayments(0.00);
+    setNewPaymentAmount('');
+    setNewPaymentMode('Cash');
+    setDepositHistory([]);
+    setReferenceNo('');
+    setReceivedBy('');
+
+    // Reset room & accommodation
+    setRoomType('General Ward');
+    setRoomRate(500);
+    setStayDays(1);
+
+    // Reset medical professional charges
+    setConsultantFees(1000);
+    setVisitingDoctorFees(500);
+    setNursingCharges(200);
+    setAttendantCharges(100);
+
+    // Reset investigation & diagnostic
+    setLabTests(800);
+    setRadiologyCharges(1200);
+    setEcgCharges(300);
+    setOtherDiagnostics(0);
+
+    // Reset treatment & operation
+    setOperationTheaterCharges(0);
+    setSurgeonFees(0);
+    setAnesthesiaCharges(0);
+    setEquipmentCharges(0);
+
+    // Reset medicine & pharmacy
+    setPharmacyBills(0);
+    setIvFluids(0);
+    setBloodProducts(0);
+    setMedicalSupplies(0);
+
+    // Reset other services
+    setPhysiotherapy(0);
+    setAmbulanceServices(0);
+    setMedicalCertificate(0);
+    setMiscCharges(0);
+
+    // Reset admission and bill summary
+    setAdmissionFee(2000);
+    setDiscount(0);
+    setTax(0);
+    setFinalPaymentMode('CASH');
+
+    // Reset custom fields
+    setCustomFields([{ description: '', amount: 0, type: 'One-time', id: Date.now() }]);
+
+    // IMPORTANT: Reset selected services to prevent cross-patient contamination
+    setSelectedServices([]);
+
+    // Reset stay segments
+    setStaySegments([{
+      id: Date.now(),
+      roomType: 'General Ward',
+      startDate: billingDate,
+      endDate: (() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const year = tomorrow.getFullYear();
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const day = String(tomorrow.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })(),
+      bedChargePerDay: 1000,
+      nursingChargePerDay: 200,
+      rmoChargePerDay: 100,
+      doctorChargePerDay: 500
+    }]);
+
+    // Reset service search
+    setServiceSearchTerm('');
+    setShowServiceDropdown(false);
+    setCustomServiceName('');
+    setCustomServiceAmount('');
+
+  };
+
   // Stay segment calculation functions
   const calculateDays = (startDate: string, endDate: string): number => {
-    if (!startDate || !endDate) return 0;
+    if (!startDate || !endDate) return 1; // Default to 1 day if dates are missing
+
     const start = new Date(startDate);
     const end = new Date(endDate);
+
+    // Check for invalid dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      console.warn('⚠️ Invalid dates provided to calculateDays:', { startDate, endDate });
+      return 1; // Default to 1 day for invalid dates
+    }
+
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays === 0 ? 1 : diffDays; // Minimum 1 day
+    return Math.max(1, diffDays); // Minimum 1 day
   };
 
   const calculateSegmentTotal = (segment: any): number => {
     const days = calculateDays(segment.startDate, segment.endDate);
-    return (segment.bedChargePerDay + segment.nursingChargePerDay + segment.rmoChargePerDay + segment.doctorChargePerDay) * days;
+    const bedCharge = parseFloat(segment.bedChargePerDay) || 0;
+    const nursingCharge = parseFloat(segment.nursingChargePerDay) || 0;
+    const rmoCharge = parseFloat(segment.rmoChargePerDay) || 0;
+    const doctorCharge = parseFloat(segment.doctorChargePerDay) || 0;
+
+    const total = (bedCharge + nursingCharge + rmoCharge + doctorCharge) * days;
+
+    // Debug logging for NaN issues
+    if (isNaN(total)) {
+      console.error('❌ NaN detected in calculateSegmentTotal:', {
+        segment,
+        days,
+        bedCharge,
+        nursingCharge,
+        rmoCharge,
+        doctorCharge,
+        total
+      });
+      return 0;
+    }
+
+    return total;
   };
 
   const calculateTotalStayCharges = (): number => {
-    return staySegments.reduce((total, segment) => total + calculateSegmentTotal(segment), 0);
+    return staySegments.reduce((total, segment) => {
+      const segmentTotal = calculateSegmentTotal(segment);
+      return total + (isNaN(segmentTotal) ? 0 : segmentTotal);
+    }, 0);
   };
 
   const updateStaySegment = (id: number, field: string, value: any) => {
@@ -270,7 +447,7 @@ const NewIPDBillingModule: React.FC = () => {
     const newSegment = {
       id: Date.now(),
       roomType: 'General Ward',
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: billingDate,
       endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       bedChargePerDay: 1000,
       nursingChargePerDay: 200,
@@ -389,7 +566,10 @@ const NewIPDBillingModule: React.FC = () => {
   const calculateSelectedServicesTotal = () => {
     return selectedServices
       .filter(service => service.selected)
-      .reduce((total, service) => total + service.amount, 0);
+      .reduce((total, service) => {
+        const amount = parseFloat(service.amount) || 0;
+        return total + (isNaN(amount) ? 0 : amount);
+      }, 0);
   };
 
   const filteredAvailableServices = availableServices.filter(service =>
@@ -403,7 +583,7 @@ const NewIPDBillingModule: React.FC = () => {
     if (newDepositAmount && parseFloat(newDepositAmount) > 0) {
       const newDeposit = {
         receiptNo: `ADV-${Date.now()}-${depositHistory.length + 1}`,
-        date: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: (billingDate || getLocalDateString()) + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         amount: parseFloat(newDepositAmount),
         paymentMode: newDepositMode,
         reference: newDepositReference || '-',
@@ -420,7 +600,6 @@ const NewIPDBillingModule: React.FC = () => {
       setNewDepositReceivedBy('');
       
       // You can add toast notification here
-      console.log('Deposit added successfully');
     }
   };
 
@@ -479,7 +658,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Room Charge',
       emergency: 'Yes',
       doctor: '',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -492,7 +671,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Nursing Charge',
       emergency: 'Yes',
       doctor: '',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -505,7 +684,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Surgery',
       emergency: 'No',
       doctor: '',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -518,7 +697,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Admission Fee',
       emergency: 'Yes',
       doctor: '',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -531,7 +710,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'Visit Charge',
       emergency: 'Yes',
       doctor: '',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -544,7 +723,7 @@ const NewIPDBillingModule: React.FC = () => {
       particulars: 'CBC MP',
       emergency: 'Yes',
       doctor: 'Lab',
-      date: getLocalDateString(),
+      date: billingDate,
       quantity: 1,
       unitPrice: 0,
       discount: 0,
@@ -566,25 +745,54 @@ const NewIPDBillingModule: React.FC = () => {
 
   // Load patients on mount
   useEffect(() => {
-    console.log('🚀 IPD BILLING: Component mounted, loading data...');
     loadPatients();
     loadIPDBills();
     
   }, []);
 
-  // Calculate totals whenever billing rows or advance payments change
+  // Calculate totals whenever charges, stay segments, services, or advance payments change
   useEffect(() => {
     calculateSummary();
-  }, [billingRows, advancePayments]);
+  }, [admissionFee, staySegments, selectedServices, discount, tax, advancePayments]);
   
-  // Load patient history when patient is selected
+  // Load patient history and deposits when patient is selected
   useEffect(() => {
     if (selectedPatient) {
       loadPatientIPDHistory();
+      loadPatientDeposits(); // CRITICAL FIX: Load deposits from database with correct dates
     } else {
       setPatientHistory([]);
+      setDepositHistory([]); // Clear deposit history when no patient selected
+      setDepositDateOverrides({}); // Clear date overrides when changing patients
+      setAdvancePayments(0);
     }
   }, [selectedPatient]);
+
+  // CRITICAL FIX: Update all billing row dates when billing date changes
+  useEffect(() => {
+    if (billingRows.length > 0) {
+      console.log('📅 Updating billing row dates to:', billingDate);
+      setBillingRows(rows =>
+        rows.map(row => ({
+          ...row,
+          date: billingDate
+        }))
+      );
+    }
+  }, [billingDate]);
+
+  // CRITICAL FIX: Update stay segment start dates when billing date changes
+  useEffect(() => {
+    if (staySegments.length > 0) {
+      console.log('📅 Updating stay segment start dates to:', billingDate);
+      setStaySegments(segments =>
+        segments.map(segment => ({
+          ...segment,
+          startDate: billingDate
+        }))
+      );
+    }
+  }, [billingDate]);
 
   const loadPatients = async () => {
     try {
@@ -593,24 +801,47 @@ const NewIPDBillingModule: React.FC = () => {
       console.log('🔍 IPD BILLING: Hospital ID:', HOSPITAL_ID);
       
       // Get all patients with admissions data using direct supabase query
-      const { data: allPatients, error } = await supabase
-        .from('patients')
-        .select(`
-          *,
-          transactions:patient_transactions(*),
-          admissions:patient_admissions(*)
-        `)
-        // .eq('hospital_id', HOSPITAL_ID) // Removed as hospital may not exist
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-      
-      if (error) {
-        console.error('❌ IPD BILLING: Error loading patients with admissions:', error);
-        toast.error('Failed to load patient data: ' + error.message);
-        return;
+      // SOLUTION: Use pagination approach to bypass PostgREST's 1000 record limit
+      let allPatients: any[] = [];
+      let fromIndex = 0;
+      const pageSize = 1000;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        console.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
+
+        const { data: batch, error } = await supabase
+          .from('patients')
+          .select(`
+            *,
+            transactions:patient_transactions(*),
+            admissions:patient_admissions(*)
+          `)
+          // .eq('hospital_id', HOSPITAL_ID) // Removed as hospital may not exist
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .range(fromIndex, fromIndex + pageSize - 1);
+
+        if (error) {
+          console.error('❌ IPD BILLING: Error loading patients batch:', error);
+          break;
+        }
+
+        if (!batch || batch.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        allPatients = [...allPatients, ...batch];
+
+        // If we got less than pageSize records, we've reached the end
+        if (batch.length < pageSize) {
+          hasMoreData = false;
+        } else {
+          fromIndex += pageSize;
+        }
       }
-      
+
       console.log('✅ IPD BILLING: Loaded patients with admissions:', allPatients?.length || 0);
       if (allPatients && allPatients.length > 0) {
         console.log('✅ IPD BILLING: Sample patient data:', allPatients[0]);
@@ -621,6 +852,165 @@ const NewIPDBillingModule: React.FC = () => {
       toast.error('Failed to load patient data: ' + (error as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load patient deposits from database to ensure correct dates
+  const loadPatientDeposits = async () => {
+    if (!selectedPatient) return;
+
+    try {
+
+
+      const result = await supabase
+        .from('patient_transactions')
+        .select('id, transaction_date, created_at, description, amount, payment_mode, transaction_reference, status')
+        .eq('patient_id', selectedPatient.id)
+        .in('transaction_type', ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'])
+        .eq('status', 'COMPLETED')
+        .order('created_at', { ascending: false });
+
+      const deposits = result.data;
+      const error = result.error;
+
+      console.log('🔍 RAW DATABASE RESPONSE:', {
+        depositCount: deposits?.length || 0,
+        deposits: deposits?.map(d => ({
+          id: d.id,
+          transaction_date: d.transaction_date,
+          created_at: d.created_at,
+          amount: d.amount,
+          has_transaction_date: !!d.transaction_date
+        }))
+      });
+
+      if (error) {
+        console.error('❌ Error loading deposits:', error);
+        return;
+      }
+
+      if (deposits && deposits.length > 0) {
+
+        // CRITICAL FIX: Update any deposits that don't have transaction_date set
+        const depositsNeedingUpdate = deposits.filter(d => !d.transaction_date);
+        if (depositsNeedingUpdate.length > 0) {
+          console.log(`🔧 FIXING ${depositsNeedingUpdate.length} deposits missing transaction_date`);
+
+          for (const deposit of depositsNeedingUpdate) {
+            const fallbackDate = deposit.created_at.split('T')[0];
+            console.log(`🔧 Updating deposit ${deposit.id}: setting transaction_date to ${fallbackDate}`);
+
+            await supabase
+              .from('patient_transactions')
+              .update({ transaction_date: fallbackDate })
+              .eq('id', deposit.id);
+
+            // Update local data
+            deposit.transaction_date = fallbackDate;
+          }
+
+          console.log('✅ Finished updating deposits with missing transaction_date');
+        }
+
+        // AUTO-UPDATE: Sync existing deposits with current billing date if different
+        if (billingDate && billingDate !== getLocalDateString().split('T')[0]) {
+          console.log('🔄 AUTO-SYNC: Updating existing deposits to match billing date:', billingDate);
+
+          for (const deposit of deposits) {
+            if (deposit.transaction_date && deposit.transaction_date !== billingDate) {
+              console.log(`🔄 Syncing deposit ${deposit.id}: ${deposit.transaction_date} → ${billingDate}`);
+
+              await supabase
+                .from('patient_transactions')
+                .update({ transaction_date: billingDate })
+                .eq('id', deposit.id);
+
+              // Update local data
+              deposit.transaction_date = billingDate;
+            }
+          }
+
+          console.log('✅ Finished syncing deposits with billing date');
+        }
+
+        // Transform database deposits to match local state format
+        const formattedDeposits = deposits.map(deposit => {
+          // CRITICAL FIX: Prioritize user-entered dates properly
+          let displayDate;
+
+          // 1. First priority: Manual overrides from current session
+          if (depositDateOverrides[deposit.id]) {
+            displayDate = depositDateOverrides[deposit.id];
+            console.log(`💰 Using override date for ${deposit.id}: ${displayDate}`);
+          }
+          // 2. Second priority: Database transaction_date (user-entered date)
+          else if (deposit.transaction_date) {
+            // Ensure it's in YYYY-MM-DD format
+            displayDate = deposit.transaction_date.split('T')[0];
+            console.log(`💰 ✅ SUCCESS: Using transaction_date for ${deposit.id}: ${displayDate} (from DB: ${deposit.transaction_date})`);
+          }
+          // 3. Third priority: Extract date from created_at (admission date) - ONLY as fallback
+          else if (deposit.created_at) {
+            displayDate = deposit.created_at.split('T')[0];
+            console.log(`💰 FALLBACK: Using created_at for ${deposit.id}: ${displayDate} (original: ${deposit.created_at})`);
+          }
+          // 4. Final fallback: Today's date
+          else {
+            displayDate = new Date().toISOString().split('T')[0];
+            console.log(`💰 FINAL FALLBACK: Using today for ${deposit.id}: ${displayDate}`);
+          }
+
+          const formattedDeposit = {
+            id: deposit.id,
+            receiptNo: deposit.transaction_reference || `REC-${deposit.id}`,
+            date: displayDate,
+            amount: deposit.amount,
+            paymentMode: deposit.payment_mode,
+            reference: deposit.transaction_reference || '-',
+            receivedBy: 'IPD Billing Department',
+            transactionType: 'Advance Payment',
+            processBy: 'Reception Desk',
+            timestamp: new Date(deposit.created_at).getTime()
+          };
+
+          console.log('💰 🚨 ULTRA DEBUG - Raw deposit from DB:', {
+            id: deposit.id,
+            'DB transaction_date': deposit.transaction_date,
+            'DB created_at': deposit.created_at,
+            'Override exists': !!depositDateOverrides[deposit.id],
+            'Override value': depositDateOverrides[deposit.id],
+            'Calculated displayDate': displayDate,
+            'Final formattedDeposit.date': formattedDeposit.date,
+            'Date calculation used':
+              depositDateOverrides[deposit.id] ? 'OVERRIDE' :
+              deposit.transaction_date ? 'TRANSACTION_DATE' :
+              deposit.created_at ? 'CREATED_AT' : 'TODAY'
+          });
+
+          return formattedDeposit;
+        });
+
+        // Update local state with database deposits
+        setDepositHistory(formattedDeposits);
+
+        // Calculate total advances from database
+        const totalAdvances = deposits.reduce((sum, deposit) => sum + (deposit.amount || 0), 0);
+        setAdvancePayments(totalAdvances);
+
+        console.log('💰 Deposits loaded successfully:', {
+          count: formattedDeposits.length,
+          total: totalAdvances
+        });
+      } else {
+        console.log('💰 No deposits found for patient');
+        setDepositHistory([]);
+        setAdvancePayments(0);
+      }
+
+    } catch (error) {
+      console.error('❌ Error loading patient deposits:', error);
+      setDepositHistory([]);
+      setAdvancePayments(0);
     }
   };
 
@@ -653,8 +1043,8 @@ const NewIPDBillingModule: React.FC = () => {
         `)
         .eq('patient_id', selectedPatient.id)
         .neq('status', 'DELETED')
-        .gte('transaction_date', admissionDate || '1970-01-01') // Filter from admission date
-        .order('transaction_date', { ascending: false })
+        .gte('created_at', admissionDate || '1970-01-01') // Filter from admission date (using created_at as fallback)
+        .order('created_at', { ascending: false })
         .limit(100);
         
       if (error) {
@@ -680,12 +1070,11 @@ const NewIPDBillingModule: React.FC = () => {
       console.log('💵 Loading IPD bills and deposits from transactions...');
       
       // Test database connection first
-      const { data: connectionTest, error: connectionError } = await supabase
+      const { data: connectionTest, error: connectionError, count } = await supabase
         .from('patient_transactions')
-        .select('count(*)')
-        .single();
+        .select('*', { count: 'exact', head: true });
         
-      console.log('🔗 Database connection test:', { count: connectionTest, error: connectionError });
+      console.log('🔗 Database connection test:', { count: count, error: connectionError });
       
       // Load all IPD-related transactions (bills, deposits, and services)
       console.log('🔍 Loading IPD transactions (all deposit and service types)...');
@@ -736,11 +1125,18 @@ const NewIPDBillingModule: React.FC = () => {
           };
         });
         
-        console.log('💾 Processed IPD transactions with patient data:', enrichedTransactions);
+        console.log('💾 Processed IPD transactions with patient data:', enrichedTransactions.length);
+
+
         console.log('🔄 Setting IPD bills state with:', enrichedTransactions.length, 'transactions');
         
-        // Sort by date descending to show latest first
-        enrichedTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        // Sort by date descending to show latest first - CRITICAL FIX: Use transaction_date (user billing date) not created_at
+        enrichedTransactions.sort((a, b) => {
+          // Use transaction_date if available (user's billing date), otherwise fall back to created_at
+          const dateA = a.transaction_date || a.created_at;
+          const dateB = b.transaction_date || b.created_at;
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
+        });
         
         setIpdBills([...enrichedTransactions]); // Include both bills and deposits
         const ipdBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]')).length;
@@ -824,31 +1220,38 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const calculateSummary = () => {
-    let totalBill = 0;
-    let totalDiscount = 0;
-    let subtotal = 0;
+    // Use the same calculation system as the main bill display
+    const admissionAmount = parseFloat(admissionFee) || 0;
+    const stayChargesAmount = calculateTotalStayCharges();
+    const servicesAmount = calculateSelectedServicesTotal();
+    const discountAmount = parseFloat(discount) || 0;
+    const taxAmount = parseFloat(tax) || 0;
 
-    billingRows.forEach(row => {
-      const rowSubtotal = row.quantity * row.unitPrice;
-      const discountAmount = (rowSubtotal * row.discount) / 100;
-      
-      subtotal += rowSubtotal;
-      totalDiscount += discountAmount;
-      totalBill += row.total;
+    const totalBill = admissionAmount + stayChargesAmount + servicesAmount;
+    const netAfterDiscountAndTax = Math.max(0, totalBill - discountAmount + taxAmount);
+    const netPayable = Math.max(0, netAfterDiscountAndTax - advancePayments);
+
+    console.log('🧮 Summary calculation breakdown:', {
+      admissionAmount,
+      stayChargesAmount,
+      servicesAmount,
+      totalBill,
+      discountAmount,
+      taxAmount,
+      netAfterDiscountAndTax,
+      advancePayments,
+      netPayable
     });
-
-    // Calculate net payable after advance payments
-    const netPayable = Math.max(0, totalBill - advancePayments);
 
     setSummary({
       totalBill,
       paidAmount: advancePayments,
-      refund: Math.max(0, advancePayments - totalBill),
+      refund: Math.max(0, advancePayments - netAfterDiscountAndTax),
       netPayable,
-      totalDiscount,
-      totalTax: 0, // Remove tax from summary
-      totalPayable: totalBill,
-      subtotal
+      totalDiscount: discountAmount,
+      totalTax: taxAmount,
+      totalPayable: netAfterDiscountAndTax,
+      subtotal: totalBill
     });
   };
 
@@ -876,20 +1279,18 @@ const NewIPDBillingModule: React.FC = () => {
     // Generate auto-incremented receipt number
     const nextReceiptCounter = receiptCounter + 1;
     const newReceiptNo = `Y${nextReceiptCounter}`;
-    const today = new Date().toLocaleDateString('en-GB');
-    
-    const newPayment = {
-      id: newReceiptNo,
-      receiptNo: newReceiptNo,
-      date: today,
-      transactionType: 'Advance Payment',
-      processBy: 'Reception Desk',
-      amount: amount,
-      paymentMode: newPaymentMode,
-      reference: referenceNo || '-',
-      receivedBy: receivedBy || 'System',
-      status: 'RECEIVED'
-    };
+    // CRITICAL FIX: FORCE TODAY'S ACTUAL DATE for display
+    const todayForDisplay = new Date().toISOString().split('T')[0];
+    const depositDate = newPaymentDate || todayForDisplay;
+
+    console.log('🚨 LOCAL PAYMENT DATE FIX:', {
+      newPaymentDate,
+      billingDate,
+      todayForDisplay,
+      finalDepositDate: depositDate
+    });
+
+    // Deposit object will be created by database and loaded via loadPatientDeposits()
     
     try {
       // Validate patient ID
@@ -900,8 +1301,17 @@ const NewIPDBillingModule: React.FC = () => {
       }
 
       // Save to database - patient_transactions table
-      // Use the billing date directly to avoid timezone issues
-      const formattedDepositDate = billingDate || getLocalDateString();
+      // CRITICAL: Use user-entered date from deposit modal
+      const todayActual = new Date().toISOString().split('T')[0];
+      const formattedDepositDate = newPaymentDate || billingDate || todayActual;
+
+      console.log('🚨 COMPREHENSIVE DATE DEBUG:', {
+        'User entered newPaymentDate': newPaymentDate,
+        'Billing screen billingDate': billingDate,
+        'System todayActual': todayActual,
+        'FINAL formattedDepositDate': formattedDepositDate,
+        'Priority': newPaymentDate ? 'User Modal Input' : billingDate ? 'Billing Screen Date' : 'System Today'
+      });
       
       const transactionData = {
         patient_id: selectedPatient.id,
@@ -919,12 +1329,54 @@ const NewIPDBillingModule: React.FC = () => {
         updated_at: new Date().toISOString()
       };
 
+      console.log('💾 DEPOSIT: Saving transaction data:', {
+        ...transactionData,
+        formattedDepositDate,
+        originalNewPaymentDate: newPaymentDate,
+        originalBillingDate: billingDate
+      });
+
+      console.log('🚨 FINAL DATABASE INSERT VALUES:', {
+        'transaction_date in DB': transactionData.transaction_date,
+        'created_at in DB': transactionData.created_at,
+        'user_entered_date': newPaymentDate,
+        'billing_screen_date': billingDate,
+        'CRITICAL_CHECK': transactionData.transaction_date === formattedDepositDate ? '✅ CORRECT' : '❌ WRONG'
+      });
+
       console.log('💾 Attempting to save transaction:', transactionData);
 
       const { data, error: dbError } = await supabase
         .from('patient_transactions')
         .insert([transactionData])
         .select();
+
+      // CRITICAL: Verify what was actually saved to database
+      if (data && data.length > 0) {
+        console.log('🚨 VERIFICATION: What was actually saved to DB:', {
+          'Inserted record ID': data[0].id,
+          'DB transaction_date': data[0].transaction_date,
+          'DB created_at': data[0].created_at,
+          'DB amount': data[0].amount,
+          'Original input date': newPaymentDate,
+          'MATCH CHECK': data[0].transaction_date === formattedDepositDate ? '✅ MATCH' : '❌ MISMATCH'
+        });
+
+        // Double-check by querying back immediately
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('patient_transactions')
+          .select('id, transaction_date, created_at, amount, description')
+          .eq('id', data[0].id)
+          .single();
+
+        if (verifyData) {
+          console.log('🔍 IMMEDIATE QUERY BACK:', {
+            'Query result transaction_date': verifyData.transaction_date,
+            'Query result created_at': verifyData.created_at,
+            'Matches inserted?': verifyData.transaction_date === data[0].transaction_date ? '✅ YES' : '❌ NO'
+          });
+        }
+      }
 
       if (dbError) {
         console.error('❌ Database save error:', dbError);
@@ -947,6 +1399,17 @@ const NewIPDBillingModule: React.FC = () => {
         }
       } else {
         console.log('✅ Payment saved to database successfully:', data);
+
+        // Store the correct date override for this deposit ID
+        if (data && data.length > 0) {
+          const savedDepositId = data[0].id;
+          setDepositDateOverrides(prev => ({
+            ...prev,
+            [savedDepositId]: formattedDepositDate
+          }));
+          console.log(`💰 Stored date override for deposit ${savedDepositId}: ${formattedDepositDate}`);
+        }
+
         toast.success('Payment saved successfully!');
       }
     } catch (error) {
@@ -954,32 +1417,122 @@ const NewIPDBillingModule: React.FC = () => {
       toast.error('Database connection failed. Please check your connection.');
     }
     
-    // Update local states regardless of database result
-    setDepositHistory([...depositHistory, newPayment]);
-    setAdvancePayments(advancePayments + amount);
+    // CRITICAL FIX: Only reload from database - don't add to local state with potentially wrong dates
+    toast.success('Deposit saved to database! Reloading...');
+
+    // Immediately reload from database to get the correct data
+    await loadPatientDeposits();
+
     setReceiptCounter(nextReceiptCounter);
     setNewPaymentAmount('');
     setNewPaymentMode('Cash');
+    setNewPaymentDate('');
     setReferenceNo('');
     setReceivedBy('');
-    
+
     toast.success(`Advance payment of ₹${amount.toFixed(2)} added successfully! Receipt: ${newReceiptNo}`);
   };
 
   // Delete advance payment function
   const deleteAdvancePayment = (paymentId: string) => {
     const paymentToDelete = depositHistory.find(payment => payment.id === paymentId);
-    
+
     if (!paymentToDelete) {
       toast.error('Payment not found');
       return;
     }
-    
+
     // Update states
     setDepositHistory(depositHistory.filter(payment => payment.id !== paymentId));
     setAdvancePayments(advancePayments - paymentToDelete.amount);
-    
+
     toast.success(`Advance payment of ₹${paymentToDelete.amount.toFixed(2)} deleted successfully!`);
+  };
+
+  // Edit deposit functions
+  const handleEditDeposit = (deposit) => {
+    console.log('✏️ Editing deposit:', deposit);
+    setEditingDeposit(deposit);
+    setEditDepositAmount(deposit.amount?.toString() || '');
+    setEditDepositDate(deposit.date?.split(' ')[0] || billingDate); // Extract date part if date includes time
+    setEditDepositPaymentMode(deposit.paymentMode || 'CASH');
+    setEditDepositReference(deposit.reference || '');
+    setEditDepositReceivedBy(deposit.receivedBy || 'IPD Billing Department');
+    setShowEditDepositModal(true);
+  };
+
+  const handleUpdateDeposit = async () => {
+    if (!editingDeposit) {
+      toast.error('No deposit selected for editing');
+      return;
+    }
+
+    const amount = parseFloat(editDepositAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (!editDepositDate) {
+      toast.error('Please select a date');
+      return;
+    }
+
+    try {
+      console.log('💾 Updating deposit in database:', editingDeposit.id);
+
+      // Update in database if the deposit has a database ID
+      if (editingDeposit.id && !editingDeposit.id.toString().startsWith('Y')) {
+        const updateData = {
+          amount: amount,
+          transaction_date: editDepositDate,
+          payment_mode: editDepositPaymentMode.toUpperCase(),
+          transaction_reference: editDepositReference || editingDeposit.receiptNo,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+          .from('patient_transactions')
+          .update(updateData)
+          .eq('id', editingDeposit.id);
+
+        if (error) {
+          console.error('❌ Error updating deposit:', error);
+          toast.error('Failed to update deposit in database');
+          return;
+        }
+
+        console.log('✅ Deposit updated in database successfully');
+      }
+
+      // Reload deposits from database to get updated data
+      await loadPatientDeposits();
+
+      // Reset edit form
+      setEditingDeposit(null);
+      setShowEditDepositModal(false);
+      setEditDepositAmount('');
+      setEditDepositDate('');
+      setEditDepositPaymentMode('CASH');
+      setEditDepositReference('');
+      setEditDepositReceivedBy('');
+
+      toast.success('Deposit updated successfully!');
+
+    } catch (error) {
+      console.error('❌ Error updating deposit:', error);
+      toast.error('Failed to update deposit');
+    }
+  };
+
+  const handleCancelEditDeposit = () => {
+    setEditingDeposit(null);
+    setShowEditDepositModal(false);
+    setEditDepositAmount('');
+    setEditDepositDate('');
+    setEditDepositPaymentMode('CASH');
+    setEditDepositReference('');
+    setEditDepositReceivedBy('');
   };
 
   const handlePrint = () => {
@@ -1010,8 +1563,8 @@ const NewIPDBillingModule: React.FC = () => {
     setShowPatientDropdown(false);
     setShowPatientModal(false);
     
-    // Reset billing date to today when selecting a patient (for new services)
-    setBillingDate(getLocalDateString());
+    // Keep the current billing date when selecting a patient (don't override user's date selection)
+    // setBillingDate(getLocalDateString()); // Removed to preserve user's selected date
     
     // Update doctor names in billing rows
     updateDoctorNamesForPatient(patient);
@@ -1186,17 +1739,110 @@ const NewIPDBillingModule: React.FC = () => {
         return;
       }
 
-      // Create a transaction record for the IPD bill
-      const billReceiptNo = `IPD-${Date.now().toString().slice(-6)}`;
-      
+      // Check if we're editing or creating a new bill
+      const isEditing = editingBill !== null;
+      const billReceiptNo = isEditing
+        ? editingBill.transaction_reference || `IPD-${Date.now().toString().slice(-6)}`
+        : `IPD-${Date.now().toString().slice(-6)}`;
+
       // Use the billing date directly to avoid timezone issues
       const formattedBillingDate = billingDate || getLocalDateString();
       
+      // Store ACTUAL services data that are being billed
+      const actualServicesData = [];
+
+      // Add admission fee if set
+      if (admissionFee > 0) {
+        actualServicesData.push({
+          id: 'admission-fee',
+          serviceType: 'Admission Fee',
+          particulars: 'Hospital Admission Charges',
+          quantity: 1,
+          unitPrice: admissionFee,
+          discount: 0,
+          taxes: 0,
+          total: admissionFee,
+          emergency: 'Yes',
+          doctor: '',
+          date: formattedBillingDate
+        });
+      }
+
+      // Add stay segments charges
+      if (staySegments && staySegments.length > 0) {
+        staySegments.forEach((segment, index) => {
+          const segmentTotal = calculateSegmentTotal(segment);
+          if (segmentTotal > 0) {
+            actualServicesData.push({
+              id: `stay-${segment.id || index}`,
+              serviceType: 'Room & Stay Charges',
+              particulars: `${segment.roomType} - Room Stay (${calculateDays(segment.startDate, segment.endDate)} days)`,
+              quantity: calculateDays(segment.startDate, segment.endDate),
+              unitPrice: (segment.bedChargePerDay + segment.nursingChargePerDay + segment.rmoChargePerDay + segment.doctorChargePerDay),
+              discount: 0,
+              taxes: 0,
+              total: segmentTotal,
+              emergency: 'Yes',
+              doctor: '',
+              date: formattedBillingDate
+            });
+          }
+        });
+      }
+
+      // Add selected services - EACH SERVICE AS SEPARATE ITEM
+      if (selectedServices && selectedServices.length > 0) {
+        selectedServices.filter(service => service.selected && service.amount > 0).forEach((service, index) => {
+          actualServicesData.push({
+            id: `service-${service.id || index}`,
+            serviceType: service.name, // Use actual service name as service type
+            particulars: service.name, // Service name as particulars
+            quantity: 1,
+            unitPrice: service.amount,
+            discount: 0,
+            taxes: 0,
+            total: service.amount,
+            emergency: 'Yes',
+            doctor: '',
+            date: formattedBillingDate
+          });
+          console.log(`📋 Added individual service: ${service.name} - ₹${service.amount}`);
+        });
+      }
+
+      // If no actual services found, try to use billingRows as fallback
+      if (actualServicesData.length === 0 && billingRows && billingRows.length > 0) {
+        const filteredBillingRows = billingRows.filter(row =>
+          (row.serviceType && row.serviceType.trim() !== '') ||
+          (row.particulars && row.particulars.trim() !== '') ||
+          row.unitPrice > 0 ||
+          row.total > 0
+        );
+        actualServicesData.push(...filteredBillingRows);
+      }
+
+      const billingRowsData = JSON.stringify(actualServicesData);
+
+      console.log('💾 ACTUAL services being stored:');
+      console.log('   - Admission Fee:', admissionFee);
+      console.log('   - Stay Segments:', staySegments?.length || 0);
+      console.log('   - Selected Services count:', selectedServices?.filter(s => s.selected)?.length || 0);
+      console.log('   - Selected Services details:');
+      selectedServices?.filter(s => s.selected)?.forEach(service => {
+        console.log(`     * ${service.name}: ₹${service.amount}`);
+      });
+      console.log('   - Total services to store:', actualServicesData.length);
+      console.log('💾 Complete services data being stored:');
+      actualServicesData.forEach((service, index) => {
+        console.log(`   ${index + 1}. ${service.particulars} (${service.serviceType}) - ₹${service.total}`);
+      });
+      console.log('💾 Services JSON length:', billingRowsData.length, 'characters');
+
       const transactionData = {
         patient_id: selectedPatient.id,
         hospital_id: HOSPITAL_ID,
         transaction_type: 'SERVICE',
-        description: `[IPD_BILL] IPD Comprehensive Bill - ${billReceiptNo} | Admission: ₹${admissionFee} | Stay: ₹${calculateTotalStayCharges()} | Services: ₹${calculateSelectedServicesTotal()} | Discount: ₹${discount} | Tax: ₹${tax}`,
+        description: `[IPD_BILL] IPD Comprehensive Bill - ${billReceiptNo} | Admission: ₹${admissionFee} | Stay: ₹${calculateTotalStayCharges()} | Services: ₹${calculateSelectedServicesTotal()} | Discount: ₹${discount} | Tax: ₹${tax} | Net: ₹${netPayable} | BILLING_ROWS: ${billingRowsData}`,
         amount: netPayable,
         payment_mode: finalPaymentMode.toUpperCase(),
         doctor_id: null,
@@ -1208,7 +1854,7 @@ const NewIPDBillingModule: React.FC = () => {
         updated_at: new Date().toISOString()
       };
 
-      console.log('💾 Saving IPD bill transaction to Supabase:', transactionData);
+      console.log(`💾 ${isEditing ? 'Updating' : 'Saving'} IPD bill transaction to Supabase:`, transactionData);
       console.log('🔍 Transaction details:', {
         patient_id: transactionData.patient_id,
         transaction_type: transactionData.transaction_type,
@@ -1217,14 +1863,32 @@ const NewIPDBillingModule: React.FC = () => {
         billingDate: transactionData.transaction_date,
         originalBillingDate: billingDate,
         formattedBillingDate: formattedBillingDate,
-        payment_mode: transactionData.payment_mode
+        payment_mode: transactionData.payment_mode,
+        isEditing: isEditing
       });
 
-      const { data: savedTransaction, error } = await supabase
-        .from('patient_transactions')
-        .insert([transactionData])
-        .select()
-        .single();
+      let savedTransaction, error;
+
+      if (isEditing) {
+        // Update existing transaction
+        const { data, error: updateError } = await supabase
+          .from('patient_transactions')
+          .update(transactionData)
+          .eq('id', editingBill.id)
+          .select()
+          .single();
+        savedTransaction = data;
+        error = updateError;
+      } else {
+        // Create new transaction
+        const { data, error: insertError } = await supabase
+          .from('patient_transactions')
+          .insert([transactionData])
+          .select()
+          .single();
+        savedTransaction = data;
+        error = insertError;
+      }
 
       console.log('📊 Supabase insert result:', { data: savedTransaction, error });
 
@@ -1254,14 +1918,16 @@ const NewIPDBillingModule: React.FC = () => {
         return;
       }
 
-      console.log('✅ IPD bill transaction saved:', savedTransaction);
-      toast.success(`IPD Bill generated successfully! Bill #${billReceiptNo}`);
+      console.log(`✅ IPD bill transaction ${isEditing ? 'updated' : 'saved'}:`, savedTransaction);
+      toast.success(`IPD Bill ${isEditing ? 'updated' : 'generated'} successfully! Bill #${billReceiptNo}`);
       
       // Refresh the IPD bills list
       await loadIPDBills();
       
       // Reset form or redirect
       setShowCreateBill(false);
+      setEditingBill(null);
+      resetForm();
       
       // Show success message with print option
       toast.success(
@@ -1288,11 +1954,25 @@ const NewIPDBillingModule: React.FC = () => {
   const [showAddDepositModal, setShowAddDepositModal] = useState(false);
   
   const handleAddDeposit = () => {
+
     if (!selectedPatient) {
       toast.error('Please select a patient first');
       return;
     }
+
+    // CRITICAL: Use the billing date selected by user, or today's date
+    const userSelectedDate = ensureDateFormat(billingDate);
+    console.log('🚨 DEPOSIT MODAL DATE SETUP:', {
+      'Current billingDate from UI': billingDate,
+      'getLocalDateString()': getLocalDateString(),
+      'ensureDateFormat result': userSelectedDate,
+      'Will use in modal': userSelectedDate
+    });
+
+
+    setNewPaymentDate(userSelectedDate);
     setShowAddDepositModal(true);
+
   };
 
   const handleSaveDeposit = async () => {
@@ -1320,9 +2000,192 @@ const NewIPDBillingModule: React.FC = () => {
 
   // Handler for View Receipt button
   const handleViewReceipt = (receiptId: string) => {
-    // TODO: Implement view receipt functionality
-    toast('Opening receipt...');
-    console.log('View receipt for:', receiptId);
+    // Find the deposit by receipt ID
+    const deposit = depositHistory.find(d => d.receiptNo === receiptId);
+    if (!deposit) {
+      toast.error('Deposit not found');
+      return;
+    }
+
+    // Open receipt in new window for viewing
+    const viewDepositReceipt = () => {
+      const getCurrentTime = () => {
+        const now = new Date();
+        return now.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        });
+      };
+
+      const convertToWords = (amount: number): string => {
+        if (amount === 0) return 'Zero';
+        const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if (amount < 10) return units[amount];
+        if (amount < 20) return teens[amount - 10];
+        if (amount < 100) return tens[Math.floor(amount / 10)] + (amount % 10 ? ' ' + units[amount % 10] : '');
+        if (amount < 1000) return units[Math.floor(amount / 100)] + ' Hundred' + (amount % 100 ? ' ' + convertToWords(amount % 100) : '');
+        if (amount < 100000) return convertToWords(Math.floor(amount / 1000)) + ' Thousand' + (amount % 1000 ? ' ' + convertToWords(amount % 1000) : '');
+        return 'Amount Too Large';
+      };
+
+      const viewContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>View Advance Deposit Receipt - ${deposit.receiptNo}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              background: white;
+            }
+            .receipt-view {
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+              border: 1px solid #ddd;
+              border-radius: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #0056B3;
+              color: white;
+              border: none;
+              padding: 10px 20px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-size: 14px;
+            }
+            .print-button:hover {
+              background: #004494;
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">🖨️ Print Receipt</button>
+          <div class="receipt-view">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #0056B3; padding-bottom: 20px;">
+              <h1 style="color: #0056B3; font-size: 32px; font-weight: bold; margin: 0;">HOSPITAL CRM PRO</h1>
+              <p style="color: black; font-size: 16px; margin: 8px 0;">Complete Healthcare Management System</p>
+              <p style="color: black; font-size: 14px; margin: 0;">📍 Your Hospital Address | 📞 Contact Number | 📧 Email</p>
+            </div>
+
+            <!-- Receipt Title -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h2 style="color: black; font-size: 24px; font-weight: bold; margin: 0; text-decoration: underline;">ADVANCE DEPOSIT RECEIPT</h2>
+              <p style="color: black; font-size: 16px; margin: 10px 0;">Receipt No: <strong>${deposit.receiptNo}</strong></p>
+            </div>
+
+            <!-- Date and Time -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
+              <div>
+                <p style="margin: 5px 0;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                <p style="margin: 5px 0;"><strong>TIME:</strong> ${getCurrentTime()}</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="margin: 5px 0;"><strong>RECEIPT DATE:</strong> ${deposit.date}</p>
+                <p style="margin: 5px 0;"><strong>PAYMENT MODE:</strong> ${deposit.paymentMode || 'CASH'}</p>
+              </div>
+            </div>
+
+            <!-- Patient Information -->
+            <div style="margin-bottom: 30px; border: 2px solid #ddd; padding: 20px; background-color: #f9f9f9;">
+              <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">PATIENT DETAILS</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${selectedPatient?.first_name || ''} ${selectedPatient?.last_name || ''}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient?.age || 'N/A'} years / ${selectedPatient?.gender || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${selectedPatient?.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient?.patient_id || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient?.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${selectedPatient?.admissions?.[0]?.bed_number || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Deposit Details -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">ADVANCE DEPOSIT DETAILS</h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
+                <thead>
+                  <tr style="background-color: #f0f0f0;">
+                    <th style="border: 1px solid black; padding: 12px; text-align: left; color: black;">Description</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black;">Payment Mode</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black;">Reference</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: right; color: black;">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="border: 1px solid black; padding: 12px; color: black;">IPD Advance Payment</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: center; color: black;">${deposit.paymentMode || 'CASH'}</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: center; color: black;">${deposit.reference || '-'}</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: right; color: black; font-weight: bold;">₹${deposit.amount?.toFixed(2) || '0.00'}</td>
+                  </tr>
+                  <tr style="background-color: #f0f0f0;">
+                    <td colspan="3" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">TOTAL ADVANCE DEPOSIT</td>
+                    <td style="border: 1px solid black; padding: 15px; text-align: right; color: black; font-weight: bold; font-size: 18px;">₹${deposit.amount?.toFixed(2) || '0.00'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Amount in Words -->
+            <div style="text-align: center; margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd;">
+              <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(deposit.amount || 0)} Rupees Only</p>
+            </div>
+
+            <!-- Important Notice -->
+            <div style="margin-bottom: 30px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+              <h4 style="color: black; font-size: 16px; font-weight: bold; margin-bottom: 8px;">Important Notice:</h4>
+              <ul style="color: black; font-size: 14px; margin: 0; padding-left: 20px;">
+                <li>This advance payment will be adjusted against your final bill</li>
+                <li>Please keep this receipt for your records</li>
+                <li>This receipt is valid for all insurance and reimbursement claims</li>
+                <li>For any queries, please contact the billing department</li>
+              </ul>
+            </div>
+
+            <!-- Signature Section -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Patient/Guardian Signature</p>
+              </div>
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Authorized Signature</p>
+                <p style="font-size: 12px; color: black; margin: 5px 0 0 0;">Billing Department</p>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 30px;">
+              <p style="margin: 0;">This is a computer-generated receipt and does not require a physical signature.</p>
+              <p style="margin: 5px 0 0 0;">Generated on ${new Date().toLocaleDateString('en-IN')} at ${getCurrentTime()}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const viewWindow = window.open('', '_blank');
+      if (viewWindow) {
+        viewWindow.document.write(viewContent);
+        viewWindow.document.close();
+      }
+    };
+
+    viewDepositReceipt();
+    toast.success('Opening deposit receipt...');
   };
 
   // Handler for Mark Bill as Completed
@@ -1376,19 +2239,396 @@ Type: ${transactionType} ${bill.display_icon || (bill.transaction_type === 'SERV
 Patient: ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}
 Amount: ₹${bill.amount?.toLocaleString() || '0'}
 Status: ${bill.status || 'UNKNOWN'}
-Date: ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : 'N/A'}
+Date: ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : (bill.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A')}
 Payment Mode: ${bill.payment_mode || 'N/A'}
 Doctor: ${bill.doctor_name || 'N/A'}
 Description: ${bill.description || 'N/A'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     `.trim();
     
-    alert(billDetails);
-    console.log('View transaction:', bill);
   };
+
+  // Handler for Edit Bill button
+  const handleEditBill = (bill: any) => {
+    console.log('✏️ Edit bill called:', bill);
+    console.log('✏️ Bill structure:', JSON.stringify(bill, null, 2));
+    console.log('🔍 DEBUGGING AMOUNT ISSUE:');
+    console.log('   - Bill amount from object:', bill.amount);
+    console.log('   - Bill amount type:', typeof bill.amount);
+    console.log('   - Bill description:', bill.description);
+    console.log('   - Bill transaction_type:', bill.transaction_type);
+    console.log('   - Bill payment_mode:', bill.payment_mode);
+
+    try {
+      // Parse billing rows from the saved bill data
+      let savedBillingRows = [];
+
+      console.log('🔍 Checking bill description:', bill.description);
+
+      if (bill.description && bill.description.includes('BILLING_ROWS:')) {
+        try {
+          // Try multiple regex patterns to match billing rows
+          let billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[.*\])$/);
+          if (!billingRowsMatch) {
+            billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?\])(?:\s|$)/);
+          }
+          if (!billingRowsMatch) {
+            // More liberal match for any array structure after BILLING_ROWS:
+            billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*)/);
+          }
+
+          if (billingRowsMatch) {
+            let billingRowsJson = billingRowsMatch[1];
+            console.log('🔍 RAW BILLING ROWS JSON:', billingRowsJson);
+
+            // Clean up the JSON string if it has trailing content
+            const lastBracket = billingRowsJson.lastIndexOf(']');
+            if (lastBracket !== -1) {
+              billingRowsJson = billingRowsJson.substring(0, lastBracket + 1);
+            }
+            console.log('🔍 CLEANED BILLING ROWS JSON:', billingRowsJson);
+
+            savedBillingRows = JSON.parse(billingRowsJson);
+            console.log('📝 Successfully parsed billing rows:', savedBillingRows);
+            console.log('🔍 PARSED BILLING ROWS DETAILS:');
+            savedBillingRows.forEach((row, index) => {
+              console.log(`   Row ${index}:`, {
+                serviceType: row.serviceType,
+                particulars: row.particulars,
+                unitPrice: row.unitPrice,
+                quantity: row.quantity,
+                total: row.total
+              });
+            });
+          } else {
+            console.warn('⚠️ No billing rows match found in description');
+            console.log('🔍 Description content:', bill.description);
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing billing rows JSON:', parseError);
+        }
+      } else {
+        console.warn('⚠️ No BILLING_ROWS found in description, using default structure');
+      }
+
+      // If no saved billing rows, try to reconstruct from bill description or create exact structure
+      if (savedBillingRows.length === 0) {
+        const billAmount = bill.amount || 0;
+        const descriptionText = bill.description || '';
+
+        console.log('📋 No billing rows found, reconstructing from bill data. Amount:', billAmount);
+        console.log('📝 Description text:', descriptionText);
+
+        // Try to extract exact values from description
+        const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
+        const stayMatch = descriptionText.match(/Stay:\s*₹(\d+(?:\.\d{2})?)/);
+        const serviceMatch = descriptionText.match(/Services:\s*₹(\d+(?:\.\d{2})?)/);
+        const discountMatch = descriptionText.match(/Discount:\s*₹(\d+(?:\.\d{2})?)/);
+        const taxMatch = descriptionText.match(/Tax:\s*₹(\d+(?:\.\d{2})?)/);
+
+        const extractedAdmission = admissionMatch ? (parseFloat(admissionMatch[1]) || 0) : 0;
+        const extractedStay = stayMatch ? (parseFloat(stayMatch[1]) || 0) : 0;
+        const extractedServices = serviceMatch ? (parseFloat(serviceMatch[1]) || 0) : 0;
+        const extractedDiscount = discountMatch ? (parseFloat(discountMatch[1]) || 0) : 0;
+        const extractedTax = taxMatch ? (parseFloat(taxMatch[1]) || 0) : 0;
+
+        console.log('💰 Extracted values:', {
+          admission: extractedAdmission,
+          stay: extractedStay,
+          services: extractedServices,
+          discount: extractedDiscount,
+          tax: extractedTax,
+          total: billAmount
+        });
+        console.log('🔍 AMOUNT DEBUGGING - Description parsing:');
+        console.log('   - Original bill amount:', billAmount);
+        console.log('   - Admission match:', admissionMatch);
+        console.log('   - Stay match:', stayMatch);
+        console.log('   - Services match:', serviceMatch);
+
+        // Create billing rows based on extracted or calculated values
+        savedBillingRows = [];
+
+        if (extractedAdmission > 0 || extractedStay > 0 || extractedServices > 0) {
+          // Use extracted values
+          if (extractedStay > 0) {
+            savedBillingRows.push({
+              id: '1',
+              serviceType: 'Room & Stay Charges',
+              particulars: 'Room & Stay Charges',
+              emergency: 'Yes',
+              doctor: '',
+              date: billingDate,
+              quantity: 1,
+              unitPrice: extractedStay,
+              discount: 0,
+              taxes: 0,
+              total: extractedStay
+            });
+          }
+
+          // Individual services should be stored separately in BILLING_ROWS
+
+          // If we have admission fee extracted, we'll set it later in the main extraction
+          // Don't set it here to avoid duplication
+        } else {
+          // Fall back to creating a single service entry with the total amount
+          savedBillingRows = [
+            {
+              id: '1',
+              serviceType: 'IPD Services & Treatment',
+              particulars: 'IPD Services & Treatment (Complete Bill)',
+              emergency: 'Yes',
+              doctor: '',
+              date: billingDate,
+              quantity: 1,
+              unitPrice: billAmount,
+              discount: 0,
+              taxes: 0,
+              total: billAmount
+            }
+          ];
+        }
+      }
+
+      // Find the patient from the current patients list
+      console.log('👤 Looking for patient with ID:', bill.patient_id);
+      const patient = patients.find(p => p.id === bill.patient_id);
+
+      if (patient) {
+        setSelectedPatient(patient);
+        const patientName = `${patient.first_name} ${patient.last_name} (${patient.patient_id})`;
+        setPatientSearchTerm(patientName);
+        console.log('✅ Patient found and set:', patientName);
+      } else {
+        console.warn('⚠️ Patient not found in current patients list');
+        // Still proceed, but show warning
+        toast.warning('Patient not found in current list, but bill will load');
+      }
+
+      // Set the billing date - use original date from bill, but allow user to change it
+      // CRITICAL FIX: Use transaction_date if available, otherwise fall back to created_at date
+      const originalBillingDate = bill.transaction_date?.split('T')[0] ||
+                                  bill.created_at?.split('T')[0] ||
+                                  getLocalDateString();
+      setBillingDate(originalBillingDate);
+      console.log('📅 Billing date set to original (editable):', originalBillingDate);
+      console.log('🔍 Date sources - transaction_date:', bill.transaction_date, 'created_at:', bill.created_at);
+
+      // Populate the billing rows
+      setBillingRows(savedBillingRows);
+      console.log('📋 Billing rows populated:', savedBillingRows.length, 'rows');
+
+      // Map billing rows back to the correct state variables for calculations
+      console.log('🔄 Mapping billing rows to state variables...');
+
+      // Create stay segments from billing rows
+      const newStaySegments = [];
+      const newSelectedServices = [];
+
+      savedBillingRows.forEach((row, index) => {
+        const serviceType = (row.serviceType || '').toLowerCase();
+        const particulars = (row.particulars || '').toLowerCase();
+
+        // Check if this is a stay/room related charge
+        if (serviceType.includes('room') || serviceType.includes('stay') || serviceType.includes('nursing') ||
+            particulars.includes('room') || particulars.includes('stay') || particulars.includes('nursing')) {
+
+          // Add to stay segments
+          const totalAmount = parseFloat(row.total) || 0;
+          const days = Math.max(1, parseInt(row.quantity) || 1);
+
+          // Calculate proper start and end dates based on the number of days
+          const startDate = row.date || billingDate;
+          const endDateObj = new Date(startDate);
+          endDateObj.setDate(endDateObj.getDate() + days);
+          const endDate = endDateObj.toISOString().split('T')[0];
+
+          // Try to intelligently distribute charges based on common hospital billing patterns
+          // Typically: Bed 50%, Nursing 20%, RMO 15%, Doctor 15%
+          const dailyTotal = totalAmount / days;
+          const bedChargePerDay = Math.round(dailyTotal * 0.5 * 100) / 100;  // 50%
+          const nursingChargePerDay = Math.round(dailyTotal * 0.2 * 100) / 100;  // 20%
+          const rmoChargePerDay = Math.round(dailyTotal * 0.15 * 100) / 100;  // 15%
+          const doctorChargePerDay = Math.round((dailyTotal - bedChargePerDay - nursingChargePerDay - rmoChargePerDay) * 100) / 100;  // Remaining
+
+          newStaySegments.push({
+            id: row.id || `stay-${index}`,
+            roomType: 'GENERAL_WARD', // Default, could be extracted from description
+            startDate: startDate,
+            endDate: endDate,
+            bedChargePerDay: bedChargePerDay,
+            nursingChargePerDay: nursingChargePerDay,
+            rmoChargePerDay: rmoChargePerDay,
+            doctorChargePerDay: doctorChargePerDay
+          });
+
+          console.log('🏨 Mapped to stay segment:', {
+            serviceType: row.serviceType,
+            originalTotal: row.total,
+            days: days,
+            dailyTotal: dailyTotal,
+            bedChargePerDay: bedChargePerDay,
+            nursingChargePerDay: nursingChargePerDay,
+            rmoChargePerDay: rmoChargePerDay,
+            doctorChargePerDay: doctorChargePerDay,
+            startDate: startDate,
+            endDate: endDate
+          });
+
+        } else {
+          // Add to selected services
+          newSelectedServices.push({
+            id: row.id || `service-${index}`,
+            name: row.serviceType || row.particulars || 'Medical Service',
+            selected: true,
+            amount: parseFloat(row.total) || 0
+          });
+
+          console.log('🩺 Mapped to service:', {
+            name: row.serviceType || row.particulars,
+            amount: row.total
+          });
+        }
+      });
+
+      // Update the state variables
+      setStaySegments(newStaySegments);
+      setSelectedServices(newSelectedServices);
+
+      console.log('✅ State mapping completed:');
+      console.log('   - Stay segments:', newStaySegments.length);
+      console.log('   - Selected services:', newSelectedServices.length);
+
+      // Populate other bill details for editing using exact extracted values
+      const totalAmount = bill.amount || 0;
+      const descriptionText = bill.description || '';
+
+      // Extract payment mode from the bill data
+      const paymentMode = bill.payment_mode || 'CASH';
+      setFinalPaymentMode(paymentMode);
+      console.log('💳 Payment mode set to:', paymentMode);
+
+      // Set ward category from description if available, otherwise default
+      if (descriptionText.includes('ICU')) {
+        setWardCategory('ICU');
+      } else if (descriptionText.includes('DELUXE')) {
+        setWardCategory('Deluxe');
+      } else if (descriptionText.includes('PRIVATE')) {
+        setWardCategory('Private');
+      } else {
+        setWardCategory('Emergency'); // Default
+      }
+      console.log('🏥 Ward category set from description');
+
+      // Extract exact values from bill description (same extraction as billing rows)
+      const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
+      const discountMatch = descriptionText.match(/Discount:\s*₹(\d+(?:\.\d{2})?)/);
+      const taxMatch = descriptionText.match(/Tax:\s*₹(\d+(?:\.\d{2})?)/);
+
+      // Check if this is a comprehensive bill to handle admission fee correctly
+      const billingRowsTotal = savedBillingRows.reduce((sum, row) => sum + (parseFloat(row.total) || 0), 0);
+      const isComprehensiveBill = savedBillingRows.length === 1 && Math.abs(billingRowsTotal - (totalAmount || 0)) < 1;
+
+      // Set exact admission fee from description
+      if (isComprehensiveBill) {
+        console.log('🔍 COMPREHENSIVE BILL - Setting admission fee to 0 (total is in service)');
+        setAdmissionFee(0);
+      } else if (admissionMatch) {
+        const extractedAdmissionFee = parseFloat(admissionMatch[1]) || 0;
+        setAdmissionFee(extractedAdmissionFee);
+        console.log('🏨 Admission fee extracted exactly:', extractedAdmissionFee);
+      } else {
+        // Calculate admission fee to balance the total
+        // Total = Admission + Stay + Services - Discount + Tax
+        // So Admission = Total - Stay - Services + Discount - Tax
+        const stayTotal = savedBillingRows.reduce((sum, row) => sum + (parseFloat(row.total) || 0), 0);
+        const extractedDiscount = discountMatch ? (parseFloat(discountMatch[1]) || 0) : 0;
+        const extractedTax = taxMatch ? (parseFloat(taxMatch[1]) || 0) : 0;
+
+        const calculatedAdmission = Math.max(0, (totalAmount || 0) - stayTotal + extractedDiscount - extractedTax);
+        setAdmissionFee(calculatedAdmission);
+        console.log('🏨 Admission fee calculated to balance total:', calculatedAdmission);
+        console.log('🔍 CALCULATION BREAKDOWN:');
+        console.log('   - Total amount:', totalAmount);
+        console.log('   - Stay/Services total:', stayTotal);
+        console.log('   - Extracted discount:', extractedDiscount);
+        console.log('   - Extracted tax:', extractedTax);
+        console.log('   - Formula: ', totalAmount, '-', stayTotal, '+', extractedDiscount, '-', extractedTax, '=', calculatedAdmission);
+      }
+
+      // Set exact discount from description
+      if (discountMatch) {
+        const extractedDiscount = parseFloat(discountMatch[1]) || 0;
+        setDiscount(extractedDiscount);
+        console.log('💸 Discount extracted exactly:', extractedDiscount);
+      } else {
+        setDiscount(0);
+        console.log('💸 No discount found in description, set to 0');
+      }
+
+      // Set exact tax from description
+      if (taxMatch) {
+        const extractedTax = parseFloat(taxMatch[1]) || 0;
+        setTax(extractedTax);
+        console.log('📊 Tax extracted exactly:', extractedTax);
+      } else {
+        setTax(0);
+        console.log('📊 No tax found in description, set to 0');
+      }
+
+      console.log('💰 Bill total amount:', totalAmount, '(exact values extracted for editing)');
+
+      // Set the editing state
+      setEditingBill(bill);
+      console.log('✏️ Editing state set');
+
+      // Open the create/edit form
+      setShowCreateBill(true);
+      console.log('📝 Form opened for editing');
+
+      // Final summary of what was set
+      console.log('🎯 FINAL EDIT STATE SUMMARY:');
+      console.log('   - Original bill amount:', bill.amount);
+      console.log('   - Billing rows loaded:', savedBillingRows.length);
+      console.log('   - Current admission fee state will be:', admissionMatch ? parseFloat(admissionMatch[1]) : 'calculated');
+      console.log('   - Current discount state will be:', discountMatch ? parseFloat(discountMatch[1]) : 0);
+      console.log('   - Current tax state will be:', taxMatch ? parseFloat(taxMatch[1]) : 0);
+      console.log('   - Expected total calculation will be: admission + services - discount + tax');
+
+      toast.success('Bill loaded for editing successfully!');
+
+    } catch (error) {
+      console.error('❌ Detailed error in handleEditBill:', error);
+      console.error('❌ Error stack:', error.stack);
+      toast.error(`Failed to load bill for editing: ${error.message}`);
+
+      // Even if there's an error, try to open the form with basic data
+      try {
+        setEditingBill(bill);
+        // Set the original billing date, but user can change it via the date input field
+        setBillingDate(bill.transaction_date?.split('T')[0] || bill.created_at?.split('T')[0] || getLocalDateString());
+        // Note: Total will be calculated dynamically from billing rows
+        setShowCreateBill(true);
+        toast.warning('Bill loaded with limited data due to parsing error');
+      } catch (fallbackError) {
+        console.error('❌ Even fallback failed:', fallbackError);
+      }
+    }
+  };
+
 
   // Handler for Print Bill button with exact ReceiptTemplate format
   const handlePrintBill = (bill: any) => {
+
+    // Check if we can extract services from description directly
+    if (bill.description?.includes('BILLING_ROWS:')) {
+      const match = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?\])/);
+      if (match) {
+        console.log('🔍 Raw BILLING_ROWS in description:');
+        console.log(match[1].substring(0, 500) + '...');
+      }
+    }
     // Create a temporary canvas to load and convert the image to base64
     const convertImageToBase64 = () => {
       return new Promise((resolve, reject) => {
@@ -1408,38 +2648,166 @@ Description: ${bill.description || 'N/A'}
       });
     };
 
-    // Parse bill description to extract services if available
-    const services = [];
-    if (bill.description) {
-      // Extract services from description - format: "Room: ₹1000, Medicine: ₹500, etc."
-      const serviceRegex = /([^:,]+):\s*₹([\d,]+(?:\.\d{2})?)/g;
-      let match;
-      let serviceIndex = 1;
-      
-      while ((match = serviceRegex.exec(bill.description)) !== null) {
-        const serviceName = match[1].trim();
-        const serviceAmount = parseFloat(match[2].replace(/,/g, ''));
-        services.push({
-          sr: serviceIndex,
-          service: serviceName,
-          qty: 1,
-          rate: serviceAmount,
-          amount: serviceAmount
-        });
-        serviceIndex++;
+    // Use actual billing rows data for services breakdown
+    const printServices = [];
+
+    // Extract the exact services data from the saved bill
+    let billRows = [];
+
+    console.log('🔍 Extracting services from saved bill data...');
+    console.log('🔍 Bill description preview:', bill.description?.substring(0, 300));
+
+    // Parse BILLING_ROWS from description
+    if (bill.description && bill.description.includes('BILLING_ROWS:')) {
+      try {
+        // Multiple regex patterns to extract BILLING_ROWS
+        let billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?\])(?:\s*$|$)/);
+        if (!billingRowsMatch) {
+          billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*)/);
+          if (billingRowsMatch) {
+            let rawJson = billingRowsMatch[1];
+            const lastBracket = rawJson.lastIndexOf(']');
+            if (lastBracket !== -1) {
+              rawJson = rawJson.substring(0, lastBracket + 1);
+            }
+            billingRowsMatch[1] = rawJson;
+          }
+        }
+
+        if (billingRowsMatch) {
+          billRows = JSON.parse(billingRowsMatch[1]);
+        }
+      } catch (error) {
+        console.error('❌ Failed to parse BILLING_ROWS:', error);
       }
     }
-    
-    // If no services found, add a general IPD service
-    if (services.length === 0) {
-      services.push({
-        sr: 1,
-        service: 'IPD Services & Treatment',
-        qty: 1,
-        rate: bill.amount || 0,
-        amount: bill.amount || 0
-      });
+
+    // If no billing rows found, try to extract basic amounts from description
+    if (billRows.length === 0) {
+      const descriptionText = bill.description || '';
+      const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
+      const stayMatch = descriptionText.match(/Stay:\s*₹(\d+(?:\.\d{2})?)/);
+
+      if (admissionMatch && parseFloat(admissionMatch[1]) > 0) {
+        billRows.push({
+          serviceType: 'Admission Fee',
+          particulars: 'Hospital Admission Charges',
+          quantity: 1,
+          unitPrice: parseFloat(admissionMatch[1]),
+          total: parseFloat(admissionMatch[1])
+        });
+      }
+
+      if (stayMatch && parseFloat(stayMatch[1]) > 0) {
+        billRows.push({
+          serviceType: 'Room & Stay Charges',
+          particulars: 'Room & Stay Charges',
+          quantity: 1,
+          unitPrice: parseFloat(stayMatch[1]),
+          total: parseFloat(stayMatch[1])
+        });
+      }
     }
+
+    // Process all individual services from BILLING_ROWS
+    if (billRows && billRows.length > 0) {
+      billRows.forEach((row, index) => {
+        const serviceName = row.particulars || row.serviceType || `Service ${index + 1}`;
+        const quantity = parseInt(row.quantity) || 1;
+        const unitPrice = parseFloat(row.unitPrice) || 0;
+        const total = parseFloat(row.total) || (quantity * unitPrice);
+
+        // Special handling for grouped "Medical Services & Treatment"
+        if ((serviceName === 'Medical Services & Treatment' ||
+             serviceName.includes('Medical Services')) && total === 1500) {
+
+          // Look for actual individual services in the BILLING_ROWS
+          const actualIndividualServices = billRows.filter(billRow => {
+            const rowService = (billRow.serviceType || billRow.particulars || '').toLowerCase();
+            const isNotGrouped = !rowService.includes('medical services') &&
+                                !rowService.includes('admission') &&
+                                !rowService.includes('room') &&
+                                !rowService.includes('stay');
+            const hasAmount = billRow.total > 0;
+            return isNotGrouped && hasAmount;
+          });
+
+          if (actualIndividualServices.length > 0) {
+            actualIndividualServices.forEach((service, serviceIndex) => {
+              printServices.push({
+                sr: printServices.length + 1,
+                service: service.particulars || service.serviceType,
+                qty: service.quantity || 1,
+                rate: service.unitPrice || service.total,
+                amount: service.total
+              });
+            });
+          } else {
+            // Keep as grouped service since we don't have real data
+            printServices.push({
+              sr: printServices.length + 1,
+              service: serviceName,
+              qty: quantity,
+              rate: unitPrice,
+              amount: total
+            });
+          }
+
+        } else {
+          // Regular service processing
+          if (total > 0 || unitPrice > 0) {
+            printServices.push({
+              sr: printServices.length + 1,
+              service: serviceName,
+              qty: quantity,
+              rate: unitPrice,
+              amount: total
+            });
+          }
+        }
+      });
+    } else {
+      // Fallback: Try to extract basic amounts from description
+      const descriptionText = bill.description || '';
+      let serviceIndex = 1;
+
+      const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
+      const stayMatch = descriptionText.match(/Stay:\s*₹(\d+(?:\.\d{2})?)/);
+      const servicesMatch = descriptionText.match(/Services:\s*₹(\d+(?:\.\d{2})?)/);
+
+      if (admissionMatch && parseFloat(admissionMatch[1]) > 0) {
+        printServices.push({
+          sr: serviceIndex++,
+          service: 'Hospital Admission Charges',
+          qty: 1,
+          rate: parseFloat(admissionMatch[1]),
+          amount: parseFloat(admissionMatch[1])
+        });
+      }
+
+      if (stayMatch && parseFloat(stayMatch[1]) > 0) {
+        printServices.push({
+          sr: serviceIndex++,
+          service: 'Room & Stay Charges',
+          qty: 1,
+          rate: parseFloat(stayMatch[1]),
+          amount: parseFloat(stayMatch[1])
+        });
+      }
+
+      if (servicesMatch && parseFloat(servicesMatch[1]) > 0) {
+        printServices.push({
+          sr: serviceIndex++,
+          service: 'Medical Services (Details Not Available)',
+          qty: 1,
+          rate: parseFloat(servicesMatch[1]),
+          amount: parseFloat(servicesMatch[1])
+        });
+      }
+    }
+
+    // Calculate correct totals from printServices, not from bill.amount
+    const servicesTotal = printServices.reduce((sum, service) => sum + (parseFloat(service.amount) || 0), 0);
 
     // Convert image and create print window
     convertImageToBase64().then((base64Image) => {
@@ -1519,14 +2887,28 @@ Description: ${bill.description || 'N/A'}
       });
     };
 
+    // Extract actual discount and tax from bill description
+    const descriptionText = bill.description || '';
+    const discountMatch = descriptionText.match(/Discount:\s*₹(\d+(?:\.\d{2})?)/);
+    const taxMatch = descriptionText.match(/Tax:\s*₹(\d+(?:\.\d{2})?)/);
+    const netMatch = descriptionText.match(/Net:\s*₹(\d+(?:\.\d{2})?)/);
+
+    const actualDiscount = discountMatch ? parseFloat(discountMatch[1]) : 0;
+    const actualTax = taxMatch ? parseFloat(taxMatch[1]) : 0;
+    const actualNetAmount = netMatch ? parseFloat(netMatch[1]) : bill.amount;
+
+    // Calculate totals based on actual printServices and charges from bill
+    const calculatedServicesTotal = printServices.reduce((sum, service) => sum + (parseFloat(service.amount) || 0), 0);
+
     const totals = {
-      subtotal: bill.amount || 0,
-      discount: 0,
+      subtotal: calculatedServicesTotal,
+      discount: actualDiscount,
       insurance: 0,
-      netAmount: bill.amount || 0,
-      amountPaid: bill.amount || 0,
+      netAmount: actualNetAmount || calculatedServicesTotal,
+      amountPaid: actualNetAmount || calculatedServicesTotal,
       balance: 0
     };
+
     
     const billHTML = `
       <!DOCTYPE html>
@@ -1717,7 +3099,7 @@ Description: ${bill.description || 'N/A'}
                   <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
                 </div>
                 <div>
-                  <p style="color: black; margin: 6px 0;"><strong>SERVICE DATE:</strong> ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>SERVICE DATE:</strong> ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString('en-IN') : (bill.created_at ? new Date(bill.created_at).toLocaleDateString('en-IN') : 'N/A')}</p>
                   <p style="color: black; margin: 6px 0;"><strong>PROCESSED BY:</strong> IPD Billing Department</p>
                 </div>
               </div>
@@ -1745,7 +3127,7 @@ Description: ${bill.description || 'N/A'}
                   </tr>
                 </thead>
                 <tbody>
-                  ${services.map((service, index) => `
+                  ${printServices.map((service, index) => `
                     <tr>
                       <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.sr}</td>
                       <td style="border: 1px solid black; padding: 10px; color: black; font-size: 14px;">${service.service}</td>
@@ -1756,10 +3138,10 @@ Description: ${bill.description || 'N/A'}
                       <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${bill.payment_mode || 'UPI'}</td>
                     </tr>
                   `).join('')}
-                  <!-- Net Amount Payable Row -->
+                  <!-- Net Amount Paid Row -->
                   <tr style="background-color: #f0f0f0;">
                     <td colspan="7" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">
-                      Net Amount Payable: ₹${totals.netAmount.toFixed(2)}
+                      Net Amount Paid: ₹${totals.netAmount.toFixed(2)}
                     </td>
                   </tr>
                 </tbody>
@@ -1771,13 +3153,6 @@ Description: ${bill.description || 'N/A'}
               <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(totals.netAmount)}</p>
             </div>
 
-            <!-- Notes Section -->
-            <div style="margin-bottom: 30px;">
-              <h4 style="color: black; font-size: 16px; font-weight: bold; margin-bottom: 8px;">Notes:</h4>
-              <p style="color: black; font-size: 14px; background-color: #fffbf0; padding: 12px; border: 1px solid #ddd; margin: 0;">
-                ${bill.description || `IPD Advance Payment - Receipt ${bill.transaction_reference || bill.id || 'N/A'}`}
-              </p>
-            </div>
 
             <!-- Signature Section -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
@@ -1927,9 +3302,216 @@ Description: ${bill.description || 'N/A'}
 
   // Handler for Print Receipt button
   const handlePrintReceipt = (receiptId: string) => {
-    // TODO: Implement print receipt functionality
-    window.print();
-    toast.success('Opening print dialog...');
+    // Find the deposit by receipt ID
+    const deposit = depositHistory.find(d => d.receiptNo === receiptId);
+    if (!deposit) {
+      toast.error('Deposit not found');
+      return;
+    }
+
+    // Generate deposit receipt print
+    const printDepositReceipt = () => {
+      const getCurrentTime = () => {
+        const now = new Date();
+        return now.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        });
+      };
+
+      const convertToWords = (amount: number): string => {
+        // Simple number to words conversion
+        if (amount === 0) return 'Zero';
+
+        const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if (amount < 10) return units[amount];
+        if (amount < 20) return teens[amount - 10];
+        if (amount < 100) return tens[Math.floor(amount / 10)] + (amount % 10 ? ' ' + units[amount % 10] : '');
+        if (amount < 1000) return units[Math.floor(amount / 100)] + ' Hundred' + (amount % 100 ? ' ' + convertToWords(amount % 100) : '');
+        if (amount < 100000) return convertToWords(Math.floor(amount / 1000)) + ' Thousand' + (amount % 1000 ? ' ' + convertToWords(amount % 1000) : '');
+
+        return 'Amount Too Large';
+      };
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Advance Deposit Receipt - ${deposit.receiptNo}</title>
+          <style>
+            @media print {
+              @page {
+                size: A4;
+                margin: 15mm;
+              }
+              body * {
+                visibility: hidden;
+              }
+              .receipt-template, .receipt-template * {
+                visibility: visible !important;
+                opacity: 1 !important;
+              }
+              .receipt-template {
+                position: absolute;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                page-break-inside: avoid;
+              }
+              .print\\:hidden {
+                display: none !important;
+              }
+              .receipt-template * {
+                color: black !important;
+                border-color: #333 !important;
+              }
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+
+            .receipt-template {
+              width: 100%;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+              background: white;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-template">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #0056B3; padding-bottom: 20px;">
+              <h1 style="color: #0056B3; font-size: 32px; font-weight: bold; margin: 0;">HOSPITAL CRM PRO</h1>
+              <p style="color: black; font-size: 16px; margin: 8px 0;">Complete Healthcare Management System</p>
+              <p style="color: black; font-size: 14px; margin: 0;">📍 Your Hospital Address | 📞 Contact Number | 📧 Email</p>
+            </div>
+
+            <!-- Receipt Title -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h2 style="color: black; font-size: 24px; font-weight: bold; margin: 0; text-decoration: underline;">ADVANCE DEPOSIT RECEIPT</h2>
+              <p style="color: black; font-size: 16px; margin: 10px 0;">Receipt No: <strong>${deposit.receiptNo}</strong></p>
+            </div>
+
+            <!-- Date and Time -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
+              <div>
+                <p style="margin: 5px 0;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                <p style="margin: 5px 0;"><strong>TIME:</strong> ${getCurrentTime()}</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="margin: 5px 0;"><strong>RECEIPT DATE:</strong> ${deposit.date}</p>
+                <p style="margin: 5px 0;"><strong>PAYMENT MODE:</strong> ${deposit.paymentMode || 'CASH'}</p>
+              </div>
+            </div>
+
+            <!-- Patient Information -->
+            <div style="margin-bottom: 30px; border: 2px solid #ddd; padding: 20px; background-color: #f9f9f9;">
+              <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">PATIENT DETAILS</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>NAME:</strong> ${selectedPatient?.first_name || ''} ${selectedPatient?.last_name || ''}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient?.age || 'N/A'} years / ${selectedPatient?.gender || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${selectedPatient?.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient?.patient_id || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient?.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ROOM/BED:</strong> ${selectedPatient?.admissions?.[0]?.bed_number || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Deposit Details -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="color: black; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">ADVANCE DEPOSIT DETAILS</h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
+                <thead>
+                  <tr style="background-color: #f0f0f0;">
+                    <th style="border: 1px solid black; padding: 12px; text-align: left; color: black;">Description</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black;">Payment Mode</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black;">Reference</th>
+                    <th style="border: 1px solid black; padding: 12px; text-align: right; color: black;">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="border: 1px solid black; padding: 12px; color: black;">IPD Advance Payment</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: center; color: black;">${deposit.paymentMode || 'CASH'}</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: center; color: black;">${deposit.reference || '-'}</td>
+                    <td style="border: 1px solid black; padding: 12px; text-align: right; color: black; font-weight: bold;">₹${deposit.amount?.toFixed(2) || '0.00'}</td>
+                  </tr>
+                  <tr style="background-color: #f0f0f0;">
+                    <td colspan="3" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">TOTAL ADVANCE DEPOSIT</td>
+                    <td style="border: 1px solid black; padding: 15px; text-align: right; color: black; font-weight: bold; font-size: 18px;">₹${deposit.amount?.toFixed(2) || '0.00'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Amount in Words -->
+            <div style="text-align: center; margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd;">
+              <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(deposit.amount || 0)} Rupees Only</p>
+            </div>
+
+            <!-- Important Notice -->
+            <div style="margin-bottom: 30px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+              <h4 style="color: black; font-size: 16px; font-weight: bold; margin-bottom: 8px;">Important Notice:</h4>
+              <ul style="color: black; font-size: 14px; margin: 0; padding-left: 20px;">
+                <li>This advance payment will be adjusted against your final bill</li>
+                <li>Please keep this receipt for your records</li>
+                <li>This receipt is valid for all insurance and reimbursement claims</li>
+                <li>For any queries, please contact the billing department</li>
+              </ul>
+            </div>
+
+            <!-- Signature Section -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Patient/Guardian Signature</p>
+              </div>
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Authorized Signature</p>
+                <p style="font-size: 12px; color: black; margin: 5px 0 0 0;">Billing Department</p>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 30px;">
+              <p style="margin: 0;">This is a computer-generated receipt and does not require a physical signature.</p>
+              <p style="margin: 5px 0 0 0;">Generated on ${new Date().toLocaleDateString('en-IN')} at ${getCurrentTime()}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 250);
+        };
+      }
+    };
+
+    printDepositReceipt();
+    toast.success('Opening deposit receipt for printing...');
   };
 
   // Handler for Export History button
@@ -1998,7 +3580,10 @@ Description: ${bill.description || 'N/A'}
               <span>Test Print</span>
             </button>
             <button
-              onClick={() => setShowCreateBill(true)}
+              onClick={() => {
+                resetForm();
+                setShowCreateBill(true);
+              }}
               className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
             >
               <Plus className="h-4 w-4" />
@@ -2112,16 +3697,23 @@ Description: ${bill.description || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : 'N/A'}
+                          {bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : (bill.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button 
+                          <button
                             className="text-blue-600 hover:text-blue-900 mr-3"
                             onClick={() => handleViewBill(bill)}
                           >
                             View
                           </button>
-                          <button 
+                          <button
+                            className="text-orange-600 hover:text-orange-900 mr-3"
+                            onClick={() => handleEditBill(bill)}
+                            title="Edit Bill"
+                          >
+                            Edit
+                          </button>
+                          <button
                             className="text-green-600 hover:text-green-900 mr-3"
                             onClick={() => handlePrintBill(bill)}
                           >
@@ -2245,6 +3837,32 @@ Description: ${bill.description || 'N/A'}
           <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
           <p className="text-gray-600">Manage inpatient department bills</p>
         </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => {
+
+              if (selectedPatient) {
+                handleAddDeposit();
+              } else {
+                setShowPatientModal(true);
+              }
+            }}
+            className="mt-4 md:mt-0 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center space-x-2 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Deposit</span>
+          </button>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowCreateBill(true);
+            }}
+            className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create IPD Bill</span>
+          </button>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -2345,7 +3963,7 @@ Description: ${bill.description || 'N/A'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : 'N/A'}
+                        {bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString() : (bill.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A')}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button 
@@ -2406,9 +4024,15 @@ Description: ${bill.description || 'N/A'}
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Create IPD Bill</h3>
+                <h3 className="text-xl font-semibold text-gray-800">
+                  {editingBill ? 'Edit IPD Bill' : 'Create IPD Bill'}
+                </h3>
                 <button
-                  onClick={() => setShowCreateBill(false)}
+                  onClick={() => {
+                    setShowCreateBill(false);
+                    setEditingBill(null);
+                    resetForm();
+                  }}
                   className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
                 >
                   <X className="h-5 w-5" />
@@ -2434,8 +4058,8 @@ Description: ${bill.description || 'N/A'}
                   )}
                 </div>
 
-                {/* IPD Patient History */}
-                {selectedPatient && (
+                {/* IPD Patient History - Hidden when editing */}
+                {selectedPatient && !editingBill && (
                   <div className="bg-white rounded-lg border border-gray-200">
                     <div className="px-4 py-3 border-b border-gray-200 bg-blue-50">
                       <div className="flex items-center justify-between">
@@ -2480,7 +4104,7 @@ Description: ${bill.description || 'N/A'}
                                 {patientHistory.map((transaction, index) => (
                                   <tr key={transaction.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                     <td className="px-3 py-2 text-xs text-gray-900">
-                                      {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'N/A'}
+                                      {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : (transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : 'N/A')}
                                     </td>
                                     <td className="px-3 py-2 text-xs">
                                       <div className="font-medium text-gray-900">
@@ -2565,34 +4189,36 @@ Description: ${bill.description || 'N/A'}
                   </div>
                 )}
 
-                {/* Billing Sections */}
-                <div className="border-b border-gray-200">
-                  <nav className="-mb-px flex space-x-8">
-                    <button 
-                      onClick={() => setActiveSection('billing')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeSection === 'billing'
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      Create Bill
-                    </button>
-                    <button 
-                      onClick={() => setActiveSection('deposit')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeSection === 'deposit'
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      Payment History
-                    </button>
-                  </nav>
-                </div>
+                {/* Billing Sections - Hidden when editing */}
+                {!editingBill && (
+                  <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-8">
+                      <button
+                        onClick={() => setActiveSection('billing')}
+                        className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                          activeSection === 'billing'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Create Bill
+                      </button>
+                      <button
+                        onClick={() => setActiveSection('deposit')}
+                        className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                          activeSection === 'deposit'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Payment History
+                      </button>
+                    </nav>
+                  </div>
+                )}
 
                 {/* Original IPD Billing Format with Enhanced UI */}
-                {activeSection === 'billing' && (
+                {(activeSection === 'billing' || editingBill) && (
                   <div className="space-y-6">
                     {/* Billing Header */}
                     <div className="flex items-center justify-between">
@@ -2957,7 +4583,7 @@ Description: ${bill.description || 'N/A'}
                         </div>
                         <div className="bg-blue-100 p-4 rounded-lg border border-blue-300">
                           <div className="text-sm text-blue-700">Grand Total</div>
-                          <div className="text-xl font-bold text-blue-800">₹{(admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal()).toFixed(2)}</div>
+                          <div className="text-xl font-bold text-blue-800">₹{((parseFloat(admissionFee) || 0) + calculateTotalStayCharges() + calculateSelectedServicesTotal()).toFixed(2)}</div>
                         </div>
                       </div>
 
@@ -3003,7 +4629,7 @@ Description: ${bill.description || 'N/A'}
                             <div className="text-lg font-semibold text-blue-800">Net Payable Amount</div>
                             <div className="text-sm text-blue-600">After discount and additional charges</div>
                           </div>
-                          <div className="text-3xl font-bold text-blue-800">₹{(admissionFee + calculateTotalStayCharges() + calculateSelectedServicesTotal() - discount + tax).toFixed(2)}</div>
+                          <div className="text-3xl font-bold text-blue-800">₹{((parseFloat(admissionFee) || 0) + calculateTotalStayCharges() + calculateSelectedServicesTotal() - (parseFloat(discount) || 0) + (parseFloat(tax) || 0)).toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
@@ -3024,12 +4650,16 @@ Description: ${bill.description || 'N/A'}
                       </div>
                       <div className="flex space-x-3">
                         <button
-                          onClick={() => setShowCreateBill(false)}
+                          onClick={() => {
+                            setShowCreateBill(false);
+                            setEditingBill(null);
+                            resetForm();
+                          }}
                           className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                         >
                           Cancel
                         </button>
-                        <button 
+                        <button
                           onClick={handleGenerateIPDBill}
                           className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md hover:from-blue-700 hover:to-indigo-700 transition-colors font-semibold">
                           Generate IPD Bill
@@ -3039,8 +4669,8 @@ Description: ${bill.description || 'N/A'}
                   </div>
                 )}
 
-                {/* Enhanced Deposit History Section */}
-                {activeSection === 'deposit' && (
+                {/* Enhanced Deposit History Section - Hidden when editing */}
+                {activeSection === 'deposit' && !editingBill && (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-lg font-semibold text-gray-800">Advance Deposit Management</h4>
@@ -3054,8 +4684,10 @@ Description: ${bill.description || 'N/A'}
                             className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
                           />
                         </div>
-                        <button 
-                          onClick={handleAddDeposit}
+                        <button
+                          onClick={() => {
+                            handleAddDeposit();
+                          }}
                           className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
                           + Add New Deposit
                         </button>
@@ -3107,7 +4739,9 @@ Description: ${bill.description || 'N/A'}
                               {depositHistory.map((deposit, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
                                   <td className="px-4 py-3 text-sm font-mono">{deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`}</td>
-                                  <td className="px-4 py-3 text-sm">{deposit.date || new Date().toLocaleDateString('en-IN')}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <div>{deposit.date || new Date().toLocaleDateString('en-IN')}</div>
+                                  </td>
                                   <td className="px-4 py-3 text-sm font-semibold text-green-600">₹{deposit.amount || '0.00'}</td>
                                   <td className="px-4 py-3 text-sm">
                                     <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
@@ -3118,10 +4752,15 @@ Description: ${bill.description || 'N/A'}
                                   <td className="px-4 py-3 text-sm">{deposit.receivedBy || 'System'}</td>
                                   <td className="px-4 py-3 text-sm">
                                     <div className="flex space-x-2">
-                                      <button 
+                                      <button
+                                        onClick={() => handleEditDeposit(deposit)}
+                                        className="text-orange-600 hover:text-orange-800 text-xs font-medium">
+                                        Edit
+                                      </button>
+                                      <button
                                         onClick={() => handleViewReceipt(deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`)}
                                         className="text-blue-600 hover:text-blue-800 text-xs">View Receipt</button>
-                                      <button 
+                                      <button
                                         onClick={() => handlePrintReceipt(deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`)}
                                         className="text-green-600 hover:text-green-800 text-xs">Print</button>
                                     </div>
@@ -3478,6 +5117,21 @@ Description: ${bill.description || 'N/A'}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Deposit Date * (Auto-synced with billing date)
+                </label>
+                <input
+                  type="date"
+                  value={newPaymentDate}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This date automatically syncs with the billing date you select above. Change the billing date to update this.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Payment Mode
                 </label>
                 <select
@@ -3525,6 +5179,7 @@ Description: ${bill.description || 'N/A'}
                     setShowAddDepositModal(false);
                     setNewPaymentAmount('');
                     setNewPaymentMode('Cash');
+                    setNewPaymentDate('');
                     setReferenceNo('');
                     setReceivedBy('');
                   }}
@@ -3533,10 +5188,137 @@ Description: ${bill.description || 'N/A'}
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveDeposit}
+                  onClick={() => {
+                    console.log('🔥 SAVE BUTTON CLICKED - CURRENT STATE:', {
+                      'newPaymentAmount': newPaymentAmount,
+                      'newPaymentDate': newPaymentDate,
+                      'newPaymentMode': newPaymentMode,
+                      'billingDate': billingDate,
+                      'selectedPatient': selectedPatient?.first_name
+                    });
+                    handleSaveDeposit();
+                  }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
                   Save Deposit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Deposit Modal */}
+      {showEditDepositModal && editingDeposit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Edit Deposit</h3>
+                <button
+                  onClick={handleCancelEditDeposit}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Receipt No.
+                  </label>
+                  <input
+                    type="text"
+                    value={editingDeposit.receiptNo}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Amount *
+                  </label>
+                  <input
+                    type="number"
+                    value={editDepositAmount}
+                    onChange={(e) => setEditDepositAmount(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={editDepositDate}
+                    onChange={(e) => setEditDepositDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Mode *
+                  </label>
+                  <select
+                    value={editDepositPaymentMode}
+                    onChange={(e) => setEditDepositPaymentMode(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="CARD">Card</option>
+                    <option value="UPI">UPI</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reference No. (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editDepositReference}
+                    onChange={(e) => setEditDepositReference(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Transaction ID or reference"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Received By
+                  </label>
+                  <input
+                    type="text"
+                    value={editDepositReceivedBy}
+                    onChange={(e) => setEditDepositReceivedBy(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Staff member name"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-6">
+                <button
+                  onClick={handleCancelEditDeposit}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateDeposit}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+                >
+                  Update Deposit
                 </button>
               </div>
             </div>

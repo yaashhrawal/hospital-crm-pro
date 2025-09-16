@@ -447,10 +447,16 @@ const IPDBedManagement: React.FC = () => {
   
   // Reset history when beds change (but don't auto-load)
   useEffect(() => {
-    // Close any open history when beds are reloaded
-    setShowHistoryForBed(null);
-    // Clear history for beds that are no longer occupied
+    // Only close history if the currently shown bed is no longer occupied
     const occupiedBedIds = beds.filter(bed => bed.status === 'occupied').map(bed => bed.id);
+    
+    // Close history only if the currently open history bed is no longer occupied
+    if (showHistoryForBed && !occupiedBedIds.includes(showHistoryForBed)) {
+      console.log('📖 Closing history for bed that is no longer occupied:', showHistoryForBed);
+      setShowHistoryForBed(null);
+    }
+    
+    // Clear history for beds that are no longer occupied
     setBedPatientHistory(prev => {
       const filtered: Record<string, any[]> = {};
       occupiedBedIds.forEach(bedId => {
@@ -458,7 +464,7 @@ const IPDBedManagement: React.FC = () => {
       });
       return filtered;
     });
-  }, [beds]);
+  }, [beds, showHistoryForBed]);
 
   // DEBUG: Show exact database contents
   const debugDatabaseBeds = async () => {
@@ -636,16 +642,36 @@ const IPDBedManagement: React.FC = () => {
   };
   
   // Handle history button click
-  const handleHistoryClick = async (bed: BedData) => {
+  const handleHistoryClick = async (bed: BedData, event: React.MouseEvent) => {
+    // Prevent event from bubbling up to the parent bed card
+    event.stopPropagation();
+    
+    console.log('🔍 History button clicked for bed:', bed.id, 'bed number:', bed.bed_number);
+    console.log('🔍 Current showHistoryForBed:', showHistoryForBed);
+    console.log('🔍 Is currently loading:', historyLoading[bed.id]);
+    
+    // Prevent action if already loading
+    if (historyLoading[bed.id]) {
+      console.log('📖 History is loading, ignoring click');
+      return;
+    }
+    
     if (showHistoryForBed === bed.id) {
       // Close if already open
+      console.log('📖 Closing history for bed:', bed.id);
       setShowHistoryForBed(null);
     } else {
-      // Load history if not already loaded
-      if (!bedPatientHistory[bed.id]) {
-        await loadPatientHistoryForBed(bed);
-      }
+      console.log('📖 Opening history for bed:', bed.id);
+      // First show the history section immediately
       setShowHistoryForBed(bed.id);
+      
+      // Then load history if not already loaded
+      if (!bedPatientHistory[bed.id] || bedPatientHistory[bed.id].length === 0) {
+        console.log('📖 Loading history for bed:', bed.id);
+        await loadPatientHistoryForBed(bed);
+      } else {
+        console.log('📖 History already loaded for bed:', bed.id, 'count:', bedPatientHistory[bed.id].length);
+      }
     }
   };
 
@@ -1999,7 +2025,7 @@ const IPDBedManagement: React.FC = () => {
                     <div className="mt-3">
                       {/* History Button */}
                       <button
-                        onClick={() => handleHistoryClick(bed)}
+                        onClick={(e) => handleHistoryClick(bed, e)}
                         className="w-full p-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg border border-blue-200 transition-all duration-300 hover:shadow-md"
                       >
                         <div className="flex items-center justify-between">
