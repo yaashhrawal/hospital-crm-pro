@@ -114,6 +114,7 @@ const IPDBillingModule: React.FC = () => {
         selected: false,
         amount: 0
       }));
+      console.log('🔧 Debug - Initializing services:', initialServices.slice(0, 3));
       setFormData(prev => ({ ...prev, services: initialServices }));
     }
   }, []);
@@ -315,7 +316,11 @@ const IPDBillingModule: React.FC = () => {
         dischargeDate: formData.dischargeDate,
         admissionCharges: formData.admissionCharges,
         staySegments: formData.staySegments,
-        services: formData.services.filter(service => service.selected),
+        services: (() => {
+          const selectedServices = formData.services.filter(service => service.selected);
+          console.log('💾 Debug - Selected services to save:', selectedServices);
+          return selectedServices;
+        })(),
         totalStayCharges: calculateTotalStayCharges(),
         totalServiceCharges: calculateTotalServiceCharges(),
         grandTotal: calculateGrandTotal(),
@@ -392,6 +397,16 @@ const IPDBillingModule: React.FC = () => {
       return;
     }
 
+    console.log('🖨️ Debug - IPD Bill for printing:', {
+      billId: bill.billId,
+      patientName: bill.patientName,
+      admissionCharges: bill.admissionCharges,
+      staySegments: bill.staySegments,
+      services: bill.services,
+      totalStayCharges: bill.totalStayCharges,
+      totalServiceCharges: bill.totalServiceCharges
+    });
+
     // Fetch complete patient details
     let patientDetails = null;
     try {
@@ -440,15 +455,15 @@ const IPDBillingModule: React.FC = () => {
       
       payments: [{
         mode: bill.paymentMode || 'CASH',
-        amount: bill.totalAmount
+        amount: bill.grandTotal || bill.totalAmount || 0
       }],
       
       totals: {
-        subtotal: bill.totalAmount || 0,
+        subtotal: bill.grandTotal || bill.totalAmount || 0,
         discount: bill.discount || 0,
         insurance: 0,
-        netAmount: (bill.totalAmount || 0) - (bill.discount || 0),
-        amountPaid: bill.totalAmount || 0,
+        netAmount: (bill.grandTotal || bill.totalAmount || 0) - (bill.discount || 0),
+        amountPaid: bill.grandTotal || bill.totalAmount || 0,
         balance: 0
       },
       
@@ -481,15 +496,36 @@ const IPDBillingModule: React.FC = () => {
       });
     });
 
-    // Add services
-    bill.services.forEach(service => {
-      receiptData.charges.push({
-        description: service.name,
+    // Add services - All services are already filtered when saved, so include all
+    console.log('🧾 Debug - Adding services to receipt:', bill.services);
+
+    // Since services are already filtered to selected ones when the bill is saved,
+    // we should include all services from the bill
+    bill.services.forEach((service, index) => {
+      console.log(`📋 Service ${index + 1}:`, {
+        name: service.name,
         amount: service.amount,
         quantity: service.quantity || 1,
-        rate: service.amount / (service.quantity || 1)
+        selected: service.selected
       });
+
+      // Only add if service has a name and amount
+      if (service.name && service.amount > 0) {
+        const quantity = service.quantity || 1;
+        const serviceName = service.name.trim(); // Ensure no extra spaces
+
+        console.log(`✅ Adding service to receipt: "${serviceName}" - ₹${service.amount}`);
+
+        receiptData.charges.push({
+          description: serviceName,
+          amount: service.amount,
+          quantity: quantity,
+          rate: service.amount / quantity
+        });
+      }
     });
+
+    console.log('📄 Debug - Final receiptData.charges:', receiptData.charges);
 
     // Create temporary container for printing
     const printContainer = document.createElement('div');

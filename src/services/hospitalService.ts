@@ -647,7 +647,7 @@ export class HospitalService {
       
       // If requesting more than 1000, we need to paginate
       let allPatients: any[] = [];
-      const pageSize = 10000; // Supabase max
+      const pageSize = 1000; // Supabase PostgREST actual max limit
       
       // Calculate actual patients to fetch based on what's available
       const actualPatientCount = includeInactive ? (totalInactiveCount || 0) : (totalCount || 0);

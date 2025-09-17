@@ -842,6 +842,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                     <th className="text-left p-2">Date</th>
                     <th className="text-left p-2">Type</th>
                     <th className="text-left p-2">Description</th>
+                    <th className="text-left p-2">Doctor</th>
                     <th className="text-left p-2">Amount</th>
                     <th className="text-left p-2">Discount</th>
                     <th className="text-left p-2">Payment</th>
@@ -920,6 +921,11 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                         cleanDescription = cleanDescription.replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '');
                         return cleanDescription.trim();
                       })()}</td>
+                      <td className="p-2">
+                        <span className="text-sm text-gray-700">
+                          {transaction.doctor_name || patient.assigned_doctor || 'Not Assigned'}
+                        </span>
+                      </td>
                       <td className="p-2">
                         <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
                           ₹{Math.abs(transaction.amount).toLocaleString()}

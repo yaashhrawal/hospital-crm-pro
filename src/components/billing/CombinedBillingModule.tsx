@@ -95,7 +95,7 @@ const CombinedBillingModule: React.FC = () => {
       setLoading(true);
       
       // Load actual patients from HospitalService
-      const actualPatients = await HospitalService.getPatients(1000);
+      const actualPatients = await HospitalService.getPatients(50000, true, true);
       console.log('📊 Loaded patients for combined billing:', actualPatients.length);
       console.log('👥 First few patients:', actualPatients.slice(0, 3));
 

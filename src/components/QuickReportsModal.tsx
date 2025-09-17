@@ -24,7 +24,7 @@ const QuickReportsModal: React.FC<QuickReportsModalProps> = ({ isOpen, onClose }
     setLoading(true);
     try {
       const [patientsData, appointmentsData] = await Promise.all([
-        HospitalService.getPatients(100),
+        HospitalService.getPatients(50000, true, true),
         HospitalService.getAppointments(100)
       ]);
       

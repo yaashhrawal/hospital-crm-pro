@@ -74,6 +74,28 @@ const OperationsLedger: React.FC = () => {
     loadLedgerEntries();
   }, [dateFrom, dateTo]);
 
+  // Listen for service updates to refresh operations
+  useEffect(() => {
+    const handleServiceUpdate = () => {
+      console.log('🔄 Service updated - refreshing operations ledger');
+      loadLedgerEntries();
+    };
+
+    const handleTransactionUpdate = () => {
+      console.log('🔄 Transaction updated - refreshing operations ledger');
+      loadLedgerEntries();
+    };
+
+    // Listen for service and transaction updates
+    window.addEventListener('servicesUpdated', handleServiceUpdate);
+    window.addEventListener('transactionUpdated', handleTransactionUpdate);
+
+    return () => {
+      window.removeEventListener('servicesUpdated', handleServiceUpdate);
+      window.removeEventListener('transactionUpdated', handleTransactionUpdate);
+    };
+  }, []);
+
   const loadLedgerEntries = async () => {
     setLoading(true);
     
@@ -165,27 +187,52 @@ const OperationsLedger: React.FC = () => {
           // Extract consultant name and department
           let consultantName = '';
           let department = '';
-          
-          // If it's a consultation, ensure proper doctor name format
-          if (trans.transaction_type === 'consultation') {
-            // Extract doctor name from description if present
+
+          // PRIORITY 1: Use transaction-specific doctor name if available
+          if (trans.doctor_name) {
+            consultantName = trans.doctor_name;
+            console.log(`✅ Using transaction doctor: ${trans.doctor_name} for transaction ${trans.id}`);
+          }
+          // PRIORITY 2: For consultations, try to extract from description
+          else if (trans.transaction_type === 'consultation') {
             const doctorMatch = cleanDescription.match(/Consultation Fee - (.+?)(?:\s*-\s*Patient Age|$)/);
             if (doctorMatch) {
               consultantName = doctorMatch[1];
               cleanDescription = `Consultation Fee - ${consultantName}`;
-            } else if (trans.doctor_name) {
-              consultantName = trans.doctor_name.toUpperCase();
-              cleanDescription = `Consultation Fee - ${consultantName}`;
+              console.log(`✅ Using consultation doctor from description: ${consultantName} for transaction ${trans.id}`);
             } else if (trans.patient?.assigned_doctor) {
               consultantName = trans.patient.assigned_doctor;
               cleanDescription = `Consultation Fee - ${consultantName}`;
+              console.log(`⚠️ Using patient assigned doctor for consultation: ${consultantName} for transaction ${trans.id}`);
             }
-          } else if (trans.patient?.assigned_doctor) {
+          }
+          // PRIORITY 3: Fall back to patient's assigned doctor
+          else if (trans.patient?.assigned_doctor) {
             consultantName = trans.patient.assigned_doctor;
+            console.log(`⚠️ Using patient assigned doctor fallback: ${consultantName} for transaction ${trans.id}`);
           }
           
-          // Get department from patient's assigned department
-          if (trans.patient?.assigned_department) {
+          // Map doctor to correct department based on hospital's doctor-department assignments
+          if (consultantName) {
+            // Create doctor-to-department mapping based on hospital's actual assignments
+            const doctorDepartmentMapping: { [key: string]: string } = {
+              'DR. HEMANT KHAJJA': 'ORTHOPEDIC',
+              'DR. BATUL PEEPAWALA': 'GENERAL PHYSICIAN',
+              'DR. POONAM JAIN': 'PHYSIOTHERAPY',
+              'DR. MILIND KIRIT AKHANI': 'GASTRO',
+              'DR. SAURABH GUPTA': 'ENDOCRINOLOGY',
+              'DR. RAJESH KUMAR': 'CARDIOLOGY',
+              'DR. PRIYA SHARMA': 'GYNECOLOGY',
+              'DR. AMIT PATEL': 'NEUROLOGY',
+              'DR. SUNITA AGARWAL': 'DERMATOLOGY',
+              'DR. RAHUL VERMA': 'PULMONOLOGY'
+            };
+
+            // Use mapping first, then fallback to patient's assigned department
+            department = doctorDepartmentMapping[consultantName.toUpperCase()] ||
+                        trans.patient?.assigned_department ||
+                        'GENERAL';
+          } else if (trans.patient?.assigned_department) {
             department = trans.patient.assigned_department;
           }
           

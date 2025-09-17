@@ -3,6 +3,7 @@ import type { Patient, PatientTransaction } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { DOCTOR_DEGREES } from '../data/doctorDegrees';
 
 interface PatientServiceManagerProps {
   patient: Patient;
@@ -20,6 +21,7 @@ interface ServiceItem {
   notes?: string;
   serviceDate?: string; // Date when service was provided
   paymentMode: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' | 'BANK_TRANSFER' | 'INSURANCE';
+  doctorName?: string; // Manually selected doctor name
   transactionId?: string; // For existing services
 }
 
@@ -76,7 +78,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
     quantity: 1,
     discount: 0,
     serviceDate: new Date().toISOString().split('T')[0], // Today's date
-    paymentMode: 'CASH'
+    paymentMode: 'CASH',
+    doctorName: patient.assigned_doctor || '' // Default to patient's assigned doctor
   });
   const [selectedCategory, setSelectedCategory] = useState<ServiceItem['category']>('LAB_TEST');
   const [isCustomService, setIsCustomService] = useState(false);
@@ -143,6 +146,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
           discount: discount,
           serviceDate: serviceDate,
           paymentMode: t.payment_mode as ServiceItem['paymentMode'],
+          doctorName: t.doctor_name || patient.assigned_doctor || '', // Get doctor from transaction or fall back
           transactionId: t.id
         };
       });
@@ -208,7 +212,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const,
         transaction_date: finalServiceDate, // 🔍 CRITICAL FIX: Set actual transaction_date field
-        discount_percentage: newService.discount || 0
+        discount_percentage: newService.discount || 0,
+        doctor_name: newService.doctorName || null // Save the selected doctor name
       };
       
       console.log('📤 SENDING TRANSACTION DATA:', {
@@ -243,7 +248,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         quantity: 1,
         discount: 0,
         serviceDate: new Date().toISOString().split('T')[0],
-        paymentMode: 'CASH'
+        paymentMode: 'CASH',
+        doctorName: patient.assigned_doctor || '' // Reset to patient's assigned doctor
       });
       setIsCustomService(false);
       
@@ -296,7 +302,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
           description: updatedDescription,
           payment_mode: editingService.paymentMode,
           transaction_date: finalUpdateDate, // 🔥 CRITICAL FIX: Update transaction_date field
-          discount_percentage: editingService.discount || 0
+          discount_percentage: editingService.discount || 0,
+          doctor_name: editingService.doctorName || null // Save the selected doctor name
         });
         
         console.log('🔥 UPDATED TRANSACTION_DATE:', editingService.serviceDate);
@@ -522,8 +529,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
               </div>
             </div>
 
-            {/* Payment Mode and Notes Row */}
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Payment Mode, Doctor and Notes Row */}
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-5 gap-3">
               {/* Payment Mode */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -542,6 +549,26 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                   <option value="INSURANCE">Insurance</option>
                 </select>
               </div>
+
+              {/* Doctor Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  👨‍⚕️ Doctor
+                </label>
+                <select
+                  value={newService.doctorName || ''}
+                  onChange={(e) => setNewService({ ...newService, doctorName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select Doctor</option>
+                  {Object.keys(DOCTOR_DEGREES).map(doctorName => (
+                    <option key={doctorName} value={doctorName}>
+                      {doctorName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notes (Optional)
@@ -663,7 +690,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Payment Mode</label>
                             <select
@@ -677,6 +704,21 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                               <option value="ONLINE">Online</option>
                               <option value="BANK_TRANSFER">Bank Transfer</option>
                               <option value="INSURANCE">Insurance</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">👨‍⚕️ Doctor</label>
+                            <select
+                              value={editingService?.doctorName || ''}
+                              onChange={(e) => setEditingService(prev => prev ? {...prev, doctorName: e.target.value} : null)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="">Select Doctor</option>
+                              {Object.keys(DOCTOR_DEGREES).map(doctorName => (
+                                <option key={doctorName} value={doctorName}>
+                                  {doctorName}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div>
@@ -761,6 +803,9 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                                       • 📅 {new Date(service.serviceDate).toLocaleDateString()}
                                     </span>
                                   )}
+                                  <span className="ml-2 text-purple-600">
+                                    • 👨‍⚕️ {service.doctorName || patient.assigned_doctor || 'Not Assigned'}
+                                  </span>
                                   {service.notes && <span className="ml-2 text-gray-500">• {service.notes}</span>}
                                 </>
                               );
