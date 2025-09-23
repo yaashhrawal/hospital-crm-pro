@@ -18,12 +18,13 @@ import HospitalService from '../services/hospitalService';
 import BillingService, { type BillingSummary, type RecentBill } from '../services/billingService';
 import OPDBillingModule from './billing/OPDBillingModule';
 import NewIPDBillingModule from './billing/NewIPDBillingModule';
+import IPDSummaryModule from './billing/IPDSummaryModule';
 import CombinedBillingModule from './billing/CombinedBillingModule';
 
 // Using interfaces from BillingService
 
 const BillingSection: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'opd' | 'ipd' | 'combined'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'opd' | 'ipd' | 'ipd-summary' | 'combined'>('dashboard');
   const [billingSummary, setBillingSummary] = useState<BillingSummary>({
     totalRevenue: 0,
     opdBills: 0,
@@ -300,6 +301,7 @@ const BillingSection: React.FC = () => {
             { id: 'dashboard', name: 'Dashboard', icon: DollarSign },
             { id: 'opd', name: 'OPD Billing', icon: FileText },
             { id: 'ipd', name: 'IPD Billing', icon: Users },
+            { id: 'ipd-summary', name: 'IPD Summary', icon: FileText },
             { id: 'combined', name: 'Combined Bills', icon: Clock }
           ].map((tab) => (
             <button
@@ -512,6 +514,9 @@ const BillingSection: React.FC = () => {
 
       {/* IPD Billing Module */}
       {activeTab === 'ipd' && <NewIPDBillingModule />}
+
+      {/* IPD Summary Module */}
+      {activeTab === 'ipd-summary' && <IPDSummaryModule />}
 
       {/* Combined Billing Module */}
       {activeTab === 'combined' && <CombinedBillingModule />}
