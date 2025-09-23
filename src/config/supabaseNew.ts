@@ -190,6 +190,25 @@ export interface DailyExpense {
   created_by: string;
 }
 
+export interface IPDSummary {
+  id: string;
+  patient_id: string;
+  summary_reference: string;
+  services: Array<{
+    id: string;
+    service: string;
+    qty: number;
+    amount: number;
+  }>;
+  total_amount: number;
+  payment_mode: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'INSURANCE' | 'SUMMARY';
+  notes?: string;
+  hospital_id: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}
+
 export interface FutureAppointment {
   id: string;
   patient_id: string;
@@ -310,6 +329,10 @@ export interface CreateTransactionData {
   status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   transaction_reference?: string;
   transaction_date?: string; // FIX: Add transaction_date field for proper date filtering
+  discount_type?: 'PERCENTAGE' | 'AMOUNT';
+  discount_value?: number;
+  discount_reason?: string;
+  online_payment_method?: string;
 }
 
 // CREATE APPOINTMENT DATA TYPE

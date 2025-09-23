@@ -5,7 +5,8 @@ import { Plus, Search, Edit, Printer, Download, X, Calendar, User, Stethoscope, 
 import HospitalService from '../../services/hospitalService';
 import DoctorService, { type DoctorInfo } from '../../services/doctorService';
 import BillingService, { type OPDBill } from '../../services/billingService';
-import type { PatientWithRelations } from '../../config/supabaseNew';
+import type { PatientWithRelations, IPDSummary } from '../../config/supabaseNew';
+import { supabase, HOSPITAL_ID } from '../../config/supabaseNew';
 import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
 
 // Using PatientWithRelations from config instead of local interface
@@ -23,38 +24,258 @@ interface OPDBillFormData {
   otherCharges: number;
   discount: number;
   discountReason: string;
-  paymentMode: 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
+  paymentMode: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER';
   services: string[];
   notes: string;
 }
 
 const OPDBillingModule: React.FC = () => {
-  const [showCreateBill, setShowCreateBill] = useState(false);
-  const [opdBills, setOpdBills] = useState<OPDBill[]>([]);
+  const [showCreateSummary, setShowCreateSummary] = useState(false);
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
-  const [doctors, setDoctors] = useState<DoctorInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
+  const [services, setServices] = useState<Array<{
+    id: string;
+    service: string;
+    qty: number;
+    amount: number;
+  }>>([]);
+  const [summaries, setSummaries] = useState<Array<IPDSummary & { patient: PatientWithRelations }>>([]);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'CANCELLED'>('ALL');
-  
-  const [formData, setFormData] = useState<OPDBillFormData>({
-    patientId: '',
-    doctorId: '',
-    consultationFee: 500,
-    investigationCharges: 0,
-    medicineCharges: 0,
-    otherCharges: 0,
-    discount: 0,
-    discountReason: '',
-    paymentMode: 'CASH',
-    services: [],
-    notes: ''
-  });
+  const [paymentMode, setPaymentMode] = useState('CASH');
 
-  const [patientSearchTerm, setPatientSearchTerm] = useState('');
-  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
-  const [doctorSearchTerm, setDoctorSearchTerm] = useState('');
-  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
+  // Load IPD summaries from database
+  const loadIPDSummaries = async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 Loading IPD summaries from database...');
+
+      const { data: summariesData, error } = await supabase
+        .from('ipd_summaries')
+        .select(`
+          *,
+          patient:patients(*)
+        `)
+        .eq('hospital_id', HOSPITAL_ID)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error loading IPD summaries:', error);
+        toast.error('Failed to load IPD summaries: ' + error.message);
+        return;
+      }
+
+      console.log('✅ Loaded IPD summaries:', summariesData?.length || 0);
+      setSummaries(summariesData || []);
+    } catch (error) {
+      console.error('❌ Failed to load IPD summaries:', error);
+      toast.error('Failed to load IPD summaries: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save IPD summary to database
+  const saveIPDSummary = async (summaryData: {
+    patient: PatientWithRelations;
+    services: Array<{ id: string; service: string; qty: number; amount: number; }>;
+    total: number;
+    paymentMode: string;
+  }) => {
+    try {
+      const summaryReference = `IPD-${Date.now()}`;
+
+      const { data, error } = await supabase
+        .from('ipd_summaries')
+        .insert({
+          patient_id: summaryData.patient.id,
+          summary_reference: summaryReference,
+          services: summaryData.services,
+          total_amount: summaryData.total,
+          payment_mode: summaryData.paymentMode,
+          hospital_id: HOSPITAL_ID,
+          created_by: 'system'
+        })
+        .select(`
+          *,
+          patient:patients(*)
+        `)
+        .single();
+
+      if (error) {
+        console.error('❌ Error saving IPD summary:', error);
+        toast.error('Failed to save IPD summary: ' + error.message);
+        return null;
+      }
+
+      console.log('✅ IPD summary saved successfully:', data);
+      toast.success('IPD Summary saved successfully!');
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to save IPD summary:', error);
+      toast.error('Failed to save IPD summary: ' + (error as Error).message);
+      return null;
+    }
+  };
+
+  // Delete IPD summary from database
+  const deleteIPDSummaryFromDB = async (summaryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('ipd_summaries')
+        .delete()
+        .eq('id', summaryId)
+        .eq('hospital_id', HOSPITAL_ID);
+
+      if (error) {
+        console.error('❌ Error deleting IPD summary:', error);
+        toast.error('Failed to delete IPD summary: ' + error.message);
+        return false;
+      }
+
+      console.log('✅ IPD summary deleted successfully');
+      toast.success('IPD Summary deleted successfully!');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to delete IPD summary:', error);
+      toast.error('Failed to delete IPD summary: ' + (error as Error).message);
+      return false;
+    }
+  };
+
+  // Load all patients for selection - EXACT SAME LOGIC AS IPD BILLING
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 IPD SUMMARY: Loading patients with admission data...');
+      console.log('🔍 IPD SUMMARY: Hospital ID:', HOSPITAL_ID);
+
+      // Get all patients with admissions data using direct supabase query
+      // SOLUTION: Use pagination approach to bypass PostgREST's 1000 record limit
+      let allPatients: any[] = [];
+      let fromIndex = 0;
+      const pageSize = 1000;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        console.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
+
+        const { data: batch, error } = await supabase
+          .from('patients')
+          .select(`
+            *,
+            transactions:patient_transactions(*),
+            admissions:patient_admissions(*)
+          `)
+          // .eq('hospital_id', HOSPITAL_ID) // Removed as hospital may not exist
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .range(fromIndex, fromIndex + pageSize - 1);
+
+        if (error) {
+          console.error('❌ IPD SUMMARY: Error loading patients batch:', error);
+          break;
+        }
+
+        if (!batch || batch.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        allPatients = [...allPatients, ...batch];
+
+        // If we got less than pageSize records, we've reached the end
+        if (batch.length < pageSize) {
+          hasMoreData = false;
+        } else {
+          fromIndex += pageSize;
+        }
+      }
+
+      console.log('✅ IPD SUMMARY: Loaded patients with admissions:', allPatients?.length || 0);
+      if (allPatients && allPatients.length > 0) {
+        console.log('✅ IPD SUMMARY: Sample patient data:', allPatients[0]);
+      }
+      setPatients(allPatients || []);
+    } catch (error) {
+      console.error('❌ IPD SUMMARY: Failed to load patients:', error);
+      toast.error('Failed to load patient data: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add new service row
+  const addService = () => {
+    setServices([...services, {
+      id: Date.now().toString(),
+      service: '',
+      qty: 1,
+      amount: 0
+    }]);
+  };
+
+  // Remove service row
+  const removeService = (id: string) => {
+    setServices(services.filter(s => s.id !== id));
+  };
+
+  // Update service
+  const updateService = (id: string, field: string, value: any) => {
+    setServices(services.map(s =>
+      s.id === id ? { ...s, [field]: value } : s
+    ));
+  };
+
+  // Generate summary (save to database)
+  const handleGenerateSummary = async () => {
+    if (!selectedPatient) {
+      toast.error('Please select a patient first');
+      return;
+    }
+
+    if (services.length === 0) {
+      toast.error('Please add at least one service');
+      return;
+    }
+
+    const validServices = services.filter(s => s.service && s.amount > 0);
+    if (validServices.length === 0) {
+      toast.error('Please add valid services with names and amounts');
+      return;
+    }
+
+    const total = validServices.reduce((sum, s) => sum + s.amount, 0);
+
+    try {
+      setLoading(true);
+
+      // Save to database
+      const savedSummary = await saveIPDSummary({
+        patient: selectedPatient,
+        services: validServices,
+        total,
+        paymentMode
+      });
+
+      if (savedSummary) {
+        // Reload summaries from database to get the updated list
+        await loadIPDSummaries();
+
+        // Reset form
+        setSelectedPatient(null);
+        setServices([]);
+        setPaymentMode('CASH');
+        setShowCreateSummary(false);
+        setSearchTerm('');
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      toast.error('Failed to generate summary');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const commonServices = [
     'General Consultation',
@@ -64,918 +285,790 @@ const OPDBillingModule: React.FC = () => {
     'ECG',
     'X-Ray',
     'Ultrasound',
-    'Blood Test',
-    'Urine Test',
-    'Prescription',
-    'Dressing',
-    'Injection',
+    'Laboratory Tests',
     'Vaccination',
     'Health Checkup'
   ];
 
   useEffect(() => {
-    loadData();
-    
-    // Subscribe to billing service updates
-    const unsubscribe = BillingService.subscribe(() => {
-      const updatedBills = BillingService.getOPDBills();
-      setOpdBills(updatedBills);
-    });
-    
-    return unsubscribe;
+    // Load patients and summaries immediately when component mounts
+    loadPatients();
+    loadIPDSummaries();
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (showCreateSummary && patients.length === 0) {
+      loadPatients();
+    }
+  }, [showCreateSummary, patients.length]);
+
+  // IPD Summary Print function
+  const handlePrintSummary = (summary: any) => {
+    console.log('🖨️ Printing IPD Summary:', summary);
+
+    const selectedPatient = summary.patient;
+    const services = summary.services;
+
+    // Use the custom services data for printing
+    const printServices = services.filter(s => s.service && s.amount > 0).map((service, index) => ({
+      sr: index + 1,
+      service: service.service,
+      qty: service.qty,
+      rate: service.amount / service.qty,
+      amount: service.amount
+    }));
+
+    // Calculate totals from services
+    const servicesTotal = services.reduce((sum, service) => sum + (parseFloat(service.amount.toString()) || 0), 0);
+
+    // Create a temporary canvas to load and convert the image to base64
+    const convertImageToBase64 = () => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx?.drawImage(img, 0, 0);
+          const dataURL = canvas.toDataURL('image/png');
+          resolve(dataURL);
+        };
+        img.onerror = () => reject('Failed to load image');
+        img.src = '/Receipt2.png';
+      });
+    };
+
+    const createPrintWindow = (backgroundImage: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Unable to open print window');
+        return;
+      }
+
+      // Function to convert number to words
+      const convertToWords = (num: number) => {
+        if (num === 0) return 'Zero Rupees Only';
+
+        const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        const convertHundreds = (n: number) => {
+          let result = '';
+          if (n >= 100) {
+            result += ones[Math.floor(n / 100)] + ' Hundred ';
+            n %= 100;
+          }
+          if (n >= 20) {
+            result += tens[Math.floor(n / 10)] + ' ';
+            n %= 10;
+          } else if (n >= 10) {
+            result += teens[n - 10] + ' ';
+            return result;
+          }
+          if (n > 0) {
+            result += ones[n] + ' ';
+          }
+          return result;
+        };
+
+        let result = '';
+        const crores = Math.floor(num / 10000000);
+        if (crores > 0) {
+          result += convertHundreds(crores) + 'Crore ';
+          num %= 10000000;
+        }
+
+        const lakhs = Math.floor(num / 100000);
+        if (lakhs > 0) {
+          result += convertHundreds(lakhs) + 'Lakh ';
+          num %= 100000;
+        }
+
+        const thousands = Math.floor(num / 1000);
+        if (thousands > 0) {
+          result += convertHundreds(thousands) + 'Thousand ';
+          num %= 1000;
+        }
+
+        if (num > 0) {
+          result += convertHundreds(num);
+        }
+
+        return result.trim() + ' Rupees Only';
+      };
+
+      const getCurrentTime = () => {
+        return new Date().toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
+        });
+      };
+
+      // Calculate totals from custom services
+      const calculatedServicesTotal = printServices.reduce((sum, service) => sum + (parseFloat(service.amount.toString()) || 0), 0);
+
+      const totals = {
+        subtotal: calculatedServicesTotal,
+        discount: 0,
+        insurance: 0,
+        netAmount: calculatedServicesTotal,
+        amountPaid: calculatedServicesTotal,
+        balance: 0
+      };
+
+      const billHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>IPD Summary - ${selectedPatient.patient_id}</title>
+            <style>
+              @media print {
+                @page {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  size: A3 portrait;
+                  width: 297mm;
+                  height: 420mm;
+                }
+                body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  width: 297mm;
+                  height: 420mm;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                  overflow: hidden !important;
+                }
+                html {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                }
+                body * {
+                  visibility: hidden;
+                }
+                .receipt-template, .receipt-template * {
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                }
+                .receipt-template {
+                  position: absolute;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 297mm !important;
+                  height: 420mm !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                }
+                .receipt-template img {
+                  display: block !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                  width: 297mm !important;
+                  height: 420mm !important;
+                  position: absolute !important;
+                  top: 0 !important;
+                  left: 0 !important;
+                  z-index: 0 !important;
+                  object-fit: stretch !important;
+                }
+                .print\\:hidden {
+                  display: none !important;
+                }
+                .receipt-template p,
+                .receipt-template span,
+                .receipt-template div,
+                .receipt-template h1,
+                .receipt-template h2,
+                .receipt-template h3,
+                .receipt-template h4,
+                .receipt-template table,
+                .receipt-template td,
+                .receipt-template th {
+                  color: black !important;
+                  border-color: #333 !important;
+                }
+                .receipt-template table,
+                .receipt-template th,
+                .receipt-template td {
+                  border: 1px solid black !important;
+                }
+                .receipt-template .text-right {
+                  text-align: right !important;
+                }
+                .receipt-template p,
+                .receipt-template strong {
+                  color: black !important;
+                }
+                .receipt-template * {
+                  color: black !important;
+                }
+                /* Force background colors and images to print */
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                }
+                /* Ensure background images are not filtered out */
+                @media print {
+                  body {
+                    background-attachment: scroll !important;
+                  }
+                  .receipt-template {
+                    background-attachment: scroll !important;
+                  }
+                }
+              }
+
+              html, body {
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                background: white;
+                width: 297mm;
+                height: 420mm;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                color-adjust: exact;
+                overflow: hidden;
+              }
+
+              .receipt-template {
+                ${backgroundImage ? `background: url('${backgroundImage}') no-repeat center top;` : ''}
+                background-size: 297mm 420mm;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                color-adjust: exact;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="receipt-template" style="
+              width: 297mm;
+              height: 420mm;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+              position: relative;
+            ">
+
+              <!-- Background Image - positioned absolutely -->
+              ${backgroundImage ? `<img src="${backgroundImage}" style="
+                position: absolute;
+                top: 0;
+                left: -10mm;
+                width: 317mm;
+                height: 420mm;
+                z-index: 0;
+                opacity: 1;
+                object-fit: stretch;
+              " />` : ''}
+
+              <!-- Content starts after header - positioned to align with template white area -->
+              <div style="margin-top: 0; padding: 300px 30px 0 30px; position: relative; z-index: 2;">
+
+              <!-- Header Information -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
+                <div>
+                  <p style="margin: 5px 0;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                  <p style="margin: 5px 0;"><strong>TIME:</strong> ${getCurrentTime()}</p>
+                </div>
+                <div style="text-align: right;">
+                  <p style="margin: 5px 0;"><strong>PAYMENT MODE:</strong> ${summary.payment_mode || 'CASH'}</p>
+                </div>
+              </div>
+
+              <!-- Patient Information Section -->
+              <div style="margin-bottom: 30px;">
+                <h3 style="
+                  font-weight: bold;
+                  margin-bottom: 15px;
+                  color: black;
+                  font-size: 18px;
+                  text-decoration: underline;
+                ">Patient & IPD Information</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; font-size: 16px;">
+                  <div>
+                    <p style="color: black; margin: 6px 0;"><strong>SUMMARY NO.:</strong> IPD-${Date.now()}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>SUMMARY DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient.patient_id || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>PATIENT NAME:</strong> ${selectedPatient.first_name || ''} ${selectedPatient.last_name || ''}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient.age || 'N/A'} years / ${selectedPatient.gender || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${selectedPatient.phone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p style="color: black; margin: 6px 0;"><strong>DR NAME:</strong> ${selectedPatient.assigned_doctor || selectedPatient.doctor_name || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>IPD NO.:</strong> ${selectedPatient.ipd_number || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient.admission_date ? new Date(selectedPatient.admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>DISCHARGE DATE:</strong> ${selectedPatient.discharge_date ? new Date(selectedPatient.discharge_date).toLocaleDateString('en-IN') : 'Not Discharged'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>ROOM TYPE:</strong> ${selectedPatient.room_type || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>BED NO.:</strong> ${selectedPatient.ipd_bed_number || selectedPatient.bed_number || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Services & Charges Section -->
+              <div style="margin-bottom: 25px;">
+                <h3 style="
+                  font-weight: bold;
+                  margin-bottom: 15px;
+                  color: black;
+                  font-size: 18px;
+                  text-decoration: underline;
+                ">Services & Charges</h3>
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black;">
+                  <thead>
+                    <tr style="background-color: #f5f5f5;">
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Sr</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: left; color: black; font-weight: bold; font-size: 16px;">Service</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Qty</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Rate (₹)</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Discount</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Amount (₹)</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Payment Mode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${printServices.length > 0 ? printServices.map((service, index) => `
+                      <tr>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.sr}</td>
+                        <td style="border: 1px solid black; padding: 10px; color: black; font-size: 14px;">${service.service}</td>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.qty}</td>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.rate.toFixed(2)}</td>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">-</td>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.amount.toFixed(2)}</td>
+                        <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${summary.payment_mode || 'CASH'}</td>
+                      </tr>
+                    `).join('') : `
+                      <tr>
+                        <td colspan="7" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-size: 14px; font-style: italic;">No service details available</td>
+                      </tr>
+                    `}
+                    <!-- Net Amount Paid Row -->
+                    <tr style="background-color: #f0f0f0;">
+                      <td colspan="7" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">
+                        Net Amount: ₹${totals.netAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Amount in Words -->
+              <div style="text-align: center; margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd;">
+                <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(totals.netAmount)}</p>
+              </div>
+
+              <!-- Signature Section -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
+                <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                  <p style="font-size: 14px; color: black; margin: 0;">Patient/Guardian Signature</p>
+                </div>
+                <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                  <p style="font-size: 14px; color: black; margin: 0;">Authorized Signature</p>
+                  <p style="font-size: 12px; color: black; margin: 4px 0 0 0;">Hospital Administrator</p>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="text-align: center; margin-top: 25px;">
+                <p style="font-size: 14px; color: black; margin: 4px 0;">Thank you for choosing VALANT HOSPITAL</p>
+                <p style="font-size: 12px; color: black; margin: 4px 0;">A unit of Navratna Medicare Pvt Ltd</p>
+                <p style="font-size: 14px; color: black; margin: 8px 0 0 0; font-weight: bold;">** IPD SUMMARY **</p>
+              </div>
+
+              </div>
+            </div>
+
+            <script>
+              window.onload = function() {
+                setTimeout(() => {
+                  window.print();
+                  window.onafterprint = function() {
+                    window.close();
+                  };
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(billHTML);
+      printWindow.document.close();
+    };
+
+    // Convert image and create print window
+    convertImageToBase64().then((base64Image) => {
+      createPrintWindow(base64Image as string);
+    }).catch((error) => {
+      console.error('Failed to load Receipt2.png:', error);
+      // Create print window without background image
+      createPrintWindow('');
+    });
+  };
+
+  // Delete IPD Summary function
+  const handleDeleteSummary = async (summaryId: string) => {
+    const summaryToDelete = summaries.find(s => s.id === summaryId);
+    if (!summaryToDelete) {
+      toast.error('Summary not found');
+      return;
+    }
+
+    const patientName = `${summaryToDelete.patient.first_name} ${summaryToDelete.patient.last_name}`.trim();
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this IPD summary?\n\nSummary ID: ${summaryToDelete.summary_reference}\nPatient: ${patientName}\nAmount: ₹${summaryToDelete.total_amount.toLocaleString()}\nPayment Mode: ${summaryToDelete.payment_mode}\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmDelete) {
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      // Load actual patients from HospitalService
-      const actualPatients = await HospitalService.getPatients(50000, true, true);
-      console.log('📋 Loaded patients for OPD billing:', actualPatients.length);
 
-      // Load actual doctors from DoctorService (same as patient entry)
-      const actualDoctors = DoctorService.getAllDoctors();
-      console.log('👨‍⚕️ Loaded doctors for OPD billing:', actualDoctors.length);
+      // Delete from database
+      const deleteSuccess = await deleteIPDSummaryFromDB(summaryId);
 
-      // Load existing bills from BillingService
-      const existingBills = BillingService.getOPDBills();
-      console.log('💰 Loaded existing OPD bills:', existingBills.length);
-
-      setPatients(actualPatients);
-      setDoctors(actualDoctors);
-      setOpdBills(existingBills);
-      
-    } catch (error: any) {
-      console.error('Failed to load OPD billing data:', error);
-      toast.error('Failed to load data: ' + error.message);
+      if (deleteSuccess) {
+        // Reload summaries from database to get the updated list
+        await loadIPDSummaries();
+      }
+    } catch (error) {
+      console.error('Failed to delete summary:', error);
+      toast.error('Failed to delete summary');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    `${patient.first_name} ${patient.last_name}`.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-    patient.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-    patient.phone.includes(patientSearchTerm)
-  );
-
-  const filteredDoctors = doctors.filter(doctor =>
-    doctor.name.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
-    (doctor.specialization || doctor.department).toLowerCase().includes(doctorSearchTerm.toLowerCase())
-  );
-
-  const filteredBills = opdBills.filter(bill => {
-    const matchesSearch = bill.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         bill.billId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         bill.doctorName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || bill.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const calculateTotal = () => {
-    const subtotal = formData.consultationFee + formData.investigationCharges + 
-                    formData.medicineCharges + formData.otherCharges;
-    return subtotal - formData.discount;
-  };
-
-  const handleServiceToggle = (service: string) => {
-    setFormData(prev => ({
-      ...prev,
-      services: prev.services.includes(service)
-        ? prev.services.filter(s => s !== service)
-        : [...prev.services, service]
-    }));
-  };
-
-  const handlePatientSelect = (patient: PatientWithRelations) => {
-    setFormData(prev => ({ ...prev, patientId: patient.id }));
-    setPatientSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_id})`);
-    setShowPatientDropdown(false);
-    
-    // Auto-fill consultation fee based on patient history or default
-    if (patient.transactions && patient.transactions.length > 0) {
-      // Use the most recent consultation fee as default
-      const lastTransaction = patient.transactions
-        .filter(t => t.transaction_type === 'CONSULTATION')
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-      
-      if (lastTransaction) {
-        setFormData(prev => ({ 
-          ...prev, 
-          consultationFee: lastTransaction.consultation_fee || 500 
-        }));
-        toast.success(`Auto-filled consultation fee from last visit: ₹${lastTransaction.consultation_fee || 500}`);
-      }
-    }
-  };
-
-  const handleDoctorSelect = (doctor: DoctorInfo) => {
-    setFormData(prev => ({ ...prev, doctorId: doctor.id || doctor.name }));
-    setDoctorSearchTerm(`${doctor.name} - ${doctor.specialization || doctor.department}`);
-    setShowDoctorDropdown(false);
-    
-    // Auto-fill default consultation fee based on department
-    const departmentFees: { [key: string]: number } = {
-      'ORTHOPAEDIC': 600,
-      'NEUROLOGY': 800,
-      'GASTRO': 700,
-      'GYN.': 650,
-      'UROLOGY': 600,
-      'GENERAL PHYSICIAN': 400,
-      'ENDOCRINOLOGY': 750,
-      'MEDICAL ONCOLOGY': 900,
-      'SURGICAL ONCOLOGY': 1000,
-      'NEUROSURGERY': 1200,
-      'DIETICIAN': 300
-    };
-    
-    const suggestedFee = departmentFees[doctor.department] || 500;
-    setFormData(prev => ({ 
-      ...prev, 
-      consultationFee: suggestedFee 
-    }));
-    
-    toast.success(`Auto-filled consultation fee for ${doctor.department}: ₹${suggestedFee}`);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.patientId || !formData.doctorId) {
-      toast.error('Please select patient and doctor');
-      return;
-    }
-
-    try {
-      // Create new bill using BillingService
-      const newBill: OPDBill = {
-        id: Date.now().toString(),
-        billId: BillingService.generateOPDBillId(),
-        patientId: formData.patientId,
-        patientName: patientSearchTerm.split(' (')[0],
-        doctorId: formData.doctorId,
-        doctorName: doctorSearchTerm.split(' - ')[0],
-        services: formData.services,
-        consultationFee: formData.consultationFee,
-        investigationCharges: formData.investigationCharges,
-        medicineCharges: formData.medicineCharges,
-        otherCharges: formData.otherCharges,
-        discount: formData.discount,
-        totalAmount: calculateTotal(),
-        status: 'PAID',
-        billDate: new Date().toISOString().split('T')[0],
-        paymentMode: formData.paymentMode
-      };
-
-      // Save to BillingService - this will automatically update all components
-      BillingService.saveOPDBill(newBill);
-      
-      toast.success(`OPD bill ${newBill.billId} created successfully!`);
-      setShowCreateBill(false);
-      resetForm();
-      
-    } catch (error: any) {
-      toast.error('Failed to create bill: ' + error.message);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      patientId: '',
-      doctorId: '',
-      consultationFee: 500,
-      investigationCharges: 0,
-      medicineCharges: 0,
-      otherCharges: 0,
-      discount: 0,
-      discountReason: '',
-      paymentMode: 'CASH',
-      services: [],
-      notes: ''
-    });
-    setPatientSearchTerm('');
-    setDoctorSearchTerm('');
-  };
-
-  const handleEditBill = (billId: string) => {
-    const bill = opdBills.find(b => b.billId === billId);
-    if (!bill) {
-      toast.error('Bill not found');
-      return;
-    }
-
-    // Find the patient and pre-fill the form
-    const patient = patients.find(p => p.id === bill.patientId);
-    if (patient) {
-      setPatientSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_id})`);
-      setFormData(prev => ({
-        ...prev,
-        patientId: bill.patientId,
-        doctorId: bill.doctorId,
-        consultationFee: bill.consultationFee,
-        investigationCharges: bill.investigationCharges,
-        medicineCharges: bill.medicineCharges,
-        otherCharges: bill.otherCharges,
-        discount: bill.discount,
-        services: bill.services,
-        paymentMode: bill.paymentMode || 'CASH'
-      }));
-
-      // Set doctor search term
-      const doctor = doctors.find(d => d.id === bill.doctorId || d.name === bill.doctorId);
-      if (doctor) {
-        setDoctorSearchTerm(`${doctor.name} - ${doctor.specialization || doctor.department}`);
-      }
-
-      setShowCreateBill(true);
-      toast.success(`Editing bill ${billId}`);
-    }
-  };
-
-  const handlePrintBill = async (billId: string) => {
-    const bill = opdBills.find(b => b.billId === billId);
-    if (!bill) {
-      toast.error('Bill not found');
-      return;
-    }
-
-    // Fetch complete patient details
-    let patientDetails = null;
-    try {
-      patientDetails = await HospitalService.getPatientById(bill.patientId);
-    } catch (error) {
-      console.warn('Could not fetch patient details:', error);
-    }
-
-    // Prepare receipt data in ReceiptTemplate format
-    const receiptData: ReceiptData = {
-      type: 'CONSULTATION',
-      receiptNumber: bill.billId,
-      date: new Date(bill.billDate).toLocaleDateString('en-IN'),
-      time: new Date(bill.billDate).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }),
-      
-      hospital: {
-        name: 'VALANT HOSPITAL',
-        address: 'Madhuban, Siwan, Bihar',
-        phone: '+91 99999 99999',
-        email: 'info@valanthospital.com',
-        registration: 'REG/2024/001',
-        gst: 'GST123456789'
-      },
-      
-      patient: {
-        id: patientDetails?.patient_id || bill.patientId.slice(-6).toUpperCase(),
-        name: patientDetails ? `${patientDetails.first_name} ${patientDetails.last_name || ''}`.trim() : bill.patientName,
-        phone: patientDetails?.phone || bill.patientPhone || 'N/A',
-        age: patientDetails?.age,
-        gender: patientDetails?.gender,
-        address: patientDetails?.address,
-        bloodGroup: patientDetails?.blood_group
-      },
-      
-      charges: [],
-      
-      payments: [{
-        mode: bill.paymentMode,
-        amount: bill.totalAmount
-      }],
-      
-      totals: {
-        subtotal: (bill.totalAmount || 0) + (bill.discount || 0),
-        discount: bill.discount || 0,
-        insurance: 0,
-        netAmount: bill.totalAmount || 0,
-        amountPaid: bill.totalAmount || 0,
-        balance: 0
-      },
-      
-      staff: {
-        processedBy: 'OPD Billing',
-        authorizedBy: bill.doctorName
-      },
-      
-      notes: bill.notes || '',
-      isOriginal: true
-    };
-
-    // Add consultation fee
-    receiptData.charges.push({
-      description: `Consultation Fee - Dr. ${bill.doctorName}`,
-      amount: bill.consultationFee,
-      quantity: 1,
-      rate: bill.consultationFee
-    });
-
-    // Add investigation charges
-    if (bill.investigationCharges > 0) {
-      receiptData.charges.push({
-        description: 'Investigation Charges',
-        amount: bill.investigationCharges,
-        quantity: 1,
-        rate: bill.investigationCharges
-      });
-    }
-
-    // Add medicine charges
-    if (bill.medicineCharges > 0) {
-      receiptData.charges.push({
-        description: 'Medicine Charges',
-        amount: bill.medicineCharges,
-        quantity: 1,
-        rate: bill.medicineCharges
-      });
-    }
-
-    // Add other charges
-    if (bill.otherCharges > 0) {
-      receiptData.charges.push({
-        description: 'Other Charges',
-        amount: bill.otherCharges,
-        quantity: 1,
-        rate: bill.otherCharges
-      });
-    }
-
-    // Add services
-    if (bill.services && bill.services.length > 0) {
-      bill.services.forEach(service => {
-        receiptData.charges.push({
-          description: service,
-          amount: 0, // Services are included in other charges
-          quantity: 1,
-          rate: 0
-        });
-      });
-    }
-
-    // Create temporary container for printing
-    const printContainer = document.createElement('div');
-    printContainer.style.position = 'fixed';
-    printContainer.style.top = '0';
-    printContainer.style.left = '0';
-    printContainer.style.width = '100%';
-    printContainer.style.height = '100%';
-    printContainer.style.zIndex = '9999';
-    printContainer.style.backgroundColor = 'white';
-    document.body.appendChild(printContainer);
-
-    // Render the ReceiptTemplate
-    const root = createRoot(printContainer);
-    root.render(<ReceiptTemplate data={receiptData} />);
-
-    // Wait for render and then print
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        root.unmount();
-        document.body.removeChild(printContainer);
-      }, 100);
-    }, 100);
-
-    toast.success(`Printing OPD bill ${billId}`);
-  };
-
-  const handleDownloadBill = (billId: string) => {
-    const bill = opdBills.find(b => b.billId === billId);
-    if (!bill) {
-      toast.error('Bill not found');
-      return;
-    }
-
-    const pdfContent = generateOPDBillPrint(bill);
-    const blob = new Blob([pdfContent], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${billId}_OPD_Bill.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    toast.success(`Downloaded ${billId} as HTML file`);
-  };
-
-  const handleDeleteBill = (billId: string) => {
-    const bill = opdBills.find(b => b.billId === billId);
-    if (!bill) {
-      toast.error('Bill not found');
-      return;
-    }
-
-    // Confirm deletion
-    if (window.confirm(`Are you sure you want to delete OPD bill ${billId}? This action cannot be undone. Note: This will only remove the bill, not the patient from the patient list.`)) {
-      try {
-        BillingService.deleteOPDBill(bill.id);
-        toast.success(`OPD bill ${billId} deleted successfully`);
-      } catch (error: any) {
-        toast.error('Failed to delete bill: ' + error.message);
-      }
-    }
-  };
-
-  const generateOPDBillPrint = (bill: OPDBill): string => {
-    const currentDate = new Date().toLocaleDateString('en-IN');
-    const currentTime = new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>OPD Bill - ${bill.billId}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-          .hospital-name { font-size: 28px; font-weight: bold; color: #2563eb; }
-          .bill-type { background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 10px 0; }
-          .bill-info { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
-          .section { background: #f8f9fa; padding: 20px; border-radius: 8px; }
-          .services-list { margin: 15px 0; }
-          .service-item { padding: 8px; background: #e3f2fd; margin: 5px 0; border-radius: 4px; }
-          .total-section { background: #16a34a; color: white; padding: 20px; border-radius: 8px; text-align: center; }
-          .amount { font-size: 24px; font-weight: bold; }
-          .breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-          .breakdown-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }
-          .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <img src="/logo.png" alt="Logo" style="height: 60px; margin: 0 auto;" />
-          <div style="margin-top: 10px;">Advanced Healthcare Management</div>
-          <div class="bill-type">OPD BILL</div>
-        </div>
-        
-        <div class="bill-info">
-          <div class="section">
-            <h3 style="color: #2563eb;">Bill Information</h3>
-            <p><strong>Bill ID:</strong> ${bill.billId}</p>
-            <p><strong>Patient:</strong> ${bill.patientName}</p>
-            <p><strong>Date:</strong> ${new Date(bill.billDate).toLocaleDateString('en-IN')}</p>
-            <p><strong>Status:</strong> <span style="color: #16a34a; font-weight: bold;">${bill.status}</span></p>
-          </div>
-          
-          <div class="section">
-            <h3 style="color: #2563eb;">Doctor Information</h3>
-            <p><strong>Doctor:</strong> ${bill.doctorName}</p>
-            <p><strong>Payment Mode:</strong> ${bill.paymentMode || 'CASH'}</p>
-          </div>
-        </div>
-
-        <div class="section">
-          <h3 style="color: #2563eb;">Services Provided</h3>
-          <div class="services-list">
-            ${bill.services.map(service => `<div class="service-item">✓ ${service}</div>`).join('')}
-          </div>
-        </div>
-
-        <div class="section">
-          <h3 style="color: #2563eb;">Bill Breakdown</h3>
-          <div class="breakdown">
-            <div class="breakdown-item">
-              <span>Consultation Fee:</span>
-              <span>₹${bill.consultationFee.toLocaleString()}</span>
-            </div>
-            <div class="breakdown-item">
-              <span>Investigation Charges:</span>
-              <span>₹${bill.investigationCharges.toLocaleString()}</span>
-            </div>
-            <div class="breakdown-item">
-              <span>Medicine Charges:</span>
-              <span>₹${bill.medicineCharges.toLocaleString()}</span>
-            </div>
-            <div class="breakdown-item">
-              <span>Other Charges:</span>
-              <span>₹${bill.otherCharges.toLocaleString()}</span>
-            </div>
-            ${bill.discount > 0 ? `
-            <div class="breakdown-item" style="color: #dc2626;">
-              <span>Discount:</span>
-              <span>-₹${bill.discount.toLocaleString()}</span>
-            </div>
-            ` : ''}
-          </div>
-        </div>
-        
-        <div class="total-section">
-          <div class="amount">Total Amount: ₹${bill.totalAmount.toLocaleString()}</div>
-        </div>
-        
-        <div class="footer">
-          <p><strong>Bill Generated:</strong> ${currentDate} at ${currentTime}</p>
-          <p><em>This is a computer generated OPD bill.</em></p>
-          <p>Thank you for choosing our healthcare services!</p>
-          <p>Your Health, Our Priority</p>
-        </div>
-      </body>
-      </html>
-    `;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PAID': return 'bg-green-100 text-green-800';
-      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
-      case 'CANCELLED': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading OPD billing data...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header with Create Button */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">OPD Billing</h2>
-          <p className="text-gray-600">Manage outpatient department bills</p>
+          <h2 className="text-2xl font-bold text-gray-800">IPD Summary</h2>
+          <p className="text-gray-600">Create and print custom IPD summaries</p>
         </div>
         <button
-          onClick={() => setShowCreateBill(true)}
-          className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
+          onClick={() => setShowCreateSummary(true)}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         >
-          <Plus className="h-4 w-4" />
-          <span>Create OPD Bill</span>
+          <Plus className="h-4 w-4 mr-2" />
+          Create IPD Summary
         </button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border">
-        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search by patient, bill ID, or doctor..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ALL">All Status</option>
-            <option value="PAID">Paid</option>
-            <option value="PENDING">Pending</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </div>
-      </div>
+      {/* Create Summary Modal */}
+      {showCreateSummary && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-lg font-semibold">Create IPD Summary</h3>
+              <button
+                onClick={() => {
+                  setShowCreateSummary(false);
+                  setSelectedPatient(null);
+                  setServices([]);
+                  setPaymentMode('CASH');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
 
-      {/* OPD Bills Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Bill ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Patient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Doctor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Services
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredBills.map((bill) => (
-                <tr key={bill.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {bill.billId}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {bill.patientName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {bill.doctorName}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <div className="max-w-xs truncate" title={bill.services.join(', ')}>
-                      {bill.services.join(', ')}
+            <div className="p-6 space-y-6">
+              {/* Patient Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Patient
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Search patients..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-sm text-gray-600 mt-2">Loading all patients...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-2 mb-2 text-sm text-gray-600">
+                      Showing {patients
+                        .filter(p =>
+                          !searchTerm ||
+                          `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.patient_id?.toLowerCase().includes(searchTerm.toLowerCase())
+                        ).length} of {patients.length} patients
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ₹{bill.totalAmount.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(bill.status)}`}>
-                      {bill.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={() => handleEditBill(bill.billId)}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
-                        title="Edit Bill"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => handlePrintBill(bill.billId)}
-                        className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50" 
-                        title="Print Bill"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDownloadBill(bill.billId)}
-                        className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50" 
-                        title="Download Bill"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteBill(bill.billId)}
-                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50" 
-                        title="Delete Bill"
+                    <div className="max-h-96 overflow-y-auto border rounded-md">
+                      {patients
+                        .filter(p =>
+                          !searchTerm ||
+                          `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.patient_id?.toLowerCase().includes(searchTerm.toLowerCase())
+                        )
+                        .map(patient => (
+                          <div
+                            key={patient.id}
+                            onClick={() => setSelectedPatient(patient)}
+                            className={`p-3 cursor-pointer hover:bg-gray-50 border-b ${
+                              selectedPatient?.id === patient.id ? 'bg-blue-50 border-blue-200' : ''
+                            }`}
+                          >
+                            <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                            <div className="text-sm text-gray-500">ID: {patient.patient_id} | Age: {patient.age} | {patient.gender}</div>
+                          </div>
+                        ))}
+                      {patients.length === 0 && (
+                        <div className="p-4 text-center text-gray-500">
+                          No patients found in the database
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Selected Patient Info */}
+              {selectedPatient && (
+                <div className="bg-blue-50 p-4 rounded-md">
+                  <h4 className="font-medium text-blue-900">Selected Patient</h4>
+                  <p className="text-blue-800">{selectedPatient.first_name} {selectedPatient.last_name} (ID: {selectedPatient.patient_id})</p>
+                </div>
+              )}
+
+              {/* Services Section */}
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Services
+                  </label>
+                  <button
+                    onClick={addService}
+                    className="flex items-center px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Service
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {services.map((service, index) => (
+                    <div key={service.id} className="flex space-x-3 items-center">
+                      <input
+                        type="text"
+                        placeholder="Service name"
+                        value={service.service}
+                        onChange={(e) => updateService(service.id, 'service', e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Qty"
+                        value={service.qty}
+                        onChange={(e) => updateService(service.id, 'qty', parseInt(e.target.value) || 1)}
+                        className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="1"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Amount"
+                        value={service.amount}
+                        onChange={(e) => updateService(service.id, 'amount', parseFloat(e.target.value) || 0)}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="0"
+                        step="0.01"
+                      />
+                      <button
+                        onClick={() => removeService(service.id)}
+                        className="text-red-600 hover:text-red-800 p-1"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
 
-          {filteredBills.length === 0 && (
-            <div className="text-center py-12">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No OPD bills found</h3>
-              <p className="text-gray-500">Create your first OPD bill to get started</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Create OPD Bill Modal */}
-      {showCreateBill && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Create OPD Bill</h3>
-                <button
-                  onClick={() => setShowCreateBill(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                {services.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">No services added yet. Click "Add Service" to get started.</p>
+                )}
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Patient and Doctor Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Patient Selection */}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <User className="inline h-4 w-4 mr-1" />
-                      Patient *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Search patient by name, ID, or phone..."
-                      value={patientSearchTerm}
-                      onChange={(e) => {
-                        setPatientSearchTerm(e.target.value);
-                        setShowPatientDropdown(true);
-                      }}
-                      onFocus={() => setShowPatientDropdown(true)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    {showPatientDropdown && filteredPatients.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {filteredPatients.map((patient) => (
-                          <div
-                            key={patient.id}
-                            onClick={() => handlePatientSelect(patient)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                            <div className="text-sm text-gray-500">{patient.patient_id} • {patient.phone}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              {/* Payment Mode Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Mode
+                </label>
+                <select
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="CARD">Card</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="INSURANCE">Insurance</option>
+                  <option value="SUMMARY">Summary</option>
+                </select>
+              </div>
 
-                  {/* Doctor Selection */}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Stethoscope className="inline h-4 w-4 mr-1" />
-                      Doctor *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Search doctor by name or specialization..."
-                      value={doctorSearchTerm}
-                      onChange={(e) => {
-                        setDoctorSearchTerm(e.target.value);
-                        setShowDoctorDropdown(true);
-                      }}
-                      onFocus={() => setShowDoctorDropdown(true)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    {showDoctorDropdown && filteredDoctors.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {filteredDoctors.map((doctor) => (
-                          <div
-                            key={doctor.id || doctor.name}
-                            onClick={() => handleDoctorSelect(doctor)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            <div className="font-medium">{doctor.name}</div>
-                            <div className="text-sm text-gray-500">{doctor.specialization || doctor.department}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {/* Total */}
+              {services.length > 0 && (
+                <div className="border-t pt-4">
+                  <div className="text-right">
+                    <span className="text-lg font-semibold">
+                      Total: ₹{services.reduce((sum, s) => sum + s.amount, 0).toFixed(2)}
+                    </span>
                   </div>
                 </div>
-
-                {/* Services Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Services Provided</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3">
-                    {commonServices.map((service) => (
-                      <label key={service} className="flex items-center space-x-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={formData.services.includes(service)}
-                          onChange={() => handleServiceToggle(service)}
-                          className="rounded text-blue-600 focus:ring-blue-500"
-                        />
-                        <span>{service}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Bill Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Consultation Fee</label>
-                    <input
-                      type="number"
-                      value={formData.consultationFee}
-                      onChange={(e) => setFormData(prev => ({ ...prev, consultationFee: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Investigation Charges</label>
-                    <input
-                      type="number"
-                      value={formData.investigationCharges}
-                      onChange={(e) => setFormData(prev => ({ ...prev, investigationCharges: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Medicine Charges</label>
-                    <input
-                      type="number"
-                      value={formData.medicineCharges}
-                      onChange={(e) => setFormData(prev => ({ ...prev, medicineCharges: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Other Charges</label>
-                    <input
-                      type="number"
-                      value={formData.otherCharges}
-                      onChange={(e) => setFormData(prev => ({ ...prev, otherCharges: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Discount</label>
-                    <input
-                      type="number"
-                      value={formData.discount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, discount: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
-                    <select
-                      value={formData.paymentMode}
-                      onChange={(e) => setFormData(prev => ({ ...prev, paymentMode: e.target.value as any }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="CARD">Card</option>
-                      <option value="UPI">UPI</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Discount Reason */}
-                {formData.discount > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Discount Reason</label>
-                    <input
-                      type="text"
-                      value={formData.discountReason}
-                      onChange={(e) => setFormData(prev => ({ ...prev, discountReason: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Reason for discount"
-                    />
-                  </div>
-                )}
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                    placeholder="Additional notes..."
-                  />
-                </div>
-
-                {/* Total Amount Display */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex justify-between items-center text-lg font-semibold">
-                    <span>Total Amount:</span>
-                    <span className="text-blue-600">₹{calculateTotal().toLocaleString()}</span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Subtotal: ₹{(formData.consultationFee + formData.investigationCharges + formData.medicineCharges + formData.otherCharges).toLocaleString()}
-                    {formData.discount > 0 && ` - Discount: ₹${formData.discount.toLocaleString()}`}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateBill(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Create Bill
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end space-x-3 p-6 border-t">
+              <button
+                onClick={() => {
+                  setShowCreateSummary(false);
+                  setSelectedPatient(null);
+                  setServices([]);
+                  setPaymentMode('CASH');
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateSummary}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={!selectedPatient || services.length === 0}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Generate Summary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generated Summaries List */}
+      {summaries.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold text-gray-800">Generated IPD Summaries</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Summary ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Patient Details
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Services Count
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Mode
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {summaries.map((summary) => (
+                  <tr key={summary.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <span className="mr-2">📋</span>
+                        {summary.summary_reference}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      <div>
+                        <div className="font-medium">{summary.patient.first_name} {summary.patient.last_name}</div>
+                        <div className="text-gray-500 text-xs">ID: {summary.patient.patient_id}</div>
+                        <div className="text-gray-500 text-xs">Age: {summary.patient.age} | {summary.patient.gender}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        {summary.services.length} services
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                        {summary.payment_mode || 'CASH'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ₹{summary.total_amount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(summary.created_at).toLocaleDateString('en-IN')}
+                      <div className="text-xs text-gray-500">
+                        {new Date(summary.created_at).toLocaleTimeString('en-IN')}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handlePrintSummary(summary)}
+                          className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                          title="Print Summary"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSummary(summary.id)}
+                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                          title="Delete Summary"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
