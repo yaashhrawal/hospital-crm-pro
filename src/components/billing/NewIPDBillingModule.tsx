@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Printer, Search, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import HospitalService from '../../services/hospitalService';
@@ -176,7 +176,7 @@ const NewIPDBillingModule: React.FC = () => {
   const [availableServices, setAvailableServices] = useState<MedicalService[]>(MEDICAL_SERVICES);
 
   // Stay Segment Management
-  const [staySegments, setStaySegments] = useState([{
+  const [_staySegments, _setStaySegments] = useState([{
     id: Date.now(),
     roomType: 'General Ward',
     startDate: billingDate,
@@ -193,6 +193,78 @@ const NewIPDBillingModule: React.FC = () => {
     rmoChargePerDay: 100,
     doctorChargePerDay: 500
   }]);
+
+  // CRITICAL DEBUG: Wrapper to track all setStaySegments calls with aggressive monitoring
+  const setStaySegments = (value: any) => {
+    const stack = new Error().stack;
+    console.log('🚨🚨🚨 setStaySegments CALLED FROM:', stack?.split('\n')[2]?.trim());
+    console.log('🚨 Setting stay segments to:', value);
+
+    // Log the current vs new values
+    if (Array.isArray(value)) {
+      value.forEach((segment, index) => {
+        console.log(`   New Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
+      });
+    }
+
+    _setStaySegments(value);
+
+    // AGGRESSIVE STATE MONITORING: Check what happens after state update
+    setTimeout(() => {
+      console.log('🔍 POST-UPDATE CHECK (immediate):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+    }, 0);
+
+    setTimeout(() => {
+      console.log('🔍 POST-UPDATE CHECK (10ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+    }, 10);
+
+    setTimeout(() => {
+      console.log('🔍 POST-UPDATE CHECK (100ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+    }, 100);
+  };
+
+  const staySegments = _staySegments;
+
+  // Add a ref to track if we're in editing mode to prevent interference
+  const isEditingRef = useRef(false);
+
+  // AGGRESSIVE PROTECTION: Backup system for reconstructed state
+  const correctStateBackupRef = useRef(null);
+  const stateProtectionActiveRef = useRef(false);
+
+  // AGGRESSIVE STATE MONITORING: Monitor all stay segment changes
+  useEffect(() => {
+    console.log('🔍🔍🔍 STATE MONITOR: staySegments changed to:', staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+    console.log('🔍 STATE MONITOR: editingBill:', editingBill);
+    console.log('🔍 STATE MONITOR: isEditingRef.current:', isEditingRef.current);
+
+    // Log the stack trace to see what caused this change
+    const stack = new Error().stack;
+    console.log('🔍 STATE CHANGE CALLED FROM:', stack?.split('\n')[2]?.trim());
+
+    // If we're in editing mode and see a reset to default values, log an alert and restore
+    if (editingBill && staySegments.length > 0 && stateProtectionActiveRef.current) {
+      const firstSegment = staySegments[0];
+      if (firstSegment.roomType === 'General Ward' && firstSegment.bedChargePerDay === 1000) {
+        console.error('🚨🚨🚨 ALERT: STATE WAS RESET TO DEFAULT VALUES DURING EDITING!');
+        console.error('🚨 This means something is overriding our reconstructed state');
+        console.error('🚨 Current state:', firstSegment);
+
+        // RESTORE from backup if available
+        if (correctStateBackupRef.current) {
+          console.log('🔄 ATTEMPTING AUTOMATIC STATE RESTORATION...');
+          console.log('🔄 Restoring from backup:', correctStateBackupRef.current);
+
+          // Use functional update to bypass any interference
+          _setStaySegments(prev => {
+            console.log('🔄 FUNCTIONAL RESTORE: Previous:', prev.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+            console.log('🔄 FUNCTIONAL RESTORE: Restoring to:', correctStateBackupRef.current.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+            return [...correctStateBackupRef.current];
+          });
+        }
+      }
+    }
+  }, [staySegments, editingBill]);
 
   // Deposit Management
   const [newDepositAmount, setNewDepositAmount] = useState('');
@@ -233,10 +305,13 @@ const NewIPDBillingModule: React.FC = () => {
     setNewPaymentDate(billingDate);
 
     // Also reload deposits to sync with new billing date
-    if (selectedPatient) {
+    // CRITICAL FIX: Don't reload deposits during bill editing to avoid state conflicts
+    if (selectedPatient && !editingBill && !isEditingRef.current) {
       loadPatientDeposits();
+    } else if (selectedPatient && (editingBill || isEditingRef.current)) {
+      console.log('💰 Skipping deposit reload during bill editing (ref check)');
     }
-  }, [billingDate, selectedPatient]);
+  }, [billingDate, selectedPatient, editingBill]);
 
   // Calculation functions
   const calculateRoomCharges = () => roomRate * stayDays;
@@ -299,6 +374,9 @@ const NewIPDBillingModule: React.FC = () => {
 
   // Reset form function for new bills
   const resetForm = () => {
+    // CRITICAL FIX: Check editing state BEFORE clearing editingBill to preserve stay segments
+    const isCurrentlyEditing = editingBill !== null || isEditingRef.current;
+
     setSelectedPatient(null);
     setPatientSearchTerm('');
     setEditingBill(null);
@@ -360,24 +438,30 @@ const NewIPDBillingModule: React.FC = () => {
     // IMPORTANT: Reset selected services to prevent cross-patient contamination
     setSelectedServices([]);
 
-    // Reset stay segments
-    setStaySegments([{
-      id: Date.now(),
-      roomType: 'General Ward',
-      startDate: billingDate,
-      endDate: (() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const year = tomorrow.getFullYear();
-        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const day = String(tomorrow.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      })(),
-      bedChargePerDay: 1000,
-      nursingChargePerDay: 200,
-      rmoChargePerDay: 100,
-      doctorChargePerDay: 500
-    }]);
+    // CRITICAL FIX: Only reset stay segments if NOT editing a bill
+    // This prevents overriding the correctly reconstructed ICU data during editing
+    if (!isCurrentlyEditing) {
+      console.log('🔄 resetForm: Resetting stay segments to defaults (new bill)');
+      setStaySegments([{
+        id: Date.now(),
+        roomType: 'General Ward',
+        startDate: billingDate,
+        endDate: (() => {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const year = tomorrow.getFullYear();
+          const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+          const day = String(tomorrow.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })(),
+        bedChargePerDay: 1000,
+        nursingChargePerDay: 200,
+        rmoChargePerDay: 100,
+        doctorChargePerDay: 500
+      }]);
+    } else {
+      console.log('🛡️ resetForm: Preserving stay segments during bill editing');
+    }
 
     // Reset service search
     setServiceSearchTerm('');
@@ -767,16 +851,19 @@ const NewIPDBillingModule: React.FC = () => {
   
   // Load patient history and deposits when patient is selected
   useEffect(() => {
-    if (selectedPatient) {
+    // CRITICAL FIX: Don't load patient data during bill editing to avoid state conflicts
+    if (selectedPatient && !editingBill && !isEditingRef.current) {
       loadPatientIPDHistory();
       loadPatientDeposits(); // CRITICAL FIX: Load deposits from database with correct dates
+    } else if (selectedPatient && (editingBill || isEditingRef.current)) {
+      console.log('📋 Skipping patient data reload during bill editing (ref check)');
     } else {
       setPatientHistory([]);
       setDepositHistory([]); // Clear deposit history when no patient selected
       setDepositDateOverrides({}); // Clear date overrides when changing patients
       setAdvancePayments(0);
     }
-  }, [selectedPatient]);
+  }, [selectedPatient, editingBill]);
 
   // CRITICAL FIX: Update all billing row dates when billing date changes
   useEffect(() => {
@@ -791,9 +878,18 @@ const NewIPDBillingModule: React.FC = () => {
     }
   }, [billingDate]);
 
+  // CRITICAL DEBUG: Monitor staySegments changes
+  useEffect(() => {
+    console.log('🔄 STAY SEGMENTS STATE CHANGED:', staySegments);
+    staySegments.forEach((segment, index) => {
+      console.log(`   Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
+    });
+  }, [staySegments]);
+
   // CRITICAL FIX: Update stay segment start dates when billing date changes
   useEffect(() => {
-    if (staySegments.length > 0) {
+    // CRITICAL FIX: Don't override stay segments when editing a bill
+    if (staySegments.length > 0 && !editingBill && !isEditingRef.current) {
       console.log('📅 Updating stay segment start dates to:', billingDate);
       setStaySegments(segments =>
         segments.map(segment => ({
@@ -801,8 +897,10 @@ const NewIPDBillingModule: React.FC = () => {
           startDate: billingDate
         }))
       );
+    } else if (editingBill || isEditingRef.current) {
+      console.log('📅 Skipping start date update during bill editing (ref check)');
     }
-  }, [billingDate]);
+  }, [billingDate, editingBill]);
 
   const loadPatients = async () => {
     try {
@@ -1483,7 +1581,42 @@ const NewIPDBillingModule: React.FC = () => {
         .select();
 
       // CRITICAL: Verify what was actually saved to database
+      console.log('📊 DATABASE SAVE VERIFICATION:');
+      console.log('   - Data object sent to DB:', transactionData);
+      console.log('   - Description length:', transactionData.description.length);
+      console.log('   - Returned data:', data);
+      console.log('   - Error (if any):', dbError);
+
+      // Verify the saved description contains our BILLING_ROWS data
       if (data && data.length > 0) {
+        const savedData = data[0];
+        console.log('✅ VERIFICATION OF SAVED DATA:');
+        console.log('   - Saved description length:', savedData.description?.length || 0);
+        console.log('   - Contains BILLING_ROWS?', savedData.description?.includes('BILLING_ROWS:') || false);
+
+        if (savedData.description?.includes('BILLING_ROWS:')) {
+          const match = savedData.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?)(?:\s*$|$)/);
+          if (match) {
+            console.log('   - BILLING_ROWS length in saved data:', match[1].length);
+            console.log('   - First 200 chars of saved BILLING_ROWS:', match[1].substring(0, 200));
+
+            // Try to parse the saved BILLING_ROWS to check for chargeBreakdown
+            try {
+              const parsedData = JSON.parse(match[1]);
+              console.log('   - Successfully parsed saved BILLING_ROWS');
+              console.log('   - Number of items in parsed data:', parsedData.length);
+
+              parsedData.forEach((item, index) => {
+                if (item.chargeBreakdown) {
+                  console.log(`   - Item ${index} has chargeBreakdown in DB:`, item.chargeBreakdown);
+                }
+              });
+            } catch (parseError) {
+              console.error('❌ Failed to parse saved BILLING_ROWS:', parseError);
+            }
+          }
+        }
+
         console.log('🚨 VERIFICATION: What was actually saved to DB:', {
           'Inserted record ID': data[0].id,
           'DB transaction_date': data[0].transaction_date,
@@ -1916,7 +2049,17 @@ const NewIPDBillingModule: React.FC = () => {
               total: segmentTotal,
               emergency: 'Yes',
               doctor: '',
-              date: formattedBillingDate
+              date: formattedBillingDate,
+              // Save detailed charge breakdown for accurate editing
+              chargeBreakdown: {
+                bedChargePerDay: segment.bedChargePerDay,
+                nursingChargePerDay: segment.nursingChargePerDay,
+                rmoChargePerDay: segment.rmoChargePerDay,
+                doctorChargePerDay: segment.doctorChargePerDay,
+                roomType: segment.roomType,
+                startDate: segment.startDate,
+                endDate: segment.endDate
+              }
             });
           }
         });
@@ -1925,20 +2068,24 @@ const NewIPDBillingModule: React.FC = () => {
       // Add selected services - EACH SERVICE AS SEPARATE ITEM
       if (selectedServices && selectedServices.length > 0) {
         selectedServices.filter(service => service.selected && service.amount > 0).forEach((service, index) => {
+          const serviceQuantity = parseInt(service.quantity) || 1;
+          const serviceUnitPrice = parseFloat(service.amount) || 0;
+          const serviceTotal = serviceUnitPrice * serviceQuantity;
+
           actualServicesData.push({
             id: `service-${service.id || index}`,
             serviceType: service.name, // Use actual service name as service type
             particulars: service.name, // Service name as particulars
-            quantity: 1,
-            unitPrice: service.amount,
+            quantity: serviceQuantity,
+            unitPrice: serviceUnitPrice,
             discount: 0,
             taxes: 0,
-            total: service.amount,
+            total: serviceTotal,
             emergency: 'Yes',
             doctor: '',
             date: formattedBillingDate
           });
-          console.log(`📋 Added individual service: ${service.name} - ₹${service.amount}`);
+          console.log(`📋 Added individual service: ${service.name} - Qty: ${serviceQuantity}, Unit: ₹${serviceUnitPrice}, Total: ₹${serviceTotal}`);
         });
       }
 
@@ -1959,6 +2106,17 @@ const NewIPDBillingModule: React.FC = () => {
       console.log('   - Admission Fee:', admissionFee);
       console.log('   - Stay Segments:', staySegments?.length || 0);
       console.log('   - Selected Services count:', selectedServices?.filter(s => s.selected)?.length || 0);
+      console.log('🔍 BILLING ROWS DATA DETAILS:');
+      console.log('   - actualServicesData length:', actualServicesData.length);
+      console.log('   - billingRowsData length:', billingRowsData.length);
+      console.log('   - First 500 chars of billingRowsData:', billingRowsData.substring(0, 500));
+
+      // Check if any stay segments have chargeBreakdown
+      actualServicesData.forEach((item, index) => {
+        if (item.chargeBreakdown) {
+          console.log(`   - Item ${index} has chargeBreakdown:`, item.chargeBreakdown);
+        }
+      });
       console.log('   - Selected Services details:');
       selectedServices?.filter(s => s.selected)?.forEach(service => {
         console.log(`     * ${service.name}: ₹${service.amount}`);
@@ -2383,20 +2541,61 @@ Description: ${bill.description || 'N/A'}
 
   // Handler for Edit Bill button
   const handleEditBill = (bill: any) => {
-    console.log('✏️ Edit bill called:', bill);
-    console.log('✏️ Bill structure:', JSON.stringify(bill, null, 2));
-    console.log('🔍 DEBUGGING AMOUNT ISSUE:');
-    console.log('   - Bill amount from object:', bill.amount);
-    console.log('   - Bill amount type:', typeof bill.amount);
-    console.log('   - Bill description:', bill.description);
-    console.log('   - Bill transaction_type:', bill.transaction_type);
-    console.log('   - Bill payment_mode:', bill.payment_mode);
+    console.log('🚨🚨🚨 CRITICAL DEBUG - EDIT BILL CALLED 🚨🚨🚨');
+
+    // CRITICAL: Set editing flag to prevent state interference
+    isEditingRef.current = true;
+    console.log('🔒 EDITING REF SET TO TRUE');
+
+    // CRITICAL: Let's see what the ACTUAL saved data looks like
+    if (bill.description && bill.description.includes('BILLING_ROWS:')) {
+      const billingRowsMatch = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*)/);
+      if (billingRowsMatch) {
+        try {
+          let rawJson = billingRowsMatch[1];
+          const lastBracket = rawJson.lastIndexOf(']');
+          if (lastBracket !== -1) {
+            rawJson = rawJson.substring(0, lastBracket + 1);
+          }
+          const parsedRows = JSON.parse(rawJson);
+
+          console.log('🔍 CRITICAL: ACTUAL SAVED BILLING DATA:');
+          parsedRows.forEach((row, index) => {
+            if (row.serviceType?.includes('Room') || row.particulars?.includes('Room')) {
+              console.log(`🏨 ACTUAL Room/Stay row ${index}:`, {
+                serviceType: row.serviceType,
+                particulars: row.particulars,
+                unitPrice: row.unitPrice,
+                total: row.total,
+                quantity: row.quantity,
+                chargeBreakdown: row.chargeBreakdown,
+                hasChargeBreakdown: !!row.chargeBreakdown
+              });
+
+              // This is the critical test - what will our regex extract?
+              const testParticulars = row.particulars || row.serviceType || '';
+              const testUpper = testParticulars.toUpperCase();
+              const testMatch = testUpper.match(/^(.+?)\s*-\s*ROOM STAY/);
+              console.log(`🧪 REGEX TEST for "${testParticulars}":`, {
+                input: testParticulars,
+                regexMatch: testMatch,
+                expectedRoomType: testMatch ? testMatch[1].trim() : 'NO MATCH - WILL DEFAULT TO GENERAL WARD'
+              });
+            }
+          });
+        } catch (e) {
+          console.error('❌ Failed to parse saved billing data:', e);
+        }
+      }
+    } else {
+      console.log('⚠️ NO BILLING_ROWS found in description - this is the problem!');
+    }
 
     try {
       // Parse billing rows from the saved bill data
       let savedBillingRows = [];
 
-      console.log('🔍 Checking bill description:', bill.description);
+      console.log('🔍 Checking bill description for edit:', bill.description?.length ? 'Found description' : 'No description');
 
       if (bill.description && bill.description.includes('BILLING_ROWS:')) {
         try {
@@ -2428,6 +2627,8 @@ Description: ${bill.description || 'N/A'}
               console.log(`   Row ${index}:`, {
                 serviceType: row.serviceType,
                 particulars: row.particulars,
+                chargeBreakdown: row.chargeBreakdown,
+                hasChargeBreakdown: !!row.chargeBreakdown,
                 unitPrice: row.unitPrice,
                 quantity: row.quantity,
                 total: row.total
@@ -2536,7 +2737,7 @@ Description: ${bill.description || 'N/A'}
       } else {
         console.warn('⚠️ Patient not found in current patients list');
         // Still proceed, but show warning
-        toast.warning('Patient not found in current list, but bill will load');
+        toast.error('Patient not found in current list, but bill will load');
       }
 
       // Set the billing date - use original date from bill, but allow user to change it
@@ -2577,61 +2778,239 @@ Description: ${bill.description || 'N/A'}
           endDateObj.setDate(endDateObj.getDate() + days);
           const endDate = endDateObj.toISOString().split('T')[0];
 
-          // Try to intelligently distribute charges based on common hospital billing patterns
-          // Typically: Bed 50%, Nursing 20%, RMO 15%, Doctor 15%
-          const dailyTotal = totalAmount / days;
-          const bedChargePerDay = Math.round(dailyTotal * 0.5 * 100) / 100;  // 50%
-          const nursingChargePerDay = Math.round(dailyTotal * 0.2 * 100) / 100;  // 20%
-          const rmoChargePerDay = Math.round(dailyTotal * 0.15 * 100) / 100;  // 15%
-          const doctorChargePerDay = Math.round((dailyTotal - bedChargePerDay - nursingChargePerDay - rmoChargePerDay) * 100) / 100;  // Remaining
+          // Smart room type extraction from particulars
+          const extractRoomType = (particulars: string): string => {
+            const particularsUpper = particulars.toUpperCase();
 
-          newStaySegments.push({
+            // First try to extract room type from the specific format: "ROOM_TYPE - Room Stay (X days)"
+            const roomStayMatch = particularsUpper.match(/^(.+?)\s*-\s*ROOM STAY/);
+            if (roomStayMatch) {
+              // Found the exact format, return the room type part
+              const roomType = roomStayMatch[1].trim();
+
+              // CRITICAL FIX: Normalize room types to match dropdown options exactly
+              const normalizedRoomType = roomType.toUpperCase();
+
+              // Map to exact dropdown option values
+              if (normalizedRoomType === 'ICU' || normalizedRoomType === 'INTENSIVE CARE UNIT') {
+                return 'ICU';
+              } else if (normalizedRoomType === 'CRITICAL CARE') {
+                return 'ICU';  // Map to ICU for consistency
+              } else if (normalizedRoomType === 'PRIVATE ROOM' || normalizedRoomType === 'PRIVATE') {
+                return 'Private Room';
+              } else if (normalizedRoomType === 'DELUXE ROOM' || normalizedRoomType === 'DELUXE') {
+                return 'Deluxe';
+              } else if (normalizedRoomType === 'SEMI PRIVATE' || normalizedRoomType === 'SEMI-PRIVATE') {
+                return 'Semi Private';
+              } else if (normalizedRoomType === 'GENERAL WARD' || normalizedRoomType === 'GENERAL') {
+                return 'General Ward';
+              } else {
+                // For unknown room types, use proper title case with space handling
+                return roomType.split(' ')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                  .join(' ');
+              }
+            }
+
+            // Fallback: Check for specific room types in the particulars text
+            if (particularsUpper.includes('ICU')) return 'ICU';
+            if (particularsUpper.includes('CRITICAL CARE')) return 'ICU';
+            if (particularsUpper.includes('INTENSIVE CARE')) return 'ICU';
+            if (particularsUpper.includes('PRIVATE ROOM') || particularsUpper.includes('PRIVATE')) return 'Private Room';
+            if (particularsUpper.includes('DELUXE')) return 'Deluxe';
+            if (particularsUpper.includes('AC ROOM') || particularsUpper.includes('A/C ROOM')) return 'AC Room';
+            if (particularsUpper.includes('NON-AC') || particularsUpper.includes('NON AC')) return 'Non-AC Room';
+            if (particularsUpper.includes('SEMI-PRIVATE') || particularsUpper.includes('SEMI PRIVATE')) return 'Semi Private';
+            if (particularsUpper.includes('GENERAL WARD')) return 'General Ward';
+            if (particularsUpper.includes('WARD')) return 'General Ward';
+
+            // Default fallback
+            return 'General Ward';
+          };
+
+          // Extract room type from the saved billing data
+          const detectedRoomType = extractRoomType(row.particulars || row.serviceType || '');
+          console.log('🏨 Detected room type:', detectedRoomType, 'from:', row.particulars || row.serviceType);
+
+          // Try to extract original individual charges if available in saved data
+          // Look for detailed charge information in the bill description or additional fields
+          let bedChargePerDay, nursingChargePerDay, rmoChargePerDay, doctorChargePerDay;
+
+          const dailyTotal = totalAmount / days;
+
+          // COMPREHENSIVE CHARGE RECONSTRUCTION LOGIC
+          // Handle both new bills (with chargeBreakdown) and old bills (without chargeBreakdown)
+
+          if (row.chargeBreakdown) {
+            // NEW BILLS: Use saved detailed breakdown
+            bedChargePerDay = parseFloat(row.chargeBreakdown.bedChargePerDay) || 0;
+            nursingChargePerDay = parseFloat(row.chargeBreakdown.nursingChargePerDay) || 0;
+            rmoChargePerDay = parseFloat(row.chargeBreakdown.rmoChargePerDay) || 0;
+            doctorChargePerDay = parseFloat(row.chargeBreakdown.doctorChargePerDay) || 0;
+
+            console.log('✅ Using saved chargeBreakdown for accurate reconstruction');
+          } else {
+            // OLD BILLS: Smart reconstruction based on room type and saved data
+            console.log('⚠️ No chargeBreakdown found, using intelligent reconstruction');
+
+            const effectiveDailyRate = parseFloat(row.unitPrice) || dailyTotal;
+
+            // Enhanced room type specific charges (more realistic hospital rates)
+            const roomTypeCharges = {
+              'ICU': { bed: 3000, nursing: 800, rmo: 300, doctor: 1000 },
+              'Critical Care': { bed: 3000, nursing: 800, rmo: 300, doctor: 1000 },
+              'Private Room': { bed: 2000, nursing: 400, rmo: 200, doctor: 800 },
+              'Deluxe': { bed: 2500, nursing: 500, rmo: 250, doctor: 900 },
+              'AC Room': { bed: 1500, nursing: 300, rmo: 150, doctor: 600 },
+              'Semi Private': { bed: 1200, nursing: 250, rmo: 120, doctor: 500 },
+              'General Ward': { bed: 1000, nursing: 200, rmo: 100, doctor: 500 }
+            };
+
+            const defaultCharges = roomTypeCharges[detectedRoomType] || roomTypeCharges['General Ward'];
+
+            // If the daily rate matches or is close to our standard rates, use them
+            const standardTotal = defaultCharges.bed + defaultCharges.nursing + defaultCharges.rmo + defaultCharges.doctor;
+            const rateDifference = Math.abs(effectiveDailyRate - standardTotal);
+
+            if (rateDifference < standardTotal * 0.1) {
+              // Rate is close to standard, use predefined charges
+              bedChargePerDay = defaultCharges.bed;
+              nursingChargePerDay = defaultCharges.nursing;
+              rmoChargePerDay = defaultCharges.rmo;
+              doctorChargePerDay = defaultCharges.doctor;
+            } else {
+              // Rate is different, scale proportionally
+              const scaleFactor = effectiveDailyRate / standardTotal;
+              bedChargePerDay = Math.round(defaultCharges.bed * scaleFactor * 100) / 100;
+              nursingChargePerDay = Math.round(defaultCharges.nursing * scaleFactor * 100) / 100;
+              rmoChargePerDay = Math.round(defaultCharges.rmo * scaleFactor * 100) / 100;
+              doctorChargePerDay = Math.round(defaultCharges.doctor * scaleFactor * 100) / 100;
+            }
+
+            console.log('📊 Reconstructed charges based on room type:', {
+              roomType: detectedRoomType,
+              effectiveDailyRate,
+              standardTotal,
+              scaleFactor: effectiveDailyRate / standardTotal,
+              charges: { bedChargePerDay, nursingChargePerDay, rmoChargePerDay, doctorChargePerDay }
+            });
+          }
+
+          const reconstructedSegment = {
             id: row.id || `stay-${index}`,
-            roomType: 'GENERAL_WARD', // Default, could be extracted from description
+            roomType: detectedRoomType, // Extracted from billing data
             startDate: startDate,
             endDate: endDate,
             bedChargePerDay: bedChargePerDay,
             nursingChargePerDay: nursingChargePerDay,
             rmoChargePerDay: rmoChargePerDay,
             doctorChargePerDay: doctorChargePerDay
-          });
+          };
 
-          console.log('🏨 Mapped to stay segment:', {
-            serviceType: row.serviceType,
-            originalTotal: row.total,
-            days: days,
-            dailyTotal: dailyTotal,
-            bedChargePerDay: bedChargePerDay,
-            nursingChargePerDay: nursingChargePerDay,
-            rmoChargePerDay: rmoChargePerDay,
-            doctorChargePerDay: doctorChargePerDay,
-            startDate: startDate,
-            endDate: endDate
+          console.log('🏗️ RECONSTRUCTED STAY SEGMENT:', reconstructedSegment);
+
+          // CRITICAL: Alert if room type is wrong
+          if (detectedRoomType === 'General Ward' && (
+            row.particulars?.toUpperCase().includes('ICU') ||
+            row.serviceType?.toUpperCase().includes('ICU')
+          )) {
+            console.error('🚨 CRITICAL ISSUE: ICU room detected in particulars/serviceType but roomType defaulted to General Ward!');
+            console.error('🚨 This suggests room type extraction failed!');
+            console.error('🚨 Raw data:', { particulars: row.particulars, serviceType: row.serviceType });
+          }
+
+          newStaySegments.push(reconstructedSegment);
+
+          console.log('🏨 ✅ SUCCESSFULLY CREATED STAY SEGMENT:', reconstructedSegment);
+          console.log('🏨 📋 Segment details:', {
+            roomType: reconstructedSegment.roomType,
+            bedChargePerDay: reconstructedSegment.bedChargePerDay,
+            nursingChargePerDay: reconstructedSegment.nursingChargePerDay,
+            rmoChargePerDay: reconstructedSegment.rmoChargePerDay,
+            doctorChargePerDay: reconstructedSegment.doctorChargePerDay
           });
 
         } else {
           // Add to selected services
+          const serviceQuantity = parseInt(row.quantity) || 1;
+          const serviceUnitPrice = parseFloat(row.unitPrice) || (parseFloat(row.total) || 0) / serviceQuantity;
+
           newSelectedServices.push({
             id: row.id || `service-${index}`,
             name: row.serviceType || row.particulars || 'Medical Service',
             selected: true,
-            amount: parseFloat(row.total) || 0
+            quantity: serviceQuantity,
+            amount: serviceUnitPrice
           });
 
           console.log('🩺 Mapped to service:', {
             name: row.serviceType || row.particulars,
-            amount: row.total
+            quantity: serviceQuantity,
+            unitPrice: serviceUnitPrice,
+            total: row.total
           });
         }
       });
 
-      // Update the state variables
-      setStaySegments(newStaySegments);
+      // CRITICAL FIX: Use functional update to ensure state integrity
+      console.log('🔄 ABOUT TO SET STAY SEGMENTS WITH FUNCTIONAL UPDATE:', newStaySegments);
+
+      setStaySegments((prevSegments) => {
+        console.log('🔄 FUNCTIONAL UPDATE: Previous segments:', prevSegments);
+        console.log('🔄 FUNCTIONAL UPDATE: New segments:', newStaySegments);
+
+        // AGGRESSIVE PROTECTION: Create backup and activate protection
+        correctStateBackupRef.current = [...newStaySegments];
+        stateProtectionActiveRef.current = true;
+        console.log('🛡️ STATE PROTECTION ACTIVATED: Backup created');
+        console.log('🛡️ Backup contains:', newStaySegments.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+
+        // Start periodic state monitoring
+        const protectionInterval = setInterval(() => {
+          if (!stateProtectionActiveRef.current) {
+            clearInterval(protectionInterval);
+            return;
+          }
+
+          // Check if state got corrupted and restore immediately
+          if (staySegments.length > 0 && correctStateBackupRef.current) {
+            const currentFirst = staySegments[0];
+            const backupFirst = correctStateBackupRef.current[0];
+
+            if (currentFirst.roomType === 'General Ward' && currentFirst.bedChargePerDay === 1000 &&
+                backupFirst.roomType !== 'General Ward' && backupFirst.bedChargePerDay !== 1000) {
+              console.log('🚨 PERIODIC CHECK: State corruption detected, restoring immediately!');
+              _setStaySegments([...correctStateBackupRef.current]);
+            }
+          }
+        }, 100); // Check every 100ms
+
+        return newStaySegments;
+      });
+
       setSelectedServices(newSelectedServices);
 
       console.log('✅ State mapping completed:');
       console.log('   - Stay segments:', newStaySegments.length);
       console.log('   - Selected services:', newSelectedServices.length);
+
+      // CRITICAL: Set a flag to prevent other state updates
+      const preserveStateTimer = setTimeout(() => {
+        console.log('🔒 State preservation period ended');
+      }, 1000);
+
+      // CRITICAL: Multiple verifications to catch when state gets overridden
+      setTimeout(() => {
+        console.log('🔍 VERIFICATION 1 (50ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+      }, 50);
+
+      setTimeout(() => {
+        console.log('🔍 VERIFICATION 2 (200ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+      }, 200);
+
+      setTimeout(() => {
+        console.log('🔍 VERIFICATION 3 (500ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+      }, 500);
 
       // Populate other bill details for editing using exact extracted values
       const totalAmount = bill.amount || 0;
@@ -2720,6 +3099,14 @@ Description: ${bill.description || 'N/A'}
       setShowCreateBill(true);
       console.log('📝 Form opened for editing');
 
+      // CRITICAL: Clear editing flag after a delay to allow state to settle
+      setTimeout(() => {
+        isEditingRef.current = false;
+        stateProtectionActiveRef.current = false;
+        console.log('🔓 EDITING REF SET TO FALSE - State should now be stable');
+        console.log('🛡️ STATE PROTECTION DEACTIVATED');
+      }, 2000);
+
       // Final summary of what was set
       console.log('🎯 FINAL EDIT STATE SUMMARY:');
       console.log('   - Original bill amount:', bill.amount);
@@ -2743,7 +3130,7 @@ Description: ${bill.description || 'N/A'}
         setBillingDate(bill.transaction_date?.split('T')[0] || bill.created_at?.split('T')[0] || getLocalDateString());
         // Note: Total will be calculated dynamically from billing rows
         setShowCreateBill(true);
-        toast.warning('Bill loaded with limited data due to parsing error');
+        toast.error('Bill loaded with limited data due to parsing error');
       } catch (fallbackError) {
         console.error('❌ Even fallback failed:', fallbackError);
       }
@@ -4436,12 +4823,113 @@ Description: ${bill.description || 'N/A'}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
-                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="GENERAL_WARD">General Ward</option>
+                          <select
+                            value={(() => {
+                              const roomType = staySegments[0]?.roomType || 'General Ward';
+                              // Normalize any case mismatches to match dropdown options
+                              const mappings = {
+                                // ICU variations
+                                'Icu': 'ICU',
+                                'icu': 'ICU',
+                                'ICU': 'ICU',
+
+                                // Private Room variations
+                                'Private room': 'Private Room',
+                                'private room': 'Private Room',
+                                'Private Room': 'Private Room',
+                                'PRIVATE ROOM': 'Private Room',
+                                'Private': 'Private Room',
+                                'private': 'Private Room',
+
+                                // Deluxe Room variations
+                                'Deluxe room': 'Deluxe Room',
+                                'deluxe room': 'Deluxe Room',
+                                'Deluxe Room': 'Deluxe Room',
+                                'DELUXE ROOM': 'Deluxe Room',
+                                'Deluxe': 'Deluxe Room',
+                                'deluxe': 'Deluxe Room',
+
+                                // Semi Private variations
+                                'Semi private': 'Semi Private',
+                                'semi private': 'Semi Private',
+                                'Semi Private': 'Semi Private',
+                                'SEMI PRIVATE': 'Semi Private',
+                                'Semi-private': 'Semi Private',
+                                'semi-private': 'Semi Private',
+
+                                // General Ward variations
+                                'General ward': 'General Ward',
+                                'general ward': 'General Ward',
+                                'General Ward': 'General Ward',
+                                'GENERAL WARD': 'General Ward',
+                                'General': 'General Ward',
+                                'general': 'General Ward'
+                              };
+                              const finalValue = mappings[roomType] || roomType;
+
+                              // Alert if we have an unmapped room type
+                              if (!mappings[roomType] && roomType !== 'General Ward') {
+                                console.warn('🚨 UNMAPPED ROOM TYPE DETECTED:', roomType);
+                              }
+
+                              console.log('🔍🔍🔍 SUMMARY DROPDOWN VALUE:', {
+                                originalRoomType: roomType,
+                                finalValue: finalValue,
+                                hasMappingMatch: !!mappings[roomType],
+                                staySegments: staySegments
+                              });
+                              return finalValue;
+                            })()}
+                            onChange={(e) => {
+                              const newRoomType = e.target.value;
+                              console.log('🏨🏨🏨 SUMMARY DROPDOWN: Room type changed to:', newRoomType);
+                              console.log('🏨 Current stay segments before change:', staySegments);
+                              // Update the first stay segment's room type
+                              setStaySegments(segments =>
+                                segments.map((seg, index) =>
+                                  index === 0 ? {
+                                    ...seg,
+                                    roomType: newRoomType,
+                                    // Auto-update rates based on room type
+                                    bedChargePerDay: {
+                                      'General Ward': 1000,
+                                      'ICU': 3000,
+                                      'Deluxe Room': 2500,
+                                      'Private Room': 2000,
+                                      'Semi Private': 1500
+                                    }[newRoomType] || 1000,
+                                    nursingChargePerDay: {
+                                      'General Ward': 200,
+                                      'ICU': 800,
+                                      'Deluxe Room': 500,
+                                      'Private Room': 400,
+                                      'Semi Private': 300
+                                    }[newRoomType] || 200,
+                                    rmoChargePerDay: {
+                                      'General Ward': 100,
+                                      'ICU': 300,
+                                      'Deluxe Room': 250,
+                                      'Private Room': 200,
+                                      'Semi Private': 150
+                                    }[newRoomType] || 100,
+                                    doctorChargePerDay: {
+                                      'General Ward': 500,
+                                      'ICU': 1000,
+                                      'Deluxe Room': 900,
+                                      'Private Room': 800,
+                                      'Semi Private': 600
+                                    }[newRoomType] || 500
+                                  } : seg
+                                )
+                              );
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="General Ward">General Ward</option>
                             <option value="ICU">ICU</option>
-                            <option value="DELUXE_ROOM">Deluxe Room</option>
-                            <option value="PRIVATE_ROOM">Private Room</option>
-                            <option value="SEMI_PRIVATE">Semi Private Room</option>
+                            <option value="Deluxe Room">Deluxe Room</option>
+                            <option value="Private Room">Private Room</option>
+                            <option value="Semi Private">Semi Private Room</option>
                           </select>
                         </div>
                       </div>
@@ -4480,10 +4968,67 @@ Description: ${bill.description || 'N/A'}
                           <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
-                              <select 
-                                value={segment.roomType}
+                              <select
+                                value={(() => {
+                                  const roomType = segment.roomType;
+                                  // Normalize any case mismatches to match dropdown options
+                                  const mappings = {
+                                    // ICU variations
+                                    'Icu': 'ICU',
+                                    'icu': 'ICU',
+                                    'ICU': 'ICU',
+
+                                    // Private Room variations
+                                    'Private room': 'Private Room',
+                                    'private room': 'Private Room',
+                                    'Private Room': 'Private Room',
+                                    'PRIVATE ROOM': 'Private Room',
+                                    'Private': 'Private Room',
+                                    'private': 'Private Room',
+
+                                    // Deluxe Room variations
+                                    'Deluxe room': 'Deluxe Room',
+                                    'deluxe room': 'Deluxe Room',
+                                    'Deluxe Room': 'Deluxe Room',
+                                    'DELUXE ROOM': 'Deluxe Room',
+                                    'Deluxe': 'Deluxe Room',
+                                    'deluxe': 'Deluxe Room',
+
+                                    // Semi Private variations
+                                    'Semi private': 'Semi Private',
+                                    'semi private': 'Semi Private',
+                                    'Semi Private': 'Semi Private',
+                                    'SEMI PRIVATE': 'Semi Private',
+                                    'Semi-private': 'Semi Private',
+                                    'semi-private': 'Semi Private',
+
+                                    // General Ward variations
+                                    'General ward': 'General Ward',
+                                    'general ward': 'General Ward',
+                                    'General Ward': 'General Ward',
+                                    'GENERAL WARD': 'General Ward',
+                                    'General': 'General Ward',
+                                    'general': 'General Ward'
+                                  };
+                                  const finalValue = mappings[roomType] || roomType;
+
+                                  // Alert if we have an unmapped room type
+                                  if (!mappings[roomType] && roomType !== 'General Ward') {
+                                    console.warn('🚨 UNMAPPED ROOM TYPE DETECTED IN DETAILED:', roomType);
+                                  }
+
+                                  console.log('🏠🏠🏠 DETAILED DROPDOWN VALUE:', {
+                                    segmentId: segment.id,
+                                    originalRoomType: roomType,
+                                    finalValue: finalValue,
+                                    hasMappingMatch: !!mappings[roomType]
+                                  });
+                                  return finalValue;
+                                })()}
                                 onChange={(e) => {
                                   const newRoomType = e.target.value;
+                                  console.log('🏠🏠🏠 DETAILED DROPDOWN: Room type changed to:', newRoomType);
+                                  console.log('🏠 Current segment before change:', segment);
                                   // Auto-update rates based on room type
                                   const rates = {
                                     'General Ward': { bed: 1000, nursing: 200, rmo: 100, doctor: 500 },
