@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabaseNew';
 import * as medicalAPI from './medicalDataService';
+import { logger } from '../utils/logger';
 
 // Simple error handler
 const handleSupabaseError = (error: any, operation: string): Error => {
@@ -9,7 +10,7 @@ const handleSupabaseError = (error: any, operation: string): Error => {
   if (error.code === '23505') {
     return new Error(`Duplicate entry for ${operation}. Please use update instead.`);
   }
-  console.error('❌ Supabase error during', operation, ':', error);
+  logger.error('❌ Supabase error during', operation, ':', error);
   return new Error(`Database error during ${operation}: ${error.message}`);
 };
 
@@ -123,26 +124,26 @@ export interface CompletePatientRecordSummary {
 // Use the existing medical_*_data tables directly
 export const saveHighRiskData = async (data: HighRiskData): Promise<any> => {
   try {
-    console.log('🔄 Saving high risk data via direct API:', data);
+    logger.log('🔄 Saving high risk data via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalHighRiskData(data);
-    console.log('✅ High risk data saved successfully via direct API:', result);
+    logger.log('✅ High risk data saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving high risk data:', error);
+    logger.error('❌ Error saving high risk data:', error);
     throw error;
   }
 };
 
 export const getHighRiskData = async (patientId: string): Promise<HighRiskData | null> => {
   try {
-    console.log('🔍 Getting high risk data for patient:', patientId);
+    logger.log('🔍 Getting high risk data for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalHighRiskData(patientId);
-    console.log('✅ High risk data retrieved via direct API:', data);
+    logger.log('✅ High risk data retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting high risk data:', error);
+    logger.error('❌ Error getting high risk data:', error);
     return null;
   }
 };
@@ -150,143 +151,143 @@ export const getHighRiskData = async (patientId: string): Promise<HighRiskData |
 export const saveChiefComplaintsData = async (patientId: string, data: ChiefComplaintData[]): Promise<any> => {
   // DISABLED: Chief complaints table is blocked by RLS
   // Data is now stored in the record summary instead
-  console.log('ℹ️ Chief complaints will be stored in record summary due to RLS restrictions');
+  logger.log('ℹ️ Chief complaints will be stored in record summary due to RLS restrictions');
   return { message: 'Chief complaints stored in summary', count: data.length };
 };
 
 export const getChiefComplaintsData = async (patientId: string): Promise<ChiefComplaintData[]> => {
   // DISABLED: Chief complaints table is blocked by RLS
   // Data is retrieved from record summary instead in getCompletePatientRecord
-  console.log('ℹ️ Chief complaints retrieved from record summary due to RLS restrictions');
+  logger.log('ℹ️ Chief complaints retrieved from record summary due to RLS restrictions');
   return [];
 };
 
 export const saveExaminationData = async (data: ExaminationData): Promise<any> => {
   try {
-    console.log('🔄 Saving examination data via direct API:', data);
+    logger.log('🔄 Saving examination data via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalExaminationData(data);
-    console.log('✅ Examination data saved successfully via direct API:', result);
+    logger.log('✅ Examination data saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving examination data:', error);
+    logger.error('❌ Error saving examination data:', error);
     throw error;
   }
 };
 
 export const getExaminationData = async (patientId: string): Promise<ExaminationData | null> => {
   try {
-    console.log('🔍 Getting examination data for patient:', patientId);
+    logger.log('🔍 Getting examination data for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalExaminationData(patientId);
-    console.log('✅ Examination data retrieved via direct API:', data);
+    logger.log('✅ Examination data retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting examination data:', error);
+    logger.error('❌ Error getting examination data:', error);
     return null;
   }
 };
 
 export const saveInvestigationData = async (data: InvestigationData): Promise<any> => {
   try {
-    console.log('🔄 Saving investigation data via direct API:', data);
+    logger.log('🔄 Saving investigation data via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalInvestigationData(data);
-    console.log('✅ Investigation data saved successfully via direct API:', result);
+    logger.log('✅ Investigation data saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving investigation data:', error);
+    logger.error('❌ Error saving investigation data:', error);
     throw error;
   }
 };
 
 export const getInvestigationData = async (patientId: string): Promise<InvestigationData | null> => {
   try {
-    console.log('🔍 Getting investigation data for patient:', patientId);
+    logger.log('🔍 Getting investigation data for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalInvestigationData(patientId);
-    console.log('✅ Investigation data retrieved via direct API:', data);
+    logger.log('✅ Investigation data retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting investigation data:', error);
+    logger.error('❌ Error getting investigation data:', error);
     return null;
   }
 };
 
 export const saveDiagnosisData = async (data: DiagnosisData): Promise<any> => {
   try {
-    console.log('🔄 Saving diagnosis data via direct API:', data);
+    logger.log('🔄 Saving diagnosis data via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalDiagnosisData(data);
-    console.log('✅ Diagnosis data saved successfully via direct API:', result);
+    logger.log('✅ Diagnosis data saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving diagnosis data:', error);
+    logger.error('❌ Error saving diagnosis data:', error);
     throw error;
   }
 };
 
 export const getDiagnosisData = async (patientId: string): Promise<DiagnosisData | null> => {
   try {
-    console.log('🔍 Getting diagnosis data for patient:', patientId);
+    logger.log('🔍 Getting diagnosis data for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalDiagnosisData(patientId);
-    console.log('✅ Diagnosis data retrieved via direct API:', data);
+    logger.log('✅ Diagnosis data retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting diagnosis data:', error);
+    logger.error('❌ Error getting diagnosis data:', error);
     return null;
   }
 };
 
 export const saveEnhancedPrescriptionData = async (data: PrescriptionData): Promise<any> => {
   try {
-    console.log('🔄 Saving prescription data via direct API:', data);
+    logger.log('🔄 Saving prescription data via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalPrescriptionData(data);
-    console.log('✅ Prescription data saved successfully via direct API:', result);
+    logger.log('✅ Prescription data saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving prescription data:', error);
+    logger.error('❌ Error saving prescription data:', error);
     throw error;
   }
 };
 
 export const getEnhancedPrescriptionData = async (patientId: string): Promise<PrescriptionData | null> => {
   try {
-    console.log('🔍 Getting prescription data for patient:', patientId);
+    logger.log('🔍 Getting prescription data for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalPrescriptionData(patientId);
-    console.log('✅ Prescription data retrieved via direct API:', data);
+    logger.log('✅ Prescription data retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting prescription data:', error);
+    logger.error('❌ Error getting prescription data:', error);
     return null;
   }
 };
 
 export const saveRecordSummary = async (data: CompletePatientRecordSummary): Promise<any> => {
   try {
-    console.log('🔄 Saving record summary via direct API:', data);
+    logger.log('🔄 Saving record summary via direct API:', data);
     // Use direct API to bypass 406 errors
     const result = await medicalAPI.saveMedicalRecordSummaryData(data);
-    console.log('✅ Record summary saved successfully via direct API:', result);
+    logger.log('✅ Record summary saved successfully via direct API:', result);
     return result;
   } catch (error) {
-    console.error('❌ Error saving record summary:', error);
+    logger.error('❌ Error saving record summary:', error);
     throw error;
   }
 };
 
 export const getRecordSummary = async (patientId: string): Promise<CompletePatientRecordSummary | null> => {
   try {
-    console.log('🔍 Getting record summary for patient:', patientId);
+    logger.log('🔍 Getting record summary for patient:', patientId);
     // Use direct API to bypass 406 errors
     const data = await medicalAPI.getMedicalRecordSummaryData(patientId);
-    console.log('✅ Record summary retrieved via direct API:', data);
+    logger.log('✅ Record summary retrieved via direct API:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error getting record summary:', error);
+    logger.error('❌ Error getting record summary:', error);
     return null;
   }
 };
@@ -294,45 +295,45 @@ export const getRecordSummary = async (patientId: string): Promise<CompletePatie
 // Bulk save function - UPDATED to work with existing accessible tables only
 export const saveCompletePatientRecord = async (patientId: string, recordData: any): Promise<void> => {
   try {
-    console.log('💾 Saving complete patient record for:', patientId);
-    console.log('📋 Record data structure:', Object.keys(recordData));
+    logger.log('💾 Saving complete patient record for:', patientId);
+    logger.log('📋 Record data structure:', Object.keys(recordData));
     
     const promises = [];
     let savedCount = 0;
     
     // 1. High Risk Data - WORKING TABLE
     if (recordData.highRisk) {
-      console.log('💾 Saving high risk data...');
+      logger.log('💾 Saving high risk data...');
       promises.push(saveHighRiskData({ patient_id: patientId, ...recordData.highRisk }).then(() => savedCount++));
     }
     
     // 2. Skip chief complaints for now (RLS blocked) - store in summary instead
     if (recordData.chiefComplaints?.length > 0) {
-      console.log('⚠️ Chief complaints blocked by RLS - storing in record summary');
+      logger.log('⚠️ Chief complaints blocked by RLS - storing in record summary');
       // We'll include this in the summary
     }
     
     // 3. Examination Data - WORKING TABLE  
     if (recordData.examination) {
-      console.log('💾 Saving examination data...');
+      logger.log('💾 Saving examination data...');
       promises.push(saveExaminationData({ patient_id: patientId, ...recordData.examination }).then(() => savedCount++));
     }
     
     // 4. Investigation Data - WORKING TABLE
     if (recordData.investigation) {
-      console.log('💾 Saving investigation data...');
+      logger.log('💾 Saving investigation data...');
       promises.push(saveInvestigationData({ patient_id: patientId, ...recordData.investigation }).then(() => savedCount++));
     }
     
     // 5. Diagnosis Data - WORKING TABLE
     if (recordData.diagnosis) {
-      console.log('💾 Saving diagnosis data...');
+      logger.log('💾 Saving diagnosis data...');
       promises.push(saveDiagnosisData({ patient_id: patientId, ...recordData.diagnosis }).then(() => savedCount++));
     }
     
     // 6. Prescription Data - WORKING TABLE
     if (recordData.prescription) {
-      console.log('💾 Saving prescription data...');
+      logger.log('💾 Saving prescription data...');
       promises.push(saveEnhancedPrescriptionData({ patient_id: patientId, ...recordData.prescription }).then(() => savedCount++));
     }
     
@@ -349,14 +350,14 @@ export const saveCompletePatientRecord = async (patientId: string, recordData: a
     };
     
     if (enhancedSummary) {
-      console.log('💾 Saving enhanced record summary...');
+      logger.log('💾 Saving enhanced record summary...');
       promises.push(saveRecordSummary({ patient_id: patientId, ...enhancedSummary }).then(() => savedCount++));
     }
     
     await Promise.all(promises);
-    console.log(`✅ Complete patient record saved successfully - ${savedCount} sections saved`);
+    logger.log(`✅ Complete patient record saved successfully - ${savedCount} sections saved`);
   } catch (error) {
-    console.error('❌ Error saving complete patient record:', error);
+    logger.error('❌ Error saving complete patient record:', error);
     throw error;
   }
 };
@@ -364,7 +365,7 @@ export const saveCompletePatientRecord = async (patientId: string, recordData: a
 // Bulk get function - UPDATED to work with accessible tables only
 export const getCompletePatientRecord = async (patientId: string) => {
   try {
-    console.log('📥 Getting complete patient record for:', patientId);
+    logger.log('📥 Getting complete patient record for:', patientId);
     
     const [
       highRisk,
@@ -401,7 +402,7 @@ export const getCompletePatientRecord = async (patientId: string) => {
           };
         });
       }
-      console.log('📋 Retrieved chief complaints from summary text:', chiefComplaints.length);
+      logger.log('📋 Retrieved chief complaints from summary text:', chiefComplaints.length);
     }
     
     const result = {
@@ -414,7 +415,7 @@ export const getCompletePatientRecord = async (patientId: string) => {
       summary
     };
     
-    console.log('✅ Complete patient record retrieved:', {
+    logger.log('✅ Complete patient record retrieved:', {
       highRisk: !!result.highRisk,
       chiefComplaints: result.chiefComplaints.length,
       examination: !!result.examination,
@@ -426,7 +427,7 @@ export const getCompletePatientRecord = async (patientId: string) => {
     
     return result;
   } catch (error) {
-    console.error('Error getting complete patient record:', error);
+    logger.error('Error getting complete patient record:', error);
     return null;
   }
 };
@@ -434,7 +435,7 @@ export const getCompletePatientRecord = async (patientId: string) => {
 // Custom complaints and doctors (these already work)
 export const addCustomComplaint = async (complaint: string): Promise<any> => {
   try {
-    console.log('🔄 Adding custom complaint:', complaint);
+    logger.log('🔄 Adding custom complaint:', complaint);
     const { data, error } = await supabase
       .from('custom_complaints')
       .insert({ complaint_text: complaint })
@@ -442,43 +443,43 @@ export const addCustomComplaint = async (complaint: string): Promise<any> => {
       .single();
 
     if (error) {
-      console.error('❌ Supabase error adding custom complaint:', error);
+      logger.error('❌ Supabase error adding custom complaint:', error);
       throw handleSupabaseError(error, 'addCustomComplaint');
     }
     
-    console.log('✅ Custom complaint added successfully:', data);
+    logger.log('✅ Custom complaint added successfully:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error adding custom complaint:', error);
+    logger.error('❌ Error adding custom complaint:', error);
     throw error;
   }
 };
 
 export const getCustomComplaints = async (): Promise<string[]> => {
   try {
-    console.log('🔍 Getting custom complaints');
+    logger.log('🔍 Getting custom complaints');
     const { data, error } = await supabase
       .from('custom_complaints')
       .select('complaint_text')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Supabase error getting custom complaints:', error);
+      logger.error('❌ Supabase error getting custom complaints:', error);
       throw handleSupabaseError(error, 'getCustomComplaints');
     }
     
     const complaints = data?.map(item => item.complaint_text) || [];
-    console.log(`✅ Retrieved ${complaints.length} custom complaints`);
+    logger.log(`✅ Retrieved ${complaints.length} custom complaints`);
     return complaints;
   } catch (error) {
-    console.error('❌ Error getting custom complaints:', error);
+    logger.error('❌ Error getting custom complaints:', error);
     return [];
   }
 };
 
 export const addCustomDoctor = async (doctorName: string): Promise<any> => {
   try {
-    console.log('🔄 Adding custom doctor:', doctorName);
+    logger.log('🔄 Adding custom doctor:', doctorName);
     const { data, error } = await supabase
       .from('custom_doctors')
       .insert({ doctor_name: doctorName })
@@ -486,36 +487,36 @@ export const addCustomDoctor = async (doctorName: string): Promise<any> => {
       .single();
 
     if (error) {
-      console.error('❌ Supabase error adding custom doctor:', error);
+      logger.error('❌ Supabase error adding custom doctor:', error);
       throw handleSupabaseError(error, 'addCustomDoctor');
     }
     
-    console.log('✅ Custom doctor added successfully:', data);
+    logger.log('✅ Custom doctor added successfully:', data);
     return data;
   } catch (error) {
-    console.error('❌ Error adding custom doctor:', error);
+    logger.error('❌ Error adding custom doctor:', error);
     throw error;
   }
 };
 
 export const getCustomDoctors = async (): Promise<string[]> => {
   try {
-    console.log('🔍 Getting custom doctors');
+    logger.log('🔍 Getting custom doctors');
     const { data, error } = await supabase
       .from('custom_doctors')
       .select('doctor_name')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Supabase error getting custom doctors:', error);
+      logger.error('❌ Supabase error getting custom doctors:', error);
       throw handleSupabaseError(error, 'getCustomDoctors');
     }
     
     const doctors = data?.map(item => item.doctor_name) || [];
-    console.log(`✅ Retrieved ${doctors.length} custom doctors`);
+    logger.log(`✅ Retrieved ${doctors.length} custom doctors`);
     return doctors;
   } catch (error) {
-    console.error('❌ Error getting custom doctors:', error);
+    logger.error('❌ Error getting custom doctors:', error);
     return [];
   }
 };

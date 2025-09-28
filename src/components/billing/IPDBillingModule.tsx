@@ -7,6 +7,7 @@ import DoctorService from '../../services/doctorService';
 import BillingService, { type IPDBill, type StaySegment, type IPDService } from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
 import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
+import { logger } from '../../utils/logger';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -114,7 +115,7 @@ const IPDBillingModule: React.FC = () => {
         selected: false,
         amount: 0
       }));
-      console.log('🔧 Debug - Initializing services:', initialServices.slice(0, 3));
+      logger.log('🔧 Debug - Initializing services:', initialServices.slice(0, 3));
       setFormData(prev => ({ ...prev, services: initialServices }));
     }
   }, []);
@@ -125,7 +126,7 @@ const IPDBillingModule: React.FC = () => {
       
       // Load actual patients from HospitalService
       const actualPatients = await HospitalService.getPatients(50000, true, true);
-      console.log('🏥 Loaded patients for IPD billing:', actualPatients.length);
+      logger.log('🏥 Loaded patients for IPD billing:', actualPatients.length);
 
       // Filter patients who have IPD status or admissions
       const ipdPatients = actualPatients.filter(patient => 
@@ -134,17 +135,17 @@ const IPDBillingModule: React.FC = () => {
         (patient.admissions && patient.admissions.length > 0)
       );
 
-      console.log('🛏️ Patients with IPD history:', ipdPatients.length);
+      logger.log('🛏️ Patients with IPD history:', ipdPatients.length);
 
       // Load existing bills from BillingService
       const existingBills = BillingService.getIPDBills();
-      console.log('💰 Loaded existing IPD bills:', existingBills.length);
+      logger.log('💰 Loaded existing IPD bills:', existingBills.length);
 
       setPatients(actualPatients); // Show all patients, not just IPD ones
       setIpdBills(existingBills);
       
     } catch (error: any) {
-      console.error('Failed to load IPD billing data:', error);
+      logger.error('Failed to load IPD billing data:', error);
       toast.error('Failed to load data: ' + error.message);
     } finally {
       setLoading(false);
@@ -318,7 +319,7 @@ const IPDBillingModule: React.FC = () => {
         staySegments: formData.staySegments,
         services: (() => {
           const selectedServices = formData.services.filter(service => service.selected);
-          console.log('💾 Debug - Selected services to save:', selectedServices);
+          logger.log('💾 Debug - Selected services to save:', selectedServices);
           return selectedServices;
         })(),
         totalStayCharges: calculateTotalStayCharges(),
@@ -397,7 +398,7 @@ const IPDBillingModule: React.FC = () => {
       return;
     }
 
-    console.log('🖨️ Debug - IPD Bill for printing:', {
+    logger.log('🖨️ Debug - IPD Bill for printing:', {
       billId: bill.billId,
       patientName: bill.patientName,
       admissionCharges: bill.admissionCharges,
@@ -412,7 +413,7 @@ const IPDBillingModule: React.FC = () => {
     try {
       patientDetails = await HospitalService.getPatientById(bill.patientId);
     } catch (error) {
-      console.warn('Could not fetch patient details:', error);
+      logger.warn('Could not fetch patient details:', error);
     }
 
     // Prepare receipt data in ReceiptTemplate format
@@ -497,12 +498,12 @@ const IPDBillingModule: React.FC = () => {
     });
 
     // Add services - All services are already filtered when saved, so include all
-    console.log('🧾 Debug - Adding services to receipt:', bill.services);
+    logger.log('🧾 Debug - Adding services to receipt:', bill.services);
 
     // Since services are already filtered to selected ones when the bill is saved,
     // we should include all services from the bill
     bill.services.forEach((service, index) => {
-      console.log(`📋 Service ${index + 1}:`, {
+      logger.log(`📋 Service ${index + 1}:`, {
         name: service.name,
         amount: service.amount,
         quantity: service.quantity || 1,
@@ -514,7 +515,7 @@ const IPDBillingModule: React.FC = () => {
         const quantity = service.quantity || 1;
         const serviceName = service.name.trim(); // Ensure no extra spaces
 
-        console.log(`✅ Adding service to receipt: "${serviceName}" - ₹${service.amount}`);
+        logger.log(`✅ Adding service to receipt: "${serviceName}" - ₹${service.amount}`);
 
         receiptData.charges.push({
           description: serviceName,
@@ -525,7 +526,7 @@ const IPDBillingModule: React.FC = () => {
       }
     });
 
-    console.log('📄 Debug - Final receiptData.charges:', receiptData.charges);
+    logger.log('📄 Debug - Final receiptData.charges:', receiptData.charges);
 
     // Create temporary container for printing
     const printContainer = document.createElement('div');

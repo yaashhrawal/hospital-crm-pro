@@ -1,4 +1,5 @@
 import { supabase, HOSPITAL_ID } from '../config/supabaseNew';
+import { logger } from '../utils/logger';
 import type { 
   Patient, 
   PatientTransaction, 
@@ -22,21 +23,21 @@ export class HospitalService {
   
   static async getCurrentUser(): Promise<User | null> {
     try {
-      console.log('🔍 Getting current user from Supabase Auth...');
+      logger.log('🔍 Getting current user from Supabase Auth...');
       
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError) {
-        console.error('❌ Auth error:', authError);
+        logger.error('❌ Auth error:', authError);
         throw authError;
       }
       
       if (!user) {
-        console.log('⚠️ No authenticated user');
+        logger.log('⚠️ No authenticated user');
         return null;
       }
       
-      console.log('✅ Auth user found:', user.email);
+      logger.log('✅ Auth user found:', user.email);
       
       // Get user role from metadata
       const userRole = user.user_metadata?.role || 'frontdesk';
@@ -53,21 +54,21 @@ export class HospitalService {
           
         if (result.error) {
           profileError = result.error;
-          console.log('⚠️ Users table query error:', result.error);
+          logger.log('⚠️ Users table query error:', result.error);
         } else if (result.data && result.data.length > 0) {
           userProfile = result.data[0];
-          console.log('✅ User profile found:', userProfile);
+          logger.log('✅ User profile found:', userProfile);
         } else {
-          console.log('ℹ️ No profile found in users table');
+          logger.log('ℹ️ No profile found in users table');
           profileError = { message: 'No profile found' };
         }
       } catch (queryError: any) {
-        console.log('⚠️ Users table access error:', queryError);
+        logger.log('⚠️ Users table access error:', queryError);
         profileError = queryError;
       }
       
       if (profileError || !userProfile) {
-        console.log('🔄 Using fallback user profile creation...');
+        logger.log('🔄 Using fallback user profile creation...');
         
         // Return a minimal user object without trying to create in database
         // This handles cases where users table doesn't exist or has permission issues
@@ -89,17 +90,17 @@ export class HospitalService {
         } as User;
       }
       
-      console.log('✅ User profile found:', userProfile);
+      logger.log('✅ User profile found:', userProfile);
       return userProfile as User;
       
     } catch (error: any) {
-      console.error('🚨 getCurrentUser error:', error);
+      logger.error('🚨 getCurrentUser error:', error);
       return null;
     }
   }
   
   static async createUserProfile(authUser: any): Promise<User> {
-    console.log('👤 Attempting user profile creation/retrieval for:', authUser.email);
+    logger.log('👤 Attempting user profile creation/retrieval for:', authUser.email);
     
     // Create fallback user object in case of database issues
     const fallbackUser = {
@@ -127,7 +128,7 @@ export class HospitalService {
         .eq('email', authUser.email);
         
       if (!searchError && existingUsers && existingUsers.length > 0) {
-        console.log('✅ Found existing user profile by email');
+        logger.log('✅ Found existing user profile by email');
         return existingUsers[0] as User;
       }
       
@@ -152,36 +153,36 @@ export class HospitalService {
         .select();
       
       if (!createError && newUser && newUser.length > 0) {
-        console.log('✅ Successfully created new user profile');
+        logger.log('✅ Successfully created new user profile');
         return newUser[0] as User;
       }
       
       // Handle creation errors
       if (createError?.code === '23505') {
-        console.log('🔄 Duplicate key detected, attempting to fetch existing user...');
+        logger.log('🔄 Duplicate key detected, attempting to fetch existing user...');
         const { data: duplicateUser } = await supabase
           .from('users')
           .select('*')
           .eq('email', authUser.email);
           
         if (duplicateUser && duplicateUser.length > 0) {
-          console.log('✅ Retrieved existing user after duplicate key error');
+          logger.log('✅ Retrieved existing user after duplicate key error');
           return duplicateUser[0] as User;
         }
       }
       
-      console.log('⚠️ Database operations failed, using fallback user profile');
+      logger.log('⚠️ Database operations failed, using fallback user profile');
       return fallbackUser;
       
     } catch (error: any) {
-      console.log('⚠️ User profile database error, using fallback:', error.message);
+      logger.log('⚠️ User profile database error, using fallback:', error.message);
       return fallbackUser;
     }
   }
   
   static async signIn(email: string, password: string): Promise<{ user: User | null; error: any }> {
     try {
-      console.log('🔐 Signing in with Supabase:', email);
+      logger.log('🔐 Signing in with Supabase:', email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -189,17 +190,17 @@ export class HospitalService {
       });
       
       if (error) {
-        console.error('❌ Sign in error:', error);
+        logger.error('❌ Sign in error:', error);
         return { user: null, error };
       }
       
-      console.log('✅ Auth successful, getting user profile...');
+      logger.log('✅ Auth successful, getting user profile...');
       const user = await this.getCurrentUser();
       
       return { user, error: null };
       
     } catch (error) {
-      console.error('🚨 SignIn exception:', error);
+      logger.error('🚨 SignIn exception:', error);
       return { user: null, error };
     }
   }
@@ -224,14 +225,14 @@ export class HospitalService {
         .limit(1);
       
       if (error) {
-        console.error('❌ Connection check failed:', error);
+        logger.error('❌ Connection check failed:', error);
         return false;
       }
       
-      console.log('✅ Connection to Supabase is active');
+      logger.log('✅ Connection to Supabase is active');
       return true;
     } catch (error: any) {
-      console.error('🚨 Connection check error:', error);
+      logger.error('🚨 Connection check error:', error);
       return false;
     }
   }
@@ -240,7 +241,7 @@ export class HospitalService {
   
   static async findExistingPatient(phone?: string, firstName?: string, lastName?: string): Promise<Patient | null> {
     try {
-      console.log('🔍 Searching for existing patient with:', { phone, firstName, lastName });
+      logger.log('🔍 Searching for existing patient with:', { phone, firstName, lastName });
       
       if (!phone && !firstName) {
         return null;
@@ -252,7 +253,7 @@ export class HospitalService {
       // Search by phone first (most unique identifier)
       if (phone && phone.trim()) {
         const normalizedPhone = normalizePhone(phone);
-        console.log('📱 Searching by normalized phone:', normalizedPhone);
+        logger.log('📱 Searching by normalized phone:', normalizedPhone);
         
         // Get all patients and check phone numbers after normalization
         const { data: allPatients, error } = await supabase
@@ -266,7 +267,7 @@ export class HospitalService {
           );
           
           if (phoneMatch) {
-            console.log('✅ Found patient by phone number match');
+            logger.log('✅ Found patient by phone number match');
             return phoneMatch as Patient;
           }
         }
@@ -277,7 +278,7 @@ export class HospitalService {
         const normalizedFirstName = firstName.trim().toLowerCase();
         const normalizedLastName = lastName ? lastName.trim().toLowerCase() : '';
         
-        console.log('👤 Searching by name:', { normalizedFirstName, normalizedLastName });
+        logger.log('👤 Searching by name:', { normalizedFirstName, normalizedLastName });
         
         const nameQuery = supabase
           .from('patients')
@@ -303,7 +304,7 @@ export class HospitalService {
           });
           
           if (exactMatch) {
-            console.log('✅ Found exact patient name match');
+            logger.log('✅ Found exact patient name match');
             return exactMatch as Patient;
           }
           
@@ -320,17 +321,17 @@ export class HospitalService {
           });
           
           if (similarMatch) {
-            console.log('✅ Found similar patient name match');
+            logger.log('✅ Found similar patient name match');
             return similarMatch as Patient;
           }
         }
       }
       
-      console.log('ℹ️ No existing patient found');
+      logger.log('ℹ️ No existing patient found');
       return null;
       
     } catch (error: any) {
-      console.error('🚨 findExistingPatient error:', error);
+      logger.error('🚨 findExistingPatient error:', error);
       return null;
     }
   }
@@ -349,7 +350,7 @@ export class HospitalService {
     notes?: string;
   }): Promise<any> {
     try {
-      console.log('🏥 Creating patient visit:', visitData);
+      logger.log('🏥 Creating patient visit:', visitData);
       
       const { data: visit, error } = await supabase
         .from('patient_visits')
@@ -361,15 +362,15 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Visit creation error:', error);
+        logger.error('❌ Visit creation error:', error);
         throw new Error(`Visit creation failed: ${error.message}`);
       }
       
-      console.log('✅ Visit created successfully:', visit);
+      logger.log('✅ Visit created successfully:', visit);
       return visit;
       
     } catch (error: any) {
-      console.error('🚨 createPatientVisit error:', error);
+      logger.error('🚨 createPatientVisit error:', error);
       throw error;
     }
   }
@@ -383,20 +384,20 @@ export class HospitalService {
         .order('visit_date', { ascending: false });
       
       if (error) {
-        console.error('❌ Get visits error:', error);
+        logger.error('❌ Get visits error:', error);
         throw error;
       }
       
       return visits || [];
       
     } catch (error: any) {
-      console.error('🚨 getPatientVisits error:', error);
+      logger.error('🚨 getPatientVisits error:', error);
       throw error;
     }
   }
   
   static async createPatient(data: CreatePatientData): Promise<Patient> {
-    console.log('👤 Creating patient with exact schema:', data);
+    logger.log('👤 Creating patient with exact schema:', data);
     
     try {
       // Generate patient ID
@@ -441,10 +442,10 @@ export class HospitalService {
         hospital_id: HOSPITAL_ID
       };
       
-      console.log('🎂 Age from input data:', data.age, 'Type:', typeof data.age);
-      console.log('🎂 Age being stored:', patientData.age, 'Type:', typeof patientData.age);
-      console.log('📤 Inserting patient:', patientData);
-      console.log('📅 date_of_entry being stored:', patientData.date_of_entry);
+      logger.log('🎂 Age from input data:', data.age, 'Type:', typeof data.age);
+      logger.log('🎂 Age being stored:', patientData.age, 'Type:', typeof patientData.age);
+      logger.log('📤 Inserting patient:', patientData);
+      logger.log('📅 date_of_entry being stored:', patientData.date_of_entry);
       
       const { data: patient, error } = await supabase
         .from('patients')
@@ -453,24 +454,24 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Patient creation error:', error);
+        logger.error('❌ Patient creation error:', error);
         throw new Error(`Patient creation failed: ${error.message}`);
       }
       
-      console.log('✅ Patient created successfully:', patient);
-      console.log('🎂 Age in returned patient data:', patient?.age, 'Type:', typeof patient?.age);
+      logger.log('✅ Patient created successfully:', patient);
+      logger.log('🎂 Age in returned patient data:', patient?.age, 'Type:', typeof patient?.age);
       
       return patient as Patient;
       
     } catch (error: any) {
-      console.error('🚨 createPatient error:', error);
+      logger.error('🚨 createPatient error:', error);
       throw error;
     }
   }
   
   static async getPatientsForDate(dateStr: string, limit = 100): Promise<PatientWithRelations[]> {
     try {
-      console.log(`📅 Fetching patients for EXACT date: ${dateStr} (NO CUMULATIVE RESULTS)`);
+      logger.log(`📅 Fetching patients for EXACT date: ${dateStr} (NO CUMULATIVE RESULTS)`);
       
       // OPTIMIZED APPROACH: Fetch recent patients first (last 30 days) then filter
       // This reduces data transfer while ensuring we get today's patients
@@ -492,14 +493,14 @@ export class HospitalService {
         .limit(10000);
       
       if (error) {
-        console.error('❌ Query error:', error);
+        logger.error('❌ Query error:', error);
         throw error;
       }
       
-      console.log(`📊 Got ${allPatients?.length || 0} total patients, now filtering for EXACT date: ${dateStr}`);
+      logger.log(`📊 Got ${allPatients?.length || 0} total patients, now filtering for EXACT date: ${dateStr}`);
       
       if (!allPatients || allPatients.length === 0) {
-        console.log('⚠️ No patients found in database');
+        logger.log('⚠️ No patients found in database');
         return [];
       }
       
@@ -528,7 +529,7 @@ export class HospitalService {
         const shouldInclude = matchesCreated || matchesEntry;
         
         // Debug each patient
-        console.log(`🔍 Patient: ${patient.first_name} ${patient.last_name}`, {
+        logger.log(`🔍 Patient: ${patient.first_name} ${patient.last_name}`, {
           createdDate,
           entryDate,
           targetDate: dateStr,
@@ -540,19 +541,19 @@ export class HospitalService {
         return shouldInclude;
       });
       
-      console.log(`✅ Filtered to ${exactDatePatients.length} patients with EXACT date match for ${dateStr}`);
+      logger.log(`✅ Filtered to ${exactDatePatients.length} patients with EXACT date match for ${dateStr}`);
       
       // Debug: Show filtered results
       if (exactDatePatients.length > 0) {
-        console.log('🔍 EXACT DATE FILTER RESULTS:');
+        logger.log('🔍 EXACT DATE FILTER RESULTS:');
         exactDatePatients.forEach((p, i) => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? (p.date_of_entry.includes('T') ? p.date_of_entry.split('T')[0] : p.date_of_entry) : null;
-          console.log(`  ${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+          logger.log(`  ${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
           
           // Verify exact match
           if (createdDate !== dateStr && entryDate !== dateStr) {
-            console.error(`🚨 FILTER ERROR: Patient ${p.first_name} ${p.last_name} doesn't match ${dateStr}!`);
+            logger.error(`🚨 FILTER ERROR: Patient ${p.first_name} ${p.last_name} doesn't match ${dateStr}!`);
           }
         });
       }
@@ -560,15 +561,15 @@ export class HospitalService {
       // Apply limit to filtered patients
       const limitedPatients = exactDatePatients.slice(0, limit);
       
-      console.log(`✅ Final result: ${limitedPatients.length} patients for exact date ${dateStr}`);
+      logger.log(`✅ Final result: ${limitedPatients.length} patients for exact date ${dateStr}`);
       
       // Log first few patients for debugging
       if (limitedPatients.length > 0) {
-        console.log('🔍 Sample patients found:');
+        logger.log('🔍 Sample patients found:');
         limitedPatients.slice(0, 3).forEach((p, i) => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
-          console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+          logger.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
         });
       }
       
@@ -618,10 +619,10 @@ export class HospitalService {
       return enhancedPatients as PatientWithRelations[];
       
     } catch (error: any) {
-      console.error('🚨 getPatientsForDate error:', error);
+      logger.error('🚨 getPatientsForDate error:', error);
       
       // Fallback: return empty array instead of throwing
-      console.log('🔄 Falling back to empty result due to error');
+      logger.log('🔄 Falling back to empty result due to error');
       return [];
     }
   }
@@ -629,7 +630,7 @@ export class HospitalService {
   static async getPatients(limit = 5000, skipOrthoFilter = true, includeInactive = false): Promise<PatientWithRelations[]> {
     try {
       const timestamp = new Date().toISOString();
-      console.log(`📋 Fetching patients with limit=${limit}, skipOrthoFilter=${skipOrthoFilter}, includeInactive=${includeInactive} at ${timestamp}...`);
+      logger.log(`📋 Fetching patients with limit=${limit}, skipOrthoFilter=${skipOrthoFilter}, includeInactive=${includeInactive} at ${timestamp}...`);
       
       // First, get the total count to debug
       const { count: totalCount } = await supabase
@@ -643,7 +644,7 @@ export class HospitalService {
         .select('*', { count: 'exact', head: true })
         .eq('hospital_id', HOSPITAL_ID);
       
-      console.log(`📊 Total ACTIVE patients: ${totalCount}, Total ALL patients: ${totalInactiveCount}`);
+      logger.log(`📊 Total ACTIVE patients: ${totalCount}, Total ALL patients: ${totalInactiveCount}`);
       
       // If requesting more than 1000, we need to paginate
       let allPatients: any[] = [];
@@ -654,13 +655,13 @@ export class HospitalService {
       const targetCount = Math.min(limit, actualPatientCount);
       const numPages = Math.ceil(targetCount / pageSize);
       
-      console.log(`📄 Need to fetch ${numPages} pages to get ${targetCount} patients (requested: ${limit}, available: ${actualPatientCount})`);
+      logger.log(`📄 Need to fetch ${numPages} pages to get ${targetCount} patients (requested: ${limit}, available: ${actualPatientCount})`);
       
       for (let page = 0; page < numPages; page++) {
         const from = page * pageSize;
         const to = Math.min(from + pageSize - 1, targetCount - 1);
         
-        console.log(`📄 Fetching page ${page + 1}/${numPages}: rows ${from} to ${to}`);
+        logger.log(`📄 Fetching page ${page + 1}/${numPages}: rows ${from} to ${to}`);
         
         let query = supabase
           .from('patients')
@@ -682,13 +683,13 @@ export class HospitalService {
         const { data: pageData, error } = await query;
         
         if (error) {
-          console.error(`❌ Error fetching page ${page + 1}:`, error);
+          logger.error(`❌ Error fetching page ${page + 1}:`, error);
           throw error;
         }
         
         if (pageData) {
           allPatients = [...allPatients, ...pageData];
-          console.log(`✅ Fetched ${pageData.length} patients in page ${page + 1}, total so far: ${allPatients.length}`);
+          logger.log(`✅ Fetched ${pageData.length} patients in page ${page + 1}, total so far: ${allPatients.length}`);
         }
         
         // If we got less than a full page, we've reached the end
@@ -699,11 +700,11 @@ export class HospitalService {
       
       const patients = allPatients;
       
-      console.log(`✅ Total fetched ${patients?.length || 0} patients from database`);
+      logger.log(`✅ Total fetched ${patients?.length || 0} patients from database`);
       
       // Debug: Check if we're hitting a Supabase limit
       if (patients?.length === 1000 || patients?.length === 100) {
-        console.warn(`⚠️ WARNING: Received exactly ${patients.length} patients - might be hitting a default Supabase limit!`);
+        logger.warn(`⚠️ WARNING: Received exactly ${patients.length} patients - might be hitting a default Supabase limit!`);
       }
       
       // Filter out ORTHO/DR HEMANT patients (unless skipOrthoFilter is true)
@@ -715,22 +716,22 @@ export class HospitalService {
         const isHemant = doctor.includes('HEMANT') || doctor === 'DR HEMANT' || doctor === 'DR. HEMANT';
         
         if (isOrtho && isHemant) {
-          console.log(`🚫 HospitalService - Excluding ORTHO/HEMANT patient: ${patient.first_name} ${patient.last_name}`);
+          logger.log(`🚫 HospitalService - Excluding ORTHO/HEMANT patient: ${patient.first_name} ${patient.last_name}`);
           return false;
         }
         
         return true;
       }) || [];
       
-      console.log(`📊 HospitalService - Filtered ${patients?.length || 0} to ${filteredPatients.length} patients (excluded ${(patients?.length || 0) - filteredPatients.length} ORTHO/HEMANT, skipOrthoFilter=${skipOrthoFilter})`);
+      logger.log(`📊 HospitalService - Filtered ${patients?.length || 0} to ${filteredPatients.length} patients (excluded ${(patients?.length || 0) - filteredPatients.length} ORTHO/HEMANT, skipOrthoFilter=${skipOrthoFilter})`);
       
       // Debug: Log all patient dates to identify the issue
       if (filteredPatients && filteredPatients.length > 0) {
-        console.log('🔍 Backend: All filtered patient dates (first 10):');
+        logger.log('🔍 Backend: All filtered patient dates (first 10):');
         filteredPatients.slice(0, 10).forEach((p, i) => {
           const createdDate = p.created_at ? p.created_at.split('T')[0] : null;
           const entryDate = p.date_of_entry ? p.date_of_entry.split('T')[0] : null;
-          console.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
+          logger.log(`${i + 1}. ${p.first_name} ${p.last_name}: created=${createdDate}, entry=${entryDate}`);
         });
         
         // Special check for problematic dates
@@ -749,7 +750,7 @@ export class HospitalService {
           return createdDate === yesterdayStr || entryDate === yesterdayStr;
         });
         
-        console.log(`📊 Backend date analysis:`, {
+        logger.log(`📊 Backend date analysis:`, {
           todayStr,
           yesterdayStr,
           todayPatients: todayPatients.length,
@@ -757,7 +758,7 @@ export class HospitalService {
         });
         
         if (yesterdayPatients.length > 0) {
-          console.log('🚨 Backend: Found yesterday patients:', yesterdayPatients.map(p => `${p.first_name} ${p.last_name}`));
+          logger.log('🚨 Backend: Found yesterday patients:', yesterdayPatients.map(p => `${p.first_name} ${p.last_name}`));
         }
       }
       
@@ -807,7 +808,7 @@ export class HospitalService {
       return enhancedPatients as PatientWithRelations[];
       
     } catch (error: any) {
-      console.error('🚨 getPatients error:', error);
+      logger.error('🚨 getPatients error:', error);
       throw error;
     }
   }
@@ -824,43 +825,43 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Get patient by ID error:', error);
+        logger.error('❌ Get patient by ID error:', error);
         return null;
       }
       
-      console.log('🔍 Raw patient data from database:', patient);
-      console.log('🎂 Age field in raw data:', patient?.age, 'Type:', typeof patient?.age);
+      logger.log('🔍 Raw patient data from database:', patient);
+      logger.log('🎂 Age field in raw data:', patient?.age, 'Type:', typeof patient?.age);
       
       return patient as PatientWithRelations;
       
     } catch (error: any) {
-      console.error('🚨 getPatientById error:', error);
+      logger.error('🚨 getPatientById error:', error);
       return null;
     }
   }
 
   static async deletePatient(patientId: string): Promise<void> {
     try {
-      console.log(`🗑️ Deleting patient with ID: ${patientId}`);
+      logger.log(`🗑️ Deleting patient with ID: ${patientId}`);
       const { error } = await supabase
         .from('patients')
         .delete()
         .eq('id', patientId);
 
       if (error) {
-        console.error('❌ Patient deletion error:', error);
+        logger.error('❌ Patient deletion error:', error);
         throw new Error(`Patient deletion failed: ${error.message}`);
       }
-      console.log(`✅ Patient with ID ${patientId} deleted successfully.`);
+      logger.log(`✅ Patient with ID ${patientId} deleted successfully.`);
     } catch (error: any) {
-      console.error('🚨 deletePatient error:', error);
+      logger.error('🚨 deletePatient error:', error);
       throw error;
     }
   }
 
   static async updatePatient(patientId: string, updateData: Partial<Patient>): Promise<Patient | null> {
     try {
-      console.log(`📝 Updating patient with ID: ${patientId}`, updateData);
+      logger.log(`📝 Updating patient with ID: ${patientId}`, updateData);
       
       const { data: patient, error } = await supabase
         .from('patients')
@@ -872,8 +873,8 @@ export class HospitalService {
       if (error) {
         // If the error is about columns not existing, just log it and continue
         if (error.message.includes('column') && error.message.includes('does not exist')) {
-          console.warn('⚠️ Some columns do not exist in database yet:', error.message);
-          console.log('📝 Proceeding without updating non-existent columns...');
+          logger.warn('⚠️ Some columns do not exist in database yet:', error.message);
+          logger.log('📝 Proceeding without updating non-existent columns...');
           
           // Filter out the fields that don't exist and try again
           const filteredData = { ...updateData };
@@ -881,7 +882,7 @@ export class HospitalService {
           delete filteredData.ipd_bed_number;
           
           if (Object.keys(filteredData).length === 0) {
-            console.log('📝 No valid fields to update, returning existing patient data');
+            logger.log('📝 No valid fields to update, returning existing patient data');
             return await this.getPatientById(patientId) as Patient;
           }
           
@@ -893,21 +894,21 @@ export class HospitalService {
             .single();
             
           if (error2) {
-            console.error('❌ Update patient error (retry):', error2);
+            logger.error('❌ Update patient error (retry):', error2);
             throw new Error(`Failed to update patient: ${error2.message}`);
           }
           
           return patient2 as Patient;
         } else {
-          console.error('❌ Update patient error:', error);
+          logger.error('❌ Update patient error:', error);
           throw new Error(`Failed to update patient: ${error.message}`);
         }
       }
 
-      console.log(`✅ Patient updated successfully:`, patient);
+      logger.log(`✅ Patient updated successfully:`, patient);
       return patient as Patient;
     } catch (error: any) {
-      console.error('🚨 updatePatient error:', error);
+      logger.error('🚨 updatePatient error:', error);
       throw error;
     }
   }
@@ -921,7 +922,7 @@ export class HospitalService {
         .limit(1);
 
       if (error) {
-        console.error('Error fetching max patient ID:', error);
+        logger.error('Error fetching max patient ID:', error);
         return 0;
       }
 
@@ -932,7 +933,7 @@ export class HospitalService {
       }
       return 0;
     } catch (error) {
-      console.error('Exception in getMaxPatientIdNumber:', error);
+      logger.error('Exception in getMaxPatientIdNumber:', error);
       return 0;
     }
   }
@@ -940,7 +941,7 @@ export class HospitalService {
   // ==================== TRANSACTION OPERATIONS ====================
   
   static async createTransaction(data: CreateTransactionData): Promise<PatientTransaction> {
-    console.log('💰 Creating transaction with date (HospitalService):', {
+    logger.log('💰 Creating transaction with date (HospitalService):', {
       input_transaction_date: data.transaction_date,
       input_transaction_date_type: typeof data.transaction_date,
       jsDateParsed: data.transaction_date ? new Date(data.transaction_date) : null,
@@ -948,7 +949,7 @@ export class HospitalService {
     });
     
     try {
-      const transactionData = {
+      const transactionData: any = {
         patient_id: data.patient_id,
         transaction_type: data.transaction_type,
         description: data.description,
@@ -962,8 +963,22 @@ export class HospitalService {
         transaction_date: data.transaction_date || new Date().toISOString().split('T')[0], // FIX: Include transaction_date
         hospital_id: HOSPITAL_ID // Fix: Add hospital_id to make transaction visible in dashboard
       };
+
+      // Add discount fields only if they exist and have values
+      if (data.discount_type) {
+        transactionData.discount_type = data.discount_type;
+      }
+      if (data.discount_value !== undefined && data.discount_value !== null) {
+        transactionData.discount_value = data.discount_value;
+      }
+      if (data.discount_reason) {
+        transactionData.discount_reason = data.discount_reason;
+      }
+      if (data.online_payment_method) {
+        transactionData.online_payment_method = data.online_payment_method;
+      }
       
-      console.log('🔍 TRANSACTION CREATION DEBUG:', {
+      logger.log('🔍 TRANSACTION CREATION DEBUG:', {
         transactionData,
         transaction_date_being_saved: transactionData.transaction_date,
         HOSPITAL_ID,
@@ -978,15 +993,15 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Transaction creation error:', error);
+        logger.error('❌ Transaction creation error:', error);
         throw new Error(`Transaction creation failed: ${error.message}`);
       }
       
-      console.log('✅ Transaction created:', transaction);
+      logger.log('✅ Transaction created:', transaction);
       
       // 🔄 UPDATE PATIENT'S LAST VISIT DATE
       const updateLastVisitDate = transactionData.transaction_date;
-      console.log('📅 Updating patient last_visit_date to:', updateLastVisitDate);
+      logger.log('📅 Updating patient last_visit_date to:', updateLastVisitDate);
       
       const { error: updateError } = await supabase
         .from('patients')
@@ -997,10 +1012,10 @@ export class HospitalService {
         .eq('id', data.patient_id);
       
       if (updateError) {
-        console.error('⚠️ Failed to update patient last_visit_date:', updateError);
+        logger.error('⚠️ Failed to update patient last_visit_date:', updateError);
         // Don't throw error - transaction is already created
       } else {
-        console.log('✅ Patient last_visit_date updated successfully');
+        logger.log('✅ Patient last_visit_date updated successfully');
       }
       
       // 🔍 VERIFY: Check if transaction was actually inserted with correct data
@@ -1020,7 +1035,7 @@ export class HospitalService {
         .eq('id', transaction.id)
         .single();
         
-      console.log('🔍 TRANSACTION VERIFICATION:', {
+      logger.log('🔍 TRANSACTION VERIFICATION:', {
         insertedTransaction: transaction,
         verificationQuery: verifyQuery.data,
         verificationError: verifyQuery.error,
@@ -1035,7 +1050,7 @@ export class HospitalService {
       return transaction as PatientTransaction;
       
     } catch (error: any) {
-      console.error('🚨 createTransaction error:', error);
+      logger.error('🚨 createTransaction error:', error);
       throw error;
     }
   }
@@ -1049,21 +1064,21 @@ export class HospitalService {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('❌ Get transactions error:', error);
+        logger.error('❌ Get transactions error:', error);
         throw error;
       }
       
       return transactions as PatientTransaction[];
       
     } catch (error: any) {
-      console.error('🚨 getTransactionsByPatient error:', error);
+      logger.error('🚨 getTransactionsByPatient error:', error);
       throw error;
     }
   }
 
   static async updateTransaction(transactionId: string, updateData: Partial<PatientTransaction>): Promise<PatientTransaction> {
     try {
-      console.log(`🔄 Updating transaction ${transactionId}:`, updateData);
+      logger.log(`🔄 Updating transaction ${transactionId}:`, updateData);
       
       const { data: transaction, error } = await supabase
         .from('patient_transactions')
@@ -1073,22 +1088,22 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Update transaction error:', error);
+        logger.error('❌ Update transaction error:', error);
         throw new Error(`Failed to update transaction: ${error.message}`);
       }
       
-      console.log('✅ Transaction updated successfully');
+      logger.log('✅ Transaction updated successfully');
       return transaction as PatientTransaction;
       
     } catch (error: any) {
-      console.error('🚨 updateTransaction error:', error);
+      logger.error('🚨 updateTransaction error:', error);
       throw error;
     }
   }
 
   static async updateTransactionStatus(transactionId: string, status: 'PENDING' | 'COMPLETED' | 'CANCELLED'): Promise<PatientTransaction> {
     try {
-      console.log(`🔄 Updating transaction ${transactionId} status to ${status}`);
+      logger.log(`🔄 Updating transaction ${transactionId} status to ${status}`);
       
       const { data: transaction, error } = await supabase
         .from('patient_transactions')
@@ -1098,22 +1113,22 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Update transaction status error:', error);
+        logger.error('❌ Update transaction status error:', error);
         throw new Error(`Failed to update transaction status: ${error.message}`);
       }
       
-      console.log('✅ Transaction status updated successfully');
+      logger.log('✅ Transaction status updated successfully');
       return transaction as PatientTransaction;
       
     } catch (error: any) {
-      console.error('🚨 updateTransactionStatus error:', error);
+      logger.error('🚨 updateTransactionStatus error:', error);
       throw error;
     }
   }
 
   static async deleteTransaction(transactionId: string): Promise<void> {
     try {
-      console.log(`🗑️ Permanently deleting transaction ${transactionId}`);
+      logger.log(`🗑️ Permanently deleting transaction ${transactionId}`);
       
       // First fetch the transaction to log details
       const { data: transaction, error: fetchError } = await supabase
@@ -1123,9 +1138,9 @@ export class HospitalService {
         .single();
       
       if (fetchError) {
-        console.error('❌ Could not fetch transaction before deletion:', fetchError);
+        logger.error('❌ Could not fetch transaction before deletion:', fetchError);
       } else {
-        console.log('📝 Transaction to be deleted:', {
+        logger.log('📝 Transaction to be deleted:', {
           id: transaction.id,
           created_at: transaction.created_at,
           transaction_date: transaction.transaction_date,
@@ -1145,11 +1160,11 @@ export class HospitalService {
         .select('*', { count: 'exact' });
       
       if (error) {
-        console.error('❌ Delete transaction error:', error);
+        logger.error('❌ Delete transaction error:', error);
         throw new Error(`Failed to delete transaction: ${error.message}`);
       }
       
-      console.log(`✅ Transaction permanently deleted successfully. Rows affected: ${count || 'unknown'}`);
+      logger.log(`✅ Transaction permanently deleted successfully. Rows affected: ${count || 'unknown'}`);
       
       // Verify deletion by trying to fetch the transaction again
       const { data: verifyData, error: verifyError } = await supabase
@@ -1158,13 +1173,13 @@ export class HospitalService {
         .eq('id', transactionId);
       
       if (verifyError) {
-        console.log('🔍 Verify query error:', verifyError.message);
+        logger.log('🔍 Verify query error:', verifyError.message);
       }
       
       if (verifyData && verifyData.length === 0) {
-        console.log('✅ VERIFIED: Transaction completely removed from database');
+        logger.log('✅ VERIFIED: Transaction completely removed from database');
       } else if (verifyData && verifyData.length > 0) {
-        console.error('❌ CRITICAL WARNING: Transaction still exists in database after deletion!', verifyData);
+        logger.error('❌ CRITICAL WARNING: Transaction still exists in database after deletion!', verifyData);
         throw new Error('Transaction was not actually deleted from the database!');
       }
       
@@ -1175,13 +1190,13 @@ export class HospitalService {
         .limit(5);
         
       if (allError) {
-        console.error('Error checking remaining transactions:', allError);
+        logger.error('Error checking remaining transactions:', allError);
       } else {
-        console.log('📊 Sample of remaining transactions in database:', allTransactions);
+        logger.log('📊 Sample of remaining transactions in database:', allTransactions);
       }
       
     } catch (error: any) {
-      console.error('🚨 deleteTransaction error:', error);
+      logger.error('🚨 deleteTransaction error:', error);
       throw error;
     }
   }
@@ -1189,7 +1204,7 @@ export class HospitalService {
   // ==================== APPOINTMENT OPERATIONS ====================
   
   static async createAppointment(data: CreateAppointmentData): Promise<FutureAppointment> {
-    console.log('📅 Creating appointment:', data);
+    logger.log('📅 Creating appointment:', data);
     
     try {
       const appointmentData = {
@@ -1212,27 +1227,27 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Appointment creation error:', error);
+        logger.error('❌ Appointment creation error:', error);
         throw new Error(`Appointment creation failed: ${error.message}`);
       }
       
-      console.log('✅ Appointment created:', appointment);
+      logger.log('✅ Appointment created:', appointment);
       return appointment as FutureAppointment;
       
     } catch (error: any) {
-      console.error('🚨 createAppointment error:', error);
+      logger.error('🚨 createAppointment error:', error);
       throw error;
     }
   }
   
   static async getAppointments(limit = 100): Promise<AppointmentWithRelations[]> {
     try {
-      console.log('📅 [HOSPITAL SERVICE] Fetching appointments from database...');
-      console.log('🔗 [HOSPITAL SERVICE] Supabase URL:', process.env.VITE_SUPABASE_URL);
-      console.log('🔑 [HOSPITAL SERVICE] Using anon key:', !!process.env.VITE_SUPABASE_ANON_KEY);
+      logger.log('📅 [HOSPITAL SERVICE] Fetching appointments from database...');
+      logger.log('🔗 [HOSPITAL SERVICE] Supabase URL:', process.env.VITE_SUPABASE_URL);
+      logger.log('🔑 [HOSPITAL SERVICE] Using anon key:', !!process.env.VITE_SUPABASE_ANON_KEY);
       
       // First try with relationships
-      console.log('🔄 [HOSPITAL SERVICE] Querying future_appointments table with relationships...');
+      logger.log('🔄 [HOSPITAL SERVICE] Querying future_appointments table with relationships...');
       const { data: appointments, error } = await supabase
         .from('future_appointments')
         .select(`
@@ -1245,10 +1260,10 @@ export class HospitalService {
         .limit(limit);
       
       if (error) {
-        console.error('❌ [HOSPITAL SERVICE] Get appointments with relations error:', error);
+        logger.error('❌ [HOSPITAL SERVICE] Get appointments with relations error:', error);
         
         // If relationships fail, try simple query
-        console.log('🔄 [HOSPITAL SERVICE] Trying simple query without relationships...');
+        logger.log('🔄 [HOSPITAL SERVICE] Trying simple query without relationships...');
         const { data: simpleAppointments, error: simpleError } = await supabase
           .from('future_appointments')
           .select('*')
@@ -1256,22 +1271,22 @@ export class HospitalService {
           .limit(limit);
         
         if (simpleError) {
-          console.error('❌ [HOSPITAL SERVICE] Simple appointments query also failed:', simpleError);
-          console.log('🔍 [HOSPITAL SERVICE] Error details:', JSON.stringify(simpleError, null, 2));
+          logger.error('❌ [HOSPITAL SERVICE] Simple appointments query also failed:', simpleError);
+          logger.log('🔍 [HOSPITAL SERVICE] Error details:', JSON.stringify(simpleError, null, 2));
           throw simpleError;
         }
         
-        console.log('✅ [HOSPITAL SERVICE] Got appointments without relationships:', simpleAppointments);
-        console.log('📊 [HOSPITAL SERVICE] Simple appointments count:', simpleAppointments?.length || 0);
+        logger.log('✅ [HOSPITAL SERVICE] Got appointments without relationships:', simpleAppointments);
+        logger.log('📊 [HOSPITAL SERVICE] Simple appointments count:', simpleAppointments?.length || 0);
         return (simpleAppointments || []) as AppointmentWithRelations[];
       }
       
-      console.log('✅ [HOSPITAL SERVICE] Successfully loaded appointments with relationships:', appointments);
-      console.log('📊 [HOSPITAL SERVICE] Appointments with relationships count:', appointments?.length || 0);
+      logger.log('✅ [HOSPITAL SERVICE] Successfully loaded appointments with relationships:', appointments);
+      logger.log('📊 [HOSPITAL SERVICE] Appointments with relationships count:', appointments?.length || 0);
       return (appointments || []) as AppointmentWithRelations[];
       
     } catch (error: any) {
-      console.error('🚨 getAppointments error:', error);
+      logger.error('🚨 getAppointments error:', error);
       throw error;
     }
   }
@@ -1280,13 +1295,13 @@ export class HospitalService {
   
   static async getDashboardStats(): Promise<DashboardStats> {
     try {
-      console.log('📊 Getting dashboard stats using transaction-based revenue calculation...');
+      logger.log('📊 Getting dashboard stats using transaction-based revenue calculation...');
       
       // Use local date to ensure correct timezone handling
       const localToday = new Date();
       const today = localToday.toISOString().split('T')[0];
       
-      console.log('🗓️ Date for revenue calculation:', {
+      logger.log('🗓️ Date for revenue calculation:', {
         localDate: localToday.toLocaleString(),
         todayDate: today
       });
@@ -1317,7 +1332,7 @@ export class HospitalService {
       const totalBeds = bedsResult.count || 0;
       const todayAppointments = todayAppointmentsResult.count || 0;
       
-      console.log('📋 Getting transactions for today\'s revenue calculation...');
+      logger.log('📋 Getting transactions for today\'s revenue calculation...');
       
       // Get ALL transactions using the EXACT same query as OperationsLedger
       const [transactionsResult, recentPatientsResult] = await Promise.all([
@@ -1352,11 +1367,11 @@ export class HospitalService {
       const recentPatients = recentPatientsResult.data || [];
       
       if (transError) {
-        console.error('❌ Error fetching transactions:', transError);
+        logger.error('❌ Error fetching transactions:', transError);
       }
       
       // 🔍 WHITE-BOX DEBUGGING: Analyze raw data
-      console.log('🔍 WHITE-BOX DEBUG - Raw Transaction Data:', {
+      logger.log('🔍 WHITE-BOX DEBUG - Raw Transaction Data:', {
         totalTransactions: allTransactions?.length || 0,
         sampleTransactions: allTransactions?.slice(0, 5).map(t => ({
           id: t.id,
@@ -1372,7 +1387,7 @@ export class HospitalService {
       });
       
       // Note: todayRevenue calculation is now handled in periodBreakdown.today.revenue below
-      console.log('💰 Using period breakdown for today\'s revenue calculation...');
+      logger.log('💰 Using period breakdown for today\'s revenue calculation...');
       
       // Calculate period breakdown for always-available period data
       const periodBreakdown = {
@@ -1393,7 +1408,7 @@ export class HospitalService {
       const monthStartStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
       const monthEndStr = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
       
-      console.log('📅 Period Date Ranges:', {
+      logger.log('📅 Period Date Ranges:', {
         today: todayDate,
         weekStart: weekStartStr,
         monthStart: monthStartStr,
@@ -1402,7 +1417,7 @@ export class HospitalService {
       
       // Process transactions for period breakdown using EXACT OperationsLedger logic
       if (allTransactions) {
-        console.log('📊 Processing transactions using OperationsLedger filtering logic...');
+        logger.log('📊 Processing transactions using OperationsLedger filtering logic...');
         allTransactions.forEach((transaction, index) => {
           // Apply the EXACT same filtering as OperationsLedger
           const filterDoctorName = transaction.patient?.assigned_doctor?.toUpperCase() || '';
@@ -1410,7 +1425,7 @@ export class HospitalService {
           
           // Skip only if it's specifically DR HEMANT (not KHAJJA) with ORTHO department
           if (filterDepartment === 'ORTHO' && filterDoctorName === 'DR HEMANT') {
-            console.log('🚫 Excluding transaction (OperationsLedger filter):', transaction.id, filterDoctorName, filterDepartment);
+            logger.log('🚫 Excluding transaction (OperationsLedger filter):', transaction.id, filterDoctorName, filterDepartment);
             return; // Skip this specific combination
           }
           
@@ -1449,7 +1464,7 @@ export class HospitalService {
           
           // 🔍 WHITE-BOX: Debug EVERY transaction date processing
           if (index < 10) {
-            console.log(`🔍 WHITE-BOX Transaction ${index}:`, {
+            logger.log(`🔍 WHITE-BOX Transaction ${index}:`, {
               id: transaction.id,
               amount: transaction.amount,
               patientName: `${transaction.patient?.first_name} ${transaction.patient?.last_name}`,
@@ -1497,7 +1512,7 @@ export class HospitalService {
         });
       }
       
-      console.log('📊 Period breakdown calculated:', {
+      logger.log('📊 Period breakdown calculated:', {
         today: `₹${periodBreakdown.today.revenue} (${periodBreakdown.today.count} records)`,
         thisWeek: `₹${periodBreakdown.thisWeek.revenue} (${periodBreakdown.thisWeek.count} records)`,
         thisMonth: `₹${periodBreakdown.thisMonth.revenue} (${periodBreakdown.thisMonth.count} records)`
@@ -1505,7 +1520,7 @@ export class HospitalService {
       
       // 🔍 WHITE-BOX: Final return value analysis
       const finalTodayRevenue = periodBreakdown.today.revenue;
-      console.log('🔍 WHITE-BOX FINAL RETURN VALUES:', {
+      logger.log('🔍 WHITE-BOX FINAL RETURN VALUES:', {
         todayRevenueReturned: finalTodayRevenue,
         periodBreakdownToday: periodBreakdown.today,
         willShowInDashboard: {
@@ -1516,7 +1531,7 @@ export class HospitalService {
         }
       });
       
-      console.log('🔍 Dashboard Stats Debug:', {
+      logger.log('🔍 Dashboard Stats Debug:', {
         totalPatients,
         todayPatients,
         todayRevenue: periodBreakdown.today.revenue,
@@ -1533,7 +1548,7 @@ export class HospitalService {
         return tDate === today;
       }) || [];
       
-      console.log('📊 Today\'s Transactions Sample:', {
+      logger.log('📊 Today\'s Transactions Sample:', {
         todayDate: today,
         count: todayTransactions.length,
         sampleTransactions: todayTransactions.slice(0, 3).map(t => ({
@@ -1549,7 +1564,7 @@ export class HospitalService {
       const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
       const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
       
-      console.log('📋 Calculating monthly revenue from transactions...', { startOfMonth, endOfMonth });
+      logger.log('📋 Calculating monthly revenue from transactions...', { startOfMonth, endOfMonth });
       
       // Calculate monthly revenue from all transactions
       let monthlyRevenue = 0;
@@ -1574,17 +1589,17 @@ export class HospitalService {
       }
 
       // Get today's expenses from daily_expenses table
-      console.log('💸 Getting today\'s expenses...', { today });
+      logger.log('💸 Getting today\'s expenses...', { today });
       const { data: todayExpensesData, error: expenseError } = await supabase
         .from('daily_expenses')
         .select('*')
         .eq('date', today);
       
       if (expenseError) {
-        console.error('❌ Error fetching expenses:', expenseError);
+        logger.error('❌ Error fetching expenses:', expenseError);
       }
       
-      console.log('💸 Raw expenses data:', { 
+      logger.log('💸 Raw expenses data:', { 
         count: todayExpensesData?.length || 0,
         data: todayExpensesData,
         queryDate: today 
@@ -1605,14 +1620,14 @@ export class HospitalService {
         }
       });
 
-      console.log('💸 Today\'s expense calculation:', {
+      logger.log('💸 Today\'s expense calculation:', {
         todayDate: today,
         expenseRecords: todayExpensesData?.length || 0,
         totalExpenses: todayExpenses,
         expensesByCategory
       });
       
-      console.log('💰 Monthly revenue calculation (transaction-based):', {
+      logger.log('💰 Monthly revenue calculation (transaction-based):', {
         startOfMonth,
         endOfMonth,
         finalMonthlyRevenue: monthlyRevenue
@@ -1664,15 +1679,15 @@ export class HospitalService {
       };
       
     } catch (error: any) {
-      console.error('🚨 getDashboardStats error:', error);
+      logger.error('🚨 getDashboardStats error:', error);
       throw error;
     }
   }
   
   static async getDashboardStatsWithDateRange(startDate: string, endDate: string): Promise<any> {
     try {
-      console.log('📊 Getting dashboard stats with date range...');
-      console.log('📅 Date range:', { startDate, endDate });
+      logger.log('📊 Getting dashboard stats with date range...');
+      logger.log('📅 Date range:', { startDate, endDate });
       
       // Parse dates
       const start = new Date(startDate);
@@ -1746,8 +1761,8 @@ export class HospitalService {
       const availableBeds = bedsData.data?.filter(bed => bed.status === 'AVAILABLE').length || 0;
       const occupiedBeds = bedsData.data?.filter(bed => bed.status === 'OCCUPIED').length || 0;
       
-      console.log('📋 Getting transactions for date range revenue calculation...');
-      console.log('📋 Query parameters:', {
+      logger.log('📋 Getting transactions for date range revenue calculation...');
+      logger.log('📋 Query parameters:', {
         status: 'COMPLETED',
         start: start.toISOString(),
         end: end.toISOString()
@@ -1764,10 +1779,10 @@ export class HospitalService {
         .order('transaction_date', { ascending: false });
       
       if (transError) {
-        console.error('❌ Error fetching transactions:', transError);
+        logger.error('❌ Error fetching transactions:', transError);
       } else {
-        console.log('✅ Transactions fetched:', allTransactions?.length || 0, 'records');
-        console.log('📋 Sample transaction:', allTransactions?.[0]);
+        logger.log('✅ Transactions fetched:', allTransactions?.length || 0, 'records');
+        logger.log('📋 Sample transaction:', allTransactions?.[0]);
       }
       
       // Calculate revenue breakdown by type and time periods
@@ -1794,7 +1809,7 @@ export class HospitalService {
       const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999);
       
-      console.log('📅 Period calculations:', {
+      logger.log('📅 Period calculations:', {
         today: today.toISOString(),
         todayEnd: todayEnd.toISOString(),
         weekStart: weekStart.toISOString(),
@@ -1811,7 +1826,7 @@ export class HospitalService {
       };
       
       if (allTransactions) {
-        console.log('📋 Processing', allTransactions.length, 'transactions for period breakdown');
+        logger.log('📋 Processing', allTransactions.length, 'transactions for period breakdown');
         allTransactions.forEach((transaction, index) => {
           // Total revenue (all transactions)
           totalRevenue += transaction.amount || 0;
@@ -1824,7 +1839,7 @@ export class HospitalService {
           
           // Debug first few transactions
           if (index < 3) {
-            console.log(`Transaction ${index}:`, {
+            logger.log(`Transaction ${index}:`, {
               id: transaction.id,
               created_at: transaction.created_at,
               transaction_date: transaction.transaction_date,
@@ -1862,7 +1877,7 @@ export class HospitalService {
             // Categorize by time periods (must also be within selected date range)
             // Debug period matching for first transaction
             if (index === 0) {
-              console.log('🕒 Period matching for first transaction:', {
+              logger.log('🕒 Period matching for first transaction:', {
                 transactionDate: transactionDate.toISOString(),
                 today: today.toISOString(),
                 todayEnd: todayEnd.toISOString(),
@@ -1883,7 +1898,7 @@ export class HospitalService {
               periodBreakdown.today.revenue += transaction.amount || 0;
               periodBreakdown.today.transactions.push(enhancedTransaction);
               periodBreakdown.today.count++;
-              if (index < 3) console.log('✅ Added to TODAY:', transaction.id, transaction.amount);
+              if (index < 3) logger.log('✅ Added to TODAY:', transaction.id, transaction.amount);
             }
             
             // This Week: transactions from last 7 days that are also within the selected range
@@ -1894,7 +1909,7 @@ export class HospitalService {
                 periodBreakdown.thisWeek.transactions.push(enhancedTransaction);
               }
               periodBreakdown.thisWeek.count++;
-              if (index < 3) console.log('✅ Added to WEEK:', transaction.id, transaction.amount);
+              if (index < 3) logger.log('✅ Added to WEEK:', transaction.id, transaction.amount);
             }
             
             // This Month: transactions from current month that are also within the selected range
@@ -1905,7 +1920,7 @@ export class HospitalService {
                 periodBreakdown.thisMonth.transactions.push(enhancedTransaction);
               }
               periodBreakdown.thisMonth.count++;
-              if (index < 3) console.log('✅ Added to MONTH:', transaction.id, transaction.amount);
+              if (index < 3) logger.log('✅ Added to MONTH:', transaction.id, transaction.amount);
             }
             
             // Keep top 10 transactions overall
@@ -1916,7 +1931,7 @@ export class HospitalService {
         });
       }
       
-      console.log('💰 Date range revenue calculation:', {
+      logger.log('💰 Date range revenue calculation:', {
         startDate: start.toISOString(),
         endDate: end.toISOString(),
         totalRevenue,
@@ -1999,7 +2014,7 @@ export class HospitalService {
       };
       
     } catch (error: any) {
-      console.error('🚨 getDashboardStatsWithDateRange error:', error);
+      logger.error('🚨 getDashboardStatsWithDateRange error:', error);
       throw error;
     }
   }
@@ -2008,7 +2023,7 @@ export class HospitalService {
   
   static async testConnection(): Promise<{ success: boolean; message: string; user?: User | null }> {
     try {
-      console.log('🧪 Testing Supabase connection...');
+      logger.log('🧪 Testing Supabase connection...');
       
       // Test basic connectivity
       const { data, error } = await supabase
@@ -2051,7 +2066,7 @@ export class HospitalService {
   
   static async getPatientTransactionsByAdmission(patientId: string) {
     try {
-      console.log('📊 Loading patient transactions for discharge billing...');
+      logger.log('📊 Loading patient transactions for discharge billing...');
       
       const { data, error } = await supabase
         .from('patient_transactions')
@@ -2062,18 +2077,18 @@ export class HospitalService {
       
       if (error) throw error;
       
-      console.log(`✅ Loaded ${data?.length || 0} completed transactions`);
+      logger.log(`✅ Loaded ${data?.length || 0} completed transactions`);
       return data || [];
       
     } catch (error: any) {
-      console.error('❌ Error loading patient transactions:', error);
+      logger.error('❌ Error loading patient transactions:', error);
       throw error;
     }
   }
   
   static async createDischargeSummary(summaryData: any) {
     try {
-      console.log('📝 Creating discharge summary...');
+      logger.log('📝 Creating discharge summary...');
       
       const { data, error } = await supabase
         .from('discharge_summaries')
@@ -2083,18 +2098,18 @@ export class HospitalService {
       
       if (error) throw error;
       
-      console.log('✅ Discharge summary created successfully');
+      logger.log('✅ Discharge summary created successfully');
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error creating discharge summary:', error);
+      logger.error('❌ Error creating discharge summary:', error);
       throw error;
     }
   }
   
   static async createDischargeBill(billData: any) {
     try {
-      console.log('💰 Creating discharge bill...');
+      logger.log('💰 Creating discharge bill...');
       
       const { data, error } = await supabase
         .from('discharge_bills')
@@ -2104,18 +2119,18 @@ export class HospitalService {
       
       if (error) throw error;
       
-      console.log('✅ Discharge bill created successfully');
+      logger.log('✅ Discharge bill created successfully');
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error creating discharge bill:', error);
+      logger.error('❌ Error creating discharge bill:', error);
       throw error;
     }
   }
   
   static async getDischargeHistory(patientId: string) {
     try {
-      console.log('📋 Loading discharge history...');
+      logger.log('📋 Loading discharge history...');
       
       const { data, error } = await supabase
         .from('discharge_summaries')
@@ -2129,18 +2144,18 @@ export class HospitalService {
       
       if (error) throw error;
       
-      console.log(`✅ Loaded ${data?.length || 0} discharge records`);
+      logger.log(`✅ Loaded ${data?.length || 0} discharge records`);
       return data || [];
       
     } catch (error: any) {
-      console.error('❌ Error loading discharge history:', error);
+      logger.error('❌ Error loading discharge history:', error);
       throw error;
     }
   }
   
   static async getDischargeSummaryWithBill(admissionId: string) {
     try {
-      console.log('📄 Loading complete discharge record for admission:', admissionId);
+      logger.log('📄 Loading complete discharge record for admission:', admissionId);
       
       // First try the full query with bills
       const { data, error } = await supabase
@@ -2155,7 +2170,7 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.warn('⚠️ Full query failed, trying simplified query:', error);
+        logger.warn('⚠️ Full query failed, trying simplified query:', error);
         
         // Fallback: try without discharge_bills table
         const { data: simplifiedData, error: simplifiedError } = await supabase
@@ -2168,27 +2183,27 @@ export class HospitalService {
           .single();
         
         if (simplifiedError) {
-          console.error('❌ Simplified query also failed:', simplifiedError);
+          logger.error('❌ Simplified query also failed:', simplifiedError);
           throw simplifiedError;
         }
         
-        console.log('✅ Simplified discharge record loaded');
+        logger.log('✅ Simplified discharge record loaded');
         return simplifiedData;
       }
       
-      console.log('✅ Complete discharge record loaded');
+      logger.log('✅ Complete discharge record loaded');
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error loading discharge record:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      logger.error('❌ Error loading discharge record:', error);
+      logger.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
   }
 
   static async getDischargedAdmissions() {
     try {
-      console.log('📋 Loading discharged admissions...');
+      logger.log('📋 Loading discharged admissions...');
       
       const { data, error } = await supabase
         .from('patient_admissions')
@@ -2202,7 +2217,7 @@ export class HospitalService {
         .order('updated_at', { ascending: false });
       
       if (error) {
-        console.warn('⚠️ Full query failed, trying simplified query:', error);
+        logger.warn('⚠️ Full query failed, trying simplified query:', error);
         
         // Fallback: try without relationships
         const { data: simplifiedData, error: simplifiedError } = await supabase
@@ -2213,26 +2228,26 @@ export class HospitalService {
           .order('updated_at', { ascending: false });
         
         if (simplifiedError) {
-          console.error('❌ Simplified query also failed:', simplifiedError);
+          logger.error('❌ Simplified query also failed:', simplifiedError);
           throw simplifiedError;
         }
         
-        console.log('✅ Simplified discharged admissions loaded');
+        logger.log('✅ Simplified discharged admissions loaded');
         return simplifiedData || [];
       }
       
-      console.log(`✅ Loaded ${data?.length || 0} discharged admissions`);
+      logger.log(`✅ Loaded ${data?.length || 0} discharged admissions`);
       return data || [];
       
     } catch (error: any) {
-      console.error('❌ Error loading discharged admissions:', error);
+      logger.error('❌ Error loading discharged admissions:', error);
       throw error;
     }
   }
 
   static async getDischargeSummary(admissionId: string) {
     try {
-      console.log('📄 Loading discharge summary for admission:', admissionId);
+      logger.log('📄 Loading discharge summary for admission:', admissionId);
       
       const { data, error } = await supabase
         .from('discharge_summaries')
@@ -2241,25 +2256,25 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.warn('⚠️ No discharge summary found:', error);
+        logger.warn('⚠️ No discharge summary found:', error);
         return null;
       }
       
-      console.log('✅ Discharge summary loaded');
+      logger.log('✅ Discharge summary loaded');
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error loading discharge summary:', error);
+      logger.error('❌ Error loading discharge summary:', error);
       return null;
     }
   }
 
   static async createAdmission(admissionData: any) {
     try {
-      console.log('🏥 Creating admission record:', admissionData);
+      logger.log('🏥 Creating admission record:', admissionData);
       
       // First, let's try to get the table schema to understand what fields are required
-      console.log('📊 Attempting to understand table structure...');
+      logger.log('📊 Attempting to understand table structure...');
       
       // Try to fetch one record to see the structure
       const { data: sampleRecord, error: sampleError } = await supabase
@@ -2268,7 +2283,7 @@ export class HospitalService {
         .limit(1);
         
       if (sampleRecord && sampleRecord.length > 0) {
-        console.log('📋 Sample admission record structure:', Object.keys(sampleRecord[0]));
+        logger.log('📋 Sample admission record structure:', Object.keys(sampleRecord[0]));
       }
       
       // Now try to insert
@@ -2279,33 +2294,33 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Error creating admission:');
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        console.error('Error details:', error.details);
-        console.error('Error hint:', error.hint);
-        console.error('Full error object:', JSON.stringify(error, null, 2));
+        logger.error('❌ Error creating admission:');
+        logger.error('Error code:', error.code);
+        logger.error('Error message:', error.message);
+        logger.error('Error details:', error.details);
+        logger.error('Error hint:', error.hint);
+        logger.error('Full error object:', JSON.stringify(error, null, 2));
         
         // If it's a not-null constraint error, log which field is missing
         if (error.code === '23502') {
-          console.error('🚨 MISSING REQUIRED FIELD:', error.message);
+          logger.error('🚨 MISSING REQUIRED FIELD:', error.message);
         }
         
         throw error;
       }
       
-      console.log('✅ Admission record created successfully:', data);
+      logger.log('✅ Admission record created successfully:', data);
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error creating admission:', error);
+      logger.error('❌ Error creating admission:', error);
       throw error;
     }
   }
 
   static async verifyAdmissionExists(admissionId: string) {
     try {
-      console.log('🔍 Verifying admission exists:', admissionId);
+      logger.log('🔍 Verifying admission exists:', admissionId);
       
       const { data, error } = await supabase
         .from('patient_admissions')
@@ -2314,22 +2329,22 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Admission verification failed:', error);
+        logger.error('❌ Admission verification failed:', error);
         return false;
       }
       
-      console.log('✅ Admission found:', data);
+      logger.log('✅ Admission found:', data);
       return true;
       
     } catch (error: any) {
-      console.error('❌ Error verifying admission:', error);
+      logger.error('❌ Error verifying admission:', error);
       return false;
     }
   }
 
   static async createMissingAdmissionRecord(patientId: string, bedId: string, admissionDate?: string, bedNumber?: number) {
     try {
-      console.log('🆘 Creating missing admission record for patient:', patientId);
+      logger.log('🆘 Creating missing admission record for patient:', patientId);
       
       const admissionData = {
         patient_id: patientId,
@@ -2350,15 +2365,15 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Error creating missing admission:', error);
+        logger.error('❌ Error creating missing admission:', error);
         throw error;
       }
       
-      console.log('✅ Missing admission record created:', data);
+      logger.log('✅ Missing admission record created:', data);
       return data;
       
     } catch (error: any) {
-      console.error('❌ Error creating missing admission:', error);
+      logger.error('❌ Error creating missing admission:', error);
       throw error;
     }
   }
@@ -2367,7 +2382,7 @@ export class HospitalService {
   
   static async getCustomInvestigations(): Promise<any[]> {
     try {
-      console.log('📋 Getting custom investigations...');
+      logger.log('📋 Getting custom investigations...');
       
       const { data: investigations, error } = await supabase
         .from('custom_investigations')
@@ -2377,22 +2392,22 @@ export class HospitalService {
         .order('name', { ascending: true });
       
       if (error) {
-        console.error('❌ Get custom investigations error:', error);
+        logger.error('❌ Get custom investigations error:', error);
         throw new Error(`Failed to get custom investigations: ${error.message}`);
       }
       
-      console.log('✅ Custom investigations retrieved:', investigations?.length || 0);
+      logger.log('✅ Custom investigations retrieved:', investigations?.length || 0);
       return investigations || [];
       
     } catch (error: any) {
-      console.error('🚨 getCustomInvestigations error:', error);
+      logger.error('🚨 getCustomInvestigations error:', error);
       throw error;
     }
   }
 
   static async addCustomInvestigation(name: string, description?: string, category?: string): Promise<any> {
     try {
-      console.log('📋 Adding custom investigation:', name);
+      logger.log('📋 Adding custom investigation:', name);
       
       const investigationData = {
         name: name.trim(),
@@ -2412,7 +2427,7 @@ export class HospitalService {
       if (error) {
         // Handle duplicate name error
         if (error.code === '23505') {
-          console.log('⚠️ Investigation already exists:', name);
+          logger.log('⚠️ Investigation already exists:', name);
           // Return existing investigation
           const { data: existing } = await supabase
             .from('custom_investigations')
@@ -2422,22 +2437,22 @@ export class HospitalService {
             .single();
           return existing;
         }
-        console.error('❌ Add custom investigation error:', error);
+        logger.error('❌ Add custom investigation error:', error);
         throw new Error(`Failed to add custom investigation: ${error.message}`);
       }
       
-      console.log('✅ Custom investigation added successfully');
+      logger.log('✅ Custom investigation added successfully');
       return investigation;
       
     } catch (error: any) {
-      console.error('🚨 addCustomInvestigation error:', error);
+      logger.error('🚨 addCustomInvestigation error:', error);
       throw error;
     }
   }
 
   static async deleteCustomInvestigation(id: string): Promise<void> {
     try {
-      console.log('🗑️ Deleting custom investigation:', id);
+      logger.log('🗑️ Deleting custom investigation:', id);
       
       const { error } = await supabase
         .from('custom_investigations')
@@ -2446,14 +2461,14 @@ export class HospitalService {
         .eq('hospital_id', HOSPITAL_ID);
       
       if (error) {
-        console.error('❌ Delete custom investigation error:', error);
+        logger.error('❌ Delete custom investigation error:', error);
         throw new Error(`Failed to delete custom investigation: ${error.message}`);
       }
       
-      console.log('✅ Custom investigation deleted successfully');
+      logger.log('✅ Custom investigation deleted successfully');
       
     } catch (error: any) {
-      console.error('🚨 deleteCustomInvestigation error:', error);
+      logger.error('🚨 deleteCustomInvestigation error:', error);
       throw error;
     }
   }
@@ -2462,7 +2477,7 @@ export class HospitalService {
   
   static async getPainComplaints(): Promise<any[]> {
     try {
-      console.log('🩹 Getting pain complaints...');
+      logger.log('🩹 Getting pain complaints...');
       
       const { data: complaints, error } = await supabase
         .from('custom_pain_complaints')
@@ -2472,22 +2487,22 @@ export class HospitalService {
         .order('name', { ascending: true });
       
       if (error) {
-        console.error('❌ Get pain complaints error:', error);
+        logger.error('❌ Get pain complaints error:', error);
         throw new Error(`Failed to get pain complaints: ${error.message}`);
       }
       
-      console.log('✅ Pain complaints retrieved:', complaints?.length || 0);
+      logger.log('✅ Pain complaints retrieved:', complaints?.length || 0);
       return complaints || [];
       
     } catch (error: any) {
-      console.error('🚨 getPainComplaints error:', error);
+      logger.error('🚨 getPainComplaints error:', error);
       throw error;
     }
   }
 
   static async addPainComplaint(name: string): Promise<any> {
     try {
-      console.log('🩹 Adding pain complaint:', name);
+      logger.log('🩹 Adding pain complaint:', name);
       
       const complaintData = {
         name: name.trim(),
@@ -2504,7 +2519,7 @@ export class HospitalService {
       
       if (error) {
         if (error.code === '23505') {
-          console.log('⚠️ Pain complaint already exists:', name);
+          logger.log('⚠️ Pain complaint already exists:', name);
           const { data: existing } = await supabase
             .from('custom_pain_complaints')
             .select('*')
@@ -2513,15 +2528,15 @@ export class HospitalService {
             .single();
           return existing;
         }
-        console.error('❌ Add pain complaint error:', error);
+        logger.error('❌ Add pain complaint error:', error);
         throw new Error(`Failed to add pain complaint: ${error.message}`);
       }
       
-      console.log('✅ Pain complaint added successfully');
+      logger.log('✅ Pain complaint added successfully');
       return complaint;
       
     } catch (error: any) {
-      console.error('🚨 addPainComplaint error:', error);
+      logger.error('🚨 addPainComplaint error:', error);
       throw error;
     }
   }
@@ -2530,7 +2545,7 @@ export class HospitalService {
   
   static async getLocations(): Promise<any[]> {
     try {
-      console.log('📍 Getting locations...');
+      logger.log('📍 Getting locations...');
       
       const { data: locations, error } = await supabase
         .from('custom_locations')
@@ -2540,22 +2555,22 @@ export class HospitalService {
         .order('name', { ascending: true });
       
       if (error) {
-        console.error('❌ Get locations error:', error);
+        logger.error('❌ Get locations error:', error);
         throw new Error(`Failed to get locations: ${error.message}`);
       }
       
-      console.log('✅ Locations retrieved:', locations?.length || 0);
+      logger.log('✅ Locations retrieved:', locations?.length || 0);
       return locations || [];
       
     } catch (error: any) {
-      console.error('🚨 getLocations error:', error);
+      logger.error('🚨 getLocations error:', error);
       throw error;
     }
   }
 
   static async addLocation(name: string): Promise<any> {
     try {
-      console.log('📍 Adding location:', name);
+      logger.log('📍 Adding location:', name);
       
       const locationData = {
         name: name.trim(),
@@ -2572,7 +2587,7 @@ export class HospitalService {
       
       if (error) {
         if (error.code === '23505') {
-          console.log('⚠️ Location already exists:', name);
+          logger.log('⚠️ Location already exists:', name);
           const { data: existing } = await supabase
             .from('custom_locations')
             .select('*')
@@ -2581,15 +2596,15 @@ export class HospitalService {
             .single();
           return existing;
         }
-        console.error('❌ Add location error:', error);
+        logger.error('❌ Add location error:', error);
         throw new Error(`Failed to add location: ${error.message}`);
       }
       
-      console.log('✅ Location added successfully');
+      logger.log('✅ Location added successfully');
       return location;
       
     } catch (error: any) {
-      console.error('🚨 addLocation error:', error);
+      logger.error('🚨 addLocation error:', error);
       throw error;
     }
   }
@@ -2598,7 +2613,7 @@ export class HospitalService {
   
   static async savePrescription(prescriptionData: any): Promise<any> {
     try {
-      console.log('💊 Saving prescription...', prescriptionData);
+      logger.log('💊 Saving prescription...', prescriptionData);
       
       const prescriptionRecord = {
         patient_id: prescriptionData.patient_id,
@@ -2626,22 +2641,22 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Save prescription error:', error);
+        logger.error('❌ Save prescription error:', error);
         throw new Error(`Failed to save prescription: ${error.message}`);
       }
       
-      console.log('✅ Prescription saved successfully');
+      logger.log('✅ Prescription saved successfully');
       return prescription;
       
     } catch (error: any) {
-      console.error('🚨 savePrescription error:', error);
+      logger.error('🚨 savePrescription error:', error);
       throw error;
     }
   }
 
   static async getPrescriptions(patientId: string): Promise<any[]> {
     try {
-      console.log('📋 Getting prescriptions for patient:', patientId);
+      logger.log('📋 Getting prescriptions for patient:', patientId);
       
       const { data: prescriptions, error } = await supabase
         .from('prescriptions')
@@ -2652,22 +2667,22 @@ export class HospitalService {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('❌ Get prescriptions error:', error);
+        logger.error('❌ Get prescriptions error:', error);
         throw new Error(`Failed to get prescriptions: ${error.message}`);
       }
       
-      console.log('✅ Prescriptions retrieved:', prescriptions?.length || 0);
+      logger.log('✅ Prescriptions retrieved:', prescriptions?.length || 0);
       return prescriptions || [];
       
     } catch (error: any) {
-      console.error('🚨 getPrescriptions error:', error);
+      logger.error('🚨 getPrescriptions error:', error);
       throw error;
     }
   }
 
   static async updatePrescription(id: string, prescriptionData: any): Promise<any> {
     try {
-      console.log('🔄 Updating prescription:', id);
+      logger.log('🔄 Updating prescription:', id);
       
       const updateData = {
         chief_complaints: prescriptionData.chief_complaints,
@@ -2691,22 +2706,22 @@ export class HospitalService {
         .single();
       
       if (error) {
-        console.error('❌ Update prescription error:', error);
+        logger.error('❌ Update prescription error:', error);
         throw new Error(`Failed to update prescription: ${error.message}`);
       }
       
-      console.log('✅ Prescription updated successfully');
+      logger.log('✅ Prescription updated successfully');
       return prescription;
       
     } catch (error: any) {
-      console.error('🚨 updatePrescription error:', error);
+      logger.error('🚨 updatePrescription error:', error);
       throw error;
     }
   }
 
   static async deletePrescription(id: string): Promise<void> {
     try {
-      console.log('🗑️ Deleting prescription:', id);
+      logger.log('🗑️ Deleting prescription:', id);
       
       const { error } = await supabase
         .from('prescriptions')
@@ -2715,14 +2730,14 @@ export class HospitalService {
         .eq('hospital_id', HOSPITAL_ID);
       
       if (error) {
-        console.error('❌ Delete prescription error:', error);
+        logger.error('❌ Delete prescription error:', error);
         throw new Error(`Failed to delete prescription: ${error.message}`);
       }
       
-      console.log('✅ Prescription deleted successfully');
+      logger.log('✅ Prescription deleted successfully');
       
     } catch (error: any) {
-      console.error('🚨 deletePrescription error:', error);
+      logger.error('🚨 deletePrescription error:', error);
       throw error;
     }
   }

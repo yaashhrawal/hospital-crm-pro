@@ -1,4 +1,5 @@
 // Billing Service for managing OPD and IPD bills across components
+import { logger } from '../utils/logger';
 export interface OPDBill {
   id: string;
   billId: string;
@@ -98,7 +99,7 @@ class BillingService {
       const bills = localStorage.getItem(this.OPD_BILLS_KEY);
       return bills ? JSON.parse(bills) : [];
     } catch (error) {
-      console.error('Failed to load OPD bills:', error);
+      logger.error('Failed to load OPD bills:', error);
       return [];
     }
   }
@@ -110,18 +111,18 @@ class BillingService {
       
       if (existingIndex >= 0) {
         bills[existingIndex] = bill;
-        console.log('📝 Updated existing OPD bill:', bill.billId);
+        logger.log('📝 Updated existing OPD bill:', bill.billId);
       } else {
         bills.unshift(bill);
-        console.log('➕ Added new OPD bill:', bill.billId);
+        logger.log('➕ Added new OPD bill:', bill.billId);
       }
       
       localStorage.setItem(this.OPD_BILLS_KEY, JSON.stringify(bills));
-      console.log('💾 Saved OPD bills to localStorage. Total bills:', bills.length);
+      logger.log('💾 Saved OPD bills to localStorage. Total bills:', bills.length);
       this.notifyListeners();
-      console.log('📢 Notified listeners of OPD bill change');
+      logger.log('📢 Notified listeners of OPD bill change');
     } catch (error) {
-      console.error('Failed to save OPD bill:', error);
+      logger.error('Failed to save OPD bill:', error);
       throw new Error('Failed to save OPD bill');
     }
   }
@@ -132,7 +133,7 @@ class BillingService {
       localStorage.setItem(this.OPD_BILLS_KEY, JSON.stringify(bills));
       this.notifyListeners();
     } catch (error) {
-      console.error('Failed to delete OPD bill:', error);
+      logger.error('Failed to delete OPD bill:', error);
       throw new Error('Failed to delete OPD bill');
     }
   }
@@ -143,7 +144,7 @@ class BillingService {
       const bills = localStorage.getItem(this.IPD_BILLS_KEY);
       return bills ? JSON.parse(bills) : [];
     } catch (error) {
-      console.error('Failed to load IPD bills:', error);
+      logger.error('Failed to load IPD bills:', error);
       return [];
     }
   }
@@ -162,7 +163,7 @@ class BillingService {
       localStorage.setItem(this.IPD_BILLS_KEY, JSON.stringify(bills));
       this.notifyListeners();
     } catch (error) {
-      console.error('Failed to save IPD bill:', error);
+      logger.error('Failed to save IPD bill:', error);
       throw new Error('Failed to save IPD bill');
     }
   }
@@ -173,7 +174,7 @@ class BillingService {
       localStorage.setItem(this.IPD_BILLS_KEY, JSON.stringify(bills));
       this.notifyListeners();
     } catch (error) {
-      console.error('Failed to delete IPD bill:', error);
+      logger.error('Failed to delete IPD bill:', error);
       throw new Error('Failed to delete IPD bill');
     }
   }
@@ -183,7 +184,7 @@ class BillingService {
     const opdBills = this.getOPDBills();
     const ipdBills = this.getIPDBills();
     
-    console.log('🔍 Getting all recent bills - OPD:', opdBills.length, 'IPD:', ipdBills.length);
+    logger.log('🔍 Getting all recent bills - OPD:', opdBills.length, 'IPD:', ipdBills.length);
     
     const recentBills: RecentBill[] = [
       ...opdBills.map(bill => ({
@@ -206,11 +207,11 @@ class BillingService {
       }))
     ];
 
-    console.log('📋 Total recent bills:', recentBills.length);
+    logger.log('📋 Total recent bills:', recentBills.length);
     
     // Sort by date (newest first)
     const sortedBills = recentBills.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    console.log('📊 Sorted recent bills:', sortedBills.length);
+    logger.log('📊 Sorted recent bills:', sortedBills.length);
     return sortedBills;
   }
 

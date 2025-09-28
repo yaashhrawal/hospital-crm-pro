@@ -1,5 +1,6 @@
 import dataService from './dataService';
 import type { User } from './dataService';
+import { logger } from '../utils/logger';
 
 export interface LoginCredentials {
   email: string;
@@ -34,21 +35,21 @@ class AuthService {
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log('🔧 [AuthService] Starting login process for email:', credentials.email);
+      logger.log('🔧 [AuthService] Starting login process for email:', credentials.email);
       
       // Use dataService for login
       const user = await dataService.login(credentials.email, credentials.password);
 
       if (!user) {
-        console.error('❌ [AuthService] Invalid credentials');
+        logger.error('❌ [AuthService] Invalid credentials');
         return {
           user: null,
           error: 'Invalid email or password',
         };
       }
 
-      console.log('✅ [AuthService] Login successful, returning user:', user);
-      console.log('🔍 AuthService Debug - user.role:', user.role);
+      logger.log('✅ [AuthService] Login successful, returning user:', user);
+      logger.log('🔍 AuthService Debug - user.role:', user.role);
 
       const authUser: AuthUser = {
         id: user.id,
@@ -59,14 +60,14 @@ class AuthService {
         isActive: user.is_active,
       };
 
-      console.log('🔍 AuthService Debug - final authUser:', authUser);
+      logger.log('🔍 AuthService Debug - final authUser:', authUser);
 
       return {
         user: authUser,
         error: null,
       };
     } catch (error) {
-      console.error('❌ [AuthService] Login exception:', error);
+      logger.error('❌ [AuthService] Login exception:', error);
       return {
         user: null,
         error: error instanceof Error ? error.message : 'Login failed',
@@ -103,12 +104,12 @@ class AuthService {
    */
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      console.log('🔧 [AuthService] Getting current user session...');
+      logger.log('🔧 [AuthService] Getting current user session...');
       
       const user = await dataService.getCurrentUser();
       
       if (!user) {
-        console.log('🔧 [AuthService] No user found');
+        logger.log('🔧 [AuthService] No user found');
         return null;
       }
 
@@ -121,10 +122,10 @@ class AuthService {
         isActive: user.is_active,
       };
 
-      console.log('✅ [AuthService] Current user retrieved:', authUser);
+      logger.log('✅ [AuthService] Current user retrieved:', authUser);
       return authUser;
     } catch (error) {
-      console.error('❌ [AuthService] Exception getting current user:', error);
+      logger.error('❌ [AuthService] Exception getting current user:', error);
       return null;
     }
   }

@@ -14,6 +14,7 @@ import {
   UserPlus,
   Building2
 } from 'lucide-react';
+import { logger } from '../utils/logger';
 
 // Doctors and Departments data
 const DOCTORS_DATA = [
@@ -157,7 +158,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
     
     if (name.length >= 1) { // Show results from first character
       const searchTerm = name.toLowerCase().trim();
-      console.log(`🔍 Searching for: "${searchTerm}" in ${existingPatients.length} patients`);
+      logger.log(`🔍 Searching for: "${searchTerm}" in ${existingPatients.length} patients`);
       
       const filtered = existingPatients.filter(patient => {
         // Handle null/undefined values more robustly
@@ -210,9 +211,9 @@ const NewFlexiblePatientEntry: React.FC = () => {
         return aFullName.localeCompare(bFullName);
       });
       
-      console.log(`🎯 Found ${filtered.length} patients matching "${searchTerm}"`);
+      logger.log(`🎯 Found ${filtered.length} patients matching "${searchTerm}"`);
       if (filtered.length > 0) {
-        console.log(`📋 First few results:`, filtered.slice(0, 3).map(p => `${p.first_name} ${p.last_name} (${p.patient_id})`));
+        logger.log(`📋 First few results:`, filtered.slice(0, 3).map(p => `${p.first_name} ${p.last_name} (${p.patient_id})`));
       }
       
       setFilteredPatients(filtered);
@@ -225,7 +226,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
   // Function to auto-fill patient details
   const selectExistingPatient = (patient: any) => {
-    console.log('🔍 selectExistingPatient called with:', patient);
+    logger.log('🔍 selectExistingPatient called with:', patient);
     
     setSelectedExistingPatient(patient);
     setIsNewVisit(true);
@@ -255,7 +256,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       date_of_entry: new Date()
     };
     
-    console.log('📝 Setting new form data:', newFormData);
+    logger.log('📝 Setting new form data:', newFormData);
     setFormData(newFormData);
     
     toast.success(`Auto-filled details for ${patient.first_name} ${patient.last_name} - This will be counted as a new visit`);
@@ -299,20 +300,20 @@ const NewFlexiblePatientEntry: React.FC = () => {
       
       // Only load if we haven't loaded in the last 30 seconds, or if forced refresh
       if (!forceRefresh && existingPatients.length > 0 && (now - patientsLastLoaded) < 30000) {
-        console.log('🔄 Using cached patient data (loaded', Math.round((now - patientsLastLoaded) / 1000), 'seconds ago)');
+        logger.log('🔄 Using cached patient data (loaded', Math.round((now - patientsLastLoaded) / 1000), 'seconds ago)');
         return;
       }
 
-      console.log('🔍 Loading existing patients for search...');
+      logger.log('🔍 Loading existing patients for search...');
       // Get ALL patients including inactive ones for comprehensive search
       // Using even higher limit to ensure we get ALL patients
       const patients = await HospitalService.getPatients(50000, true, true); // limit=50000, skipOrthoFilter=TRUE, includeInactive=true
-      console.log('✅ Loaded patients for search:', patients?.length || 0);
-      console.log('🏥 First few patient hospital_ids:', patients?.slice(0, 5).map(p => `${p.first_name} ${p.last_name} - Hospital ID: ${p.hospital_id} - Active: ${p.is_active}`));
+      logger.log('✅ Loaded patients for search:', patients?.length || 0);
+      logger.log('🏥 First few patient hospital_ids:', patients?.slice(0, 5).map(p => `${p.first_name} ${p.last_name} - Hospital ID: ${p.hospital_id} - Active: ${p.is_active}`));
       
       // Log first few patients to verify they're newest
       if (patients && patients.length > 0) {
-        console.log('📅 Latest patients:', patients.slice(0, 3).map(p => 
+        logger.log('📅 Latest patients:', patients.slice(0, 3).map(p => 
           `${p.first_name} ${p.last_name} (Created: ${p.created_at || 'Unknown'})`
         ));
       }
@@ -320,7 +321,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       setExistingPatients(patients || []);
       setPatientsLastLoaded(now);
     } catch (error) {
-      console.error('❌ Error loading existing patients:', error);
+      logger.error('❌ Error loading existing patients:', error);
       // Set empty array on error to prevent crashes
       setExistingPatients([]);
     }
@@ -444,13 +445,13 @@ const NewFlexiblePatientEntry: React.FC = () => {
         return;
       }
 
-      console.log('💾 Preparing patient data for submission...');
+      logger.log('💾 Preparing patient data for submission...');
       
       let newPatient: any;
       
       // Check if this is a new visit for an existing patient
       if (isNewVisit && selectedExistingPatient) {
-        console.log('🔄 Processing new visit for existing patient:', selectedExistingPatient.patient_id);
+        logger.log('🔄 Processing new visit for existing patient:', selectedExistingPatient.patient_id);
         
         // Update existing patient's date_of_entry and doctor information to new visit date
         const updateData: any = {
@@ -474,7 +475,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           const updatedPatient = await HospitalService.updatePatient(selectedExistingPatient.id, updateData);
           if (updatedPatient) {
             newPatient = { ...selectedExistingPatient, ...updateData };
-            console.log('✅ Updated patient date_of_entry and doctor info for new visit');
+            logger.log('✅ Updated patient date_of_entry and doctor info for new visit');
             toast.success(`New visit recorded for ${selectedExistingPatient.first_name} ${selectedExistingPatient.last_name}`);
             // Refresh patient list to update last visit info
             loadExistingPatients(true);
@@ -482,14 +483,14 @@ const NewFlexiblePatientEntry: React.FC = () => {
             throw new Error('Failed to update patient for new visit');
           }
         } catch (error) {
-          console.error('❌ Error updating patient for new visit:', error);
+          logger.error('❌ Error updating patient for new visit:', error);
           toast.error('Failed to record new visit. Please try again.');
           setLoading(false);
           return;
         }
       } else {
         // Create new patient
-        console.log('👤 Creating new patient...');
+        logger.log('👤 Creating new patient...');
         
         // Prepare patient data - properly mapped to database schema
         const patientData: CreatePatientData = {
@@ -545,8 +546,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
 
       // Note: Patient will be hidden from patient list automatically if they have an appointment
 
-        console.log('📤 Creating patient with data:', patientData);
-        console.log('👨‍⚕️ Doctor info being saved:', {
+        logger.log('📤 Creating patient with data:', patientData);
+        logger.log('👨‍⚕️ Doctor info being saved:', {
           doctor: patientData.assigned_doctor,
           department: patientData.assigned_department,
           mode: formData.consultation_mode,
@@ -554,7 +555,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
           selected_department: formData.selected_department
         });
         newPatient = await HospitalService.createPatient(patientData);
-        console.log('✅ Patient created successfully:', newPatient);
+        logger.log('✅ Patient created successfully:', newPatient);
       }
 
       // Handle doctors assignment based on consultation mode
@@ -596,8 +597,17 @@ const NewFlexiblePatientEntry: React.FC = () => {
           
           // Build description with discount info if applicable
           let description = `Consultation with ${doctor.doctor_name} - ${doctor.department}`;
-          if (formData.discount_reason) {
-            description += ` | Reason: ${formData.discount_reason}`;
+
+          // Add discount information to description for backward compatibility
+          if (formData.discount_value > 0) {
+            const discountText = formData.discount_type === 'PERCENTAGE'
+              ? `${formData.discount_value}% discount (₹${discountAmount.toFixed(2)})`
+              : `₹${formData.discount_value} discount`;
+            description += ` | Original Fee: ₹${originalAmount.toFixed(2)} | Discount: ${discountText}`;
+
+            if (formData.discount_reason) {
+              description += ` | Reason: ${formData.discount_reason}`;
+            }
           }
           
           const transactionData: CreateTransactionData = {
@@ -616,7 +626,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
             transaction_date: formData.date_of_entry || new Date().toISOString().split('T')[0] // FIX: Use patient's date_of_entry as transaction_date
           };
 
-          console.log('💳 Creating transaction:', transactionData);
+          logger.log('💳 Creating transaction:', transactionData);
           await HospitalService.createTransaction(transactionData);
         }
       }
@@ -674,15 +684,15 @@ const NewFlexiblePatientEntry: React.FC = () => {
           appointments.push(appointmentData);
           localStorage.setItem('hospital_appointments', JSON.stringify(appointments));
           
-          console.log('📅 New appointment created:', appointmentData);
-          console.log('📅 Total appointments in localStorage:', appointments.length);
+          logger.log('📅 New appointment created:', appointmentData);
+          logger.log('📅 Total appointments in localStorage:', appointments.length);
           
           // Dispatch event to notify Dashboard of the new appointment
           window.dispatchEvent(new Event('appointmentUpdated'));
           
           toast.success(`Appointment scheduled for ${formData.appointment_date ? formData.appointment_date.toLocaleDateString('en-IN') : 'selected date'} at ${formData.appointment_time}`);
         } catch (error) {
-          console.error('Error scheduling appointment:', error);
+          logger.error('Error scheduling appointment:', error);
         }
       }
 
@@ -769,7 +779,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
       setCustomDoctor('');
 
     } catch (error: any) {
-      console.error('Patient creation failed:', error);
+      logger.error('Patient creation failed:', error);
       toast.error(`Failed to save patient: ${error.message}`);
     } finally {
       setLoading(false);
@@ -1016,7 +1026,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          console.log('🔄 Manually refreshing patient list...');
+                          logger.log('🔄 Manually refreshing patient list...');
                           loadExistingPatients(true);
                           toast.success('Patient list refreshed!');
                         }}
@@ -1110,7 +1120,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
                                 transition: 'background-color 0.2s'
                               }}
                               onClick={() => {
-                                console.log('Patient selected:', patient);
+                                logger.log('Patient selected:', patient);
                                 selectExistingPatient(patient);
                               }}
                               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8F9FA'}

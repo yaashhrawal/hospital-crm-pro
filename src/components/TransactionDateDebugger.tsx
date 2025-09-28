@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { supabase } from '../config/supabaseNew';
 import toast from 'react-hot-toast';
 
-const TransactionDateDebugger: React.FC = () => {
+interface TransactionDateDebuggerProps {
+  onClose?: () => void;
+}
+
+const TransactionDateDebugger: React.FC<TransactionDateDebuggerProps> = ({ onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [patientInfo, setPatientInfo] = useState<any>(null);
@@ -156,7 +160,7 @@ const TransactionDateDebugger: React.FC = () => {
             🔧 Fix DB Triggers
           </button>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => onClose ? onClose() : window.location.reload()}
             className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
           >
             Close

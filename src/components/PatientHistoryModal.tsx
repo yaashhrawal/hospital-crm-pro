@@ -4,6 +4,7 @@ import dataService from '../services/dataService';
 import type { Patient, PatientTransaction } from '../types/index';
 import { getPatientTransactionDate, formatDateForDisplay, getPatientEntryDate } from '../utils/dateUtils';
 import ReceiptTemplate, { type ReceiptData } from './receipts/ReceiptTemplate';
+import { logger } from '../utils/logger';
 
 interface PatientHistoryModalProps {
   patient: Patient;
@@ -61,14 +62,14 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
         const visits = await dataService.getPatientVisits(patient.id);
         setPatientVisits(visits);
       } catch (error) {
-        console.log('Patient visits table might not exist yet');
+        logger.log('Patient visits table might not exist yet');
       }
       
       // Process visit history
       const visitMap = new Map<string, PatientTransaction[]>();
       
       // Debug logging
-      console.log('🔍 Patient History Debug:', {
+      logger.log('🔍 Patient History Debug:', {
         patientId: patient.id,
         patientName: `${patient.first_name} ${patient.last_name}`,
         patientDateOfEntry: patient.date_of_entry,
@@ -82,7 +83,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
         
         // Debug each transaction
         if (index < 3) {
-          console.log(`🔍 Transaction ${index + 1}:`, {
+          logger.log(`🔍 Transaction ${index + 1}:`, {
             id: transaction.id,
             type: transaction.transaction_type,
             amount: transaction.amount,
@@ -188,7 +189,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
       });
 
     } catch (error) {
-      console.error('Error loading patient data:', error);
+      logger.error('Error loading patient data:', error);
       toast.error('Failed to load patient history');
     } finally {
       setLoading(false);
@@ -251,7 +252,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
   const printSelectedReceipts = () => {
     const allTransactions = getAllTransactions();
     const selectedTransactionsData = allTransactions.filter(t => selectedTransactions.has(t.transactionId));
-    
+
     if (selectedTransactionsData.length === 0) {
       toast.error('Please select at least one transaction to print');
       return;
@@ -259,6 +260,62 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
 
     // Generate receipts using the same template as patient list
     selectedTransactionsData.forEach((transaction, index) => {
+      // Extract discount information from transaction
+      let discountAmount = 0;
+      let originalRate = Math.abs(transaction.amount);
+
+      // Check for discount_type and discount_value fields first (from NewFlexiblePatientEntry)
+      if (transaction.discount_value && transaction.discount_value > 0) {
+        if (transaction.discount_type === 'PERCENTAGE') {
+          // Calculate original rate from discounted amount and percentage
+          originalRate = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+          discountAmount = originalRate - Math.abs(transaction.amount);
+        } else if (transaction.discount_type === 'AMOUNT') {
+          // Discount is a fixed amount
+          originalRate = Math.abs(transaction.amount) + transaction.discount_value;
+          discountAmount = transaction.discount_value;
+        }
+      } else if (transaction.discount_percentage && transaction.discount_percentage > 0) {
+        // Legacy field - calculate original rate from discounted amount
+        originalRate = Math.abs(transaction.amount) / (1 - transaction.discount_percentage / 100);
+        discountAmount = originalRate - Math.abs(transaction.amount);
+      } else {
+        // Fallback: try to extract discount from description
+        const description = transaction.description || '';
+
+        // Look for the new format: "Original Fee: ₹500.00 | Discount: 10% discount (₹50.00)"
+        const originalFeeMatch = description.match(/Original Fee:\s*₹(\d+(?:\.\d+)?)/);
+        const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹(\d+(?:\.\d+)?)\)|₹(\d+(?:\.\d+)?)\s*discount)/);
+
+        if (originalFeeMatch && discountMatch) {
+          originalRate = parseFloat(originalFeeMatch[1]);
+          if (discountMatch[2]) {
+            // Percentage discount format: "10% discount (₹50.00)"
+            discountAmount = parseFloat(discountMatch[2]);
+          } else if (discountMatch[3]) {
+            // Amount discount format: "₹50 discount"
+            discountAmount = parseFloat(discountMatch[3]);
+          }
+        } else {
+          // Fallback to old parsing logic
+          const oldDiscountMatch = description.match(/discount[:\s]*(\d+(?:\.\d+)?)%?\s*[^\d]*(\d+(?:\.\d+)?)/i);
+          if (oldDiscountMatch) {
+            const discountPercent = parseFloat(oldDiscountMatch[1]);
+            const discountValue = parseFloat(oldDiscountMatch[2]);
+
+            if (discountPercent <= 100) {
+              // It's a percentage
+              originalRate = Math.abs(transaction.amount) / (1 - discountPercent / 100);
+              discountAmount = originalRate - Math.abs(transaction.amount);
+            } else {
+              // It's an amount
+              originalRate = Math.abs(transaction.amount) + discountValue;
+              discountAmount = discountValue;
+            }
+          }
+        }
+      }
+
       const receiptData: ReceiptData = {
         type: 'PAYMENT',
         receiptNumber: `REC-${transaction.transactionId}`,
@@ -269,7 +326,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
           hour12: true,
           timeZone: 'Asia/Kolkata'
         }),
-        
+
         hospital: {
           name: '',
           address: '10, Madhav Vihar Shobhagpura, Udaipur (313001)',
@@ -279,7 +336,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
           gst: '',
           website: 'www.valanthospital.com'
         },
-        
+
         patient: {
           id: patient.patient_id,
           name: `${patient.first_name} ${patient.last_name || ''}`.trim(),
@@ -288,35 +345,35 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
           gender: patient.gender,
           address: patient.address
         },
-        
+
         charges: [{
           description: transaction.description,
           amount: Math.abs(transaction.amount),
           quantity: 1,
-          rate: Math.abs(transaction.amount)
+          rate: originalRate
         }],
-        
+
         payments: [{
           mode: (transaction.payment_mode?.toUpperCase() || 'CASH') as 'CASH' | 'ONLINE' | 'INSURANCE',
           amount: Math.abs(transaction.amount),
           date: new Date(transaction.visitDate).toLocaleDateString('en-IN')
         }],
-        
+
         totals: {
-          subtotal: Math.abs(transaction.amount),
-          discount: 0,
+          subtotal: originalRate,
+          discount: discountAmount,
           insurance: 0,
           netAmount: Math.abs(transaction.amount),
           amountPaid: Math.abs(transaction.amount),
           balance: 0
         },
-        
+
         staff: {
           processedBy: 'System User',
           authorizedBy: 'Hospital Administrator'
         },
-        
-        notes: `Transaction Type: ${transaction.transaction_type?.replace('_', ' ').toUpperCase()}`,
+
+        notes: `Transaction Type: ${transaction.transaction_type?.replace('_', ' ').toUpperCase()}${transaction.discount_value ? ` | Discount: ${transaction.discount_type === 'PERCENTAGE' ? transaction.discount_value + '%' : '₹' + transaction.discount_value}` : ''}${transaction.discount_reason ? ` | Reason: ${transaction.discount_reason}` : ''}`,
         isOriginal: true
       };
 
@@ -593,7 +650,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
                     
                     <div className="space-y-2">
                       {visit.transactions.map((transaction, tIndex) => {
-                        console.log('🔍 Transaction:', transaction);
+                        logger.log('🔍 Transaction:', transaction);
                         const transactionId = transaction.id || `${visit.date}-${tIndex}`;
                         return (
                         <div key={tIndex} className="flex justify-between items-center py-2 px-3 bg-white rounded">
@@ -602,7 +659,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, onCl
                               type="checkbox"
                               checked={selectedTransactions.has(transactionId)}
                               onChange={(e) => {
-                                console.log('📦 Checkbox changed:', transactionId, e.target.checked);
+                                logger.log('📦 Checkbox changed:', transactionId, e.target.checked);
                                 handleTransactionSelect(transactionId, e.target.checked);
                               }}
                               className="w-4 h-4"

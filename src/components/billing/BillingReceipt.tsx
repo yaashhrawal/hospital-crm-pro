@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import HospitalService from '../../services/hospitalService';
 import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
+import { logger } from '../../utils/logger';
 
 interface BillingReceiptProps {
   bill: any; // CombinedBill type
@@ -18,7 +19,7 @@ const BillingReceipt: React.FC<BillingReceiptProps> = ({ bill, onClose }) => {
         const details = await HospitalService.getPatientById(bill.patientId);
         setPatientDetails(details);
       } catch (error) {
-        console.warn('Could not fetch patient details:', error);
+        logger.warn('Could not fetch patient details:', error);
       } finally {
         setLoading(false);
       }

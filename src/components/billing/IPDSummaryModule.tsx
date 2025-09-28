@@ -8,6 +8,7 @@ import BillingService, { type OPDBill } from '../../services/billingService';
 import type { PatientWithRelations, IPDSummary } from '../../config/supabaseNew';
 import { supabase, HOSPITAL_ID } from '../../config/supabaseNew';
 import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
+import { logger } from '../../utils/logger';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -48,7 +49,7 @@ const IPDSummaryModule: React.FC = () => {
   const loadIPDSummaries = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading IPD summaries from database...');
+      logger.log('🔍 Loading IPD summaries from database...');
 
       const { data: summariesData, error } = await supabase
         .from('ipd_summaries')
@@ -60,15 +61,15 @@ const IPDSummaryModule: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error loading IPD summaries:', error);
+        logger.error('❌ Error loading IPD summaries:', error);
         toast.error('Failed to load IPD summaries: ' + error.message);
         return;
       }
 
-      console.log('✅ Loaded IPD summaries:', summariesData?.length || 0);
+      logger.log('✅ Loaded IPD summaries:', summariesData?.length || 0);
       setSummaries(summariesData || []);
     } catch (error) {
-      console.error('❌ Failed to load IPD summaries:', error);
+      logger.error('❌ Failed to load IPD summaries:', error);
       toast.error('Failed to load IPD summaries: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -103,16 +104,16 @@ const IPDSummaryModule: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('❌ Error saving IPD summary:', error);
+        logger.error('❌ Error saving IPD summary:', error);
         toast.error('Failed to save IPD summary: ' + error.message);
         return null;
       }
 
-      console.log('✅ IPD summary saved successfully:', data);
+      logger.log('✅ IPD summary saved successfully:', data);
       toast.success('IPD Summary saved successfully!');
       return data;
     } catch (error) {
-      console.error('❌ Failed to save IPD summary:', error);
+      logger.error('❌ Failed to save IPD summary:', error);
       toast.error('Failed to save IPD summary: ' + (error as Error).message);
       return null;
     }
@@ -128,16 +129,16 @@ const IPDSummaryModule: React.FC = () => {
         .eq('hospital_id', HOSPITAL_ID);
 
       if (error) {
-        console.error('❌ Error deleting IPD summary:', error);
+        logger.error('❌ Error deleting IPD summary:', error);
         toast.error('Failed to delete IPD summary: ' + error.message);
         return false;
       }
 
-      console.log('✅ IPD summary deleted successfully');
+      logger.log('✅ IPD summary deleted successfully');
       toast.success('IPD Summary deleted successfully!');
       return true;
     } catch (error) {
-      console.error('❌ Failed to delete IPD summary:', error);
+      logger.error('❌ Failed to delete IPD summary:', error);
       toast.error('Failed to delete IPD summary: ' + (error as Error).message);
       return false;
     }
@@ -147,8 +148,8 @@ const IPDSummaryModule: React.FC = () => {
   const loadPatients = async () => {
     try {
       setLoading(true);
-      console.log('🔍 IPD SUMMARY: Loading patients with admission data...');
-      console.log('🔍 IPD SUMMARY: Hospital ID:', HOSPITAL_ID);
+      logger.log('🔍 IPD SUMMARY: Loading patients with admission data...');
+      logger.log('🔍 IPD SUMMARY: Hospital ID:', HOSPITAL_ID);
 
       // Get all patients with admissions data using direct supabase query
       // SOLUTION: Use pagination approach to bypass PostgREST's 1000 record limit
@@ -158,7 +159,7 @@ const IPDSummaryModule: React.FC = () => {
       let hasMoreData = true;
 
       while (hasMoreData) {
-        console.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
+        logger.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
 
         const { data: batch, error } = await supabase
           .from('patients')
@@ -173,7 +174,7 @@ const IPDSummaryModule: React.FC = () => {
           .range(fromIndex, fromIndex + pageSize - 1);
 
         if (error) {
-          console.error('❌ IPD SUMMARY: Error loading patients batch:', error);
+          logger.error('❌ IPD SUMMARY: Error loading patients batch:', error);
           break;
         }
 
@@ -192,13 +193,13 @@ const IPDSummaryModule: React.FC = () => {
         }
       }
 
-      console.log('✅ IPD SUMMARY: Loaded patients with admissions:', allPatients?.length || 0);
+      logger.log('✅ IPD SUMMARY: Loaded patients with admissions:', allPatients?.length || 0);
       if (allPatients && allPatients.length > 0) {
-        console.log('✅ IPD SUMMARY: Sample patient data:', allPatients[0]);
+        logger.log('✅ IPD SUMMARY: Sample patient data:', allPatients[0]);
       }
       setPatients(allPatients || []);
     } catch (error) {
-      console.error('❌ IPD SUMMARY: Failed to load patients:', error);
+      logger.error('❌ IPD SUMMARY: Failed to load patients:', error);
       toast.error('Failed to load patient data: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -270,7 +271,7 @@ const IPDSummaryModule: React.FC = () => {
         setSearchTerm('');
       }
     } catch (error) {
-      console.error('Error generating summary:', error);
+      logger.error('Error generating summary:', error);
       toast.error('Failed to generate summary');
     } finally {
       setLoading(false);
@@ -304,7 +305,7 @@ const IPDSummaryModule: React.FC = () => {
 
   // IPD Summary Print function
   const handlePrintSummary = (summary: any) => {
-    console.log('🖨️ Printing IPD Summary:', summary);
+    logger.log('🖨️ Printing IPD Summary:', summary);
 
     const selectedPatient = summary.patient;
     const services = summary.services;
@@ -718,7 +719,7 @@ const IPDSummaryModule: React.FC = () => {
     convertImageToBase64().then((base64Image) => {
       createPrintWindow(base64Image as string);
     }).catch((error) => {
-      console.error('Failed to load Receipt2.png:', error);
+      logger.error('Failed to load Receipt2.png:', error);
       // Create print window without background image
       createPrintWindow('');
     });
@@ -753,7 +754,7 @@ const IPDSummaryModule: React.FC = () => {
         await loadIPDSummaries();
       }
     } catch (error) {
-      console.error('Failed to delete summary:', error);
+      logger.error('Failed to delete summary:', error);
       toast.error('Failed to delete summary');
     } finally {
       setLoading(false);

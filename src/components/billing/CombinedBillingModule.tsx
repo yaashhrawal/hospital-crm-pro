@@ -6,6 +6,7 @@ import DoctorService from '../../services/doctorService';
 import BillingService from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
 import BillingReceipt from './BillingReceipt';
+import { logger } from '../../utils/logger';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -96,15 +97,15 @@ const CombinedBillingModule: React.FC = () => {
       
       // Load actual patients from HospitalService
       const actualPatients = await HospitalService.getPatients(50000, true, true);
-      console.log('📊 Loaded patients for combined billing:', actualPatients.length);
-      console.log('👥 First few patients:', actualPatients.slice(0, 3));
+      logger.log('📊 Loaded patients for combined billing:', actualPatients.length);
+      logger.log('👥 First few patients:', actualPatients.slice(0, 3));
 
       // Load OPD and IPD bills from BillingService
       const opdBills = BillingService.getOPDBills();
       const ipdBills = BillingService.getIPDBills();
-      console.log('💰 Loaded bills - OPD:', opdBills.length, 'IPD:', ipdBills.length);
-      console.log('🔍 IPD Bills:', ipdBills);
-      console.log('🔍 OPD Bills:', opdBills);
+      logger.log('💰 Loaded bills - OPD:', opdBills.length, 'IPD:', ipdBills.length);
+      logger.log('🔍 IPD Bills:', ipdBills);
+      logger.log('🔍 OPD Bills:', opdBills);
 
       // Filter patients who have transactions, admissions, or bills
       const patientsWithBillingHistory = actualPatients.filter(patient => {
@@ -122,7 +123,7 @@ const CombinedBillingModule: React.FC = () => {
         const result = hasTransactions || hasAdmissions || hasOPDBills || hasIPDBills;
         
         if (result) {
-          console.log('✅ Found patient with billing:', patient.first_name, {
+          logger.log('✅ Found patient with billing:', patient.first_name, {
             id: patient.id,
             patient_id: patient.patient_id,
             hasTransactions,
@@ -135,11 +136,11 @@ const CombinedBillingModule: React.FC = () => {
         return result;
       });
       
-      console.log('🔍 Patients with billing history found:', patientsWithBillingHistory.length);
+      logger.log('🔍 Patients with billing history found:', patientsWithBillingHistory.length);
       
       // If no patients found, let's include ALL patients with valid data for debugging
       if (patientsWithBillingHistory.length === 0) {
-        console.log('⚠️ No patients with billing history found. Including first 5 patients for debugging');
+        logger.log('⚠️ No patients with billing history found. Including first 5 patients for debugging');
         const debugPatients = actualPatients.slice(0, 5).filter(p => p && p.first_name);
         
         const debugBills = debugPatients.map(patient => {
@@ -162,7 +163,7 @@ const CombinedBillingModule: React.FC = () => {
         return;
       }
 
-      console.log('💰 Patients with billing history:', patientsWithBillingHistory.length);
+      logger.log('💰 Patients with billing history:', patientsWithBillingHistory.length);
 
       // Convert patient data to combined bills format
       const combinedBills: CombinedBill[] = patientsWithBillingHistory.map(patient => {
@@ -234,7 +235,7 @@ const CombinedBillingModule: React.FC = () => {
         }));
 
         if (totalOPDAmount > 0 || totalIPDAmount > 0) {
-          console.log('📊 Patient with bills:', patient.first_name, '- OPD: ₹' + totalOPDAmount, 'IPD: ₹' + totalIPDAmount);
+          logger.log('📊 Patient with bills:', patient.first_name, '- OPD: ₹' + totalOPDAmount, 'IPD: ₹' + totalIPDAmount);
         }
         
         return {
@@ -267,7 +268,7 @@ const CombinedBillingModule: React.FC = () => {
       setAvailableTags(uniqueTags);
       
     } catch (error: any) {
-      console.error('Failed to load combined billing data:', error);
+      logger.error('Failed to load combined billing data:', error);
       toast.error('Failed to load combined billing data: ' + error.message);
     } finally {
       setLoading(false);

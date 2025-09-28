@@ -285,7 +285,11 @@ const FlexiblePatientEntry: React.FC = () => {
         discount_reason: '',
         notes: '',
         email: '',
-        discount_type: 'amount',
+        discount_type: 'amount'
+      });
+
+      // Reset form UI
+      const newFormHTML = `
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Entry Fee (₹)</label>

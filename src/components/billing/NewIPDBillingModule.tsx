@@ -5,6 +5,7 @@ import HospitalService from '../../services/hospitalService';
 import { supabase, HOSPITAL_ID } from '../../config/supabaseNew';
 import type { PatientWithRelations } from '../../config/supabaseNew';
 import { MEDICAL_SERVICES, searchServices, type MedicalService } from '../../data/medicalServices';
+import { logger } from '../../utils/logger';
 
 interface BillingRow {
   id: string;
@@ -45,7 +46,7 @@ const ensureDateFormat = (dateInput: string): string => {
   try {
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) {
-      console.warn('⚠️ Invalid date, using today:', dateInput);
+      logger.warn('⚠️ Invalid date, using today:', dateInput);
       return getLocalDateString();
     }
 
@@ -56,7 +57,7 @@ const ensureDateFormat = (dateInput: string): string => {
 
     return formatted;
   } catch (error) {
-    console.error('❌ Date parsing error:', error, 'Input:', dateInput);
+    logger.error('❌ Date parsing error:', error, 'Input:', dateInput);
     return getLocalDateString();
   }
 };
@@ -197,13 +198,13 @@ const NewIPDBillingModule: React.FC = () => {
   // CRITICAL DEBUG: Wrapper to track all setStaySegments calls with aggressive monitoring
   const setStaySegments = (value: any) => {
     const stack = new Error().stack;
-    console.log('🚨🚨🚨 setStaySegments CALLED FROM:', stack?.split('\n')[2]?.trim());
-    console.log('🚨 Setting stay segments to:', value);
+    logger.log('🚨🚨🚨 setStaySegments CALLED FROM:', stack?.split('\n')[2]?.trim());
+    logger.log('🚨 Setting stay segments to:', value);
 
     // Log the current vs new values
     if (Array.isArray(value)) {
       value.forEach((segment, index) => {
-        console.log(`   New Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
+        logger.log(`   New Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
       });
     }
 
@@ -211,15 +212,15 @@ const NewIPDBillingModule: React.FC = () => {
 
     // AGGRESSIVE STATE MONITORING: Check what happens after state update
     setTimeout(() => {
-      console.log('🔍 POST-UPDATE CHECK (immediate):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+      logger.log('🔍 POST-UPDATE CHECK (immediate):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
     }, 0);
 
     setTimeout(() => {
-      console.log('🔍 POST-UPDATE CHECK (10ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+      logger.log('🔍 POST-UPDATE CHECK (10ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
     }, 10);
 
     setTimeout(() => {
-      console.log('🔍 POST-UPDATE CHECK (100ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+      logger.log('🔍 POST-UPDATE CHECK (100ms delay):', _staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
     }, 100);
   };
 
@@ -234,31 +235,31 @@ const NewIPDBillingModule: React.FC = () => {
 
   // AGGRESSIVE STATE MONITORING: Monitor all stay segment changes
   useEffect(() => {
-    console.log('🔍🔍🔍 STATE MONITOR: staySegments changed to:', staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
-    console.log('🔍 STATE MONITOR: editingBill:', editingBill);
-    console.log('🔍 STATE MONITOR: isEditingRef.current:', isEditingRef.current);
+    logger.log('🔍🔍🔍 STATE MONITOR: staySegments changed to:', staySegments.map((s, i) => `Segment ${i}: ${s.roomType} - ₹${s.bedChargePerDay}`));
+    logger.log('🔍 STATE MONITOR: editingBill:', editingBill);
+    logger.log('🔍 STATE MONITOR: isEditingRef.current:', isEditingRef.current);
 
     // Log the stack trace to see what caused this change
     const stack = new Error().stack;
-    console.log('🔍 STATE CHANGE CALLED FROM:', stack?.split('\n')[2]?.trim());
+    logger.log('🔍 STATE CHANGE CALLED FROM:', stack?.split('\n')[2]?.trim());
 
     // If we're in editing mode and see a reset to default values, log an alert and restore
     if (editingBill && staySegments.length > 0 && stateProtectionActiveRef.current) {
       const firstSegment = staySegments[0];
       if (firstSegment.roomType === 'General Ward' && firstSegment.bedChargePerDay === 1000) {
-        console.error('🚨🚨🚨 ALERT: STATE WAS RESET TO DEFAULT VALUES DURING EDITING!');
-        console.error('🚨 This means something is overriding our reconstructed state');
-        console.error('🚨 Current state:', firstSegment);
+        logger.error('🚨🚨🚨 ALERT: STATE WAS RESET TO DEFAULT VALUES DURING EDITING!');
+        logger.error('🚨 This means something is overriding our reconstructed state');
+        logger.error('🚨 Current state:', firstSegment);
 
         // RESTORE from backup if available
         if (correctStateBackupRef.current) {
-          console.log('🔄 ATTEMPTING AUTOMATIC STATE RESTORATION...');
-          console.log('🔄 Restoring from backup:', correctStateBackupRef.current);
+          logger.log('🔄 ATTEMPTING AUTOMATIC STATE RESTORATION...');
+          logger.log('🔄 Restoring from backup:', correctStateBackupRef.current);
 
           // Use functional update to bypass any interference
           _setStaySegments(prev => {
-            console.log('🔄 FUNCTIONAL RESTORE: Previous:', prev.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
-            console.log('🔄 FUNCTIONAL RESTORE: Restoring to:', correctStateBackupRef.current.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+            logger.log('🔄 FUNCTIONAL RESTORE: Previous:', prev.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+            logger.log('🔄 FUNCTIONAL RESTORE: Restoring to:', correctStateBackupRef.current.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
             return [...correctStateBackupRef.current];
           });
         }
@@ -309,7 +310,7 @@ const NewIPDBillingModule: React.FC = () => {
     if (selectedPatient && !editingBill && !isEditingRef.current) {
       loadPatientDeposits();
     } else if (selectedPatient && (editingBill || isEditingRef.current)) {
-      console.log('💰 Skipping deposit reload during bill editing (ref check)');
+      logger.log('💰 Skipping deposit reload during bill editing (ref check)');
     }
   }, [billingDate, selectedPatient, editingBill]);
 
@@ -441,7 +442,7 @@ const NewIPDBillingModule: React.FC = () => {
     // CRITICAL FIX: Only reset stay segments if NOT editing a bill
     // This prevents overriding the correctly reconstructed ICU data during editing
     if (!isCurrentlyEditing) {
-      console.log('🔄 resetForm: Resetting stay segments to defaults (new bill)');
+      logger.log('🔄 resetForm: Resetting stay segments to defaults (new bill)');
       setStaySegments([{
         id: Date.now(),
         roomType: 'General Ward',
@@ -460,7 +461,7 @@ const NewIPDBillingModule: React.FC = () => {
         doctorChargePerDay: 500
       }]);
     } else {
-      console.log('🛡️ resetForm: Preserving stay segments during bill editing');
+      logger.log('🛡️ resetForm: Preserving stay segments during bill editing');
     }
 
     // Reset service search
@@ -480,7 +481,7 @@ const NewIPDBillingModule: React.FC = () => {
 
     // Check for invalid dates
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      console.warn('⚠️ Invalid dates provided to calculateDays:', { startDate, endDate });
+      logger.warn('⚠️ Invalid dates provided to calculateDays:', { startDate, endDate });
       return 1; // Default to 1 day for invalid dates
     }
 
@@ -500,7 +501,7 @@ const NewIPDBillingModule: React.FC = () => {
 
     // Debug logging for NaN issues
     if (isNaN(total)) {
-      console.error('❌ NaN detected in calculateSegmentTotal:', {
+      logger.error('❌ NaN detected in calculateSegmentTotal:', {
         segment,
         days,
         bedCharge,
@@ -636,13 +637,13 @@ const NewIPDBillingModule: React.FC = () => {
           }]);
 
         if (error) {
-          console.error('Error saving custom service:', error);
+          logger.error('Error saving custom service:', error);
           toast.error('Service added to current bill but not saved permanently');
         } else {
           toast.success('Custom service saved and added to bill!');
         }
       } catch (dbError) {
-        console.error('Database save error:', dbError);
+        logger.error('Database save error:', dbError);
         toast.error('Service added to current bill only');
       }
 
@@ -651,7 +652,7 @@ const NewIPDBillingModule: React.FC = () => {
       setCustomServiceAmount('');
       
     } catch (error) {
-      console.error('Error creating custom service:', error);
+      logger.error('Error creating custom service:', error);
       toast.error('Failed to add custom service');
     }
   };
@@ -856,7 +857,7 @@ const NewIPDBillingModule: React.FC = () => {
       loadPatientIPDHistory();
       loadPatientDeposits(); // CRITICAL FIX: Load deposits from database with correct dates
     } else if (selectedPatient && (editingBill || isEditingRef.current)) {
-      console.log('📋 Skipping patient data reload during bill editing (ref check)');
+      logger.log('📋 Skipping patient data reload during bill editing (ref check)');
     } else {
       setPatientHistory([]);
       setDepositHistory([]); // Clear deposit history when no patient selected
@@ -868,7 +869,7 @@ const NewIPDBillingModule: React.FC = () => {
   // CRITICAL FIX: Update all billing row dates when billing date changes
   useEffect(() => {
     if (billingRows.length > 0) {
-      console.log('📅 Updating billing row dates to:', billingDate);
+      logger.log('📅 Updating billing row dates to:', billingDate);
       setBillingRows(rows =>
         rows.map(row => ({
           ...row,
@@ -880,9 +881,9 @@ const NewIPDBillingModule: React.FC = () => {
 
   // CRITICAL DEBUG: Monitor staySegments changes
   useEffect(() => {
-    console.log('🔄 STAY SEGMENTS STATE CHANGED:', staySegments);
+    logger.log('🔄 STAY SEGMENTS STATE CHANGED:', staySegments);
     staySegments.forEach((segment, index) => {
-      console.log(`   Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
+      logger.log(`   Segment ${index}: ${segment.roomType} - Bed: ₹${segment.bedChargePerDay}/day`);
     });
   }, [staySegments]);
 
@@ -890,7 +891,7 @@ const NewIPDBillingModule: React.FC = () => {
   useEffect(() => {
     // CRITICAL FIX: Don't override stay segments when editing a bill
     if (staySegments.length > 0 && !editingBill && !isEditingRef.current) {
-      console.log('📅 Updating stay segment start dates to:', billingDate);
+      logger.log('📅 Updating stay segment start dates to:', billingDate);
       setStaySegments(segments =>
         segments.map(segment => ({
           ...segment,
@@ -898,15 +899,15 @@ const NewIPDBillingModule: React.FC = () => {
         }))
       );
     } else if (editingBill || isEditingRef.current) {
-      console.log('📅 Skipping start date update during bill editing (ref check)');
+      logger.log('📅 Skipping start date update during bill editing (ref check)');
     }
   }, [billingDate, editingBill]);
 
   const loadPatients = async () => {
     try {
       setLoading(true);
-      console.log('🔍 IPD BILLING: Loading patients with admission data for billing...');
-      console.log('🔍 IPD BILLING: Hospital ID:', HOSPITAL_ID);
+      logger.log('🔍 IPD BILLING: Loading patients with admission data for billing...');
+      logger.log('🔍 IPD BILLING: Hospital ID:', HOSPITAL_ID);
       
       // Get all patients with admissions data using direct supabase query
       // SOLUTION: Use pagination approach to bypass PostgREST's 1000 record limit
@@ -916,7 +917,7 @@ const NewIPDBillingModule: React.FC = () => {
       let hasMoreData = true;
 
       while (hasMoreData) {
-        console.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
+        logger.log(`🔍 Loading patients batch: ${fromIndex} to ${fromIndex + pageSize - 1}`);
 
         const { data: batch, error } = await supabase
           .from('patients')
@@ -931,7 +932,7 @@ const NewIPDBillingModule: React.FC = () => {
           .range(fromIndex, fromIndex + pageSize - 1);
 
         if (error) {
-          console.error('❌ IPD BILLING: Error loading patients batch:', error);
+          logger.error('❌ IPD BILLING: Error loading patients batch:', error);
           break;
         }
 
@@ -950,13 +951,13 @@ const NewIPDBillingModule: React.FC = () => {
         }
       }
 
-      console.log('✅ IPD BILLING: Loaded patients with admissions:', allPatients?.length || 0);
+      logger.log('✅ IPD BILLING: Loaded patients with admissions:', allPatients?.length || 0);
       if (allPatients && allPatients.length > 0) {
-        console.log('✅ IPD BILLING: Sample patient data:', allPatients[0]);
+        logger.log('✅ IPD BILLING: Sample patient data:', allPatients[0]);
       }
       setPatients(allPatients || []);
     } catch (error) {
-      console.error('❌ IPD BILLING: Failed to load patients:', error);
+      logger.error('❌ IPD BILLING: Failed to load patients:', error);
       toast.error('Failed to load patient data: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -981,7 +982,7 @@ const NewIPDBillingModule: React.FC = () => {
       const deposits = result.data;
       const error = result.error;
 
-      console.log('🔍 RAW DATABASE RESPONSE:', {
+      logger.log('🔍 RAW DATABASE RESPONSE:', {
         depositCount: deposits?.length || 0,
         deposits: deposits?.map(d => ({
           id: d.id,
@@ -993,7 +994,7 @@ const NewIPDBillingModule: React.FC = () => {
       });
 
       if (error) {
-        console.error('❌ Error loading deposits:', error);
+        logger.error('❌ Error loading deposits:', error);
         return;
       }
 
@@ -1002,11 +1003,11 @@ const NewIPDBillingModule: React.FC = () => {
         // CRITICAL FIX: Update any deposits that don't have transaction_date set
         const depositsNeedingUpdate = deposits.filter(d => !d.transaction_date);
         if (depositsNeedingUpdate.length > 0) {
-          console.log(`🔧 FIXING ${depositsNeedingUpdate.length} deposits missing transaction_date`);
+          logger.log(`🔧 FIXING ${depositsNeedingUpdate.length} deposits missing transaction_date`);
 
           for (const deposit of depositsNeedingUpdate) {
             const fallbackDate = deposit.created_at.split('T')[0];
-            console.log(`🔧 Updating deposit ${deposit.id}: setting transaction_date to ${fallbackDate}`);
+            logger.log(`🔧 Updating deposit ${deposit.id}: setting transaction_date to ${fallbackDate}`);
 
             await supabase
               .from('patient_transactions')
@@ -1017,16 +1018,16 @@ const NewIPDBillingModule: React.FC = () => {
             deposit.transaction_date = fallbackDate;
           }
 
-          console.log('✅ Finished updating deposits with missing transaction_date');
+          logger.log('✅ Finished updating deposits with missing transaction_date');
         }
 
         // AUTO-UPDATE: Sync existing deposits with current billing date if different
         if (billingDate && billingDate !== getLocalDateString().split('T')[0]) {
-          console.log('🔄 AUTO-SYNC: Updating existing deposits to match billing date:', billingDate);
+          logger.log('🔄 AUTO-SYNC: Updating existing deposits to match billing date:', billingDate);
 
           for (const deposit of deposits) {
             if (deposit.transaction_date && deposit.transaction_date !== billingDate) {
-              console.log(`🔄 Syncing deposit ${deposit.id}: ${deposit.transaction_date} → ${billingDate}`);
+              logger.log(`🔄 Syncing deposit ${deposit.id}: ${deposit.transaction_date} → ${billingDate}`);
 
               await supabase
                 .from('patient_transactions')
@@ -1038,7 +1039,7 @@ const NewIPDBillingModule: React.FC = () => {
             }
           }
 
-          console.log('✅ Finished syncing deposits with billing date');
+          logger.log('✅ Finished syncing deposits with billing date');
         }
 
         // Transform database deposits to match local state format
@@ -1049,23 +1050,23 @@ const NewIPDBillingModule: React.FC = () => {
           // 1. First priority: Manual overrides from current session
           if (depositDateOverrides[deposit.id]) {
             displayDate = depositDateOverrides[deposit.id];
-            console.log(`💰 Using override date for ${deposit.id}: ${displayDate}`);
+            logger.log(`💰 Using override date for ${deposit.id}: ${displayDate}`);
           }
           // 2. Second priority: Database transaction_date (user-entered date)
           else if (deposit.transaction_date) {
             // Ensure it's in YYYY-MM-DD format
             displayDate = deposit.transaction_date.split('T')[0];
-            console.log(`💰 ✅ SUCCESS: Using transaction_date for ${deposit.id}: ${displayDate} (from DB: ${deposit.transaction_date})`);
+            logger.log(`💰 ✅ SUCCESS: Using transaction_date for ${deposit.id}: ${displayDate} (from DB: ${deposit.transaction_date})`);
           }
           // 3. Third priority: Extract date from created_at (admission date) - ONLY as fallback
           else if (deposit.created_at) {
             displayDate = deposit.created_at.split('T')[0];
-            console.log(`💰 FALLBACK: Using created_at for ${deposit.id}: ${displayDate} (original: ${deposit.created_at})`);
+            logger.log(`💰 FALLBACK: Using created_at for ${deposit.id}: ${displayDate} (original: ${deposit.created_at})`);
           }
           // 4. Final fallback: Today's date
           else {
             displayDate = new Date().toISOString().split('T')[0];
-            console.log(`💰 FINAL FALLBACK: Using today for ${deposit.id}: ${displayDate}`);
+            logger.log(`💰 FINAL FALLBACK: Using today for ${deposit.id}: ${displayDate}`);
           }
 
           const formattedDeposit = {
@@ -1081,7 +1082,7 @@ const NewIPDBillingModule: React.FC = () => {
             timestamp: new Date(deposit.created_at).getTime()
           };
 
-          console.log('💰 🚨 ULTRA DEBUG - Raw deposit from DB:', {
+          logger.log('💰 🚨 ULTRA DEBUG - Raw deposit from DB:', {
             id: deposit.id,
             'DB transaction_date': deposit.transaction_date,
             'DB created_at': deposit.created_at,
@@ -1105,18 +1106,18 @@ const NewIPDBillingModule: React.FC = () => {
         const totalAdvances = deposits.reduce((sum, deposit) => sum + (deposit.amount || 0), 0);
         setAdvancePayments(totalAdvances);
 
-        console.log('💰 Deposits loaded successfully:', {
+        logger.log('💰 Deposits loaded successfully:', {
           count: formattedDeposits.length,
           total: totalAdvances
         });
       } else {
-        console.log('💰 No deposits found for patient');
+        logger.log('💰 No deposits found for patient');
         setDepositHistory([]);
         setAdvancePayments(0);
       }
 
     } catch (error) {
-      console.error('❌ Error loading patient deposits:', error);
+      logger.error('❌ Error loading patient deposits:', error);
       setDepositHistory([]);
       setAdvancePayments(0);
     }
@@ -1128,14 +1129,14 @@ const NewIPDBillingModule: React.FC = () => {
     
     try {
       setHistoryLoading(true);
-      console.log('📋 Loading patient IPD history for:', selectedPatient.patient_id);
+      logger.log('📋 Loading patient IPD history for:', selectedPatient.patient_id);
       
       // Get patient's admission date to filter transactions
       const admissionDate = selectedPatient.admissions?.[0]?.admission_date;
-      console.log('📅 Patient admission date:', admissionDate);
+      logger.log('📅 Patient admission date:', admissionDate);
       
       if (!admissionDate) {
-        console.log('⚠️ No admission date found, loading all transactions');
+        logger.log('⚠️ No admission date found, loading all transactions');
       }
       
       // Load all transactions for this patient since admission
@@ -1156,16 +1157,16 @@ const NewIPDBillingModule: React.FC = () => {
         .limit(100);
         
       if (error) {
-        console.error('❌ Error loading patient history:', error);
+        logger.error('❌ Error loading patient history:', error);
         setPatientHistory([]);
         return;
       }
       
-      console.log(`✅ Loaded ${transactions?.length || 0} transactions since admission`);
+      logger.log(`✅ Loaded ${transactions?.length || 0} transactions since admission`);
       setPatientHistory(transactions || []);
       
     } catch (error: any) {
-      console.error('❌ Error loading patient IPD history:', error);
+      logger.error('❌ Error loading patient IPD history:', error);
       setPatientHistory([]);
     } finally {
       setHistoryLoading(false);
@@ -1175,18 +1176,18 @@ const NewIPDBillingModule: React.FC = () => {
   const loadIPDBills = async () => {
     try {
       setBillsLoading(true);
-      console.log('🚨🚨🚨 LOAD IPD BILLS FUNCTION CALLED 🚨🚨🚨');
-      console.log('💵 Loading IPD bills and deposits from transactions...');
+      logger.log('🚨🚨🚨 LOAD IPD BILLS FUNCTION CALLED 🚨🚨🚨');
+      logger.log('💵 Loading IPD bills and deposits from transactions...');
       
       // Test database connection first
       const { data: connectionTest, error: connectionError, count } = await supabase
         .from('patient_transactions')
         .select('*', { count: 'exact', head: true });
         
-      console.log('🔗 Database connection test:', { count: count, error: connectionError });
+      logger.log('🔗 Database connection test:', { count: count, error: connectionError });
       
       // Load all IPD-related transactions (bills, deposits, and services)
-      console.log('🔍 Loading IPD transactions (all deposit and service types)...');
+      logger.log('🔍 Loading IPD transactions (all deposit and service types)...');
 
       const { data: ipdTransactions, error: transactionError } = await supabase
         .from('patient_transactions')
@@ -1205,7 +1206,7 @@ const NewIPDBillingModule: React.FC = () => {
         .limit(200);
 
       // Also load IPD bed data to get admission details
-      console.log('🔍 Loading IPD bed information...');
+      logger.log('🔍 Loading IPD bed information...');
       const { data: bedData, error: bedError } = await supabase
         .from('beds')
         .select(`
@@ -1221,20 +1222,20 @@ const NewIPDBillingModule: React.FC = () => {
         .not('patient_id', 'is', null); // Get all beds that have patients, regardless of status
       
       if (transactionError) {
-        console.error('❌ Error loading IPD transactions:', transactionError);
+        logger.error('❌ Error loading IPD transactions:', transactionError);
         setIpdBills([]);
         toast.error('Failed to load IPD transactions');
         return;
       }
 
       if (bedError) {
-        console.error('❌ Error loading IPD bed data:', bedError);
+        logger.error('❌ Error loading IPD bed data:', bedError);
         // Continue without bed data - it's not critical
       }
 
-      console.log('✅ Loaded IPD transactions:', ipdTransactions?.length || 0);
-      console.log('✅ Loaded IPD bed data:', bedData?.length || 0);
-      console.log('📊 Transaction breakdown:', {
+      logger.log('✅ Loaded IPD transactions:', ipdTransactions?.length || 0);
+      logger.log('✅ Loaded IPD bed data:', bedData?.length || 0);
+      logger.log('📊 Transaction breakdown:', {
         total: ipdTransactions?.length || 0,
         ipdBills: ipdTransactions?.filter(t => t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]')).length || 0,
         services: ipdTransactions?.filter(t => t.transaction_type === 'SERVICE' && !t.description?.includes('[IPD_BILL]')).length || 0,
@@ -1245,9 +1246,9 @@ const NewIPDBillingModule: React.FC = () => {
       const bedInfoMap = new Map();
       const bedInfoByPatientDbId = new Map(); // Map by database ID too
       if (bedData) {
-        console.log('🛏️ RAW BED DATA:', bedData);
+        logger.log('🛏️ RAW BED DATA:', bedData);
         bedData.forEach((bed, index) => {
-          console.log(`🛏️ Bed ${index}:`, {
+          logger.log(`🛏️ Bed ${index}:`, {
             bed_number: bed.bed_number,
             patient_id: bed.patient_id,
             patient_db_id: bed.patients?.id,
@@ -1279,13 +1280,13 @@ const NewIPDBillingModule: React.FC = () => {
           }
         });
       }
-      console.log('🛏️ Bed info mapping created for', bedInfoMap.size, 'patients (by string)');
-      console.log('🛏️ Bed info mapping created for', bedInfoByPatientDbId.size, 'patients (by db ID)');
-      console.log('🛏️ Bed info map contents:', Array.from(bedInfoMap.entries()));
+      logger.log('🛏️ Bed info mapping created for', bedInfoMap.size, 'patients (by string)');
+      logger.log('🛏️ Bed info mapping created for', bedInfoByPatientDbId.size, 'patients (by db ID)');
+      logger.log('🛏️ Bed info map contents:', Array.from(bedInfoMap.entries()));
 
       // 🔍 DEBUG: Check admission data structure in first few transactions
       if (ipdTransactions && ipdTransactions.length > 0) {
-        console.log('🏥 ADMISSION DATA DEBUG - First transaction sample:', {
+        logger.log('🏥 ADMISSION DATA DEBUG - First transaction sample:', {
           transaction_id: ipdTransactions[0].id,
           has_patients: !!ipdTransactions[0].patients,
           patient_data: ipdTransactions[0].patients,
@@ -1296,7 +1297,7 @@ const NewIPDBillingModule: React.FC = () => {
       }
 
       if (ipdTransactions && ipdTransactions.length > 0) {
-        console.log('🔍 RAW TRANSACTION DATA (first 2):', ipdTransactions.slice(0, 2));
+        logger.log('🔍 RAW TRANSACTION DATA (first 2):', ipdTransactions.slice(0, 2));
 
         // Process transactions with patient data already joined
         const enrichedTransactions = ipdTransactions.map((transaction, index) => {
@@ -1310,7 +1311,7 @@ const NewIPDBillingModule: React.FC = () => {
           }
 
           if (index < 3) { // Debug first 3 transactions
-            console.log(`🔄 Transaction ${index} enrichment:`, {
+            logger.log(`🔄 Transaction ${index} enrichment:`, {
               transaction_id: transaction.id,
               transaction_patient_id: transaction.patient_id,
               patients_db_id: transaction.patients?.id,
@@ -1339,14 +1340,14 @@ const NewIPDBillingModule: React.FC = () => {
           };
         });
 
-        console.log('💾 Processed IPD transactions with patient data:', enrichedTransactions.length);
-        console.log('🔍 ENRICHED TRANSACTION DATA (first 2):', enrichedTransactions.slice(0, 2));
-        console.log('🔍 FIRST ENRICHED PATIENT DATA:', enrichedTransactions[0]?.patients);
+        logger.log('💾 Processed IPD transactions with patient data:', enrichedTransactions.length);
+        logger.log('🔍 ENRICHED TRANSACTION DATA (first 2):', enrichedTransactions.slice(0, 2));
+        logger.log('🔍 FIRST ENRICHED PATIENT DATA:', enrichedTransactions[0]?.patients);
 
         // 🔍 DEBUG: Check if patient age and gender are loaded
         const firstTransaction = enrichedTransactions[0];
         if (firstTransaction?.patients) {
-          console.log('🔍 PATIENT DATA DEBUG - First transaction patient info:', {
+          logger.log('🔍 PATIENT DATA DEBUG - First transaction patient info:', {
             'Patient name': `${firstTransaction.patients.first_name} ${firstTransaction.patients.last_name}`,
             'Patient age': firstTransaction.patients.age,
             'Patient gender': firstTransaction.patients.gender,
@@ -1358,7 +1359,7 @@ const NewIPDBillingModule: React.FC = () => {
         }
 
 
-        console.log('🔄 Setting IPD bills state with:', enrichedTransactions.length, 'transactions');
+        logger.log('🔄 Setting IPD bills state with:', enrichedTransactions.length, 'transactions');
         
         // Sort by date descending to show latest first - CRITICAL FIX: Use transaction_date (user billing date) not created_at
         enrichedTransactions.sort((a, b) => {
@@ -1373,9 +1374,9 @@ const NewIPDBillingModule: React.FC = () => {
         const serviceBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && !t.description?.includes('[IPD_BILL]')).length;
         const depositCount = enrichedTransactions.filter(t => ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(t.transaction_type)).length;
         
-        console.log('📋 Final transaction counts:', { ipdBillCount, serviceBillCount, depositCount });
+        logger.log('📋 Final transaction counts:', { ipdBillCount, serviceBillCount, depositCount });
       } else {
-        console.log('ℹ️ No IPD transactions found');
+        logger.log('ℹ️ No IPD transactions found');
         setIpdBills([]);
         toast('No IPD transactions found', {
           icon: 'ℹ️',
@@ -1384,7 +1385,7 @@ const NewIPDBillingModule: React.FC = () => {
       }
       
     } catch (error: any) {
-      console.error('❌ CATCH: Failed to load IPD bills:', error);
+      logger.error('❌ CATCH: Failed to load IPD bills:', error);
       setIpdBills([]); // Set empty array as fallback
       toast.error(`Failed to load IPD bills: ${error.message || error}`);
     } finally {
@@ -1460,7 +1461,7 @@ const NewIPDBillingModule: React.FC = () => {
     const netAfterDiscountAndTax = Math.max(0, totalBill - discountAmount + taxAmount);
     const netPayable = Math.max(0, netAfterDiscountAndTax - advancePayments);
 
-    console.log('🧮 Summary calculation breakdown:', {
+    logger.log('🧮 Summary calculation breakdown:', {
       admissionAmount,
       stayChargesAmount,
       servicesAmount,
@@ -1486,21 +1487,21 @@ const NewIPDBillingModule: React.FC = () => {
 
   // Add advance payment function
   const addAdvancePayment = async () => {
-    console.log('🏥 DEPOSIT: addAdvancePayment function called');
-    console.log('🏥 DEPOSIT: newPaymentAmount:', newPaymentAmount);
-    console.log('🏥 DEPOSIT: selectedPatient:', selectedPatient);
+    logger.log('🏥 DEPOSIT: addAdvancePayment function called');
+    logger.log('🏥 DEPOSIT: newPaymentAmount:', newPaymentAmount);
+    logger.log('🏥 DEPOSIT: selectedPatient:', selectedPatient);
     
     const amount = parseFloat(newPaymentAmount);
-    console.log('🏥 DEPOSIT: parsed amount:', amount);
+    logger.log('🏥 DEPOSIT: parsed amount:', amount);
     
     if (!amount || amount <= 0) {
-      console.log('🏥 DEPOSIT: Invalid amount error');
+      logger.log('🏥 DEPOSIT: Invalid amount error');
       toast.error('Please enter a valid amount');
       return;
     }
     
     if (!selectedPatient) {
-      console.log('🏥 DEPOSIT: No patient selected error');
+      logger.log('🏥 DEPOSIT: No patient selected error');
       toast.error('Please select a patient first');
       return;
     }
@@ -1512,7 +1513,7 @@ const NewIPDBillingModule: React.FC = () => {
     const todayForDisplay = new Date().toISOString().split('T')[0];
     const depositDate = newPaymentDate || todayForDisplay;
 
-    console.log('🚨 LOCAL PAYMENT DATE FIX:', {
+    logger.log('🚨 LOCAL PAYMENT DATE FIX:', {
       newPaymentDate,
       billingDate,
       todayForDisplay,
@@ -1524,7 +1525,7 @@ const NewIPDBillingModule: React.FC = () => {
     try {
       // Validate patient ID
       if (!selectedPatient?.id) {
-        console.error('❌ No patient ID found');
+        logger.error('❌ No patient ID found');
         toast.error('Invalid patient selection');
         return;
       }
@@ -1534,7 +1535,7 @@ const NewIPDBillingModule: React.FC = () => {
       const todayActual = new Date().toISOString().split('T')[0];
       const formattedDepositDate = newPaymentDate || billingDate || todayActual;
 
-      console.log('🚨 COMPREHENSIVE DATE DEBUG:', {
+      logger.log('🚨 COMPREHENSIVE DATE DEBUG:', {
         'User entered newPaymentDate': newPaymentDate,
         'Billing screen billingDate': billingDate,
         'System todayActual': todayActual,
@@ -1558,14 +1559,14 @@ const NewIPDBillingModule: React.FC = () => {
         updated_at: new Date().toISOString()
       };
 
-      console.log('💾 DEPOSIT: Saving transaction data:', {
+      logger.log('💾 DEPOSIT: Saving transaction data:', {
         ...transactionData,
         formattedDepositDate,
         originalNewPaymentDate: newPaymentDate,
         originalBillingDate: billingDate
       });
 
-      console.log('🚨 FINAL DATABASE INSERT VALUES:', {
+      logger.log('🚨 FINAL DATABASE INSERT VALUES:', {
         'transaction_date in DB': transactionData.transaction_date,
         'created_at in DB': transactionData.created_at,
         'user_entered_date': newPaymentDate,
@@ -1573,7 +1574,7 @@ const NewIPDBillingModule: React.FC = () => {
         'CRITICAL_CHECK': transactionData.transaction_date === formattedDepositDate ? '✅ CORRECT' : '❌ WRONG'
       });
 
-      console.log('💾 Attempting to save transaction:', transactionData);
+      logger.log('💾 Attempting to save transaction:', transactionData);
 
       const { data, error: dbError } = await supabase
         .from('patient_transactions')
@@ -1581,43 +1582,43 @@ const NewIPDBillingModule: React.FC = () => {
         .select();
 
       // CRITICAL: Verify what was actually saved to database
-      console.log('📊 DATABASE SAVE VERIFICATION:');
-      console.log('   - Data object sent to DB:', transactionData);
-      console.log('   - Description length:', transactionData.description.length);
-      console.log('   - Returned data:', data);
-      console.log('   - Error (if any):', dbError);
+      logger.log('📊 DATABASE SAVE VERIFICATION:');
+      logger.log('   - Data object sent to DB:', transactionData);
+      logger.log('   - Description length:', transactionData.description.length);
+      logger.log('   - Returned data:', data);
+      logger.log('   - Error (if any):', dbError);
 
       // Verify the saved description contains our BILLING_ROWS data
       if (data && data.length > 0) {
         const savedData = data[0];
-        console.log('✅ VERIFICATION OF SAVED DATA:');
-        console.log('   - Saved description length:', savedData.description?.length || 0);
-        console.log('   - Contains BILLING_ROWS?', savedData.description?.includes('BILLING_ROWS:') || false);
+        logger.log('✅ VERIFICATION OF SAVED DATA:');
+        logger.log('   - Saved description length:', savedData.description?.length || 0);
+        logger.log('   - Contains BILLING_ROWS?', savedData.description?.includes('BILLING_ROWS:') || false);
 
         if (savedData.description?.includes('BILLING_ROWS:')) {
           const match = savedData.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?)(?:\s*$|$)/);
           if (match) {
-            console.log('   - BILLING_ROWS length in saved data:', match[1].length);
-            console.log('   - First 200 chars of saved BILLING_ROWS:', match[1].substring(0, 200));
+            logger.log('   - BILLING_ROWS length in saved data:', match[1].length);
+            logger.log('   - First 200 chars of saved BILLING_ROWS:', match[1].substring(0, 200));
 
             // Try to parse the saved BILLING_ROWS to check for chargeBreakdown
             try {
               const parsedData = JSON.parse(match[1]);
-              console.log('   - Successfully parsed saved BILLING_ROWS');
-              console.log('   - Number of items in parsed data:', parsedData.length);
+              logger.log('   - Successfully parsed saved BILLING_ROWS');
+              logger.log('   - Number of items in parsed data:', parsedData.length);
 
               parsedData.forEach((item, index) => {
                 if (item.chargeBreakdown) {
-                  console.log(`   - Item ${index} has chargeBreakdown in DB:`, item.chargeBreakdown);
+                  logger.log(`   - Item ${index} has chargeBreakdown in DB:`, item.chargeBreakdown);
                 }
               });
             } catch (parseError) {
-              console.error('❌ Failed to parse saved BILLING_ROWS:', parseError);
+              logger.error('❌ Failed to parse saved BILLING_ROWS:', parseError);
             }
           }
         }
 
-        console.log('🚨 VERIFICATION: What was actually saved to DB:', {
+        logger.log('🚨 VERIFICATION: What was actually saved to DB:', {
           'Inserted record ID': data[0].id,
           'DB transaction_date': data[0].transaction_date,
           'DB created_at': data[0].created_at,
@@ -1634,7 +1635,7 @@ const NewIPDBillingModule: React.FC = () => {
           .single();
 
         if (verifyData) {
-          console.log('🔍 IMMEDIATE QUERY BACK:', {
+          logger.log('🔍 IMMEDIATE QUERY BACK:', {
             'Query result transaction_date': verifyData.transaction_date,
             'Query result created_at': verifyData.created_at,
             'Matches inserted?': verifyData.transaction_date === data[0].transaction_date ? '✅ YES' : '❌ NO'
@@ -1643,8 +1644,8 @@ const NewIPDBillingModule: React.FC = () => {
       }
 
       if (dbError) {
-        console.error('❌ Database save error:', dbError);
-        console.error('❌ Error details:', {
+        logger.error('❌ Database save error:', dbError);
+        logger.error('❌ Error details:', {
           message: dbError.message,
           details: dbError.details,
           hint: dbError.hint,
@@ -1662,7 +1663,7 @@ const NewIPDBillingModule: React.FC = () => {
           toast.error(`Database error: ${dbError.message || 'Payment could not be saved'}`);
         }
       } else {
-        console.log('✅ Payment saved to database successfully:', data);
+        logger.log('✅ Payment saved to database successfully:', data);
 
         // Store the correct date override for this deposit ID
         if (data && data.length > 0) {
@@ -1671,13 +1672,13 @@ const NewIPDBillingModule: React.FC = () => {
             ...prev,
             [savedDepositId]: formattedDepositDate
           }));
-          console.log(`💰 Stored date override for deposit ${savedDepositId}: ${formattedDepositDate}`);
+          logger.log(`💰 Stored date override for deposit ${savedDepositId}: ${formattedDepositDate}`);
         }
 
         toast.success('Payment saved successfully!');
       }
     } catch (error) {
-      console.error('❌ Database connection error:', error);
+      logger.error('❌ Database connection error:', error);
       toast.error('Database connection failed. Please check your connection.');
     }
     
@@ -1715,7 +1716,7 @@ const NewIPDBillingModule: React.FC = () => {
 
   // Edit deposit functions
   const handleEditDeposit = (deposit) => {
-    console.log('✏️ Editing deposit:', deposit);
+    logger.log('✏️ Editing deposit:', deposit);
     setEditingDeposit(deposit);
     setEditDepositAmount(deposit.amount?.toString() || '');
     setEditDepositDate(deposit.date?.split(' ')[0] || billingDate); // Extract date part if date includes time
@@ -1743,7 +1744,7 @@ const NewIPDBillingModule: React.FC = () => {
     }
 
     try {
-      console.log('💾 Updating deposit in database:', editingDeposit.id);
+      logger.log('💾 Updating deposit in database:', editingDeposit.id);
 
       // Update in database if the deposit has a database ID
       if (editingDeposit.id && !editingDeposit.id.toString().startsWith('Y')) {
@@ -1761,12 +1762,12 @@ const NewIPDBillingModule: React.FC = () => {
           .eq('id', editingDeposit.id);
 
         if (error) {
-          console.error('❌ Error updating deposit:', error);
+          logger.error('❌ Error updating deposit:', error);
           toast.error('Failed to update deposit in database');
           return;
         }
 
-        console.log('✅ Deposit updated in database successfully');
+        logger.log('✅ Deposit updated in database successfully');
       }
 
       // Reload deposits from database to get updated data
@@ -1784,7 +1785,7 @@ const NewIPDBillingModule: React.FC = () => {
       toast.success('Deposit updated successfully!');
 
     } catch (error) {
-      console.error('❌ Error updating deposit:', error);
+      logger.error('❌ Error updating deposit:', error);
       toast.error('Failed to update deposit');
     }
   };
@@ -1800,16 +1801,16 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const handlePrint = () => {
-    console.log('🖨️ Print function called');
-    console.log('💰 Deposit history length:', depositHistory.length);
-    console.log('💳 Deposit history data:', depositHistory);
+    logger.log('🖨️ Print function called');
+    logger.log('💰 Deposit history length:', depositHistory.length);
+    logger.log('💳 Deposit history data:', depositHistory);
     
     try {
       // Simple approach - just use window.print with CSS media queries
       window.print();
       toast.success('Opening print dialog...');
     } catch (error) {
-      console.error('Print error:', error);
+      logger.error('Print error:', error);
       toast.error('Print failed - please try again');
     }
   };
@@ -1837,10 +1838,10 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const updateDoctorNamesForPatient = (patient: PatientWithRelations) => {
-    console.log('🔍 DEBUG: Patient data for doctor name extraction:', patient);
-    console.log('🔍 DEBUG: Patient assigned_doctor:', patient.assigned_doctor);
-    console.log('🔍 DEBUG: Patient assigned_doctors:', patient.assigned_doctors);
-    console.log('🔍 DEBUG: Patient admissions:', patient.admissions);
+    logger.log('🔍 DEBUG: Patient data for doctor name extraction:', patient);
+    logger.log('🔍 DEBUG: Patient assigned_doctor:', patient.assigned_doctor);
+    logger.log('🔍 DEBUG: Patient assigned_doctors:', patient.assigned_doctors);
+    logger.log('🔍 DEBUG: Patient admissions:', patient.admissions);
     
     const latestAdmission = patient.admissions?.[0];
     let doctorName = 'N/A';
@@ -1848,21 +1849,21 @@ const NewIPDBillingModule: React.FC = () => {
     // Try multiple sources for doctor name
     if (patient.assigned_doctor) {
       doctorName = patient.assigned_doctor;
-      console.log('✅ Found doctor in assigned_doctor:', doctorName);
+      logger.log('✅ Found doctor in assigned_doctor:', doctorName);
     } else if (patient.assigned_doctors && patient.assigned_doctors.length > 0) {
       doctorName = patient.assigned_doctors[0].name;
-      console.log('✅ Found doctor in assigned_doctors array:', doctorName);
+      logger.log('✅ Found doctor in assigned_doctors array:', doctorName);
     } else if ((latestAdmission as any)?.doctor_name) {
       doctorName = (latestAdmission as any).doctor_name;
-      console.log('✅ Found doctor in admission doctor_name:', doctorName);
+      logger.log('✅ Found doctor in admission doctor_name:', doctorName);
     } else if ((latestAdmission as any)?.treating_doctor) {
       doctorName = (latestAdmission as any).treating_doctor;
-      console.log('✅ Found doctor in admission treating_doctor:', doctorName);
+      logger.log('✅ Found doctor in admission treating_doctor:', doctorName);
     } else {
-      console.log('❌ No doctor name found in any field');
+      logger.log('❌ No doctor name found in any field');
     }
 
-    console.log('🏥 Final doctor name:', doctorName);
+    logger.log('🏥 Final doctor name:', doctorName);
 
     // Update all billing rows with the correct doctor name based on service type
     setBillingRows(rows => 
@@ -1957,7 +1958,7 @@ const NewIPDBillingModule: React.FC = () => {
       doctorName = (latestAdmission as any).treating_doctor;
     }
 
-    console.log('🏥 Header doctor name:', doctorName);
+    logger.log('🏥 Header doctor name:', doctorName);
 
     return {
       name: `${selectedPatient.first_name} ${selectedPatient.last_name || ''}`.trim() + `, ${selectedPatient.age || '0'} ${selectedPatient.gender === 'MALE' ? 'M' : selectedPatient.gender === 'FEMALE' ? 'F' : 'U'}, ${selectedPatient.gender === 'MALE' ? 'M' : 'F'}`,
@@ -1982,7 +1983,7 @@ const NewIPDBillingModule: React.FC = () => {
     const netPayable = Math.max(0, grossTotal - discount + tax);
     const balanceAfterDeposits = netPayable - advancePayments;
 
-    console.log('💵 Generating IPD Bill (CORRECTED CALCULATION):', {
+    logger.log('💵 Generating IPD Bill (CORRECTED CALCULATION):', {
       patient: selectedPatient.first_name + ' ' + (selectedPatient.last_name || ''),
       admissionFee,
       stayCharges: calculateTotalStayCharges(),
@@ -1998,7 +1999,7 @@ const NewIPDBillingModule: React.FC = () => {
     try {
       // Validate patient selection
       if (!selectedPatient?.id) {
-        console.error('❌ No patient selected or invalid patient ID');
+        logger.error('❌ No patient selected or invalid patient ID');
         toast.error('Please select a valid patient');
         return;
       }
@@ -2085,7 +2086,7 @@ const NewIPDBillingModule: React.FC = () => {
             doctor: '',
             date: formattedBillingDate
           });
-          console.log(`📋 Added individual service: ${service.name} - Qty: ${serviceQuantity}, Unit: ₹${serviceUnitPrice}, Total: ₹${serviceTotal}`);
+          logger.log(`📋 Added individual service: ${service.name} - Qty: ${serviceQuantity}, Unit: ₹${serviceUnitPrice}, Total: ₹${serviceTotal}`);
         });
       }
 
@@ -2102,31 +2103,31 @@ const NewIPDBillingModule: React.FC = () => {
 
       const billingRowsData = JSON.stringify(actualServicesData);
 
-      console.log('💾 ACTUAL services being stored:');
-      console.log('   - Admission Fee:', admissionFee);
-      console.log('   - Stay Segments:', staySegments?.length || 0);
-      console.log('   - Selected Services count:', selectedServices?.filter(s => s.selected)?.length || 0);
-      console.log('🔍 BILLING ROWS DATA DETAILS:');
-      console.log('   - actualServicesData length:', actualServicesData.length);
-      console.log('   - billingRowsData length:', billingRowsData.length);
-      console.log('   - First 500 chars of billingRowsData:', billingRowsData.substring(0, 500));
+      logger.log('💾 ACTUAL services being stored:');
+      logger.log('   - Admission Fee:', admissionFee);
+      logger.log('   - Stay Segments:', staySegments?.length || 0);
+      logger.log('   - Selected Services count:', selectedServices?.filter(s => s.selected)?.length || 0);
+      logger.log('🔍 BILLING ROWS DATA DETAILS:');
+      logger.log('   - actualServicesData length:', actualServicesData.length);
+      logger.log('   - billingRowsData length:', billingRowsData.length);
+      logger.log('   - First 500 chars of billingRowsData:', billingRowsData.substring(0, 500));
 
       // Check if any stay segments have chargeBreakdown
       actualServicesData.forEach((item, index) => {
         if (item.chargeBreakdown) {
-          console.log(`   - Item ${index} has chargeBreakdown:`, item.chargeBreakdown);
+          logger.log(`   - Item ${index} has chargeBreakdown:`, item.chargeBreakdown);
         }
       });
-      console.log('   - Selected Services details:');
+      logger.log('   - Selected Services details:');
       selectedServices?.filter(s => s.selected)?.forEach(service => {
-        console.log(`     * ${service.name}: ₹${service.amount}`);
+        logger.log(`     * ${service.name}: ₹${service.amount}`);
       });
-      console.log('   - Total services to store:', actualServicesData.length);
-      console.log('💾 Complete services data being stored:');
+      logger.log('   - Total services to store:', actualServicesData.length);
+      logger.log('💾 Complete services data being stored:');
       actualServicesData.forEach((service, index) => {
-        console.log(`   ${index + 1}. ${service.particulars} (${service.serviceType}) - ₹${service.total}`);
+        logger.log(`   ${index + 1}. ${service.particulars} (${service.serviceType}) - ₹${service.total}`);
       });
-      console.log('💾 Services JSON length:', billingRowsData.length, 'characters');
+      logger.log('💾 Services JSON length:', billingRowsData.length, 'characters');
 
       const transactionData = {
         patient_id: selectedPatient.id,
@@ -2144,9 +2145,9 @@ const NewIPDBillingModule: React.FC = () => {
         updated_at: new Date().toISOString()
       };
 
-      console.log(`💾 ${isEditing ? 'Updating' : 'Saving'} IPD bill transaction to Supabase:`, transactionData);
+      logger.log(`💾 ${isEditing ? 'Updating' : 'Saving'} IPD bill transaction to Supabase:`, transactionData);
 
-      console.log('🔍 Transaction details:', {
+      logger.log('🔍 Transaction details:', {
         patient_id: transactionData.patient_id,
         transaction_type: transactionData.transaction_type,
         hospital_id: transactionData.hospital_id,
@@ -2181,11 +2182,11 @@ const NewIPDBillingModule: React.FC = () => {
         error = insertError;
       }
 
-      console.log('📊 Supabase insert result:', { data: savedTransaction, error });
+      logger.log('📊 Supabase insert result:', { data: savedTransaction, error });
 
       if (error) {
-        console.error('❌ Bill transaction save error:', error);
-        console.error('❌ Error details:', {
+        logger.error('❌ Bill transaction save error:', error);
+        logger.error('❌ Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -2209,7 +2210,7 @@ const NewIPDBillingModule: React.FC = () => {
         return;
       }
 
-      console.log(`✅ IPD bill transaction ${isEditing ? 'updated' : 'saved'}:`, savedTransaction);
+      logger.log(`✅ IPD bill transaction ${isEditing ? 'updated' : 'saved'}:`, savedTransaction);
       toast.success(`IPD Bill ${isEditing ? 'updated' : 'generated'} successfully! Bill #${billReceiptNo}`);
       
       // Refresh the IPD bills list
@@ -2235,8 +2236,8 @@ const NewIPDBillingModule: React.FC = () => {
       );
       
     } catch (error) {
-      console.error('❌ Error generating bill:', error);
-      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
+      logger.error('❌ Error generating bill:', error);
+      logger.error('❌ Full error object:', JSON.stringify(error, null, 2));
       toast.error(`Failed to generate bill: ${error?.message || 'Unknown error'}`);
     }
   };
@@ -2253,7 +2254,7 @@ const NewIPDBillingModule: React.FC = () => {
 
     // CRITICAL: Use the billing date selected by user, or today's date
     const userSelectedDate = ensureDateFormat(billingDate);
-    console.log('🚨 DEPOSIT MODAL DATE SETUP:', {
+    logger.log('🚨 DEPOSIT MODAL DATE SETUP:', {
       'Current billingDate from UI': billingDate,
       'getLocalDateString()': getLocalDateString(),
       'ensureDateFormat result': userSelectedDate,
@@ -2267,8 +2268,8 @@ const NewIPDBillingModule: React.FC = () => {
   };
 
   const handleSaveDeposit = async () => {
-    console.log('💰 MODAL: Save Deposit clicked!');
-    console.log('💰 MODAL: Current values:', {
+    logger.log('💰 MODAL: Save Deposit clicked!');
+    logger.log('💰 MODAL: Current values:', {
       amount: newPaymentAmount,
       mode: newPaymentMode,
       reference: referenceNo,
@@ -2284,7 +2285,7 @@ const NewIPDBillingModule: React.FC = () => {
       setShowAddDepositModal(false);
       
     } catch (error) {
-      console.error('❌ Error in handleSaveDeposit:', error);
+      logger.error('❌ Error in handleSaveDeposit:', error);
       toast.error('Failed to save deposit. Please try again.');
     }
   };
@@ -2487,7 +2488,7 @@ const NewIPDBillingModule: React.FC = () => {
     }
 
     try {
-      console.log('✅ Marking bill as completed:', bill.id);
+      logger.log('✅ Marking bill as completed:', bill.id);
       
       const { data: updatedBill, error } = await supabase
         .from('patient_transactions')
@@ -2500,19 +2501,19 @@ const NewIPDBillingModule: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('❌ Error updating bill status:', error);
+        logger.error('❌ Error updating bill status:', error);
         toast.error(`Failed to mark bill as completed: ${error.message}`);
         return;
       }
 
-      console.log('✅ Bill marked as completed:', updatedBill);
+      logger.log('✅ Bill marked as completed:', updatedBill);
       toast.success(`Bill #${bill.transaction_reference || bill.id} marked as completed!`);
       
       // Refresh the bills list
       await loadIPDBills();
       
     } catch (error: any) {
-      console.error('❌ Error in handleMarkCompleted:', error);
+      logger.error('❌ Error in handleMarkCompleted:', error);
       toast.error(`Failed to mark bill as completed: ${error?.message || 'Unknown error'}`);
     }
   };
@@ -2541,11 +2542,11 @@ Description: ${bill.description || 'N/A'}
 
   // Handler for Edit Bill button
   const handleEditBill = (bill: any) => {
-    console.log('🚨🚨🚨 CRITICAL DEBUG - EDIT BILL CALLED 🚨🚨🚨');
+    logger.log('🚨🚨🚨 CRITICAL DEBUG - EDIT BILL CALLED 🚨🚨🚨');
 
     // CRITICAL: Set editing flag to prevent state interference
     isEditingRef.current = true;
-    console.log('🔒 EDITING REF SET TO TRUE');
+    logger.log('🔒 EDITING REF SET TO TRUE');
 
     // CRITICAL: Let's see what the ACTUAL saved data looks like
     if (bill.description && bill.description.includes('BILLING_ROWS:')) {
@@ -2559,10 +2560,10 @@ Description: ${bill.description || 'N/A'}
           }
           const parsedRows = JSON.parse(rawJson);
 
-          console.log('🔍 CRITICAL: ACTUAL SAVED BILLING DATA:');
+          logger.log('🔍 CRITICAL: ACTUAL SAVED BILLING DATA:');
           parsedRows.forEach((row, index) => {
             if (row.serviceType?.includes('Room') || row.particulars?.includes('Room')) {
-              console.log(`🏨 ACTUAL Room/Stay row ${index}:`, {
+              logger.log(`🏨 ACTUAL Room/Stay row ${index}:`, {
                 serviceType: row.serviceType,
                 particulars: row.particulars,
                 unitPrice: row.unitPrice,
@@ -2576,7 +2577,7 @@ Description: ${bill.description || 'N/A'}
               const testParticulars = row.particulars || row.serviceType || '';
               const testUpper = testParticulars.toUpperCase();
               const testMatch = testUpper.match(/^(.+?)\s*-\s*ROOM STAY/);
-              console.log(`🧪 REGEX TEST for "${testParticulars}":`, {
+              logger.log(`🧪 REGEX TEST for "${testParticulars}":`, {
                 input: testParticulars,
                 regexMatch: testMatch,
                 expectedRoomType: testMatch ? testMatch[1].trim() : 'NO MATCH - WILL DEFAULT TO GENERAL WARD'
@@ -2584,18 +2585,18 @@ Description: ${bill.description || 'N/A'}
             }
           });
         } catch (e) {
-          console.error('❌ Failed to parse saved billing data:', e);
+          logger.error('❌ Failed to parse saved billing data:', e);
         }
       }
     } else {
-      console.log('⚠️ NO BILLING_ROWS found in description - this is the problem!');
+      logger.log('⚠️ NO BILLING_ROWS found in description - this is the problem!');
     }
 
     try {
       // Parse billing rows from the saved bill data
       let savedBillingRows = [];
 
-      console.log('🔍 Checking bill description for edit:', bill.description?.length ? 'Found description' : 'No description');
+      logger.log('🔍 Checking bill description for edit:', bill.description?.length ? 'Found description' : 'No description');
 
       if (bill.description && bill.description.includes('BILLING_ROWS:')) {
         try {
@@ -2611,20 +2612,20 @@ Description: ${bill.description || 'N/A'}
 
           if (billingRowsMatch) {
             let billingRowsJson = billingRowsMatch[1];
-            console.log('🔍 RAW BILLING ROWS JSON:', billingRowsJson);
+            logger.log('🔍 RAW BILLING ROWS JSON:', billingRowsJson);
 
             // Clean up the JSON string if it has trailing content
             const lastBracket = billingRowsJson.lastIndexOf(']');
             if (lastBracket !== -1) {
               billingRowsJson = billingRowsJson.substring(0, lastBracket + 1);
             }
-            console.log('🔍 CLEANED BILLING ROWS JSON:', billingRowsJson);
+            logger.log('🔍 CLEANED BILLING ROWS JSON:', billingRowsJson);
 
             savedBillingRows = JSON.parse(billingRowsJson);
-            console.log('📝 Successfully parsed billing rows:', savedBillingRows);
-            console.log('🔍 PARSED BILLING ROWS DETAILS:');
+            logger.log('📝 Successfully parsed billing rows:', savedBillingRows);
+            logger.log('🔍 PARSED BILLING ROWS DETAILS:');
             savedBillingRows.forEach((row, index) => {
-              console.log(`   Row ${index}:`, {
+              logger.log(`   Row ${index}:`, {
                 serviceType: row.serviceType,
                 particulars: row.particulars,
                 chargeBreakdown: row.chargeBreakdown,
@@ -2635,14 +2636,14 @@ Description: ${bill.description || 'N/A'}
               });
             });
           } else {
-            console.warn('⚠️ No billing rows match found in description');
-            console.log('🔍 Description content:', bill.description);
+            logger.warn('⚠️ No billing rows match found in description');
+            logger.log('🔍 Description content:', bill.description);
           }
         } catch (parseError) {
-          console.error('❌ Error parsing billing rows JSON:', parseError);
+          logger.error('❌ Error parsing billing rows JSON:', parseError);
         }
       } else {
-        console.warn('⚠️ No BILLING_ROWS found in description, using default structure');
+        logger.warn('⚠️ No BILLING_ROWS found in description, using default structure');
       }
 
       // If no saved billing rows, try to reconstruct from bill description or create exact structure
@@ -2650,8 +2651,8 @@ Description: ${bill.description || 'N/A'}
         const billAmount = bill.amount || 0;
         const descriptionText = bill.description || '';
 
-        console.log('📋 No billing rows found, reconstructing from bill data. Amount:', billAmount);
-        console.log('📝 Description text:', descriptionText);
+        logger.log('📋 No billing rows found, reconstructing from bill data. Amount:', billAmount);
+        logger.log('📝 Description text:', descriptionText);
 
         // Try to extract exact values from description
         const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
@@ -2666,7 +2667,7 @@ Description: ${bill.description || 'N/A'}
         const extractedDiscount = discountMatch ? (parseFloat(discountMatch[1]) || 0) : 0;
         const extractedTax = taxMatch ? (parseFloat(taxMatch[1]) || 0) : 0;
 
-        console.log('💰 Extracted values:', {
+        logger.log('💰 Extracted values:', {
           admission: extractedAdmission,
           stay: extractedStay,
           services: extractedServices,
@@ -2674,11 +2675,11 @@ Description: ${bill.description || 'N/A'}
           tax: extractedTax,
           total: billAmount
         });
-        console.log('🔍 AMOUNT DEBUGGING - Description parsing:');
-        console.log('   - Original bill amount:', billAmount);
-        console.log('   - Admission match:', admissionMatch);
-        console.log('   - Stay match:', stayMatch);
-        console.log('   - Services match:', serviceMatch);
+        logger.log('🔍 AMOUNT DEBUGGING - Description parsing:');
+        logger.log('   - Original bill amount:', billAmount);
+        logger.log('   - Admission match:', admissionMatch);
+        logger.log('   - Stay match:', stayMatch);
+        logger.log('   - Services match:', serviceMatch);
 
         // Create billing rows based on extracted or calculated values
         savedBillingRows = [];
@@ -2726,16 +2727,16 @@ Description: ${bill.description || 'N/A'}
       }
 
       // Find the patient from the current patients list
-      console.log('👤 Looking for patient with ID:', bill.patient_id);
+      logger.log('👤 Looking for patient with ID:', bill.patient_id);
       const patient = patients.find(p => p.id === bill.patient_id);
 
       if (patient) {
         setSelectedPatient(patient);
         const patientName = `${patient.first_name} ${patient.last_name} (${patient.patient_id})`;
         setPatientSearchTerm(patientName);
-        console.log('✅ Patient found and set:', patientName);
+        logger.log('✅ Patient found and set:', patientName);
       } else {
-        console.warn('⚠️ Patient not found in current patients list');
+        logger.warn('⚠️ Patient not found in current patients list');
         // Still proceed, but show warning
         toast.error('Patient not found in current list, but bill will load');
       }
@@ -2746,15 +2747,15 @@ Description: ${bill.description || 'N/A'}
                                   bill.created_at?.split('T')[0] ||
                                   getLocalDateString();
       setBillingDate(originalBillingDate);
-      console.log('📅 Billing date set to original (editable):', originalBillingDate);
-      console.log('🔍 Date sources - transaction_date:', bill.transaction_date, 'created_at:', bill.created_at);
+      logger.log('📅 Billing date set to original (editable):', originalBillingDate);
+      logger.log('🔍 Date sources - transaction_date:', bill.transaction_date, 'created_at:', bill.created_at);
 
       // Populate the billing rows
       setBillingRows(savedBillingRows);
-      console.log('📋 Billing rows populated:', savedBillingRows.length, 'rows');
+      logger.log('📋 Billing rows populated:', savedBillingRows.length, 'rows');
 
       // Map billing rows back to the correct state variables for calculations
-      console.log('🔄 Mapping billing rows to state variables...');
+      logger.log('🔄 Mapping billing rows to state variables...');
 
       // Create stay segments from billing rows
       const newStaySegments = [];
@@ -2830,7 +2831,7 @@ Description: ${bill.description || 'N/A'}
 
           // Extract room type from the saved billing data
           const detectedRoomType = extractRoomType(row.particulars || row.serviceType || '');
-          console.log('🏨 Detected room type:', detectedRoomType, 'from:', row.particulars || row.serviceType);
+          logger.log('🏨 Detected room type:', detectedRoomType, 'from:', row.particulars || row.serviceType);
 
           // Try to extract original individual charges if available in saved data
           // Look for detailed charge information in the bill description or additional fields
@@ -2848,10 +2849,10 @@ Description: ${bill.description || 'N/A'}
             rmoChargePerDay = parseFloat(row.chargeBreakdown.rmoChargePerDay) || 0;
             doctorChargePerDay = parseFloat(row.chargeBreakdown.doctorChargePerDay) || 0;
 
-            console.log('✅ Using saved chargeBreakdown for accurate reconstruction');
+            logger.log('✅ Using saved chargeBreakdown for accurate reconstruction');
           } else {
             // OLD BILLS: Smart reconstruction based on room type and saved data
-            console.log('⚠️ No chargeBreakdown found, using intelligent reconstruction');
+            logger.log('⚠️ No chargeBreakdown found, using intelligent reconstruction');
 
             const effectiveDailyRate = parseFloat(row.unitPrice) || dailyTotal;
 
@@ -2887,7 +2888,7 @@ Description: ${bill.description || 'N/A'}
               doctorChargePerDay = Math.round(defaultCharges.doctor * scaleFactor * 100) / 100;
             }
 
-            console.log('📊 Reconstructed charges based on room type:', {
+            logger.log('📊 Reconstructed charges based on room type:', {
               roomType: detectedRoomType,
               effectiveDailyRate,
               standardTotal,
@@ -2907,22 +2908,22 @@ Description: ${bill.description || 'N/A'}
             doctorChargePerDay: doctorChargePerDay
           };
 
-          console.log('🏗️ RECONSTRUCTED STAY SEGMENT:', reconstructedSegment);
+          logger.log('🏗️ RECONSTRUCTED STAY SEGMENT:', reconstructedSegment);
 
           // CRITICAL: Alert if room type is wrong
           if (detectedRoomType === 'General Ward' && (
             row.particulars?.toUpperCase().includes('ICU') ||
             row.serviceType?.toUpperCase().includes('ICU')
           )) {
-            console.error('🚨 CRITICAL ISSUE: ICU room detected in particulars/serviceType but roomType defaulted to General Ward!');
-            console.error('🚨 This suggests room type extraction failed!');
-            console.error('🚨 Raw data:', { particulars: row.particulars, serviceType: row.serviceType });
+            logger.error('🚨 CRITICAL ISSUE: ICU room detected in particulars/serviceType but roomType defaulted to General Ward!');
+            logger.error('🚨 This suggests room type extraction failed!');
+            logger.error('🚨 Raw data:', { particulars: row.particulars, serviceType: row.serviceType });
           }
 
           newStaySegments.push(reconstructedSegment);
 
-          console.log('🏨 ✅ SUCCESSFULLY CREATED STAY SEGMENT:', reconstructedSegment);
-          console.log('🏨 📋 Segment details:', {
+          logger.log('🏨 ✅ SUCCESSFULLY CREATED STAY SEGMENT:', reconstructedSegment);
+          logger.log('🏨 📋 Segment details:', {
             roomType: reconstructedSegment.roomType,
             bedChargePerDay: reconstructedSegment.bedChargePerDay,
             nursingChargePerDay: reconstructedSegment.nursingChargePerDay,
@@ -2943,7 +2944,7 @@ Description: ${bill.description || 'N/A'}
             amount: serviceUnitPrice
           });
 
-          console.log('🩺 Mapped to service:', {
+          logger.log('🩺 Mapped to service:', {
             name: row.serviceType || row.particulars,
             quantity: serviceQuantity,
             unitPrice: serviceUnitPrice,
@@ -2953,17 +2954,17 @@ Description: ${bill.description || 'N/A'}
       });
 
       // CRITICAL FIX: Use functional update to ensure state integrity
-      console.log('🔄 ABOUT TO SET STAY SEGMENTS WITH FUNCTIONAL UPDATE:', newStaySegments);
+      logger.log('🔄 ABOUT TO SET STAY SEGMENTS WITH FUNCTIONAL UPDATE:', newStaySegments);
 
       setStaySegments((prevSegments) => {
-        console.log('🔄 FUNCTIONAL UPDATE: Previous segments:', prevSegments);
-        console.log('🔄 FUNCTIONAL UPDATE: New segments:', newStaySegments);
+        logger.log('🔄 FUNCTIONAL UPDATE: Previous segments:', prevSegments);
+        logger.log('🔄 FUNCTIONAL UPDATE: New segments:', newStaySegments);
 
         // AGGRESSIVE PROTECTION: Create backup and activate protection
         correctStateBackupRef.current = [...newStaySegments];
         stateProtectionActiveRef.current = true;
-        console.log('🛡️ STATE PROTECTION ACTIVATED: Backup created');
-        console.log('🛡️ Backup contains:', newStaySegments.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
+        logger.log('🛡️ STATE PROTECTION ACTIVATED: Backup created');
+        logger.log('🛡️ Backup contains:', newStaySegments.map((s, i) => `${s.roomType} - ₹${s.bedChargePerDay}`));
 
         // Start periodic state monitoring
         const protectionInterval = setInterval(() => {
@@ -2979,7 +2980,7 @@ Description: ${bill.description || 'N/A'}
 
             if (currentFirst.roomType === 'General Ward' && currentFirst.bedChargePerDay === 1000 &&
                 backupFirst.roomType !== 'General Ward' && backupFirst.bedChargePerDay !== 1000) {
-              console.log('🚨 PERIODIC CHECK: State corruption detected, restoring immediately!');
+              logger.log('🚨 PERIODIC CHECK: State corruption detected, restoring immediately!');
               _setStaySegments([...correctStateBackupRef.current]);
             }
           }
@@ -2990,26 +2991,26 @@ Description: ${bill.description || 'N/A'}
 
       setSelectedServices(newSelectedServices);
 
-      console.log('✅ State mapping completed:');
-      console.log('   - Stay segments:', newStaySegments.length);
-      console.log('   - Selected services:', newSelectedServices.length);
+      logger.log('✅ State mapping completed:');
+      logger.log('   - Stay segments:', newStaySegments.length);
+      logger.log('   - Selected services:', newSelectedServices.length);
 
       // CRITICAL: Set a flag to prevent other state updates
       const preserveStateTimer = setTimeout(() => {
-        console.log('🔒 State preservation period ended');
+        logger.log('🔒 State preservation period ended');
       }, 1000);
 
       // CRITICAL: Multiple verifications to catch when state gets overridden
       setTimeout(() => {
-        console.log('🔍 VERIFICATION 1 (50ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+        logger.log('🔍 VERIFICATION 1 (50ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
       }, 50);
 
       setTimeout(() => {
-        console.log('🔍 VERIFICATION 2 (200ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+        logger.log('🔍 VERIFICATION 2 (200ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
       }, 200);
 
       setTimeout(() => {
-        console.log('🔍 VERIFICATION 3 (500ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
+        logger.log('🔍 VERIFICATION 3 (500ms): Stay segments after setState:', JSON.stringify(staySegments, null, 2));
       }, 500);
 
       // Populate other bill details for editing using exact extracted values
@@ -3019,7 +3020,7 @@ Description: ${bill.description || 'N/A'}
       // Extract payment mode from the bill data
       const paymentMode = bill.payment_mode || 'CASH';
       setFinalPaymentMode(paymentMode);
-      console.log('💳 Payment mode set to:', paymentMode);
+      logger.log('💳 Payment mode set to:', paymentMode);
 
       // Set ward category from description if available, otherwise default
       if (descriptionText.includes('ICU')) {
@@ -3031,7 +3032,7 @@ Description: ${bill.description || 'N/A'}
       } else {
         setWardCategory('Emergency'); // Default
       }
-      console.log('🏥 Ward category set from description');
+      logger.log('🏥 Ward category set from description');
 
       // Extract exact values from bill description (same extraction as billing rows)
       const admissionMatch = descriptionText.match(/Admission:\s*₹(\d+(?:\.\d{2})?)/);
@@ -3044,12 +3045,12 @@ Description: ${bill.description || 'N/A'}
 
       // Set exact admission fee from description
       if (isComprehensiveBill) {
-        console.log('🔍 COMPREHENSIVE BILL - Setting admission fee to 0 (total is in service)');
+        logger.log('🔍 COMPREHENSIVE BILL - Setting admission fee to 0 (total is in service)');
         setAdmissionFee(0);
       } else if (admissionMatch) {
         const extractedAdmissionFee = parseFloat(admissionMatch[1]) || 0;
         setAdmissionFee(extractedAdmissionFee);
-        console.log('🏨 Admission fee extracted exactly:', extractedAdmissionFee);
+        logger.log('🏨 Admission fee extracted exactly:', extractedAdmissionFee);
       } else {
         // Calculate admission fee to balance the total
         // Total = Admission + Stay + Services - Discount + Tax
@@ -3060,67 +3061,67 @@ Description: ${bill.description || 'N/A'}
 
         const calculatedAdmission = Math.max(0, (totalAmount || 0) - stayTotal + extractedDiscount - extractedTax);
         setAdmissionFee(calculatedAdmission);
-        console.log('🏨 Admission fee calculated to balance total:', calculatedAdmission);
-        console.log('🔍 CALCULATION BREAKDOWN:');
-        console.log('   - Total amount:', totalAmount);
-        console.log('   - Stay/Services total:', stayTotal);
-        console.log('   - Extracted discount:', extractedDiscount);
-        console.log('   - Extracted tax:', extractedTax);
-        console.log('   - Formula: ', totalAmount, '-', stayTotal, '+', extractedDiscount, '-', extractedTax, '=', calculatedAdmission);
+        logger.log('🏨 Admission fee calculated to balance total:', calculatedAdmission);
+        logger.log('🔍 CALCULATION BREAKDOWN:');
+        logger.log('   - Total amount:', totalAmount);
+        logger.log('   - Stay/Services total:', stayTotal);
+        logger.log('   - Extracted discount:', extractedDiscount);
+        logger.log('   - Extracted tax:', extractedTax);
+        logger.log('   - Formula: ', totalAmount, '-', stayTotal, '+', extractedDiscount, '-', extractedTax, '=', calculatedAdmission);
       }
 
       // Set exact discount from description
       if (discountMatch) {
         const extractedDiscount = parseFloat(discountMatch[1]) || 0;
         setDiscount(extractedDiscount);
-        console.log('💸 Discount extracted exactly:', extractedDiscount);
+        logger.log('💸 Discount extracted exactly:', extractedDiscount);
       } else {
         setDiscount(0);
-        console.log('💸 No discount found in description, set to 0');
+        logger.log('💸 No discount found in description, set to 0');
       }
 
       // Set exact tax from description
       if (taxMatch) {
         const extractedTax = parseFloat(taxMatch[1]) || 0;
         setTax(extractedTax);
-        console.log('📊 Tax extracted exactly:', extractedTax);
+        logger.log('📊 Tax extracted exactly:', extractedTax);
       } else {
         setTax(0);
-        console.log('📊 No tax found in description, set to 0');
+        logger.log('📊 No tax found in description, set to 0');
       }
 
-      console.log('💰 Bill total amount:', totalAmount, '(exact values extracted for editing)');
+      logger.log('💰 Bill total amount:', totalAmount, '(exact values extracted for editing)');
 
       // Set the editing state
       setEditingBill(bill);
-      console.log('✏️ Editing state set');
+      logger.log('✏️ Editing state set');
 
       // Open the create/edit form
       setShowCreateBill(true);
-      console.log('📝 Form opened for editing');
+      logger.log('📝 Form opened for editing');
 
       // CRITICAL: Clear editing flag after a delay to allow state to settle
       setTimeout(() => {
         isEditingRef.current = false;
         stateProtectionActiveRef.current = false;
-        console.log('🔓 EDITING REF SET TO FALSE - State should now be stable');
-        console.log('🛡️ STATE PROTECTION DEACTIVATED');
+        logger.log('🔓 EDITING REF SET TO FALSE - State should now be stable');
+        logger.log('🛡️ STATE PROTECTION DEACTIVATED');
       }, 2000);
 
       // Final summary of what was set
-      console.log('🎯 FINAL EDIT STATE SUMMARY:');
-      console.log('   - Original bill amount:', bill.amount);
-      console.log('   - Billing rows loaded:', savedBillingRows.length);
-      console.log('   - Current admission fee state will be:', admissionMatch ? parseFloat(admissionMatch[1]) : 'calculated');
-      console.log('   - Current discount state will be:', discountMatch ? parseFloat(discountMatch[1]) : 0);
-      console.log('   - Current tax state will be:', taxMatch ? parseFloat(taxMatch[1]) : 0);
-      console.log('   - Expected total calculation will be: admission + services - discount + tax');
+      logger.log('🎯 FINAL EDIT STATE SUMMARY:');
+      logger.log('   - Original bill amount:', bill.amount);
+      logger.log('   - Billing rows loaded:', savedBillingRows.length);
+      logger.log('   - Current admission fee state will be:', admissionMatch ? parseFloat(admissionMatch[1]) : 'calculated');
+      logger.log('   - Current discount state will be:', discountMatch ? parseFloat(discountMatch[1]) : 0);
+      logger.log('   - Current tax state will be:', taxMatch ? parseFloat(taxMatch[1]) : 0);
+      logger.log('   - Expected total calculation will be: admission + services - discount + tax');
 
       toast.success('Bill loaded for editing successfully!');
 
     } catch (error) {
-      console.error('❌ Detailed error in handleEditBill:', error);
-      console.error('❌ Error stack:', error.stack);
+      logger.error('❌ Detailed error in handleEditBill:', error);
+      logger.error('❌ Error stack:', error.stack);
       toast.error(`Failed to load bill for editing: ${error.message}`);
 
       // Even if there's an error, try to open the form with basic data
@@ -3132,7 +3133,7 @@ Description: ${bill.description || 'N/A'}
         setShowCreateBill(true);
         toast.error('Bill loaded with limited data due to parsing error');
       } catch (fallbackError) {
-        console.error('❌ Even fallback failed:', fallbackError);
+        logger.error('❌ Even fallback failed:', fallbackError);
       }
     }
   };
@@ -3141,11 +3142,11 @@ Description: ${bill.description || 'N/A'}
   // Handler for Print Bill button with exact ReceiptTemplate format
   const handlePrintBill = (bill: any) => {
 
-    console.log('🚨🚨🚨 PRINT BILL FUNCTION CALLED 🚨🚨🚨');
-    console.log('🚨 RAW BILL OBJECT:', bill);
+    logger.log('🚨🚨🚨 PRINT BILL FUNCTION CALLED 🚨🚨🚨');
+    logger.log('🚨 RAW BILL OBJECT:', bill);
 
     // 🔍 DEBUG: Check patient data available for printing
-    console.log('🖨️ PRINT BILL DEBUG - Patient data available:', {
+    logger.log('🖨️ PRINT BILL DEBUG - Patient data available:', {
       'Bill ID': bill.id,
       'Patient object exists?': !!bill.patients,
       'Patient name': bill.patients ? `${bill.patients.first_name} ${bill.patients.last_name}` : 'N/A',
@@ -3169,8 +3170,8 @@ Description: ${bill.description || 'N/A'}
     if (bill.description?.includes('BILLING_ROWS:')) {
       const match = bill.description.match(/BILLING_ROWS:\s*(\[[\s\S]*?\])/);
       if (match) {
-        console.log('🔍 Raw BILLING_ROWS in description:');
-        console.log(match[1].substring(0, 500) + '...');
+        logger.log('🔍 Raw BILLING_ROWS in description:');
+        logger.log(match[1].substring(0, 500) + '...');
       }
     }
     // Create a temporary canvas to load and convert the image to base64
@@ -3201,8 +3202,8 @@ Description: ${bill.description || 'N/A'}
     // Extract the exact services data from the saved bill
     let billRows = [];
 
-    console.log('🔍 Extracting services from saved bill data...');
-    console.log('🔍 Bill description preview:', bill.description?.substring(0, 300));
+    logger.log('🔍 Extracting services from saved bill data...');
+    logger.log('🔍 Bill description preview:', bill.description?.substring(0, 300));
 
     // Parse BILLING_ROWS from description
     if (bill.description && bill.description.includes('BILLING_ROWS:')) {
@@ -3225,7 +3226,7 @@ Description: ${bill.description || 'N/A'}
           billRows = JSON.parse(billingRowsMatch[1]);
         }
       } catch (error) {
-        console.error('❌ Failed to parse BILLING_ROWS:', error);
+        logger.error('❌ Failed to parse BILLING_ROWS:', error);
       }
     }
 
@@ -3371,7 +3372,7 @@ Description: ${bill.description || 'N/A'}
     convertImageToBase64().then((base64Image) => {
       createPrintWindow(base64Image as string);
     }).catch((error) => {
-      console.error('Failed to load Receipt.png:', error);
+      logger.error('Failed to load Receipt.png:', error);
       // Create print window without background image
       createPrintWindow('');
     });
@@ -3749,7 +3750,7 @@ Description: ${bill.description || 'N/A'}
         printWindow.print();
       }, 1000);
       
-      console.log('Print bill with proper receipt format:', bill);
+      logger.log('Print bill with proper receipt format:', bill);
     };
   };
 
@@ -3758,7 +3759,7 @@ Description: ${bill.description || 'N/A'}
     const billRef = bill.transaction_reference || bill.id;
     const patientName = `${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}`.trim() || 'Unknown Patient';
     
-    console.log('🗑️ BEFORE DELETE - Bill details:', {
+    logger.log('🗑️ BEFORE DELETE - Bill details:', {
       id: bill.id,
       transaction_reference: bill.transaction_reference,
       patient_name: patientName,
@@ -3772,13 +3773,13 @@ Description: ${bill.description || 'N/A'}
     );
     
     if (!confirmDelete) {
-      console.log('🚫 Delete cancelled by user');
+      logger.log('🚫 Delete cancelled by user');
       return;
     }
     
     try {
-      console.log('🗑️ Attempting to delete bill with ID:', bill.id);
-      console.log('🗑️ Delete query conditions:', {
+      logger.log('🗑️ Attempting to delete bill with ID:', bill.id);
+      logger.log('🗑️ Delete query conditions:', {
         table: 'patient_transactions',
         where_id: bill.id,
         where_hospital_id: HOSPITAL_ID
@@ -3791,10 +3792,10 @@ Description: ${bill.description || 'N/A'}
         .eq('id', bill.id)
         .single();
         
-      console.log('🔍 Record check before deletion:', { data: existingRecord, error: checkError });
+      logger.log('🔍 Record check before deletion:', { data: existingRecord, error: checkError });
       
       if (checkError || !existingRecord) {
-        console.error('❌ Record not found before deletion:', checkError);
+        logger.error('❌ Record not found before deletion:', checkError);
         toast.error('Bill not found in database');
         await loadIPDBills(); // Refresh to sync with actual database state
         return;
@@ -3809,7 +3810,7 @@ Description: ${bill.description || 'N/A'}
         
       // If deletion failed, try alternative approach (update status to DELETED)
       if (deleteError && deleteError.code) {
-        console.log('🔄 Direct deletion failed, trying soft delete (status update)...');
+        logger.log('🔄 Direct deletion failed, trying soft delete (status update)...');
         
         const { data: updateResult, error: updateError } = await supabase
           .from('patient_transactions')
@@ -3820,21 +3821,21 @@ Description: ${bill.description || 'N/A'}
           .eq('id', bill.id)
           .select();
           
-        console.log('🔄 Soft delete result:', { data: updateResult, error: updateError });
+        logger.log('🔄 Soft delete result:', { data: updateResult, error: updateError });
         
         if (!updateError && updateResult && updateResult.length > 0) {
-          console.log('✅ Bill marked as deleted (soft delete)');
+          logger.log('✅ Bill marked as deleted (soft delete)');
           toast.success(`IPD bill ${billRef} deleted successfully`);
           await loadIPDBills();
           return;
         }
       }
         
-      console.log('🗑️ Delete operation result:', { data: deleteResult, error: deleteError });
+      logger.log('🗑️ Delete operation result:', { data: deleteResult, error: deleteError });
       
       if (deleteError) {
-        console.error('❌ Delete operation failed:', deleteError);
-        console.error('❌ Delete error details:', {
+        logger.error('❌ Delete operation failed:', deleteError);
+        logger.error('❌ Delete error details:', {
           message: deleteError.message,
           details: deleteError.details,
           hint: deleteError.hint,
@@ -3844,20 +3845,20 @@ Description: ${bill.description || 'N/A'}
       }
       
       if (!deleteResult || deleteResult.length === 0) {
-        console.warn('⚠️ Delete operation returned no results - record may not exist');
+        logger.warn('⚠️ Delete operation returned no results - record may not exist');
         toast.error('Bill may have already been deleted');
       } else {
-        console.log('✅ Bill deleted successfully:', deleteResult);
+        logger.log('✅ Bill deleted successfully:', deleteResult);
         toast.success(`IPD bill ${billRef} deleted successfully`);
       }
       
       // Always refresh the bills list to get current state
-      console.log('🔄 Refreshing bills list after delete operation...');
+      logger.log('🔄 Refreshing bills list after delete operation...');
       await loadIPDBills();
       
     } catch (error: any) {
-      console.error('❌ Failed to delete bill:', error);
-      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
+      logger.error('❌ Failed to delete bill:', error);
+      logger.error('❌ Full error object:', JSON.stringify(error, null, 2));
       toast.error(`Failed to delete bill: ${error.message || error}`);
       
       // Still refresh to sync with database state
@@ -4205,7 +4206,7 @@ Description: ${bill.description || 'N/A'}
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {(() => {
-                  console.log('🎯 MAIN VIEW RENDER: billsLoading:', billsLoading, 'ipdBills.length:', ipdBills.length);
+                  logger.log('🎯 MAIN VIEW RENDER: billsLoading:', billsLoading, 'ipdBills.length:', ipdBills.length);
                   return null;
                 })()}
                 
@@ -4467,8 +4468,8 @@ Description: ${bill.description || 'N/A'}
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {(() => {
-                console.log('🎯 RENDER: billsLoading:', billsLoading, 'ipdBills.length:', ipdBills.length);
-                console.log('🎯 RENDER: ipdBills array:', ipdBills);
+                logger.log('🎯 RENDER: billsLoading:', billsLoading, 'ipdBills.length:', ipdBills.length);
+                logger.log('🎯 RENDER: ipdBills array:', ipdBills);
                 return null;
               })()}
               
@@ -4869,10 +4870,10 @@ Description: ${bill.description || 'N/A'}
 
                               // Alert if we have an unmapped room type
                               if (!mappings[roomType] && roomType !== 'General Ward') {
-                                console.warn('🚨 UNMAPPED ROOM TYPE DETECTED:', roomType);
+                                logger.warn('🚨 UNMAPPED ROOM TYPE DETECTED:', roomType);
                               }
 
-                              console.log('🔍🔍🔍 SUMMARY DROPDOWN VALUE:', {
+                              logger.log('🔍🔍🔍 SUMMARY DROPDOWN VALUE:', {
                                 originalRoomType: roomType,
                                 finalValue: finalValue,
                                 hasMappingMatch: !!mappings[roomType],
@@ -4882,8 +4883,8 @@ Description: ${bill.description || 'N/A'}
                             })()}
                             onChange={(e) => {
                               const newRoomType = e.target.value;
-                              console.log('🏨🏨🏨 SUMMARY DROPDOWN: Room type changed to:', newRoomType);
-                              console.log('🏨 Current stay segments before change:', staySegments);
+                              logger.log('🏨🏨🏨 SUMMARY DROPDOWN: Room type changed to:', newRoomType);
+                              logger.log('🏨 Current stay segments before change:', staySegments);
                               // Update the first stay segment's room type
                               setStaySegments(segments =>
                                 segments.map((seg, index) =>
@@ -5014,10 +5015,10 @@ Description: ${bill.description || 'N/A'}
 
                                   // Alert if we have an unmapped room type
                                   if (!mappings[roomType] && roomType !== 'General Ward') {
-                                    console.warn('🚨 UNMAPPED ROOM TYPE DETECTED IN DETAILED:', roomType);
+                                    logger.warn('🚨 UNMAPPED ROOM TYPE DETECTED IN DETAILED:', roomType);
                                   }
 
-                                  console.log('🏠🏠🏠 DETAILED DROPDOWN VALUE:', {
+                                  logger.log('🏠🏠🏠 DETAILED DROPDOWN VALUE:', {
                                     segmentId: segment.id,
                                     originalRoomType: roomType,
                                     finalValue: finalValue,
@@ -5027,8 +5028,8 @@ Description: ${bill.description || 'N/A'}
                                 })()}
                                 onChange={(e) => {
                                   const newRoomType = e.target.value;
-                                  console.log('🏠🏠🏠 DETAILED DROPDOWN: Room type changed to:', newRoomType);
-                                  console.log('🏠 Current segment before change:', segment);
+                                  logger.log('🏠🏠🏠 DETAILED DROPDOWN: Room type changed to:', newRoomType);
+                                  logger.log('🏠 Current segment before change:', segment);
                                   // Auto-update rates based on room type
                                   const rates = {
                                     'General Ward': { bed: 1000, nursing: 200, rmo: 100, doctor: 500 },
@@ -5926,7 +5927,7 @@ Description: ${bill.description || 'N/A'}
                 </button>
                 <button
                   onClick={() => {
-                    console.log('🔥 SAVE BUTTON CLICKED - CURRENT STATE:', {
+                    logger.log('🔥 SAVE BUTTON CLICKED - CURRENT STATE:', {
                       'newPaymentAmount': newPaymentAmount,
                       'newPaymentDate': newPaymentDate,
                       'newPaymentMode': newPaymentMode,

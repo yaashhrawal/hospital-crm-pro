@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import { logger } from './utils/logger';
+import './utils/smartConsoleBlocker'; // Initialize console blocking immediately
 import HospitalService from './services/hospitalService';
 import type { User } from './config/supabaseNew';
 import { supabase } from './config/supabaseNew';
@@ -37,7 +39,12 @@ import TransactionDateDebugger from './components/TransactionDateDebugger'; // T
 
 // Main App Component
 const App: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
+
+  // Simple console initialization
+  useEffect(() => {
+    console.log('✅ App initialized');
+  }, []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [navHideTimer, setNavHideTimer] = useState<NodeJS.Timeout | null>(null);
@@ -49,16 +56,21 @@ const App: React.FC = () => {
   
   // Removed trigger fix logic - issue is in backend code
   
-  // Show debugger with Ctrl+Shift+D
+  // Show debugger with Ctrl+Shift+D (Admin only)
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        setShowDebugger(true);
+        // Only allow admin access to the debugger
+        if (user && (isAdmin() || user.email === 'admin@valant.com' || user.email === 'meenal@valant.com')) {
+          setShowDebugger(true);
+        } else {
+          toast.error('Access denied. Admin privileges required for debugger.');
+        }
       }
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [user, isAdmin]);
 
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -188,8 +200,8 @@ const App: React.FC = () => {
 
   // Debug modal states
   useEffect(() => {
-    console.log('showProfileModal:', showProfileModal);
-    console.log('showSettingsModal:', showSettingsModal);
+    logger.log('showProfileModal:', showProfileModal);
+    logger.log('showSettingsModal:', showSettingsModal);
   }, [showProfileModal, showSettingsModal]);
 
   // Authentication functions removed - now handled by AuthContext
@@ -199,13 +211,13 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      console.log('🚪 Signing out...');
+      logger.log('🚪 Signing out...');
       await logout();
       setActiveTab('dashboard');
       toast.success('Logged out successfully');
-      console.log('✅ Logout successful');
+      logger.log('✅ Logout successful');
     } catch (error: any) {
-      console.error('🚨 Logout exception:', error);
+      logger.error('🚨 Logout exception:', error);
       toast.error('Logout failed');
     }
   };
@@ -241,7 +253,7 @@ const App: React.FC = () => {
       setIsEditingProfile(false);
     } catch (error) {
       toast.error('Failed to update profile');
-      console.error('Profile update error:', error);
+      logger.error('Profile update error:', error);
     }
   };
 
@@ -292,7 +304,7 @@ const App: React.FC = () => {
         .order('created_at', { ascending: false });
       
       if (patientsError) {
-        console.error('Error fetching patients for backup:', patientsError);
+        logger.error('Error fetching patients for backup:', patientsError);
         toast.error('Failed to fetch patient data for backup');
         throw patientsError;
       }
@@ -313,9 +325,9 @@ const App: React.FC = () => {
         .order('appointment_time', { ascending: true });
       
       if (appointmentsError) {
-        console.error('Error fetching appointments for backup:', appointmentsError);
+        logger.error('Error fetching appointments for backup:', appointmentsError);
         // Don't fail backup for appointments error, just log it
-        console.warn('⚠️ Continuing backup without appointments');
+        logger.warn('⚠️ Continuing backup without appointments');
       }
       
       toast.dismiss(appointmentToast);
@@ -358,13 +370,13 @@ const App: React.FC = () => {
         
         if (!refundError && refundData) {
           refunds = refundData;
-          console.log(`✅ Retrieved ${refunds.length} refunds for backup`);
+          logger.log(`✅ Retrieved ${refunds.length} refunds for backup`);
         } else {
-          console.warn('⚠️ Refunds table not accessible, skipping refunds in backup');
+          logger.warn('⚠️ Refunds table not accessible, skipping refunds in backup');
           refunds = [];
         }
       } catch (error) {
-        console.warn('⚠️ Error fetching refunds, using empty array:', error);
+        logger.warn('⚠️ Error fetching refunds, using empty array:', error);
         refunds = [];
       }
       
@@ -427,7 +439,7 @@ const App: React.FC = () => {
         }
       };
       
-      console.log('📊 Backup Summary (ALL ENTRIES):', {
+      logger.log('📊 Backup Summary (ALL ENTRIES):', {
         patients: backupData.patients.count,
         transactions: backupData.transactions.count,
         appointments: backupData.appointments.count,
@@ -436,8 +448,8 @@ const App: React.FC = () => {
         total_records: backupData.backup_info.total_records
       });
       
-      console.log('✅ COMPLETE DATABASE BACKUP - All patient entries included (no limits applied)');
-      console.log('📋 Patient sample check:', patients?.slice(0, 3).map(p => `${p.patient_id}: ${p.first_name} ${p.last_name}`));
+      logger.log('✅ COMPLETE DATABASE BACKUP - All patient entries included (no limits applied)');
+      logger.log('📋 Patient sample check:', patients?.slice(0, 3).map(p => `${p.patient_id}: ${p.first_name} ${p.last_name}`));
       
       toast.dismiss(finalToast);
       
@@ -473,7 +485,7 @@ const App: React.FC = () => {
         if (result) {
           toast.dismiss(loadingToast);
           toast.success(`✅ Complete backup uploaded to Google Drive!\n📊 ALL ENTRIES BACKED UP: ${backupData.summary.total_patients} patients (complete details), ${backupData.summary.total_transactions} transactions, ${backupData.summary.total_appointments} appointments, ${backupData.summary.total_expenses} expenses, ${backupData.summary.total_refunds} refunds\n🔄 No limits applied - every single record included\n🔗 ${result.webViewLink}`, { duration: 12000 });
-          console.log('Google Drive file:', result);
+          logger.log('Google Drive file:', result);
         } else {
           toast.dismiss(loadingToast);
           toast.error('Failed to upload backup to Google Drive');
@@ -484,7 +496,7 @@ const App: React.FC = () => {
       localStorage.setItem('lastBackup', new Date().toISOString());
       
     } catch (error) {
-      console.error('Backup error:', error);
+      logger.error('Backup error:', error);
       toast.dismiss(loadingToast);
       toast.error('Backup failed. Please try again.');
     } finally {
@@ -527,7 +539,7 @@ const App: React.FC = () => {
         toast.error('Failed to sign in to Google Drive');
       }
     } catch (error) {
-      console.error('Google Drive connection error:', error);
+      logger.error('Google Drive connection error:', error);
       toast.dismiss(loadingToast);
       toast.error('Failed to connect to Google Drive');
     }
@@ -626,7 +638,7 @@ const App: React.FC = () => {
           note: refunds?.length === 0 ? 'No refunds found or table not accessible' : 'All refunds included'
         };
       } catch (error) {
-        console.warn('⚠️ Refunds not available for export:', error);
+        logger.warn('⚠️ Refunds not available for export:', error);
         exportDataObject.refunds = {
           count: 0,
           data: [],
@@ -723,7 +735,7 @@ const App: React.FC = () => {
       
     } catch (error) {
       toast.error('Export failed. Please try again.');
-      console.error('Export error:', error);
+      logger.error('Export error:', error);
     }
   };
 
@@ -779,7 +791,7 @@ const App: React.FC = () => {
                   });
                   importedCount++;
                 } catch (err) {
-                  console.error('Error importing patient:', err);
+                  logger.error('Error importing patient:', err);
                   // Continue with next patient instead of stopping
                 }
               }
@@ -791,7 +803,7 @@ const App: React.FC = () => {
           } catch (error) {
             toast.dismiss(loadingToast);
             toast.error('Failed to import data. Please check the format.');
-            console.error('Import error:', error);
+            logger.error('Import error:', error);
           }
         }
         
@@ -799,7 +811,7 @@ const App: React.FC = () => {
         
       } catch (error) {
         toast.error('Failed to parse file. Please check the format.');
-        console.error('Import error:', error);
+        logger.error('Import error:', error);
       }
     };
     
@@ -1009,7 +1021,7 @@ const App: React.FC = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Profile button clicked');
+                            logger.log('Profile button clicked');
                             setIsUserDropdownOpen(false);
                             setShowProfileModal(true);
                           }}
@@ -1024,7 +1036,7 @@ const App: React.FC = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Settings button clicked');
+                            logger.log('Settings button clicked');
                             setIsUserDropdownOpen(false);
                             setShowSettingsModal(true);
                           }}
@@ -1967,8 +1979,8 @@ const App: React.FC = () => {
       
       {/* Database Trigger Fix Component - Removed */}
       
-      {/* Transaction Date Debugger */}
-      {showDebugger && <TransactionDateDebugger />}
+      {/* Transaction Date Debugger (Admin Only) */}
+      {showDebugger && user && (isAdmin() || user.email === 'admin@valant.com' || user.email === 'meenal@valant.com') && <TransactionDateDebugger onClose={() => setShowDebugger(false)} />}
     </div>
   );
 };

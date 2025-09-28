@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 import { authService } from '../services/authService';
 import type { LoginCredentials, RegisterData } from '../services/authService';
 import type { AuthUser } from '../config/supabaseNew';
+import { logger, setLoggerPermissions } from '../utils/logger';
+import { setUserStatus } from '../utils/smartConsoleBlocker';
+import { setDevToolsAccess } from '../utils/devToolsBlocker';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -29,70 +32,100 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Update logger permissions and console access whenever user changes
   useEffect(() => {
-    console.log('🔧 [AuthContext] Initializing authentication...');
+    if (user) {
+      const userIsAdmin = authService.isAdmin(user) || user.email === 'admin@valant.com' || user.email === 'meenal@valant.com';
+
+      // Keep minimal debug info for troubleshooting
+      (window as any).authDebug = {
+        isAdmin: userIsAdmin,
+        email: user.email
+      };
+
+      setLoggerPermissions(userIsAdmin, user.email || '');
+      setUserStatus(userIsAdmin, user.email || '');
+      setDevToolsAccess(userIsAdmin, user.email || '');
+    } else {
+      (window as any).authDebug = { isAdmin: false, email: null };
+      setLoggerPermissions(false, '');
+      setUserStatus(false, '');
+      setDevToolsAccess(false, '');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    logger.log('🔧 [AuthContext] Initializing authentication...');
     
     // Check for existing session on mount
     const initializeAuth = async () => {
       try {
-        console.log('🔧 [AuthContext] Getting current user...');
+        logger.log('🔧 [AuthContext] Getting current user...');
         const currentUser = await authService.getCurrentUser();
-        console.log('🔧 [AuthContext] Current user result:', currentUser);
+        logger.log('🔧 [AuthContext] Current user result:', currentUser);
         
         setUser(currentUser);
-        console.log('🔧 [AuthContext] User state set to:', currentUser);
+        logger.log('🔧 [AuthContext] User state set to:', currentUser);
+
+        // Update console access immediately when user is set during initialization
+        if (currentUser) {
+          const userIsAdmin = authService.isAdmin(currentUser) || currentUser.email === 'admin@valant.com' || currentUser.email === 'meenal@valant.com';
+          setLoggerPermissions(userIsAdmin, currentUser.email || '');
+          setUserStatus(userIsAdmin, currentUser.email || '');
+          setDevToolsAccess(userIsAdmin, currentUser.email || '');
+        }
       } catch (error) {
-        console.error('❌ [AuthContext] Error initializing auth:', error);
+        logger.error('❌ [AuthContext] Error initializing auth:', error);
         setUser(null);
       } finally {
         setLoading(false);
-        console.log('🔧 [AuthContext] Loading set to false');
+        logger.log('🔧 [AuthContext] Loading set to false');
       }
     };
 
     initializeAuth();
 
     // Subscribe to auth state changes
-    console.log('🔧 [AuthContext] Setting up auth state change listener...');
+    logger.log('🔧 [AuthContext] Setting up auth state change listener...');
     const { data: { subscription } } = authService.onAuthStateChange((user) => {
-      console.log('🔧 [AuthContext] Auth state changed. New user:', user);
+      logger.log('🔧 [AuthContext] Auth state changed. New user:', user);
       setUser(user);
       setLoading(false);
     });
 
     return () => {
-      console.log('🔧 [AuthContext] Cleaning up auth subscription...');
+      logger.log('🔧 [AuthContext] Cleaning up auth subscription...');
       subscription?.unsubscribe();
     };
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('🔧 [AuthContext] Starting login with credentials:', { email: credentials.email });
+      logger.log('🔧 [AuthContext] Starting login with credentials:', { email: credentials.email });
       setLoading(true);
       
       const result = await authService.login(credentials);
-      console.log('🔧 [AuthContext] Login service result:', result);
+      logger.log('🔧 [AuthContext] Login service result:', result);
       
       const { user: loggedInUser, error } = result;
       
       if (error) {
-        console.error('❌ [AuthContext] Login error from service:', error);
+        logger.error('❌ [AuthContext] Login error from service:', error);
         return { success: false, error };
       }
 
-      console.log('🔧 [AuthContext] Login successful, setting user:', loggedInUser);
+      logger.log('🔧 [AuthContext] Login successful, setting user:', loggedInUser);
       setUser(loggedInUser);
       
-      console.log('✅ [AuthContext] Login completed successfully');
+      logger.log('✅ [AuthContext] Login completed successfully');
       return { success: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      console.error('❌ [AuthContext] Login exception:', error);
+      logger.error('❌ [AuthContext] Login exception:', error);
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
-      console.log('🔧 [AuthContext] Login loading set to false');
+      logger.log('🔧 [AuthContext] Login loading set to false');
     }
   };
 
@@ -121,7 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await authService.logout();
       setUser(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Logout error:', error);
       // Force logout on client side even if server call fails
       setUser(null);
     } finally {
@@ -185,7 +218,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const hasPermission = (permission: string): boolean => {
-    console.log('🔍 [AuthContext] hasPermission check:', {
+    logger.log('🔍 [AuthContext] hasPermission check:', {
       permission,
       user: user ? { email: user.email, role: user.role } : null,
       userObject: user
@@ -193,20 +226,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // FORCE ADMIN ACCESS: Grant all permissions to admin users
     if (user && (user.email === 'admin@valant.com' || user.email === 'meenal@valant.com')) {
-      console.log('✅ [AuthContext] FORCE ADMIN ACCESS - granting permission:', permission);
+      logger.log('✅ [AuthContext] FORCE ADMIN ACCESS - granting permission:', permission);
       return true;
     }
     
     // Admin users have ALL permissions - no restrictions
     if (user && authService.isAdmin(user)) {
-      console.log('✅ [AuthContext] User is admin - granting permission:', permission);
+      logger.log('✅ [AuthContext] User is admin - granting permission:', permission);
       return true;
     }
     
     const permissions = authService.getUserPermissions(user);
     const hasIt = permissions.includes(permission);
     
-    console.log('🔍 [AuthContext] Permission check result:', {
+    logger.log('🔍 [AuthContext] Permission check result:', {
       permission,
       userRole: user?.role,
       allPermissions: permissions,

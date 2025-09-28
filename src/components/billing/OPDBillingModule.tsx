@@ -7,6 +7,7 @@ import DoctorService, { type DoctorInfo } from '../../services/doctorService';
 import BillingService, { type OPDBill } from '../../services/billingService';
 import type { PatientWithRelations } from '../../config/supabaseNew';
 import ReceiptTemplate, { type ReceiptData } from '../receipts/ReceiptTemplate';
+import { logger } from '../../utils/logger';
 
 // Using PatientWithRelations from config instead of local interface
 
@@ -87,22 +88,22 @@ const OPDBillingModule: React.FC = () => {
 
       // Load actual patients from HospitalService
       const actualPatients = await HospitalService.getPatients(50000, true, true);
-      console.log('📋 Loaded patients for OPD billing:', actualPatients.length);
+      logger.log('📋 Loaded patients for OPD billing:', actualPatients.length);
 
       // Load actual doctors from DoctorService (same as patient entry)
       const actualDoctors = DoctorService.getAllDoctors();
-      console.log('👨‍⚕️ Loaded doctors for OPD billing:', actualDoctors.length);
+      logger.log('👨‍⚕️ Loaded doctors for OPD billing:', actualDoctors.length);
 
       // Load existing bills from BillingService
       const existingBills = BillingService.getOPDBills();
-      console.log('💰 Loaded existing OPD bills:', existingBills.length);
+      logger.log('💰 Loaded existing OPD bills:', existingBills.length);
 
       setPatients(actualPatients);
       setDoctors(actualDoctors);
       setOpdBills(existingBills);
 
     } catch (error: any) {
-      console.error('Failed to load OPD billing data:', error);
+      logger.error('Failed to load OPD billing data:', error);
       toast.error('Failed to load data: ' + error.message);
     } finally {
       setLoading(false);

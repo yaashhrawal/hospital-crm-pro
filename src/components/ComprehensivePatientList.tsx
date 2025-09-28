@@ -21,6 +21,7 @@ import ReceiptTemplate from './receipts/ReceiptTemplate';
 import type { ReceiptData } from './receipts/ReceiptTemplate';
 import { usePermissions, useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
+import { logger } from '../utils/logger';
 
 interface PatientHistoryModalProps {
   patient: PatientWithRelations;
@@ -61,8 +62,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
   const printPrescriptionForTransaction = async (patient: PatientWithRelations, transaction: any, prescriptionType: 'VH' | 'VALANT') => {
     // Debug: Log transaction data to see available fields
-    console.log('🔍 Transaction data for prescription:', transaction);
-    console.log('🏥 Available transaction fields:', Object.keys(transaction));
+    logger.log('🔍 Transaction data for prescription:', transaction);
+    logger.log('🏥 Available transaction fields:', Object.keys(transaction));
     
     // Enhanced doctor information resolution
     let finalDoctorName = '';
@@ -73,18 +74,18 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
     // Priority 1: Use transaction doctor_name and department if available
     if (transaction.doctor_name && transaction.doctor_name.trim()) {
       finalDoctorName = transaction.doctor_name.trim();
-      console.log('✅ Using transaction doctor_name:', finalDoctorName);
+      logger.log('✅ Using transaction doctor_name:', finalDoctorName);
     }
     
     if (transaction.department && transaction.department.trim()) {
       finalDepartment = transaction.department.trim();
-      console.log('✅ Using transaction department:', finalDepartment);
+      logger.log('✅ Using transaction department:', finalDepartment);
     }
     
     // Priority 2: If transaction has doctor_id, try to get complete doctor info
     if (transaction.doctor_id && (!finalDoctorName || !finalDepartment)) {
       try {
-        console.log('🔍 Fetching doctor details for doctor_id:', transaction.doctor_id);
+        logger.log('🔍 Fetching doctor details for doctor_id:', transaction.doctor_id);
         const { data: doctorInfo, error } = await supabase
           .from('doctors')
           .select('name, department, degree, specialization')
@@ -96,33 +97,33 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           finalDepartment = finalDepartment || doctorInfo.department || '';
           doctorDegree = doctorInfo.degree || '';
           doctorSpecialization = doctorInfo.specialization || '';
-          console.log('✅ Enhanced with doctor table data:', doctorInfo);
+          logger.log('✅ Enhanced with doctor table data:', doctorInfo);
         } else if (error) {
-          console.log('⚠️ Error fetching doctor details:', error);
+          logger.log('⚠️ Error fetching doctor details:', error);
         }
       } catch (error) {
-        console.log('⚠️ Could not fetch doctor details from doctor_id:', error);
+        logger.log('⚠️ Could not fetch doctor details from doctor_id:', error);
       }
     }
     
     // Priority 3: Fall back to patient assigned doctor/department
     if (!finalDoctorName && patient.assigned_doctor) {
       finalDoctorName = patient.assigned_doctor;
-      console.log('🔄 Fallback to patient assigned_doctor:', finalDoctorName);
+      logger.log('🔄 Fallback to patient assigned_doctor:', finalDoctorName);
     }
     
     if (!finalDepartment && patient.assigned_department) {
       finalDepartment = patient.assigned_department;
-      console.log('🔄 Fallback to patient assigned_department:', finalDepartment);
+      logger.log('🔄 Fallback to patient assigned_department:', finalDepartment);
     }
     
     // Priority 4: Final fallback to patient doctor_name field
     if (!finalDoctorName && patient.doctor_name) {
       finalDoctorName = patient.doctor_name;
-      console.log('🔄 Final fallback to patient doctor_name:', finalDoctorName);
+      logger.log('🔄 Final fallback to patient doctor_name:', finalDoctorName);
     }
     
-    console.log('🎯 FINAL Doctor resolution:', {
+    logger.log('🎯 FINAL Doctor resolution:', {
       transaction_doctor_name: transaction.doctor_name,
       transaction_department: transaction.department,
       transaction_doctor_id: transaction.doctor_id,
@@ -156,7 +157,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       }
     };
     
-    console.log('🎯 Final patient data for prescription:', {
+    logger.log('🎯 Final patient data for prescription:', {
       assigned_doctor: patientForPrescription.assigned_doctor,
       doctor_name: patientForPrescription.doctor_name,
       assigned_department: patientForPrescription.assigned_department,
@@ -204,7 +205,22 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
   // Print receipts for selected transactions using the same format as existing receipts
   const printSelectedReceipts = () => {
     const selectedTransactionsData = transactions.filter(t => selectedTransactions.has(t.id));
-    
+
+    logger.log('🖨️ DEBUG: printSelectedReceipts called with:', {
+      totalTransactions: transactions.length,
+      selectedCount: selectedTransactionsData.length,
+      selectedTransactions: selectedTransactionsData.map(t => ({
+        id: t.id,
+        description: t.description,
+        amount: t.amount,
+        discount_type: t.discount_type,
+        discount_value: t.discount_value,
+        discount_reason: t.discount_reason,
+        discount_percentage: t.discount_percentage,
+        allFields: Object.keys(t)
+      }))
+    });
+
     if (selectedTransactionsData.length === 0) {
       toast.error('Please select at least one transaction to print');
       return;
@@ -253,18 +269,66 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
         // Extract original amount and discount from description if present
         const description = transaction.description || transaction.transaction_type;
         let originalAmount = transaction.amount;
+        let discountAmount = 0;
         let discountPercentage = transaction.discount_percentage || 0;
-        
-        // Extract original amount from description like "Original: ₹750"
-        const originalMatch = description.match(/Original:\s*₹?([\d,]+(?:\.\d{2})?)/);
-        if (originalMatch) {
-          originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
-        }
-        
-        // Extract discount percentage from description like "Discount: 100%"
-        const discountMatch = description.match(/Discount:\s*(\d+)%/);
-        if (discountMatch) {
-          discountPercentage = parseInt(discountMatch[1]);
+
+        // Check for discount_type and discount_value fields first (from NewFlexiblePatientEntry)
+        if (transaction.discount_value && transaction.discount_value > 0) {
+          logger.log('💰 DEBUG: Found discount fields:', {
+            discount_type: transaction.discount_type,
+            discount_value: transaction.discount_value,
+            original_amount: transaction.amount
+          });
+
+          if (transaction.discount_type === 'PERCENTAGE') {
+            // Calculate original rate from discounted amount and percentage
+            originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+            discountAmount = originalAmount - Math.abs(transaction.amount);
+            discountPercentage = transaction.discount_value;
+          } else if (transaction.discount_type === 'AMOUNT') {
+            // Discount is a fixed amount
+            originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+            discountAmount = transaction.discount_value;
+            discountPercentage = (transaction.discount_value / originalAmount) * 100;
+          }
+
+          logger.log('💰 DEBUG: Calculated values:', {
+            originalAmount,
+            discountAmount,
+            discountPercentage
+          });
+        } else {
+          // Try to extract from new format: "Original Fee: ₹500.00 | Discount: 10% discount (₹50.00)"
+          const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+          const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+          if (originalFeeMatch) {
+            originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+          }
+
+          if (discountMatch) {
+            if (discountMatch[2]) {
+              // Percentage discount format: "10% discount (₹50.00)"
+              discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+              discountPercentage = parseFloat(discountMatch[1]);
+            } else if (discountMatch[3]) {
+              // Amount discount format: "₹50 discount"
+              discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+              discountPercentage = (discountAmount / originalAmount) * 100;
+            }
+          } else {
+            // Fallback: old format like "Original: ₹750" and "Discount: 100%"
+            const originalMatch = description.match(/Original:\s*₹?([\d,]+(?:\.\d{2})?)/);
+            if (originalMatch) {
+              originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+            }
+
+            const oldDiscountMatch = description.match(/Discount:\s*(\d+)%/);
+            if (oldDiscountMatch) {
+              discountPercentage = parseInt(oldDiscountMatch[1]);
+              discountAmount = (originalAmount * discountPercentage) / 100;
+            }
+          }
         }
         
         // Clean description - remove discount details and just keep service name and date
@@ -282,7 +346,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           amount: transaction.amount, // Net amount after discount
           rate: originalAmount, // Original amount before discount
           quantity: 1,
-          discountPercentage: discountPercentage
+          discountPercentage: discountPercentage,
+          discountAmount: discountAmount
         };
       }),
       payments: selectedTransactionsData.map(transaction => ({
@@ -290,14 +355,55 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
         amount: transaction.amount,
         reference: transaction.id
       })),
-      totals: {
-        subtotal: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
-        discount: 0,
-        insurance: 0,
-        netAmount: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
-        amountPaid: selectedTransactionsData.reduce((sum, t) => sum + t.amount, 0),
-        balance: 0
-      },
+      totals: (() => {
+        // Calculate totals with proper discount handling
+        const charges = selectedTransactionsData.map(transaction => {
+          const description = transaction.description || transaction.transaction_type;
+          let originalAmount = transaction.amount;
+          let discountAmount = 0;
+
+          // Same discount extraction logic as above
+          if (transaction.discount_value && transaction.discount_value > 0) {
+            if (transaction.discount_type === 'PERCENTAGE') {
+              originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+              discountAmount = originalAmount - Math.abs(transaction.amount);
+            } else if (transaction.discount_type === 'AMOUNT') {
+              originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+              discountAmount = transaction.discount_value;
+            }
+          } else {
+            const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+            const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+            if (originalFeeMatch) {
+              originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+            }
+
+            if (discountMatch) {
+              if (discountMatch[2]) {
+                discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+              } else if (discountMatch[3]) {
+                discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+              }
+            }
+          }
+
+          return { originalAmount, discountAmount, finalAmount: transaction.amount };
+        });
+
+        const subtotal = charges.reduce((sum, c) => sum + c.originalAmount, 0);
+        const discount = charges.reduce((sum, c) => sum + c.discountAmount, 0);
+        const netAmount = charges.reduce((sum, c) => sum + c.finalAmount, 0);
+
+        return {
+          subtotal: subtotal,
+          discount: discount,
+          insurance: 0,
+          netAmount: netAmount,
+          amountPaid: netAmount,
+          balance: 0
+        };
+      })(),
       staff: {
         processedBy: 'System User'
       },
@@ -729,7 +835,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 }
 
                 // Debug logging to help identify the issue
-                console.log(`🔍 Last visit calculation for ${patient.first_name} ${patient.last_name}:`, {
+                logger.log(`🔍 Last visit calculation for ${patient.first_name} ${patient.last_name}:`, {
                   patient_id: patient.patient_id,
                   date_of_entry: patient.date_of_entry,
                   date_of_entry_type: typeof patient.date_of_entry,
@@ -1164,14 +1270,14 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
   // Helper function to get the most recent payment mode (simplified to Cash/Online only)
   const getRecentPaymentMode = (patient: PatientWithRelations) => {
     if (!patient.transactions || patient.transactions.length === 0) {
-      console.log(`No transactions for patient ${patient.first_name} ${patient.last_name}`);
+      logger.log(`No transactions for patient ${patient.first_name} ${patient.last_name}`);
       return null;
     }
 
-    console.log(`Patient ${patient.first_name} ${patient.last_name} has ${patient.transactions.length} transactions`);
+    logger.log(`Patient ${patient.first_name} ${patient.last_name} has ${patient.transactions.length} transactions`);
     
     const completedTransactions = patient.transactions.filter(t => t.status === 'COMPLETED' && t.payment_mode);
-    console.log(`Completed transactions with payment_mode:`, completedTransactions.map(t => ({
+    logger.log(`Completed transactions with payment_mode:`, completedTransactions.map(t => ({
       id: t.id,
       payment_mode: t.payment_mode,
       status: t.status,
@@ -1188,17 +1294,17 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       })[0];
 
     if (!recentTransaction?.payment_mode) {
-      console.log(`No recent transaction with payment_mode found`);
+      logger.log(`No recent transaction with payment_mode found`);
       return null;
     }
     
-    console.log(`Recent transaction payment_mode: "${recentTransaction.payment_mode}"`);
+    logger.log(`Recent transaction payment_mode: "${recentTransaction.payment_mode}"`);
     
     // Normalize payment mode comparison - handle both uppercase and lowercase
     const paymentMode = recentTransaction.payment_mode?.toLowerCase();
     const result = paymentMode === 'cash' ? 'Cash' : 'Online';
     
-    console.log(`Normalized payment_mode: "${paymentMode}" -> Returning: ${result}`);
+    logger.log(`Normalized payment_mode: "${paymentMode}" -> Returning: ${result}`);
     return result;
   };
 
@@ -1245,17 +1351,17 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       // Normalize incoming dates to YYYY-MM-DD to avoid mismatches from different pickers/formats
       const normStart = normalizeToYYYYMMDD(currentStartDate);
       const normEnd = normalizeToYYYYMMDD(currentEndDate);
-      console.log('🔄 loadPatients called with (normalized):', { normStart, normEnd });
+      logger.log('🔄 loadPatients called with (normalized):', { normStart, normEnd });
       setLoading(true);
       
       let patientsData;
 
       // Always use the backend method with error handling
       patientsData = await ExactDateService.getPatientsForDateRange(normStart, normEnd);
-      console.log('Number of patients fetched:', patientsData.length);
+      logger.log('Number of patients fetched:', patientsData.length);
       
       // Debug the returned patients
-      console.log('✅ Loaded', patientsData.length, 'patients for the date range');
+      logger.log('✅ Loaded', patientsData.length, 'patients for the date range');
       
       // Filter out patients who have PENDING appointments (not confirmed/completed ones)
       patientsData = patientsData.filter(patient => {
@@ -1274,11 +1380,11 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           });
           
           if (hasPendingAppointment) {
-            console.log(`👤 Hiding patient ${patient.first_name} ${patient.last_name} - has PENDING appointment`);
+            logger.log(`👤 Hiding patient ${patient.first_name} ${patient.last_name} - has PENDING appointment`);
             return false; // Hide this patient
           }
         } catch (error) {
-          console.error('Error checking appointments for patient:', error);
+          logger.error('Error checking appointments for patient:', error);
         }
         
         return true; // Show this patient (no pending appointments)
@@ -1537,13 +1643,13 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
 
   const exportPatientsToExcel = async () => {
     try {
-      console.log('📊 Starting Excel Export - Creating separate rows for each consultation...');
+      logger.log('📊 Starting Excel Export - Creating separate rows for each consultation...');
       
       // Create export data with separate rows for each consultation within date range
       const exportData: any[] = [];
       
       for (const patient of filteredPatients) {
-        console.log(`📊 Processing patient: ${patient.first_name} ${patient.last_name}`);
+        logger.log(`📊 Processing patient: ${patient.first_name} ${patient.last_name}`);
         
         // Get all transactions for this patient within the selected date range
         const transactions = patient.transactions || [];
@@ -1569,7 +1675,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             // Use string comparison for consistent date filtering (same as main filter)
             const isInDateRange = transactionDateStr >= startDate && transactionDateStr <= endDate;
             
-            console.log(`Transaction ${transaction.id} - Date: ${transactionDateStr}, In Range: ${isInDateRange}`);
+            logger.log(`Transaction ${transaction.id} - Date: ${transactionDateStr}, In Range: ${isInDateRange}`);
             
             return isInDateRange;
           });
@@ -1621,7 +1727,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             
             const consultationKey = `${transactionDate}-${doctorName}-${department}`;
             
-            console.log(`👨‍⚕️ Processing consultation for ${patient.first_name}:`, {
+            logger.log(`👨‍⚕️ Processing consultation for ${patient.first_name}:`, {
               date: transactionDate,
               doctor: doctorName,
               department: department,
@@ -1720,7 +1826,7 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
         return dateObjB.getTime() - dateObjA.getTime();
       });
       
-      console.log('📊 Export data sorted. Entries:', exportData.map(row => ({
+      logger.log('📊 Export data sorted. Entries:', exportData.map(row => ({
         patient: row.first_name + ' ' + row.last_name,
         consultation_date: row.consultation_date,
         raw_date: row._consultation_date_raw
@@ -1733,9 +1839,9 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       });
 
       // Debug final export data
-      console.log('📊 Final Excel Export Data Sample (all rows):', exportData);
+      logger.log('📊 Final Excel Export Data Sample (all rows):', exportData);
       
-      console.log(`📊 Created ${exportData.length} rows for Excel export`);
+      logger.log(`📊 Created ${exportData.length} rows for Excel export`);
       
       const dateRangeText = dateRange === 'all' ? 'All_Time' : 
                            dateRange === 'today' ? 'Today' :
@@ -1912,8 +2018,8 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
           <div className="flex items-center gap-1">
             <button
               onClick={() => {
-                console.log('🔄 REFRESH BUTTON CLICKED - Patient list refresh: reloading page...');
-                console.log('📊 Current state before refresh:', {
+                logger.log('🔄 REFRESH BUTTON CLICKED - Patient list refresh: reloading page...');
+                logger.log('📊 Current state before refresh:', {
                   dateRange,
                   startDate,
                   endDate,
