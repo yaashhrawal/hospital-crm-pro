@@ -575,16 +575,18 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         revenueData = revenueData?.filter(transaction => {
           const patient = transaction.patient;
           if (!patient) return true;
-          
+
           const department = patient.assigned_department?.toUpperCase()?.trim() || '';
           const doctor = patient.assigned_doctor?.toUpperCase()?.trim() || '';
-          
-          // Exclude if ORTHO department AND doctor name contains HEMANT (but not KHAJJA)
-          if (department === 'ORTHO' && doctor.includes('HEMANT') && !doctor.includes('KHAJJA')) {
-            console.log(`🚫 EnhancedDashboard - Excluding ORTHO/HEMANT transaction: ${patient.first_name} ${patient.last_name}`);
+
+          // Exclude ONLY if it's ORTHO department with DR. HEMANT (not DR. HEMANT KHAJJA)
+          const isOrthoDeptOnly = department === 'ORTHO';
+          const isDrHemantOnly = doctor === 'DR. HEMANT' || doctor === 'DR HEMANT';
+
+          if (isOrthoDeptOnly && isDrHemantOnly) {
             return false;
           }
-          
+
           return true;
         }) || [];
 
@@ -620,8 +622,10 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         const excludedCount = (allRevenueData?.length || 0) - (allRevenueData?.filter(t => {
           const dept = t.patient?.assigned_department?.toUpperCase()?.trim() || '';
           const doc = t.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
-          // Exclude if ORTHO department AND doctor contains HEMANT (but not KHAJJA)
-          return !(dept === 'ORTHO' && doc.includes('HEMANT') && !doc.includes('KHAJJA'));
+          // Exclude ONLY if ORTHO department with DR. HEMANT (not DR. HEMANT KHAJJA)
+          const isOrthoDeptOnly = dept === 'ORTHO';
+          const isDrHemantOnly = doc === 'DR. HEMANT' || doc === 'DR HEMANT';
+          return !(isOrthoDeptOnly && isDrHemantOnly);
         })?.length || 0);
         
         // 🔍 DEBUG: Check for today's transactions specifically
@@ -706,7 +710,9 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
               excludedFromRevenue: (() => {
                 const dept = t.patient?.assigned_department?.toUpperCase()?.trim() || '';
                 const doc = t.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
-                return dept === 'ORTHO' && doc.includes('HEMANT') && !doc.includes('KHAJJA');
+                const isOrthoDeptOnly = dept === 'ORTHO';
+                const isDrHemantOnly = doc === 'DR. HEMANT' || doc === 'DR HEMANT';
+                return isOrthoDeptOnly && isDrHemantOnly;
               })()
             };
           })
