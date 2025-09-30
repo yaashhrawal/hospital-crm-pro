@@ -3468,57 +3468,231 @@ Description: ${bill.description || 'N/A'}
       balance: 0
     };
 
-    
+    // Paginate services - 13 entries per page
+    const SERVICES_PER_PAGE = 13;
+    const servicePages: typeof printServices[] = [];
+    for (let i = 0; i < printServices.length; i += SERVICES_PER_PAGE) {
+      servicePages.push(printServices.slice(i, i + SERVICES_PER_PAGE));
+    }
+
+    // Generate individual page HTML
+    const generateServicePage = (services: typeof printServices, pageIndex: number, isLastPage: boolean) => {
+      const startSr = pageIndex * SERVICES_PER_PAGE + 1;
+
+      return `
+        <div class="receipt-template" style="
+          width: 297mm;
+          height: 420mm;
+          padding: 0 !important;
+          margin: 0 !important;
+          border: none !important;
+          position: relative;
+        ">
+
+          <!-- Background Image - positioned absolutely -->
+          ${backgroundImage ? `<img src="${backgroundImage}" style="
+            position: absolute;
+            top: 0;
+            left: -10mm;
+            width: 317mm;
+            height: 420mm;
+            z-index: 0;
+            opacity: 1;
+            object-fit: stretch;
+          " />` : ''}
+
+          <!-- Content starts after header -->
+          <div style="margin-top: 0; padding: 300px 30px 0 30px; position: relative; z-index: 2;">
+
+          ${pageIndex === 0 ? `
+            <!-- Header Information (only on first page) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
+              <div>
+                <p style="margin: 5px 0;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                <p style="margin: 5px 0;"><strong>TIME:</strong> ${getCurrentTime()}</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="margin: 5px 0;"><strong>PAYMENT MODE:</strong> ${bill.payment_mode || 'UPI'}</p>
+              </div>
+            </div>
+
+            <!-- Patient Information Section (only on first page) -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="
+                font-weight: bold;
+                margin-bottom: 15px;
+                color: black;
+                font-size: 18px;
+                text-decoration: underline;
+              ">Patient & IPD Information</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; font-size: 16px;">
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>BILL NO.:</strong> ${bill.transaction_reference || bill.id}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>BILL DATE:</strong> ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString('en-IN') : (bill.created_at ? new Date(bill.created_at).toLocaleDateString('en-IN') : 'N/A')}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${bill.patients?.patient_id || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>PATIENT NAME:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${bill.patients?.age || 'N/A'} years / ${bill.patients?.gender || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p style="color: black; margin: 6px 0;"><strong>DR NAME:</strong> ${bill.patients?.assigned_doctor || bill.patients?.doctor_name || bill.doctor_name || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>IPD NO.:</strong> ${bill.patients?.ipd_number || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${(bill.patients?.admission_date) ? new Date(bill.patients.admission_date).toLocaleDateString('en-IN') : ((bill.patients?.admissions && bill.patients.admissions[0]?.admission_date) ? new Date(bill.patients.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A')}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>DISCHARGE DATE:</strong> ${(bill.patients?.discharge_date) ? new Date(bill.patients.discharge_date).toLocaleDateString('en-IN') : ((bill.patients?.admissions && bill.patients.admissions[0]?.discharge_date) ? new Date(bill.patients.admissions[0].discharge_date).toLocaleDateString('en-IN') : 'Not Discharged')}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>ROOM TYPE:</strong> ${bill.patients?.room_type || (bill.patients?.admissions && bill.patients.admissions[0]?.room_type) || 'N/A'}</p>
+                  <p style="color: black; margin: 6px 0;"><strong>BED NO.:</strong> ${bill.patients?.ipd_bed_number || bill.patients?.bed_number || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          ` : `
+            <!-- Continuation header for subsequent pages -->
+            <div style="margin-bottom: 25px;">
+              <h3 style="
+                font-weight: bold;
+                color: black;
+                font-size: 18px;
+                text-align: center;
+              ">Bill Continued - Page ${pageIndex + 1}</h3>
+              <p style="text-align: center; color: black; margin: 10px 0;">
+                <strong>BILL NO.:</strong> ${bill.transaction_reference || bill.id} |
+                <strong>PATIENT:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}
+              </p>
+            </div>
+          `}
+
+          <!-- Services & Charges Section -->
+          <div style="margin-bottom: 25px;">
+            <h3 style="
+              font-weight: bold;
+              margin-bottom: 15px;
+              color: black;
+              font-size: 18px;
+              text-decoration: underline;
+            ">Services & Charges ${pageIndex > 0 ? '(Continued)' : ''}</h3>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid black;">
+              <thead>
+                <tr style="background-color: #f5f5f5;">
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Sr</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: left; color: black; font-weight: bold; font-size: 16px;">Service</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Qty</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Rate (₹)</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Discount</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Amount (₹)</th>
+                  <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Payment Mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${services.map((service, index) => `
+                  <tr>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${startSr + index}</td>
+                    <td style="border: 1px solid black; padding: 10px; color: black; font-size: 14px;">${service.service}</td>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.qty}</td>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.rate.toFixed(2)}</td>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">-</td>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.amount.toFixed(2)}</td>
+                    <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${bill.payment_mode || 'UPI'}</td>
+                  </tr>
+                `).join('')}
+                ${isLastPage ? `
+                  <!-- Net Amount Paid Row (only on last page) -->
+                  <tr style="background-color: #f0f0f0;">
+                    <td colspan="7" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">
+                      Net Amount Paid: ₹${totals.netAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                ` : ''}
+              </tbody>
+            </table>
+            ${!isLastPage ? `
+              <p style="text-align: right; margin-top: 10px; font-style: italic; color: black;">
+                Continued on next page...
+              </p>
+            ` : ''}
+          </div>
+
+          ${isLastPage ? `
+            <!-- Amount in Words (only on last page) -->
+            <div style="text-align: center; margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd;">
+              <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(totals.netAmount)}</p>
+            </div>
+
+            <!-- Signature Section (only on last page) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Patient/Guardian Signature</p>
+              </div>
+              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
+                <p style="font-size: 14px; color: black; margin: 0;">Authorized Signature</p>
+                <p style="font-size: 12px; color: black; margin: 4px 0 0 0;">Hospital Administrator</p>
+              </div>
+            </div>
+
+            <!-- Footer (only on last page) -->
+            <div style="text-align: center; margin-top: 25px;">
+              <p style="font-size: 14px; color: black; margin: 4px 0;">Thank you for choosing VALANT HOSPITAL</p>
+              <p style="font-size: 12px; color: black; margin: 4px 0;">A unit of Navratna Medicare Pvt Ltd</p>
+              <p style="font-size: 14px; color: black; margin: 8px 0 0 0; font-weight: bold;">** ORIGINAL COPY **</p>
+            </div>
+          ` : `
+            <!-- Page indicator -->
+            <div style="text-align: center; margin-top: 20px;">
+              <p style="font-size: 12px; color: #666;">Page ${pageIndex + 1} of ${servicePages.length}</p>
+            </div>
+          `}
+
+          </div>
+        </div>
+      `;
+    };
+
     const billHTML = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>IPD Bill - ${bill.transaction_reference || bill.id}</title>
           <style>
+            @page {
+              margin: 0 !important;
+              padding: 0 !important;
+              border: none !important;
+              size: A3 portrait;
+              width: 297mm;
+              height: 420mm;
+            }
+
             @media print {
-              @page {
-                margin: 0 !important;
-                padding: 0 !important;
-                border: none !important;
-                size: A3 portrait;
-                width: 297mm;
-                height: 420mm;
-              }
               body {
                 margin: 0 !important;
                 padding: 0 !important;
                 border: none !important;
                 width: 297mm;
-                height: 420mm;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
                 color-adjust: exact !important;
-                overflow: hidden !important;
               }
               html {
                 margin: 0 !important;
                 padding: 0 !important;
                 border: none !important;
               }
-              body * {
-                visibility: hidden;
-              }
-              .receipt-template, .receipt-template * {
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
               .receipt-template {
-                position: absolute;
-                left: 0 !important;
-                top: 0 !important;
                 width: 297mm !important;
                 height: 420mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 border: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                position: relative !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
                 color-adjust: exact !important;
+              }
+              .receipt-template:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
               }
               .receipt-template img {
                 display: block !important;
@@ -3587,157 +3761,37 @@ Description: ${bill.description || 'N/A'}
               border: none !important;
               background: white;
               width: 297mm;
-              height: 420mm;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
               color-adjust: exact;
-              overflow: hidden;
             }
-            
+
             .receipt-template {
               ${backgroundImage ? `background: url('${backgroundImage}') no-repeat center top;` : ''}
               background-size: 297mm 420mm;
               margin: 0 !important;
               padding: 0 !important;
               border: none !important;
+              width: 297mm;
+              height: 420mm;
+              position: relative;
+              page-break-after: always;
+              break-after: page;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
               color-adjust: exact;
             }
+
+            .receipt-template:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
           </style>
         </head>
         <body>
-          <div class="receipt-template" style="
-            width: 297mm;
-            height: 420mm;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            position: relative;
-          ">
-            
-            <!-- Background Image - positioned absolutely -->
-            ${backgroundImage ? `<img src="${backgroundImage}" style="
-              position: absolute;
-              top: 0;
-              left: -10mm;
-              width: 317mm;
-              height: 420mm;
-              z-index: 0;
-              opacity: 1;
-              object-fit: stretch;
-            " />` : ''}
-            
-            <!-- Content starts after header - positioned to align with template white area -->
-<div style="margin-top: 0; padding: 300px 30px 0 30px; position: relative; z-index: 2;">
-
-            <!-- Header Information -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
-              <div>
-                <p style="margin: 5px 0;"><strong>DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
-                <p style="margin: 5px 0;"><strong>TIME:</strong> ${getCurrentTime()}</p>
-              </div>
-              <div style="text-align: right;">
-                <p style="margin: 5px 0;"><strong>PAYMENT MODE:</strong> ${bill.payment_mode || 'UPI'}</p>
-              </div>
-            </div>
-
-            <!-- Patient Information Section -->
-            <div style="margin-bottom: 30px;">
-              <h3 style="
-                font-weight: bold;
-                margin-bottom: 15px;
-                color: black;
-                font-size: 18px;
-                text-decoration: underline;
-              ">Patient & IPD Information</h3>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; font-size: 16px;">
-                <div>
-                  <p style="color: black; margin: 6px 0;"><strong>BILL NO.:</strong> ${bill.transaction_reference || bill.id}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>BILL DATE:</strong> ${bill.transaction_date ? new Date(bill.transaction_date).toLocaleDateString('en-IN') : (bill.created_at ? new Date(bill.created_at).toLocaleDateString('en-IN') : 'N/A')}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${bill.patients?.patient_id || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>PATIENT NAME:</strong> ${bill.patients?.first_name || ''} ${bill.patients?.last_name || ''}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${bill.patients?.age || 'N/A'} years / ${bill.patients?.gender || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${bill.patients?.phone || 'N/A'}</p>
-                </div>
-                <div>
-                  <p style="color: black; margin: 6px 0;"><strong>DR NAME:</strong> ${bill.patients?.assigned_doctor || bill.patients?.doctor_name || bill.doctor_name || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>IPD NO.:</strong> ${bill.patients?.ipd_number || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${(bill.patients?.admission_date) ? new Date(bill.patients.admission_date).toLocaleDateString('en-IN') : ((bill.patients?.admissions && bill.patients.admissions[0]?.admission_date) ? new Date(bill.patients.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A')}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>DISCHARGE DATE:</strong> ${(bill.patients?.discharge_date) ? new Date(bill.patients.discharge_date).toLocaleDateString('en-IN') : ((bill.patients?.admissions && bill.patients.admissions[0]?.discharge_date) ? new Date(bill.patients.admissions[0].discharge_date).toLocaleDateString('en-IN') : 'Not Discharged')}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>ROOM TYPE:</strong> ${bill.patients?.room_type || (bill.patients?.admissions && bill.patients.admissions[0]?.room_type) || 'N/A'}</p>
-                  <p style="color: black; margin: 6px 0;"><strong>BED NO.:</strong> ${bill.patients?.ipd_bed_number || bill.patients?.bed_number || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Services & Charges Section -->
-            <div style="margin-bottom: 25px;">
-              <h3 style="
-                font-weight: bold;
-                margin-bottom: 15px;
-                color: black;
-                font-size: 18px;
-                text-decoration: underline;
-              ">Services & Charges</h3>
-              <table style="width: 100%; border-collapse: collapse; border: 1px solid black;">
-                <thead>
-                  <tr style="background-color: #f5f5f5;">
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Sr</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: left; color: black; font-weight: bold; font-size: 16px;">Service</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Qty</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Rate (₹)</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Discount</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Amount (₹)</th>
-                    <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Payment Mode</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${printServices.map((service, index) => `
-                    <tr>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.sr}</td>
-                      <td style="border: 1px solid black; padding: 10px; color: black; font-size: 14px;">${service.service}</td>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${service.qty}</td>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.rate.toFixed(2)}</td>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">-</td>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">₹${service.amount.toFixed(2)}</td>
-                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${bill.payment_mode || 'UPI'}</td>
-                    </tr>
-                  `).join('')}
-                  <!-- Net Amount Paid Row -->
-                  <tr style="background-color: #f0f0f0;">
-                    <td colspan="7" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">
-                      Net Amount Paid: ₹${totals.netAmount.toFixed(2)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Amount in Words -->
-            <div style="text-align: center; margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd;">
-              <p style="font-size: 16px; color: black; margin: 0;"><strong>Amount in Words:</strong> ${convertToWords(totals.netAmount)}</p>
-            </div>
-
-
-            <!-- Signature Section -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; margin-bottom: 30px;">
-              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
-                <p style="font-size: 14px; color: black; margin: 0;">Patient/Guardian Signature</p>
-              </div>
-              <div style="text-align: center; border-top: 2px solid black; padding-top: 8px;">
-                <p style="font-size: 14px; color: black; margin: 0;">Authorized Signature</p>
-                <p style="font-size: 12px; color: black; margin: 4px 0 0 0;">Hospital Administrator</p>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div style="text-align: center; margin-top: 25px;">
-              <p style="font-size: 14px; color: black; margin: 4px 0;">Thank you for choosing VALANT HOSPITAL</p>
-              <p style="font-size: 12px; color: black; margin: 4px 0;">A unit of Navratna Medicare Pvt Ltd</p>
-              <p style="font-size: 14px; color: black; margin: 8px 0 0 0; font-weight: bold;">** ORIGINAL COPY **</p>
-            </div>
-          </div>
+          ${servicePages.map((pageServices, pageIndex) =>
+            generateServicePage(pageServices, pageIndex, pageIndex === servicePages.length - 1)
+          ).join('')}
         </body>
       </html>
     `;
@@ -3864,6 +3918,299 @@ Description: ${bill.description || 'N/A'}
       // Still refresh to sync with database state
       await loadIPDBills();
     }
+  };
+
+  // Handler for Print Bill List - 13 bills per page
+  const handlePrintBillList = () => {
+    if (!ipdBills || ipdBills.length === 0) {
+      toast.error('No bills to print');
+      return;
+    }
+
+    const BILLS_PER_PAGE = 13;
+    const billPages: any[][] = [];
+
+    // Split bills into pages of 13
+    for (let i = 0; i < ipdBills.length; i += BILLS_PER_PAGE) {
+      billPages.push(ipdBills.slice(i, i + BILLS_PER_PAGE));
+    }
+
+    // Generate separate page HTML for each page
+    const generatePageHTML = (pageBills: any[], pageIndex: number) => {
+      const rowsHTML = pageBills.map((bill, index) => {
+        const globalIndex = pageIndex * BILLS_PER_PAGE + index + 1;
+        const patientName = bill.patients ?
+          `${bill.patients.first_name || ''} ${bill.patients.last_name || ''}`.trim() || 'Unknown Patient'
+          : 'Loading...';
+        const billId = bill.transaction_reference || bill.id || `BILL-${globalIndex}`;
+        const doctor = bill.doctor_name || 'N/A';
+        const amount = bill.amount || 0;
+        const status = bill.status || 'UNKNOWN';
+        const date = bill.transaction_date ?
+          new Date(bill.transaction_date).toLocaleDateString('en-IN') :
+          (bill.created_at ? new Date(bill.created_at).toLocaleDateString('en-IN') : 'N/A');
+
+        let statusClass = 'status-badge ';
+        if (status === 'COMPLETED') statusClass += 'status-completed';
+        else if (status === 'PAID') statusClass += 'status-paid';
+        else if (status === 'PENDING') statusClass += 'status-pending';
+        else statusClass += 'status-cancelled';
+
+        return `
+          <tr>
+            <td style="text-align: center;">${globalIndex}</td>
+            <td>${billId}</td>
+            <td>${patientName}</td>
+            <td>${doctor}</td>
+            <td style="text-align: right;">₹${amount.toLocaleString('en-IN')}</td>
+            <td><span class="${statusClass}">${status}</span></td>
+            <td>${date}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Add total row only on last page
+      const totalRowHTML = pageIndex === billPages.length - 1 ? `
+        <tr class="total-row">
+          <td colspan="4" style="text-align: right; padding-right: 15px;">Total Amount:</td>
+          <td style="text-align: right;">₹${ipdBills.reduce((sum, bill) => sum + (bill.amount || 0), 0).toLocaleString('en-IN')}</td>
+          <td colspan="2">Total Bills: ${ipdBills.length}</td>
+        </tr>
+      ` : '';
+
+      return `
+        <div class="page">
+          <div class="header">
+            <h1>VALANT HOSPITAL</h1>
+            <div class="subtitle">IPD Bill List</div>
+          </div>
+
+          <div class="print-date">
+            Printed on: ${new Date().toLocaleDateString('en-IN')} at ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 8%;">Sr No.</th>
+                <th style="width: 15%;">Bill ID</th>
+                <th style="width: 22%;">Patient Name</th>
+                <th style="width: 18%;">Doctor</th>
+                <th style="width: 12%;">Amount</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 13%;">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHTML}
+              ${totalRowHTML}
+            </tbody>
+          </table>
+
+          <div class="page-number">
+            Page ${pageIndex + 1} of ${billPages.length}
+            ${pageIndex < billPages.length - 1 ? ` (Bills ${pageIndex * BILLS_PER_PAGE + 1} to ${(pageIndex + 1) * BILLS_PER_PAGE})` : ` (Bills ${pageIndex * BILLS_PER_PAGE + 1} to ${ipdBills.length})`}
+          </div>
+        </div>
+        ${pageIndex < billPages.length - 1 ? '<div class="page-break"></div>' : ''}
+      `;
+    };
+
+    // Generate print HTML
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Failed to open print window. Please check popup blocker.');
+      return;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>IPD Bill List - ${new Date().toLocaleDateString()}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 15mm;
+          }
+
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #333;
+          }
+
+          .page {
+            padding: 20px;
+          }
+
+          .page-break {
+            page-break-before: always;
+            break-before: page;
+            page-break-after: always;
+            break-after: page;
+            height: 0;
+            margin: 0;
+            padding: 0;
+            border: none;
+          }
+
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #0056B3;
+          }
+
+          .header h1 {
+            margin: 0;
+            color: #0056B3;
+            font-size: 24px;
+          }
+
+          .header .subtitle {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+          }
+
+          .print-date {
+            text-align: right;
+            margin-bottom: 15px;
+            color: #666;
+            font-size: 11px;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+
+          thead {
+            background-color: #f0f0f0;
+          }
+
+          th {
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #ddd;
+            font-size: 11px;
+            color: #333;
+          }
+
+          td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            font-size: 11px;
+          }
+
+          tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+          }
+
+          .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-block;
+          }
+
+          .status-completed {
+            background-color: #dbeafe;
+            color: #1e40af;
+          }
+
+          .status-paid {
+            background-color: #dcfce7;
+            color: #166534;
+          }
+
+          .status-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+          }
+
+          .status-cancelled {
+            background-color: #fee2e2;
+            color: #991b1b;
+          }
+
+          .total-row {
+            font-weight: 600;
+            background-color: #e0e7ff !important;
+          }
+
+          .page-number {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+            font-size: 11px;
+          }
+
+          @media screen {
+            .page-break {
+              display: block;
+              height: 2px;
+              background: #ddd;
+              margin: 30px 0;
+              position: relative;
+            }
+
+            .page-break::after {
+              content: '--- Page Break ---';
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              transform: translate(-50%, -50%);
+              background: white;
+              padding: 0 10px;
+              color: #666;
+              font-size: 10px;
+            }
+          }
+
+          @media print {
+            body {
+              margin: 0;
+              padding: 0;
+            }
+
+            .page-break {
+              page-break-before: always !important;
+              break-before: page !important;
+              display: block !important;
+              height: 0 !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${billPages.map((pageBills, pageIndex) => generatePageHTML(pageBills, pageIndex)).join('')}
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Wait for content to load then print
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+
+    toast.success(`Printing ${ipdBills.length} bills (${billPages.length} pages)`);
   };
 
   // Handler for Print Receipt button
@@ -4448,6 +4795,13 @@ Description: ${bill.description || 'N/A'}
             <option value="PENDING">Pending</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
+          <button
+            onClick={handlePrintBillList}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2 transition-colors whitespace-nowrap"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Print Bill List</span>
+          </button>
         </div>
       </div>
 
