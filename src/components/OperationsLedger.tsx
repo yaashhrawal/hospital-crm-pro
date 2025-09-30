@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../config/supabaseNew';
 import { exportToExcel, formatCurrency, formatDateTime } from '../utils/excelExport';
 import ModernDatePicker from './ui/ModernDatePicker';
+import { ExactDateService } from '../services/exactDateService';
 
 // Function to convert UTC database time to actual local system time
 const formatLocalTime = (dateTime: Date | string): string => {
@@ -64,29 +65,20 @@ const OperationsLedger: React.FC = () => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'patient' | 'type' | 'time'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Debug: Log state changes
   useEffect(() => {
-    console.log('🔧 Sort state changed:', { sortBy, sortOrder });
-  }, [sortBy, sortOrder]);
-
-  useEffect(() => {
-    console.log('🚀 OperationsLedger component mounted with sorting enabled');
     loadLedgerEntries();
   }, [dateFrom, dateTo]);
 
   // Listen for service updates to refresh operations
   useEffect(() => {
     const handleServiceUpdate = () => {
-      console.log('🔄 Service updated - refreshing operations ledger');
       loadLedgerEntries();
     };
 
     const handleTransactionUpdate = () => {
-      console.log('🔄 Transaction updated - refreshing operations ledger');
       loadLedgerEntries();
     };
 
-    // Listen for service and transaction updates
     window.addEventListener('servicesUpdated', handleServiceUpdate);
     window.addEventListener('transactionUpdated', handleTransactionUpdate);
 
@@ -98,81 +90,55 @@ const OperationsLedger: React.FC = () => {
 
   const loadLedgerEntries = async () => {
     setLoading(true);
-    
-    // 🔄 CRITICAL: Clear any cached data
-    console.log('🔄 Reloading operations ledger with fresh data...');
-    console.log('📅 Date range for query:', { dateFrom, dateTo });
-    
+
     try {
       const allEntries: LedgerEntry[] = [];
-      
-      // CRITICAL FIX: Load patient transactions - we'll filter by date on client side
-      // This is necessary because transactions may have transaction_date OR created_at for dating
-      // Loading a broader range to ensure we catch all transactions
-      console.log(`🔍 Loading transactions from database for date range: ${dateFrom} to ${dateTo}`);
-      const { data: transactions, error: transError } = await supabase
-        .from('patient_transactions')
-        .select(`
-          id,
-          amount,
-          payment_mode,
-          transaction_type,
-          transaction_date,
-          description,
-          doctor_name,
-          status,
-          created_at,
-          patient:patients(id, patient_id, first_name, last_name, age, gender, patient_tag, assigned_doctor, assigned_department, date_of_entry)
-        `)
-        .eq('status', 'COMPLETED')
-        .order('created_at', { ascending: false });
 
-      if (transError) {
-        console.error('Error loading transactions:', transError);
-      } else if (transactions) {
-        console.log(`📊 Retrieved ${transactions.length} transactions from database`);
-        console.log(`📅 Filtering for date range: ${dateFrom} to ${dateTo}`);
+      // Use same data source as Patient List
+      const patientsData = await ExactDateService.getPatientsForDateRange(dateFrom, dateTo);
 
-        // Log sample of transaction dates to help debug
-        const sampleTransactions = transactions.slice(0, 5).map(t => ({
-          id: t.id,
-          transaction_date: t.transaction_date,
-          created_at: t.created_at?.split('T')[0],
-          patient: `${t.patient?.first_name} ${t.patient?.last_name}`,
-          amount: t.amount
-        }));
-        console.log('📋 Sample transactions:', sampleTransactions);
+      // Extract all transactions from all patients
+      const allTransactions: any[] = [];
+      patientsData.forEach((patient: any) => {
+        const transactions = patient.transactions || [];
+        transactions.forEach((trans: any) => {
+          // Filter out ORTHO + DR. HEMANT patients
+          const filterDoctorName = patient.assigned_doctor?.toUpperCase()?.trim() || '';
+          const filterDepartment = patient.assigned_department?.toUpperCase()?.trim() || '';
+          const isOrthoDeptOnly = filterDepartment === 'ORTHO';
+          const isDrHemantOnly = filterDoctorName === 'DR. HEMANT' || filterDoctorName === 'DR HEMANT';
 
-        // First filter out ORTHO/DR HEMANT transactions
-        const filteredTransactions = transactions.filter((trans: any) => {
-          const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
-          const filterDepartment = trans.patient?.assigned_department?.toUpperCase()?.trim() || '';
-          
-          console.log(`🔍 OperationsLedger - Checking transaction ${trans.id}:`, {
-            patient: trans.patient ? `${trans.patient.first_name} ${trans.patient.last_name}` : 'No patient',
-            department: filterDepartment,
-            doctor: filterDoctorName,
-            amount: trans.amount
-          });
-          
-          // Exclude if it's ORTHO department with any HEMANT doctor
-          if (filterDepartment === 'ORTHO' && filterDoctorName.includes('HEMANT')) {
-            console.log(`🚫 OperationsLedger - EXCLUDING transaction for ORTHO/HEMANT: ${trans.patient?.first_name} ${trans.patient?.last_name}`);
-            return false; // Exclude this transaction
+          if (isOrthoDeptOnly && isDrHemantOnly) {
+            return; // Skip ORTHO + DR. HEMANT
           }
-          
-          return true; // Include this transaction
+
+          // Only include COMPLETED transactions
+          if (trans.status !== 'COMPLETED') {
+            return;
+          }
+
+          // Filter by transaction_date (most important filter!)
+          let transactionDateStr = trans.transaction_date || trans.created_at || '';
+          if (typeof transactionDateStr === 'string' && transactionDateStr.includes('T')) {
+            transactionDateStr = transactionDateStr.split('T')[0];
+          }
+
+          // Only include transactions within the selected date range
+          if (transactionDateStr >= dateFrom && transactionDateStr <= dateTo) {
+            allTransactions.push({
+              ...trans,
+              patient: patient
+            });
+          }
         });
+      });
 
-        console.log(`📊 Filtered ${transactions.length} to ${filteredTransactions.length} transactions (excluded ${transactions.length - filteredTransactions.length} ORTHO/HEMANT)`);
-
-        filteredTransactions.forEach((trans: any) => {
-          
+      allTransactions.forEach((trans: any) => {
           let cleanDescription = trans.description || `${trans.transaction_type} Payment`;
           let originalAmount = trans.amount;
           let discountAmount = 0;
           let netAmount = trans.amount;
-          
+
           // Parse existing description for discount information
           if (cleanDescription.includes('Original:') && cleanDescription.includes('Discount:') && cleanDescription.includes('Net:')) {
             // Extract original amount
@@ -204,7 +170,6 @@ const OperationsLedger: React.FC = () => {
           // PRIORITY 1: Use transaction-specific doctor name if available
           if (trans.doctor_name) {
             consultantName = trans.doctor_name;
-            console.log(`✅ Using transaction doctor: ${trans.doctor_name} for transaction ${trans.id}`);
           }
           // PRIORITY 2: For consultations, try to extract from description
           else if (trans.transaction_type === 'consultation') {
@@ -212,17 +177,14 @@ const OperationsLedger: React.FC = () => {
             if (doctorMatch) {
               consultantName = doctorMatch[1];
               cleanDescription = `Consultation Fee - ${consultantName}`;
-              console.log(`✅ Using consultation doctor from description: ${consultantName} for transaction ${trans.id}`);
             } else if (trans.patient?.assigned_doctor) {
               consultantName = trans.patient.assigned_doctor;
               cleanDescription = `Consultation Fee - ${consultantName}`;
-              console.log(`⚠️ Using patient assigned doctor for consultation: ${consultantName} for transaction ${trans.id}`);
             }
           }
           // PRIORITY 3: Fall back to patient's assigned doctor
           else if (trans.patient?.assigned_doctor) {
             consultantName = trans.patient.assigned_doctor;
-            console.log(`⚠️ Using patient assigned doctor fallback: ${consultantName} for transaction ${trans.id}`);
           }
           
           // Map doctor to correct department based on hospital's doctor-department assignments
@@ -254,86 +216,40 @@ const OperationsLedger: React.FC = () => {
             cleanDescription += ` - Patient Age: ${trans.patient.age} years`;
           }
           
-          // CRITICAL FIX: Always prioritize transaction_date (this is the service date selected by user)
           let effectiveDate = new Date();
           let effectiveDateStr = '';
-          const transactionDateTime = new Date(trans.created_at); // Use created_at for time display
-          
-          // Debug logging for date issues
-          console.log('📅 OPERATIONS DATE DEBUG:', {
-            transaction_id: trans.id,
-            transaction_date: trans.transaction_date,
-            transaction_date_type: typeof trans.transaction_date,
-            patient_date_of_entry: trans.patient?.date_of_entry,
-            created_at: trans.created_at,
-            description: trans.description?.substring(0, 50),
-            patient_name: `${trans.patient?.first_name} ${trans.patient?.last_name}`
-          });
-          
-          if (trans.transaction_date && trans.transaction_date.trim() !== '') {
-            // PRIORITY 1: Use transaction_date (this is the service date selected by user in PatientServiceManager)
-            effectiveDateStr = trans.transaction_date.includes('T') 
-              ? trans.transaction_date.split('T')[0] 
-              : trans.transaction_date;
-            // 🔥 CRITICAL FIX: Parse date correctly to avoid month/day swapping
-            const dateParts = effectiveDateStr.split('-'); // ['2025', '08', '14']
-            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])); // Month is 0-based
-            console.log('✅ Using transaction_date:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
+          const transactionDateTime = new Date(trans.created_at);
+
+          const transactionDateStr = trans.transaction_date ? String(trans.transaction_date).trim() : '';
+
+          if (transactionDateStr !== '') {
+            effectiveDateStr = transactionDateStr.includes('T')
+              ? transactionDateStr.split('T')[0]
+              : transactionDateStr;
+            const dateParts = effectiveDateStr.split('-');
+            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
           } else if (trans.patient?.date_of_entry && trans.patient.date_of_entry.trim() !== '') {
-            // PRIORITY 2: Fallback to patient's date_of_entry
-            effectiveDateStr = trans.patient.date_of_entry.includes('T') 
-              ? trans.patient.date_of_entry.split('T')[0] 
+            effectiveDateStr = trans.patient.date_of_entry.includes('T')
+              ? trans.patient.date_of_entry.split('T')[0]
               : trans.patient.date_of_entry;
-            // 🔥 CRITICAL FIX: Parse date correctly to avoid month/day swapping
-            const dateParts = effectiveDateStr.split('-'); // ['2025', '08', '14']
-            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2])); // Month is 0-based
-            console.log('⚠️ Falling back to patient date_of_entry:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
+            const dateParts = effectiveDateStr.split('-');
+            effectiveDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
           } else {
-            // PRIORITY 3: Final fallback to created_at
             effectiveDate = new Date(trans.created_at);
             effectiveDateStr = trans.created_at.split('T')[0];
-            console.log('⚠️ Falling back to created_at:', effectiveDateStr, '→', effectiveDate.toLocaleDateString());
           }
-          
-          // CLIENT-SIDE DATE FILTERING: Now check if this transaction falls within the selected date range
-          if (effectiveDateStr < dateFrom || effectiveDateStr > dateTo) {
-            console.log(`❌ Transaction ${trans.id} outside date range: ${effectiveDateStr} not in ${dateFrom}-${dateTo}`);
-            return; // Skip this transaction
-          }
-          
-          console.log(`✅ Transaction ${trans.id} within date range: ${effectiveDateStr} in ${dateFrom}-${dateTo}`);
-          
-          // 🔍 DEBUG DATE FORMATTING ISSUE
-          console.log('🔍 DATE FORMATTING DEBUG:', {
-            transaction_id: trans.id,
-            effectiveDateStr: effectiveDateStr,
-            effectiveDate: effectiveDate.toISOString(),
-            effectiveDateLocal: effectiveDate.toString(),
-            willFormat: 'DD/MM/YYYY using en-IN locale'
-          });
-          
-          // 🔥 CRITICAL FIX: Format date manually to avoid locale issues
+
           const day = effectiveDate.getDate().toString().padStart(2, '0');
-          const month = (effectiveDate.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-based
+          const month = (effectiveDate.getMonth() + 1).toString().padStart(2, '0');
           const year = effectiveDate.getFullYear();
           const istDate = `${day}/${month}/${year}`;
-          
-          // 🔍 DEBUG FORMATTED DATE
-          console.log('🔍 FORMATTED DATE RESULT:', {
-            transaction_id: trans.id,
-            originalStr: effectiveDateStr,
-            formattedDate: istDate,
-            expectedFormat: 'DD/MM/YYYY'
-          });
-          
-          // Convert UTC database time to local time
+
           const localTime = formatLocalTime(transactionDateTime);
-          
-          // CRITICAL FIX: Identify refunds (negative amount transactions)
+
           const isRefund = trans.amount < 0;
           const entryType = isRefund ? 'REFUND' : 'REVENUE';
-          const displayAmount = Math.abs(trans.amount); // Always show positive amount for display
-          
+          const displayAmount = Math.abs(trans.amount);
+
           allEntries.push({
             id: trans.id,
             date: istDate,
@@ -357,7 +273,6 @@ const OperationsLedger: React.FC = () => {
             created_at: trans.created_at
           });
         });
-      }
 
       // Load daily expenses
       const { data: expenses, error: expError } = await supabase
@@ -370,37 +285,25 @@ const OperationsLedger: React.FC = () => {
       if (expError) {
         console.error('Error loading expenses:', expError);
       } else if (expenses) {
-        console.log('💰 Loaded expenses from database:', expenses);
-        console.log('💰 Number of expenses found:', expenses.length);
         expenses.forEach((expense: any) => {
-          // CRITICAL FIX: Format expenses date and time in IST 12-hour format
           const expenseDate = new Date(expense.expense_date);
           const expenseDateTime = new Date(expense.created_at);
-          
+
           const istDate = expenseDate.toLocaleDateString('en-IN', {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
-            month: '2-digit', 
+            month: '2-digit',
             year: 'numeric'
           });
-          
-          // Convert UTC database time to local time
+
           const localTime = formatLocalTime(expenseDateTime);
-          
-          // Use description as primary expense name, fallback to category
+
           let expenseName = 'Daily Expense';
           if (expense.description && expense.description.trim()) {
             expenseName = expense.description.trim();
           } else if (expense.expense_category && expense.expense_category.trim()) {
             expenseName = expense.expense_category.trim();
           }
-          
-          console.log('💰 Processing expense:', {
-            id: expense.id,
-            category: expense.expense_category,
-            description: expense.description,
-            finalName: expenseName
-          });
 
           allEntries.push({
             id: expense.id,
@@ -530,20 +433,26 @@ const OperationsLedger: React.FC = () => {
       
       // Debug: Log all entries before setting them
       console.log('🔍 All entries being set:', allEntries.length);
+
+      const revenueEntries = allEntries.filter(e => e.type === 'REVENUE');
+      const totalRevenueCalc = revenueEntries.reduce((sum, e) => sum + e.amount, 0);
+
       console.log('📊 Entry breakdown by type:');
-      console.log('  - REVENUE:', allEntries.filter(e => e.type === 'REVENUE').length);
+      console.log('  - REVENUE:', revenueEntries.length, 'transactions');
+      console.log('  - REVENUE TOTAL:', totalRevenueCalc);
       console.log('  - EXPENSE:', allEntries.filter(e => e.type === 'EXPENSE').length);
       console.log('  - REFUND:', allEntries.filter(e => e.type === 'REFUND').length);
 
-      // Show date range summary
-      const dateRangeSummary = allEntries.reduce((acc, e) => {
-        if (!acc[e.date]) acc[e.date] = { revenue: 0, expense: 0, count: 0 };
-        if (e.type === 'REVENUE') acc[e.date].revenue += e.amount;
-        if (e.type === 'EXPENSE') acc[e.date].expense += e.amount;
-        acc[e.date].count++;
-        return acc;
-      }, {} as Record<string, { revenue: number; expense: number; count: number }>);
-      console.log('📅 Daily summary for date range:', dateRangeSummary);
+      // Show payment mode breakdown
+      const cashRevenue = revenueEntries.filter(e => e.payment_mode?.toLowerCase() === 'cash').reduce((sum, e) => sum + e.amount, 0);
+      const upiRevenue = revenueEntries.filter(e => e.payment_mode?.toUpperCase() === 'UPI').reduce((sum, e) => sum + e.amount, 0);
+      const onlineRevenue = revenueEntries.filter(e => ['online', 'card'].includes(e.payment_mode?.toLowerCase())).reduce((sum, e) => sum + e.amount, 0);
+
+      console.log('💳 Payment mode breakdown:');
+      console.log('  - CASH:', cashRevenue, '(', revenueEntries.filter(e => e.payment_mode?.toLowerCase() === 'cash').length, 'transactions)');
+      console.log('  - UPI:', upiRevenue, '(', revenueEntries.filter(e => e.payment_mode?.toUpperCase() === 'UPI').length, 'transactions)');
+      console.log('  - ONLINE:', onlineRevenue, '(', revenueEntries.filter(e => ['online', 'card'].includes(e.payment_mode?.toLowerCase())).length, 'transactions)');
+      console.log('  - TOTAL:', cashRevenue + upiRevenue + onlineRevenue);
 
       setEntries(allEntries);
     } catch (error: any) {

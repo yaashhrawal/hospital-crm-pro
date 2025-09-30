@@ -1407,9 +1407,18 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
             return transactionDate >= normStart && transactionDate <= normEnd;
           });
         }
-        
-        // Recalculate totalSpent based on filtered transactions
-        const filteredTotalSpent = filteredTransactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+        // Exclude ORTHO + DR. HEMANT transactions from revenue calculation
+        const filterDoctorName = patient.assigned_doctor?.toUpperCase()?.trim() || '';
+        const filterDepartment = patient.assigned_department?.toUpperCase()?.trim() || '';
+        const isOrthoDeptOnly = filterDepartment === 'ORTHO';
+        const isDrHemantOnly = filterDoctorName === 'DR. HEMANT' || filterDoctorName === 'DR HEMANT';
+        const shouldExcludeFromRevenue = isOrthoDeptOnly && isDrHemantOnly;
+
+        // Recalculate totalSpent based on filtered transactions (excluding ORTHO + DR. HEMANT)
+        const filteredTotalSpent = shouldExcludeFromRevenue
+          ? 0
+          : filteredTransactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
 
         // Recalculate visitCount based on filtered transactions (count consultations/entry fees)
         const visitCountFromFiltered = filteredTransactions.reduce((cnt: number, t: any) => {
