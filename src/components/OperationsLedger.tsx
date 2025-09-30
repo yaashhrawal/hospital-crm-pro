@@ -106,8 +106,10 @@ const OperationsLedger: React.FC = () => {
     try {
       const allEntries: LedgerEntry[] = [];
       
-      // CRITICAL FIX: Load patient transactions with flexible date filtering
-      // Many transactions may have NULL transaction_date, so we need a more inclusive query
+      // CRITICAL FIX: Load patient transactions - we'll filter by date on client side
+      // This is necessary because transactions may have transaction_date OR created_at for dating
+      // Loading a broader range to ensure we catch all transactions
+      console.log(`🔍 Loading transactions from database for date range: ${dateFrom} to ${dateTo}`);
       const { data: transactions, error: transError } = await supabase
         .from('patient_transactions')
         .select(`
@@ -128,8 +130,19 @@ const OperationsLedger: React.FC = () => {
       if (transError) {
         console.error('Error loading transactions:', transError);
       } else if (transactions) {
-        console.log(`📊 Retrieved ${transactions.length} transactions, now filtering by date range ${dateFrom} to ${dateTo}`);
-        
+        console.log(`📊 Retrieved ${transactions.length} transactions from database`);
+        console.log(`📅 Filtering for date range: ${dateFrom} to ${dateTo}`);
+
+        // Log sample of transaction dates to help debug
+        const sampleTransactions = transactions.slice(0, 5).map(t => ({
+          id: t.id,
+          transaction_date: t.transaction_date,
+          created_at: t.created_at?.split('T')[0],
+          patient: `${t.patient?.first_name} ${t.patient?.last_name}`,
+          amount: t.amount
+        }));
+        console.log('📋 Sample transactions:', sampleTransactions);
+
         // First filter out ORTHO/DR HEMANT transactions
         const filteredTransactions = transactions.filter((trans: any) => {
           const filterDoctorName = trans.patient?.assigned_doctor?.toUpperCase()?.trim() || '';
@@ -516,9 +529,22 @@ const OperationsLedger: React.FC = () => {
       setAvailablePatientTags(uniqueTags);
       
       // Debug: Log all entries before setting them
-      console.log('🔍 All entries being set:', allEntries);
-      console.log('🔍 Expense entries only:', allEntries.filter(e => e.type === 'EXPENSE'));
-      
+      console.log('🔍 All entries being set:', allEntries.length);
+      console.log('📊 Entry breakdown by type:');
+      console.log('  - REVENUE:', allEntries.filter(e => e.type === 'REVENUE').length);
+      console.log('  - EXPENSE:', allEntries.filter(e => e.type === 'EXPENSE').length);
+      console.log('  - REFUND:', allEntries.filter(e => e.type === 'REFUND').length);
+
+      // Show date range summary
+      const dateRangeSummary = allEntries.reduce((acc, e) => {
+        if (!acc[e.date]) acc[e.date] = { revenue: 0, expense: 0, count: 0 };
+        if (e.type === 'REVENUE') acc[e.date].revenue += e.amount;
+        if (e.type === 'EXPENSE') acc[e.date].expense += e.amount;
+        acc[e.date].count++;
+        return acc;
+      }, {} as Record<string, { revenue: number; expense: number; count: number }>);
+      console.log('📅 Daily summary for date range:', dateRangeSummary);
+
       setEntries(allEntries);
     } catch (error: any) {
       console.error('Error loading ledger:', error);
