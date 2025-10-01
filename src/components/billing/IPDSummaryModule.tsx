@@ -303,12 +303,160 @@ const IPDSummaryModule: React.FC = () => {
     }
   }, [showCreateSummary, patients.length]);
 
+  // Fetch IPD bill data for the patient to get complete patient details
+  const fetchPatientIPDBillData = async (patientId: string) => {
+    try {
+      logger.log('🔍 IPD SUMMARY: Fetching IPD bill data for patient ID:', patientId);
+
+      // First, fetch ALL IPD bills for this patient to see what we have
+      const { data: allBills, error: allError } = await supabase
+        .from('patient_transactions')
+        .select(`
+          id,
+          transaction_reference,
+          transaction_date,
+          created_at,
+          description
+        `)
+        .eq('patient_id', patientId)
+        .eq('transaction_type', 'SERVICE')
+        .like('description', '%[IPD_BILL]%')
+        .order('created_at', { ascending: false });
+
+      logger.log('🔍 IPD SUMMARY: All IPD bills for patient:', allBills);
+
+      // Now fetch the most recent one with full details
+      const { data: ipdBill, error } = await supabase
+        .from('patient_transactions')
+        .select(`
+          *,
+          patients(
+            *,
+            admissions:patient_admissions(*)
+          )
+        `)
+        .eq('patient_id', patientId)
+        .eq('transaction_type', 'SERVICE')
+        .like('description', '%[IPD_BILL]%')
+        .neq('status', 'DELETED')
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        logger.log('⚠️ IPD SUMMARY: No IPD bill found for patient, using basic patient data. Error:', error);
+        return null;
+      }
+
+      // Also fetch bed information - use exact same query as IPD Billing
+      logger.log('🔍 IPD SUMMARY: Loading IPD bed information...');
+      const { data: bedData, error: bedError } = await supabase
+        .from('beds')
+        .select(`
+          *,
+          patients(
+            id,
+            patient_id,
+            first_name,
+            last_name,
+            assigned_doctor
+          )
+        `)
+        .not('patient_id', 'is', null);
+
+      if (bedError) {
+        logger.error('❌ IPD SUMMARY: Error loading bed data:', bedError);
+      } else {
+        logger.log('✅ IPD SUMMARY: Loaded bed data:', bedData?.length || 0, 'beds');
+      }
+
+      // Create a mapping of patient_id to bed information (same as IPD Billing)
+      const bedInfoMap = new Map();
+      const bedInfoByPatientDbId = new Map();
+
+      if (bedData) {
+        bedData.forEach((bed) => {
+          if (bed.patients?.id) {
+            const bedInfo = {
+              bed_number: bed.bed_number,
+              room_type: bed.room_type,
+              admission_date: bed.admission_date,
+              ipd_number: bed.ipd_number,
+              assigned_doctor: bed.patients?.assigned_doctor
+            };
+            bedInfoByPatientDbId.set(bed.patients.id, bedInfo);
+
+            if (bed.patients.patient_id) {
+              bedInfoMap.set(bed.patients.patient_id, bedInfo);
+            }
+          }
+        });
+      }
+
+      // Get bed info for this patient
+      const bedInfo = bedInfoByPatientDbId.get(patientId);
+
+      if (bedInfo) {
+        logger.log('✅ IPD SUMMARY: Found bed info for patient:', bedInfo);
+        // Merge bed data into patient data (same as IPD Billing)
+        if (ipdBill.patients) {
+          ipdBill.patients = {
+            ...ipdBill.patients,
+            ipd_number: bedInfo.ipd_number || ipdBill.patients.ipd_number,
+            ipd_bed_number: bedInfo.bed_number || ipdBill.patients.ipd_bed_number,
+            bed_number: bedInfo.bed_number || ipdBill.patients.bed_number,
+            room_type: bedInfo.room_type || ipdBill.patients.room_type,
+            admission_date: bedInfo.admission_date || ipdBill.patients.admission_date,
+            assigned_doctor: bedInfo.assigned_doctor || ipdBill.patients.assigned_doctor
+          };
+        }
+      } else {
+        logger.log('⚠️ IPD SUMMARY: No bed info found for patient in map');
+      }
+
+      logger.log('✅ IPD SUMMARY: Found IPD bill data:', {
+        bill_no: ipdBill.transaction_reference,
+        bill_date: ipdBill.transaction_date,
+        created_at: ipdBill.created_at,
+        patient_name: `${ipdBill.patients?.first_name} ${ipdBill.patients?.last_name}`,
+        ipd_no: ipdBill.patients?.ipd_number,
+        admission_date: ipdBill.patients?.admission_date || ipdBill.patients?.admissions?.[0]?.admission_date,
+        bed_number: ipdBill.patients?.ipd_bed_number,
+        room_type: ipdBill.patients?.room_type
+      });
+      return ipdBill;
+    } catch (error) {
+      logger.error('❌ IPD SUMMARY: Error fetching IPD bill data:', error);
+      return null;
+    }
+  };
+
   // IPD Summary Print function
-  const handlePrintSummary = (summary: any) => {
+  const handlePrintSummary = async (summary: any) => {
     logger.log('🖨️ Printing IPD Summary:', summary);
 
-    const selectedPatient = summary.patient;
+    let selectedPatient = summary.patient;
     const services = summary.services;
+    let ipdBillNumber = 'N/A';
+    let ipdBillDate = 'N/A';
+
+    // Try to fetch IPD bill data to get complete patient details and bill number
+    const ipdBillData = await fetchPatientIPDBillData(selectedPatient.id);
+    if (ipdBillData) {
+      logger.log('✅ Using enhanced patient data from IPD bill');
+
+      // Extract bill number and date
+      ipdBillNumber = ipdBillData.transaction_reference || ipdBillData.id || 'N/A';
+      ipdBillDate = ipdBillData.transaction_date
+        ? new Date(ipdBillData.transaction_date).toLocaleDateString('en-IN')
+        : (ipdBillData.created_at ? new Date(ipdBillData.created_at).toLocaleDateString('en-IN') : 'N/A');
+
+      // Use patient data from the bill
+      if (ipdBillData.patients) {
+        selectedPatient = ipdBillData.patients;
+      }
+    }
 
     // Use the custom services data for printing
     const printServices = services.filter(s => s.service && s.amount > 0).map((service, index) => ({
@@ -606,8 +754,7 @@ const IPDSummaryModule: React.FC = () => {
                 ">Patient & IPD Information</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; font-size: 16px;">
                   <div>
-                    <p style="color: black; margin: 6px 0;"><strong>SUMMARY NO.:</strong> IPD-${Date.now()}</p>
-                    <p style="color: black; margin: 6px 0;"><strong>SUMMARY DATE:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>IPD BILL NO.:</strong> ${ipdBillNumber}</p>
                     <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${selectedPatient.patient_id || 'N/A'}</p>
                     <p style="color: black; margin: 6px 0;"><strong>PATIENT NAME:</strong> ${selectedPatient.first_name || ''} ${selectedPatient.last_name || ''}</p>
                     <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${selectedPatient.age || 'N/A'} years / ${selectedPatient.gender || 'N/A'}</p>
@@ -616,10 +763,10 @@ const IPDSummaryModule: React.FC = () => {
                   <div>
                     <p style="color: black; margin: 6px 0;"><strong>DR NAME:</strong> ${selectedPatient.assigned_doctor || selectedPatient.doctor_name || 'N/A'}</p>
                     <p style="color: black; margin: 6px 0;"><strong>IPD NO.:</strong> ${selectedPatient.ipd_number || 'N/A'}</p>
-                    <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${selectedPatient.admission_date ? new Date(selectedPatient.admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
-                    <p style="color: black; margin: 6px 0;"><strong>DISCHARGE DATE:</strong> ${selectedPatient.discharge_date ? new Date(selectedPatient.discharge_date).toLocaleDateString('en-IN') : 'Not Discharged'}</p>
-                    <p style="color: black; margin: 6px 0;"><strong>ROOM TYPE:</strong> ${selectedPatient.room_type || 'N/A'}</p>
-                    <p style="color: black; margin: 6px 0;"><strong>BED NO.:</strong> ${selectedPatient.ipd_bed_number || selectedPatient.bed_number || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${(selectedPatient.admission_date) ? new Date(selectedPatient.admission_date).toLocaleDateString('en-IN') : ((selectedPatient.admissions && selectedPatient.admissions[0]?.admission_date) ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A')}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>DISCHARGE DATE:</strong> ${(selectedPatient.discharge_date) ? new Date(selectedPatient.discharge_date).toLocaleDateString('en-IN') : ((selectedPatient.admissions && selectedPatient.admissions[0]?.discharge_date) ? new Date(selectedPatient.admissions[0].discharge_date).toLocaleDateString('en-IN') : 'Not Discharged')}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>ROOM TYPE:</strong> ${selectedPatient.room_type || (selectedPatient.admissions && selectedPatient.admissions[0]?.room_type) || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>BED NO.:</strong> ${selectedPatient.ipd_bed_number || selectedPatient.bed_number || (selectedPatient.admissions && selectedPatient.admissions[0]?.bed_number) || 'N/A'}</p>
                   </div>
                 </div>
               </div>

@@ -3629,9 +3629,6 @@ Description: ${bill.description || 'N/A'}
 
             <!-- Footer (only on last page) -->
             <div style="text-align: center; margin-top: 25px;">
-              <p style="font-size: 14px; color: black; margin: 4px 0;">Thank you for choosing VALANT HOSPITAL</p>
-              <p style="font-size: 12px; color: black; margin: 4px 0;">A unit of Navratna Medicare Pvt Ltd</p>
-              <p style="font-size: 14px; color: black; margin: 8px 0 0 0; font-weight: bold;">** ORIGINAL COPY **</p>
             </div>
           ` : `
             <!-- Page indicator -->
