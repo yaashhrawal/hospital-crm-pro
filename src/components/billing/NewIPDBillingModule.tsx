@@ -2370,9 +2370,14 @@ const NewIPDBillingModule: React.FC = () => {
               <p style="color: black; font-size: 14px; margin: 0;">📍 Your Hospital Address | 📞 Contact Number | 📧 Email</p>
             </div>
 
+            <!-- IPD DEPOSIT Title at Top Center -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h1 style="font-size: 28px; font-weight: bold; color: black; margin: 0; letter-spacing: 2px;">IPD DEPOSIT</h1>
+            </div>
+
             <!-- Receipt Title -->
             <div style="text-align: center; margin-bottom: 25px;">
-              <h2 style="color: black; font-size: 24px; font-weight: bold; margin: 0; text-decoration: underline;">ADVANCE DEPOSIT RECEIPT</h2>
+              <h2 style="color: black; font-size: 20px; font-weight: bold; margin: 0;">Advance Deposit Receipt</h2>
               <p style="color: black; font-size: 16px; margin: 10px 0;">Receipt No: <strong>${deposit.receiptNo}</strong></p>
             </div>
 
@@ -3505,6 +3510,11 @@ Description: ${bill.description || 'N/A'}
           <div style="margin-top: 0; padding: 300px 30px 0 30px; position: relative; z-index: 2;">
 
           ${pageIndex === 0 ? `
+            <!-- IPD BILL/DEPOSIT Title at Top Center (only on first page) -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h1 style="font-size: 28px; font-weight: bold; color: black; margin: 0; letter-spacing: 2px;">${isDepositTransaction ? 'IPD DEPOSIT' : 'IPD BILL'}</h1>
+            </div>
+
             <!-- Header Information (only on first page) -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
               <div>
@@ -3978,7 +3988,8 @@ Description: ${bill.description || 'N/A'}
       return `
         <div class="page">
           <div class="header">
-            <h1>VALANT HOSPITAL</h1>
+            <h1>IPD BILL</h1>
+            <h2 style="margin: 5px 0; font-size: 18px; color: #0056B3;">VALANT HOSPITAL</h2>
             <div class="subtitle">IPD Bill List</div>
           </div>
 
@@ -4307,9 +4318,14 @@ Description: ${bill.description || 'N/A'}
               <p style="color: black; font-size: 14px; margin: 0;">📍 Your Hospital Address | 📞 Contact Number | 📧 Email</p>
             </div>
 
+            <!-- IPD DEPOSIT Title at Top Center -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h1 style="font-size: 28px; font-weight: bold; color: black; margin: 0; letter-spacing: 2px;">IPD DEPOSIT</h1>
+            </div>
+
             <!-- Receipt Title -->
             <div style="text-align: center; margin-bottom: 25px;">
-              <h2 style="color: black; font-size: 24px; font-weight: bold; margin: 0; text-decoration: underline;">ADVANCE DEPOSIT RECEIPT</h2>
+              <h2 style="color: black; font-size: 20px; font-weight: bold; margin: 0;">Advance Deposit Receipt</h2>
               <p style="color: black; font-size: 16px; margin: 10px 0;">Receipt No: <strong>${deposit.receiptNo}</strong></p>
             </div>
 
@@ -6057,13 +6073,13 @@ Description: ${bill.description || 'N/A'}
       )}
 
       {/* Printable Bill Content (Hidden from screen, visible in print) */}
-      <div 
-        id="printable-bill-content" 
+      <div
+        id="printable-bill-content"
         style={{ display: 'none' }}
         className="print-only"
       >
         <div className="print-header">
-          <h1>HOSPITAL IPD BILL</h1>
+          <h1>{activeSection === 'deposit' ? 'IPD DEPOSIT' : 'IPD BILL'}</h1>
           <h2>Raj Hospital & Maternity Center</h2>
           <p>123 Medical Street, Healthcare City - 123456</p>
           <p>Phone: +91 9876543210 | Email: info@rajhospital.com</p>

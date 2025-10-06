@@ -732,6 +732,11 @@ const IPDSummaryModule: React.FC = () => {
               <!-- Content starts after header - positioned to align with template white area -->
               <div style="margin-top: 0; padding: 300px 30px 0 30px; position: relative; z-index: 2;">
 
+              <!-- IPD SUMMARY Title at Top Center -->
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="font-size: 28px; font-weight: bold; color: black; margin: 0; letter-spacing: 2px;">IPD SUMMARY</h1>
+              </div>
+
               <!-- Header Information -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 25px; font-size: 16px; color: black;">
                 <div>
@@ -838,7 +843,6 @@ const IPDSummaryModule: React.FC = () => {
               <div style="text-align: center; margin-top: 25px;">
                 <p style="font-size: 14px; color: black; margin: 4px 0;">Thank you for choosing VALANT HOSPITAL</p>
                 <p style="font-size: 12px; color: black; margin: 4px 0;">A unit of Navratna Medicare Pvt Ltd</p>
-                <p style="font-size: 14px; color: black; margin: 8px 0 0 0; font-weight: bold;">** IPD SUMMARY **</p>
               </div>
 
               </div>
