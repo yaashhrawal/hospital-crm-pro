@@ -117,6 +117,16 @@ const OperationsLedger: React.FC = () => {
             return;
           }
 
+          // Exclude only IPD Bills (SERVICE with [IPD_BILL] in description)
+          // Keep DEPOSIT, ADMISSION_FEE, ADVANCE_PAYMENT and regular SERVICE transactions
+          const isIPDBill = trans.transaction_type === 'SERVICE' &&
+                           trans.description?.includes('[IPD_BILL]');
+
+          if (isIPDBill) {
+            console.log('🚫 EXCLUDED IPD_BILL transaction:', trans.id, trans.amount);
+            return;
+          }
+
           // Filter by transaction_date (most important filter!)
           let transactionDateStr = trans.transaction_date || trans.created_at || '';
           if (typeof transactionDateStr === 'string' && transactionDateStr.includes('T')) {
