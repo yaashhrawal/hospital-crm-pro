@@ -3793,15 +3793,198 @@ Description: ${bill.description || 'N/A'}
       </html>
     `;
     
-      printWindow.document.write(billHTML);
+      // Add email functionality to the billHTML before writing
+      const enhancedBillHTML = billHTML.replace(
+        '</body>',
+        `
+          <!-- Print/Email Buttons -->
+          <div class="print-buttons" style="position: fixed; top: 10px; right: 10px; z-index: 10000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <button class="btn btn-primary" onclick="window.print()" style="padding: 8px 16px; margin: 0 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; background-color: #0056b3; color: white;">🖨️ Print</button>
+            <button class="btn btn-success" onclick="showEmailModal()" style="padding: 8px 16px; margin: 0 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; background-color: #28a745; color: white;">📧 Send Email</button>
+            <button class="btn btn-secondary" onclick="window.close()" style="padding: 8px 16px; margin: 0 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; background-color: #6c757d; color: white;">Close</button>
+          </div>
+
+          <!-- Email Modal -->
+          <div id="emailModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 20000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%;">
+              <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">Send IPD Bill via Email</h3>
+              <input
+                type="email"
+                id="emailInput"
+                placeholder="Enter email address"
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; font-size: 14px;"
+                value="${bill.patients?.email || ''}"
+              />
+              <div id="emailStatus" style="margin-bottom: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+              <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="hideEmailModal()" style="padding: 8px 16px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white;">Cancel</button>
+                <button onclick="sendEmailWithPDF()" id="sendBtn" style="padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; background-color: #28a745; color: white;">Send Email</button>
+              </div>
+            </div>
+          </div>
+
+          <style>
+            @media print {
+              .print-buttons, #emailModal { display: none !important; }
+            }
+          </style>
+
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+          <script>
+            // Bill data for email
+            const bill = ${JSON.stringify({
+              id: bill.id,
+              transaction_reference: bill.transaction_reference,
+              amount: bill.amount,
+              patientId: bill.patientId || bill.patient_id,
+              patients: {
+                first_name: bill.patients?.first_name || '',
+                last_name: bill.patients?.last_name || '',
+                email: bill.patients?.email || ''
+              }
+            })};
+
+            function showEmailModal() {
+              document.getElementById('emailModal').style.display = 'flex';
+              document.getElementById('emailInput').focus();
+            }
+
+            function hideEmailModal() {
+              document.getElementById('emailModal').style.display = 'none';
+              document.getElementById('emailStatus').style.display = 'none';
+            }
+
+            function showStatus(message, isError) {
+              const statusEl = document.getElementById('emailStatus');
+              statusEl.textContent = message;
+              statusEl.style.display = 'block';
+              statusEl.style.backgroundColor = isError ? '#fee' : '#efe';
+              statusEl.style.color = isError ? '#c00' : '#060';
+              statusEl.style.border = '1px solid ' + (isError ? '#fcc' : '#cfc');
+            }
+
+            async function sendEmailWithPDF() {
+              const email = document.getElementById('emailInput').value.trim();
+              if (!email || !email.includes('@')) {
+                showStatus('Please enter a valid email address', true);
+                return;
+              }
+
+              const sendBtn = document.getElementById('sendBtn');
+              sendBtn.disabled = true;
+              sendBtn.textContent = 'Sending...';
+              showStatus('Generating PDF...', false);
+
+              try {
+                const receiptEl = document.querySelector('.receipt-template') || document.body;
+
+                const canvas = await html2canvas(receiptEl, {
+                  scale: 1.5,  // Reduced from 2 to 1.5 to make smaller PDF
+                  useCORS: true,
+                  logging: false,
+                  backgroundColor: '#ffffff',
+                  windowWidth: 1122,
+                  windowHeight: 1587
+                });
+
+                showStatus('Converting to PDF...', false);
+
+                const { jsPDF } = window.jspdf;
+                const imgWidth = 297;
+                const imgHeight = 420;
+                const pdf = new jsPDF({
+                  orientation: 'portrait',
+                  unit: 'mm',
+                  format: [297, 420]
+                });
+
+                // Use JPEG with compression instead of PNG to reduce size
+                const imgData = canvas.toDataURL('image/jpeg', 0.85);  // 85% quality JPEG
+                pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+                const pdfBase64 = pdf.output('datauristring').split(',')[1];
+
+                // Check PDF size
+                const pdfSizeKB = (pdfBase64.length * 3) / 4 / 1024;
+                console.log('📊 PDF size:', pdfSizeKB.toFixed(2), 'KB');
+
+                if (pdfSizeKB > 3000) {
+                  showStatus('⚠️ PDF is too large (' + pdfSizeKB.toFixed(0) + 'KB). Maximum is 3MB.', true);
+                  throw new Error('PDF attachment exceeds maximum size of 3MB');
+                }
+
+                showStatus('Sending email...', false);
+
+                // Use global function from main window to avoid CORS
+                console.log('🔵 Checking window.opener:', window.opener);
+                console.log('🔵 Checking window.opener.sendEmailFromPopup:', window.opener ? window.opener.sendEmailFromPopup : 'no opener');
+
+                if (window.opener && window.opener.sendEmailFromPopup) {
+                  const billRef = bill.transaction_reference || bill.id;
+                  const patientName = (bill.patients?.first_name || '') + ' ' + (bill.patients?.last_name || '');
+                  const billAmount = (bill.amount || 0).toLocaleString();
+                  const patId = bill.patientId || bill.patient_id || '';
+
+                  console.log('🔵 Preparing email data:', { email, billRef, patientName });
+
+                  const result = await window.opener.sendEmailFromPopup({
+                    to: email,
+                    subject: \`IPD Bill #\${billRef} - Valant Hospital\`,
+                    html: \`
+                      <!DOCTYPE html>
+                      <html>
+                      <head><meta charset="utf-8"></head>
+                      <body style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2>Dear \${patientName},</h2>
+                        <p>Thank you for choosing Valant Hospital. Please find your IPD bill attached.</p>
+                        <p><strong>Bill Number:</strong> \${billRef}</p>
+                        <p><strong>Amount:</strong> ₹\${billAmount}</p>
+                        <p>Best regards,<br><strong>Valant Hospital Team</strong></p>
+                      </body>
+                      </html>
+                    \`,
+                    patientId: patId,
+                    attachments: [{
+                      filename: \`IPD_Bill_\${billRef}.pdf\`,
+                      content: pdfBase64
+                    }]
+                  });
+
+                  console.log('🔵 Got result from sendEmailFromPopup:', result);
+                  console.log('🔵 Result type:', typeof result);
+                  console.log('🔵 Result is null/undefined?', result === null || result === undefined);
+                  console.log('🔵 Result.success:', result ? result.success : 'no result');
+                  console.log('🔵 Result.error:', result ? result.error : 'no result');
+
+                  if (!result) {
+                    throw new Error('No response from email service - result is ' + result);
+                  }
+
+                  if (result.success) {
+                    showStatus('✅ Email sent successfully to ' + email, false);
+                    setTimeout(() => hideEmailModal(), 2000);
+                  } else {
+                    throw new Error(result.error || 'Email service returned success=false with no error message');
+                  }
+                } else {
+                  throw new Error('Unable to send email. Please ensure the main window is open.');
+                }
+              } catch (error) {
+                console.error('Email error:', error);
+                showStatus('❌ Failed: ' + error.message, true);
+              } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send Email';
+              }
+            }
+          </script>
+        </body>`
+      );
+
+      printWindow.document.write(enhancedBillHTML);
       printWindow.document.close();
-      
-      // Wait a moment for rendering then print
-      setTimeout(() => {
-        printWindow.print();
-      }, 1000);
-      
-      logger.log('Print bill with proper receipt format:', bill);
+
+      logger.log('Print bill with email functionality:', bill);
     };
   };
 

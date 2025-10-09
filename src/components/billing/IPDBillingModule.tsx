@@ -528,31 +528,275 @@ const IPDBillingModule: React.FC = () => {
 
     logger.log('📄 Debug - Final receiptData.charges:', receiptData.charges);
 
-    // Create temporary container for printing
-    const printContainer = document.createElement('div');
-    printContainer.style.position = 'fixed';
-    printContainer.style.top = '0';
-    printContainer.style.left = '0';
-    printContainer.style.width = '100%';
-    printContainer.style.height = '100%';
-    printContainer.style.zIndex = '9999';
-    printContainer.style.backgroundColor = 'white';
-    document.body.appendChild(printContainer);
+    // Create temporary container for rendering receipt HTML
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    document.body.appendChild(tempContainer);
 
-    // Render the ReceiptTemplate
-    const root = createRoot(printContainer);
+    // Render the ReceiptTemplate to HTML
+    const root = createRoot(tempContainer);
     root.render(<ReceiptTemplate data={receiptData} />);
 
-    // Wait for render and then print
+    // Wait for rendering
     setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        root.unmount();
-        document.body.removeChild(printContainer);
-      }, 100);
-    }, 100);
+      const receiptHTML = tempContainer.innerHTML;
+      root.unmount();
+      document.body.removeChild(tempContainer);
 
-    toast.success(`Printing IPD bill ${billId}`);
+      // Create print content with email functionality
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>IPD Bill - ${bill.billId}</title>
+            <style>
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              body {
+                font-family: Arial, sans-serif;
+                padding: 0;
+                margin: 0;
+              }
+
+              /* Print buttons */
+              .print-buttons {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              .btn {
+                padding: 8px 16px;
+                margin: 0 5px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              }
+              .btn-primary {
+                background-color: #0056b3;
+                color: white;
+              }
+              .btn-success {
+                background-color: #28a745;
+                color: white;
+              }
+              .btn-secondary {
+                background-color: #6c757d;
+                color: white;
+              }
+              .btn:hover {
+                opacity: 0.8;
+              }
+              .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+              }
+
+              /* Print styles */
+              @media print {
+                @page {
+                  margin: 0.5in;
+                  size: A4;
+                }
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                .print-buttons {
+                  display: none !important;
+                }
+                .receipt-template {
+                  page-break-before: always;
+                  background: white !important;
+                  padding: 20px !important;
+                }
+                body * {
+                  visibility: hidden;
+                }
+                .receipt-template, .receipt-template * {
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                }
+                .receipt-template {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="print-buttons">
+              <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+              <button class="btn btn-success" onclick="showEmailModal()">📧 Send Email</button>
+              <button class="btn btn-secondary" onclick="window.close()">Close</button>
+            </div>
+
+            <!-- Email Modal -->
+            <div id="emailModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+              <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%;">
+                <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">Send IPD Bill via Email</h3>
+                <input
+                  type="email"
+                  id="emailInput"
+                  placeholder="Enter email address"
+                  style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; font-size: 14px;"
+                  value="${patientDetails?.email || ''}"
+                />
+                <div id="emailStatus" style="margin-bottom: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                  <button class="btn btn-secondary" onclick="hideEmailModal()">Cancel</button>
+                  <button class="btn btn-success" onclick="sendEmailWithPDF()" id="sendBtn">Send Email</button>
+                </div>
+              </div>
+            </div>
+
+            ${receiptHTML}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+            <script>
+              window.focus();
+
+              function showEmailModal() {
+                document.getElementById('emailModal').style.display = 'flex';
+                document.getElementById('emailInput').focus();
+              }
+
+              function hideEmailModal() {
+                document.getElementById('emailModal').style.display = 'none';
+                document.getElementById('emailStatus').style.display = 'none';
+              }
+
+              function showStatus(message, isError) {
+                const statusEl = document.getElementById('emailStatus');
+                statusEl.textContent = message;
+                statusEl.style.display = 'block';
+                statusEl.style.backgroundColor = isError ? '#fee' : '#efe';
+                statusEl.style.color = isError ? '#c00' : '#060';
+                statusEl.style.border = '1px solid ' + (isError ? '#fcc' : '#cfc');
+              }
+
+              async function sendEmailWithPDF() {
+                const email = document.getElementById('emailInput').value.trim();
+                if (!email || !email.includes('@')) {
+                  showStatus('Please enter a valid email address', true);
+                  return;
+                }
+
+                const sendBtn = document.getElementById('sendBtn');
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
+                showStatus('Generating PDF...', false);
+
+                try {
+                  // Get the receipt element
+                  const receiptEl = document.querySelector('.receipt-template');
+                  if (!receiptEl) throw new Error('Receipt not found');
+
+                  // Generate canvas from receipt
+                  const canvas = await html2canvas(receiptEl, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    windowWidth: 800,
+                    windowHeight: receiptEl.scrollHeight
+                  });
+
+                  showStatus('Converting to PDF...', false);
+
+                  // Create PDF
+                  const { jsPDF } = window.jspdf;
+                  const imgWidth = 210;
+                  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                  const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                  });
+
+                  const imgData = canvas.toDataURL('image/png');
+                  pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                  const pdfBase64 = pdf.output('datauristring').split(',')[1];
+
+                  showStatus('Sending email...', false);
+
+                  // Send email via Edge Function
+                  const response = await fetch('https://oghqwddhojnryovmfvzc.supabase.co/functions/v1/send-email', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9naHF3ZGRob2pucnlvdm1mdnpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMTQ1NDEsImV4cCI6MjA2ODY5MDU0MX0.NVvYQFtqIg8OV-vvkAhCNFC_uMC1SBJDSKcLHRjf5w0',
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      to: email,
+                      subject: 'IPD Bill #${bill.billId} - Valant Hospital',
+                      html: \`
+                        <!DOCTYPE html>
+                        <html>
+                        <head><meta charset="utf-8"></head>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                          <h2>Dear ${bill.patientName},</h2>
+                          <p>Thank you for choosing Valant Hospital. Please find your IPD bill attached.</p>
+                          <p><strong>Bill Number:</strong> ${bill.billId}</p>
+                          <p><strong>Admission Date:</strong> ${new Date(bill.admissionDate).toLocaleDateString('en-IN')}</p>
+                          <p><strong>Discharge Date:</strong> ${new Date(bill.dischargeDate).toLocaleDateString('en-IN')}</p>
+                          <p>Best regards,<br><strong>Valant Hospital Team</strong></p>
+                        </body>
+                        </html>
+                      \`,
+                      from: 'onboarding@resend.dev',
+                      fromName: 'Valant Hospital',
+                      attachments: [{
+                        filename: 'IPD_Bill_${bill.billId}.pdf',
+                        content: pdfBase64
+                      }]
+                    })
+                  });
+
+                  const result = await response.json();
+
+                  if (result.success) {
+                    showStatus('✅ Email sent successfully to ' + email, false);
+                    setTimeout(() => hideEmailModal(), 2000);
+                  } else {
+                    throw new Error(result.error || 'Failed to send email');
+                  }
+                } catch (error) {
+                  console.error('Email error:', error);
+                  showStatus('❌ Failed: ' + error.message, true);
+                } finally {
+                  sendBtn.disabled = false;
+                  sendBtn.textContent = 'Send Email';
+                }
+              }
+            </script>
+          </body>
+          </html>
+      `;
+
+      // Open in new window
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        toast.success(`IPD Bill opened in new window`);
+      } else {
+        toast.error('Please allow popups to print bills');
+      }
+    }, 100);
   };
 
   const handleDownloadIPDBill = (billId: string) => {
@@ -781,6 +1025,13 @@ const IPDBillingModule: React.FC = () => {
             <option value="PENDING">Pending</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
+          <button
+            onClick={handlePrintBillList}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2 transition-colors whitespace-nowrap"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Print Bill List</span>
+          </button>
         </div>
       </div>
 
