@@ -67,17 +67,15 @@ const NewIPDBillingModule: React.FC = () => {
   // Main state for showing/hiding the IPD bill creation form
   const [showCreateBill, setShowCreateBill] = useState(false);
   const [editingBill, setEditingBill] = useState<any>(null);
-  
+  const [activeSection, setActiveSection] = useState<'bill' | 'deposit'>('bill');
+
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [billingDate, setBillingDate] = useState(getLocalDateString());
 
   const [wardCategory, setWardCategory] = useState('Emergency');
-  
-  // Section navigation states
-  const [activeSection, setActiveSection] = useState<'deposit' | 'billing'>('deposit');
-  
+
   // Patient search states
   const [patientSearchTerm, setPatientSearchTerm] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
@@ -674,30 +672,6 @@ const NewIPDBillingModule: React.FC = () => {
   ).slice(0, 10);
 
   // Deposit management functions
-  const addDeposit = () => {
-    if (newDepositAmount && parseFloat(newDepositAmount) > 0) {
-      const newDeposit = {
-        receiptNo: `ADV-${Date.now()}-${depositHistory.length + 1}`,
-        date: (billingDate || getLocalDateString()) + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        amount: parseFloat(newDepositAmount),
-        paymentMode: newDepositMode,
-        reference: newDepositReference || '-',
-        receivedBy: newDepositReceivedBy || 'System',
-        timestamp: Date.now()
-      };
-
-      setDepositHistory([...depositHistory, newDeposit]);
-      setAdvancePayments(prev => prev + parseFloat(newDepositAmount));
-      
-      // Reset form
-      setNewDepositAmount('');
-      setNewDepositReference('');
-      setNewDepositReceivedBy('');
-      
-      // You can add toast notification here
-    }
-  };
-
   // List of insurance payers
   const payersList = [
     'TATA AIG HEALTH INSURANCE',
@@ -1216,7 +1190,8 @@ const NewIPDBillingModule: React.FC = () => {
             patient_id,
             first_name,
             last_name,
-            assigned_doctor
+            assigned_doctor,
+            ipd_number
           )
         `)
         .not('patient_id', 'is', null); // Get all beds that have patients, regardless of status
@@ -1264,7 +1239,7 @@ const NewIPDBillingModule: React.FC = () => {
             bed_number: bed.bed_number,
             room_type: bed.room_type,
             admission_date: bed.admission_date,
-            ipd_number: bed.ipd_number,
+            ipd_number: bed.ipd_number || bed.patients?.ipd_number, // ✅ FIX: Fallback to patient's ipd_number if bed's is cleared
             assigned_doctor: bed.patients?.assigned_doctor
           };
 
@@ -1326,11 +1301,15 @@ const NewIPDBillingModule: React.FC = () => {
             ...transaction,
             patients: {
               ...transaction.patients,
-              // Enrich with bed information
+              // Enrich with bed information and admissions data
               ipd_bed_number: bedInfo?.bed_number || transaction.patients?.ipd_bed_number,
               room_type: bedInfo?.room_type || transaction.patients?.room_type,
               admission_date: bedInfo?.admission_date || transaction.patients?.admission_date,
-              ipd_number: bedInfo?.ipd_number || transaction.patients?.ipd_number,
+              // ✅ FIX: Try multiple sources for IPD number
+              ipd_number: bedInfo?.ipd_number ||
+                         transaction.patients?.ipd_number ||
+                         transaction.patients?.admissions?.[0]?.ipd_number ||
+                         'N/A',
               assigned_doctor: bedInfo?.assigned_doctor || transaction.patients?.assigned_doctor
             },
             // Add display type for UI - check description for IPD bills
@@ -1368,13 +1347,19 @@ const NewIPDBillingModule: React.FC = () => {
           const dateB = b.transaction_date || b.created_at;
           return new Date(dateB).getTime() - new Date(dateA).getTime();
         });
-        
-        setIpdBills([...enrichedTransactions]); // Include both bills and deposits
-        const ipdBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]')).length;
-        const serviceBillCount = enrichedTransactions.filter(t => t.transaction_type === 'SERVICE' && !t.description?.includes('[IPD_BILL]')).length;
+
+        // Filter out deposit transactions - they belong in the Deposit Module only
+        const billsOnly = enrichedTransactions.filter(t =>
+          t.transaction_type === 'SERVICE' &&
+          !['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(t.transaction_type)
+        );
+
+        setIpdBills([...billsOnly]); // Only include SERVICE bills, exclude deposits
+        const ipdBillCount = billsOnly.filter(t => t.description?.includes('[IPD_BILL]')).length;
+        const serviceBillCount = billsOnly.filter(t => !t.description?.includes('[IPD_BILL]')).length;
         const depositCount = enrichedTransactions.filter(t => ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'].includes(t.transaction_type)).length;
-        
-        logger.log('📋 Final transaction counts:', { ipdBillCount, serviceBillCount, depositCount });
+
+        logger.log('📋 Final transaction counts:', { ipdBillCount, serviceBillCount, depositCount, depositsSeparated: depositCount });
       } else {
         logger.log('ℹ️ No IPD transactions found');
         setIpdBills([]);
@@ -3145,10 +3130,84 @@ Description: ${bill.description || 'N/A'}
 
 
   // Handler for Print Bill button with exact ReceiptTemplate format
-  const handlePrintBill = (bill: any) => {
+  const handlePrintBill = async (bill: any) => {
 
     logger.log('🚨🚨🚨 PRINT BILL FUNCTION CALLED 🚨🚨🚨');
     logger.log('🚨 RAW BILL OBJECT:', bill);
+
+    // 🔍 ENHANCEMENT: Fetch discharge date if patient has been discharged
+    if (bill.patients?.id && bill.patients?.ipd_status === 'DISCHARGED') {
+      try {
+        // Try to get discharge date from patient_admissions table
+        const { data: admissionData, error: admissionError } = await supabase
+          .from('patient_admissions')
+          .select('discharge_date, updated_at, status')
+          .eq('patient_id', bill.patients.id)
+          .eq('status', 'DISCHARGED')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!admissionError && admissionData?.discharge_date) {
+          bill.patients.discharge_date = admissionData.discharge_date;
+          logger.log('✅ Fetched discharge date from admissions:', admissionData.discharge_date);
+        } else if (!admissionError && admissionData?.updated_at) {
+          // Use updated_at as fallback
+          bill.patients.discharge_date = admissionData.updated_at;
+          logger.log('✅ Using admission updated_at as discharge date:', admissionData.updated_at);
+        }
+
+        // Also try to get from discharge_summaries table as alternative
+        if (!bill.patients.discharge_date) {
+          const { data: dischargeSummary, error: summaryError } = await supabase
+            .from('discharge_summaries')
+            .select('created_at, discharge_date')
+            .eq('patient_id', bill.patients.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!summaryError && dischargeSummary) {
+            bill.patients.discharge_date = dischargeSummary.discharge_date || dischargeSummary.created_at;
+            logger.log('✅ Fetched discharge date from discharge_summaries:', bill.patients.discharge_date);
+          }
+        }
+      } catch (error) {
+        logger.error('❌ Error fetching discharge date:', error);
+      }
+    }
+
+    // 🔍 ENHANCEMENT: Fetch ipd_number if missing from patient admissions
+    if (bill.patients?.id && (!bill.patients?.ipd_number || bill.patients?.ipd_number === 'N/A')) {
+      try {
+        const { data: admissionData, error: admissionError } = await supabase
+          .from('patient_admissions')
+          .select('ipd_number')
+          .eq('patient_id', bill.patients.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!admissionError && admissionData?.ipd_number) {
+          bill.patients.ipd_number = admissionData.ipd_number;
+          logger.log('✅ Fetched ipd_number from patient_admissions:', admissionData.ipd_number);
+        } else {
+          // Fallback: try to get ipd_number from patients table directly
+          const { data: patientData, error: patientError } = await supabase
+            .from('patients')
+            .select('ipd_number')
+            .eq('id', bill.patients.id)
+            .single();
+
+          if (!patientError && patientData?.ipd_number) {
+            bill.patients.ipd_number = patientData.ipd_number;
+            logger.log('✅ Fetched ipd_number from patients table:', patientData.ipd_number);
+          }
+        }
+      } catch (error) {
+        logger.error('❌ Error fetching ipd_number:', error);
+      }
+    }
 
     // 🔍 DEBUG: Check patient data available for printing
     logger.log('🖨️ PRINT BILL DEBUG - Patient data available:', {
@@ -4757,27 +4816,49 @@ Description: ${bill.description || 'N/A'}
           }
         }
       `}</style>
-      {/* Initial IPD Billing List Interface */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-lg shadow-sm border mb-6">
+        <div className="flex border-b">
+          <button
+            onClick={() => setActiveSection('bill')}
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+              activeSection === 'bill'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <span className="text-2xl">📋</span>
+              <span className="text-lg">IPD Billing</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveSection('deposit')}
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+              activeSection === 'deposit'
+                ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <span className="text-2xl">💰</span>
+              <span className="text-lg">Deposit Management</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* IPD Billing Section */}
+      {activeSection === 'bill' && (
+        <>
+          {/* Initial IPD Billing List Interface */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
           <p className="text-gray-600">Manage inpatient department bills</p>
         </div>
         <div className="flex space-x-2">
-          <button
-            onClick={() => {
-
-              if (selectedPatient) {
-                handleAddDeposit();
-              } else {
-                setShowPatientModal(true);
-              }
-            }}
-            className="mt-4 md:mt-0 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Deposit</span>
-          </button>
           <button
             onClick={() => {
               resetForm();
@@ -5005,9 +5086,18 @@ Description: ${bill.description || 'N/A'}
                             Admitted: {selectedPatient.admissions?.[0]?.admission_date ? new Date(selectedPatient.admissions[0].admission_date).toLocaleDateString() : 'N/A'}
                           </p>
                         </div>
-                        <div className="text-right text-sm">
-                          <div className="text-green-600 font-medium">Deposits: ₹{advancePayments.toFixed(2)}</div>
-                          <div className="text-red-600 font-medium">Due: ₹{summary.netPayable.toFixed(2)}</div>
+                        <div className="text-right flex items-center space-x-4">
+                          <div className="text-sm">
+                            <div className="text-green-600 font-medium">Deposits: ₹{advancePayments.toFixed(2)}</div>
+                            <div className="text-red-600 font-medium">Due: ₹{summary.netPayable.toFixed(2)}</div>
+                          </div>
+                          <button
+                            onClick={() => setShowAddDepositModal(true)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors shadow-md font-semibold"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Create Deposit</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -5122,36 +5212,8 @@ Description: ${bill.description || 'N/A'}
                   </div>
                 )}
 
-                {/* Billing Sections - Hidden when editing */}
+                {/* IPD Billing Format with Enhanced UI */}
                 {!editingBill && (
-                  <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
-                      <button
-                        onClick={() => setActiveSection('billing')}
-                        className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                          activeSection === 'billing'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        Create Bill
-                      </button>
-                      <button
-                        onClick={() => setActiveSection('deposit')}
-                        className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                          activeSection === 'deposit'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        Payment History
-                      </button>
-                    </nav>
-                  </div>
-                )}
-
-                {/* Original IPD Billing Format with Enhanced UI */}
-                {(activeSection === 'billing' || editingBill) && (
                   <div className="space-y-6">
                     {/* Billing Header */}
                     <div className="flex items-center justify-between">
@@ -5774,141 +5836,206 @@ Description: ${bill.description || 'N/A'}
                   </div>
                 )}
 
-                {/* Enhanced Deposit History Section - Hidden when editing */}
-                {activeSection === 'deposit' && !editingBill && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-lg font-semibold text-gray-800">Advance Deposit Management</h4>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-medium text-gray-700">Date:</label>
-                          <input 
-                            type="date" 
-                            value={billingDate}
-                            onChange={(e) => setBillingDate(e.target.value)}
-                            className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
-                          />
-                        </div>
-                        <button
-                          onClick={() => {
-                            handleAddDeposit();
-                          }}
-                          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
-                          + Add New Deposit
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Deposit Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                        <div className="text-sm font-medium text-green-700">Total Deposits</div>
-                        <div className="text-xl font-bold text-green-800">₹{advancePayments.toFixed(2)}</div>
-                      </div>
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <div className="text-sm font-medium text-blue-700">Number of Deposits</div>
-                        <div className="text-xl font-bold text-blue-800">{depositHistory.length}</div>
-                      </div>
-                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                        <div className="text-sm font-medium text-purple-700">Latest Deposit</div>
-                        <div className="text-xl font-bold text-purple-800">
-                          ₹{depositHistory.length > 0 ? depositHistory[depositHistory.length - 1]?.amount || '0.00' : '0.00'}
-                        </div>
-                      </div>
-                      <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                        <div className="text-sm font-medium text-orange-700">Available Balance</div>
-                        <div className="text-xl font-bold text-orange-800">₹{Math.max(0, advancePayments - summary.netPayable).toFixed(2)}</div>
-                      </div>
-                    </div>
-
-                    {/* Deposit History Table */}
-                    {depositHistory.length > 0 ? (
-                      <div className="bg-white rounded-lg border overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b">
-                          <h5 className="font-medium text-gray-800">Payment History</h5>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt No</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Mode</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received By</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {depositHistory.map((deposit, index) => (
-                                <tr key={index} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 text-sm font-mono">{deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`}</td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <div>{deposit.date || new Date().toLocaleDateString('en-IN')}</div>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm font-semibold text-green-600">₹{deposit.amount || '0.00'}</td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                      {deposit.paymentMode || 'CASH'}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-gray-600">{deposit.reference || '-'}</td>
-                                  <td className="px-4 py-3 text-sm">{deposit.receivedBy || 'System'}</td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <div className="flex space-x-2">
-                                      <button
-                                        onClick={() => handleEditDeposit(deposit)}
-                                        className="text-orange-600 hover:text-orange-800 text-xs font-medium">
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => handleViewReceipt(deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`)}
-                                        className="text-blue-600 hover:text-blue-800 text-xs">View Receipt</button>
-                                      <button
-                                        onClick={() => handlePrintReceipt(deposit.receiptNo || `ADV-${Date.now()}-${index + 1}`)}
-                                        className="text-green-600 hover:text-green-800 text-xs">Print</button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50 rounded-lg p-8 text-center">
-                        <div className="text-gray-500 mb-2">No advance payments recorded yet</div>
-                        <div className="text-sm text-gray-400">Use the form above to record the first advance payment</div>
-                      </div>
-                    )}
-
-                    {/* Deposit Actions */}
-                    <div className="flex justify-between items-center">
-                      <div className="text-sm text-gray-600">
-                        All deposit transactions are recorded with timestamps and receipt numbers
-                      </div>
-                      <div className="flex space-x-3">
-                        <button 
-                          onClick={handleExportHistory}
-                          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors">
-                          Export History
-                        </button>
-                        <button 
-                          onClick={handlePrintSummary}
-                          className="px-4 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors">
-                          Print Summary
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
       )}
-      
+        </>
+      )}
+
+      {/* Deposit Management Section */}
+      {activeSection === 'deposit' && (
+        <>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg shadow-md border-2 border-green-200">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900">💰 Deposit Management</h2>
+              <p className="text-lg text-gray-700 mt-1">Manage patient advance deposits and payments</p>
+            </div>
+            <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+              <button
+                onClick={handleExportHistory}
+                disabled={!selectedPatient || depositHistory.length === 0}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-semibold text-base"
+              >
+                <span>📊 Export CSV</span>
+              </button>
+              <button
+                onClick={handlePrintSummary}
+                disabled={!selectedPatient || depositHistory.length === 0}
+                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-semibold text-base"
+              >
+                <Printer className="h-5 w-5" />
+                <span>Print Summary</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (!selectedPatient) {
+                    toast.error('Please select a patient first');
+                    return;
+                  }
+                  setShowAddDepositModal(true);
+                }}
+                className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-bold text-lg border-2 border-green-400"
+              >
+                <Plus className="h-6 w-6" />
+                <span>CREATE DEPOSIT</span>
+              </button>
+            </div>
+          </div>
+
+      {/* Deposit Search and Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Search by patient name, ID, or receipt number..."
+              value={patientSearchTerm}
+              onChange={(e) => setPatientSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <button
+            onClick={() => setShowPatientModal(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 transition-colors whitespace-nowrap"
+          >
+            <Search className="h-4 w-4" />
+            <span>Select Patient</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Deposits Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        {!selectedPatient ? (
+          <div className="text-center py-16 bg-gray-50">
+            <div className="text-6xl mb-4">💰</div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Patient Selected</h3>
+            <p className="text-gray-600 mb-4">Please select a patient to view and manage their deposits</p>
+            <button
+              onClick={() => setShowPatientModal(true)}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center space-x-2 transition-colors"
+            >
+              <Search className="h-5 w-5" />
+              <span>Select Patient</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Selected Patient Info */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-800">
+                    {selectedPatient.first_name} {selectedPatient.last_name}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Patient ID: {selectedPatient.patient_id} | Phone: {selectedPatient.phone} | Age: {selectedPatient.age} | Gender: {selectedPatient.gender}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">₹{advancePayments.toFixed(2)}</div>
+                  <div className="text-xs text-gray-600">Total Deposits ({depositHistory.length})</div>
+                </div>
+              </div>
+            </div>
+
+            {depositHistory.length === 0 ? (
+              <div className="text-center py-16 bg-gray-50">
+                <div className="text-6xl mb-4">📋</div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Deposits Found</h3>
+                <p className="text-gray-600 mb-4">This patient has no advance deposits recorded</p>
+                <button
+                  onClick={() => setShowAddDepositModal(true)}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center space-x-2 transition-colors"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Create First Deposit</span>
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt No</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Mode</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {depositHistory.map((deposit, index) => (
+                      <tr key={deposit.id || index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{deposit.receiptNo}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{deposit.date}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-green-600">₹{deposit.amount?.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{deposit.paymentMode || 'CASH'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{deposit.reference || '-'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => handleViewReceipt(deposit.receiptNo)}
+                              className="text-blue-600 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-50 transition-colors text-xs"
+                              title="View Receipt"
+                            >
+                              View
+                            </button>
+                            <button
+                              onClick={() => handlePrintReceipt(deposit.receiptNo)}
+                              className="text-green-600 hover:text-green-900 px-2 py-1 rounded hover:bg-green-50 transition-colors text-xs flex items-center space-x-1"
+                              title="Print Receipt"
+                            >
+                              <Printer className="h-3 w-3" />
+                              <span>Print</span>
+                            </button>
+                            <button
+                              onClick={() => handleEditDeposit(deposit)}
+                              className="text-orange-600 hover:text-orange-900 px-2 py-1 rounded hover:bg-orange-50 transition-colors text-xs"
+                              title="Edit Deposit"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete deposit ${deposit.receiptNo}?`)) {
+                                  deleteAdvancePayment(deposit.id);
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-900 px-2 py-1 rounded hover:bg-red-50 transition-colors text-xs"
+                              title="Delete Deposit"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td colSpan={2} className="px-4 py-3 text-sm font-bold text-gray-700">
+                        Total Deposits ({depositHistory.length})
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-green-700">
+                        ₹{advancePayments.toFixed(2)}
+                      </td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+        </>
+      )}
+
       {/* Patient Modal */}
       {showPatientModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -6187,251 +6314,202 @@ Description: ${bill.description || 'N/A'}
         </div>
       </div>
 
-      {/* Add Deposit Modal */}
+
+      {/* Other modals can be added here as needed */}
+
+      {/* Create Deposit Modal */}
       {showAddDepositModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Add New Deposit</h3>
-            
-            {selectedPatient && (
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-gray-700">
-                  <strong>Patient:</strong> {selectedPatient.first_name} {selectedPatient.last_name || ''}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>ID:</strong> {selectedPatient.patient_id}
-                </p>
-              </div>
-            )}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Create New Deposit</h3>
+              <button
+                onClick={() => setShowAddDepositModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Deposit Amount (₹)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
                 <input
                   type="number"
                   value={newPaymentAmount}
                   onChange={(e) => setNewPaymentAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter amount"
-                  min="0"
-                  step="0.01"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Deposit Date * (Auto-synced with billing date)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
                 <input
                   type="date"
                   value={newPaymentDate}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700"
+                  onChange={(e) => setNewPaymentDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  This date automatically syncs with the billing date you select above. Change the billing date to update this.
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Mode
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode *</label>
                 <select
                   value={newPaymentMode}
                   onChange={(e) => setNewPaymentMode(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="Cash">Cash</option>
-                  <option value="Card">Card</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
                   <option value="UPI">UPI</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cheque">Cheque</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CHEQUE">Cheque</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reference No. (Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number</label>
                 <input
                   type="text"
                   value={referenceNo}
                   onChange={(e) => setReferenceNo(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Transaction ID or reference"
+                  placeholder="Transaction/Cheque reference"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Received By (Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Received By</label>
                 <input
                   type="text"
                   value={receivedBy}
                   onChange={(e) => setReceivedBy(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Staff member name"
+                  placeholder="Staff name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
+            </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowAddDepositModal(false);
-                    setNewPaymentAmount('');
-                    setNewPaymentMode('Cash');
-                    setNewPaymentDate('');
-                    setReferenceNo('');
-                    setReceivedBy('');
-                  }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    logger.log('🔥 SAVE BUTTON CLICKED - CURRENT STATE:', {
-                      'newPaymentAmount': newPaymentAmount,
-                      'newPaymentDate': newPaymentDate,
-                      'newPaymentMode': newPaymentMode,
-                      'billingDate': billingDate,
-                      'selectedPatient': selectedPatient?.first_name
-                    });
-                    handleSaveDeposit();
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Save Deposit
-                </button>
-              </div>
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAddDepositModal(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addAdvancePayment}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              >
+                Save Deposit
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Edit Deposit Modal */}
-      {showEditDepositModal && editingDeposit && (
+      {showEditDepositModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Edit Deposit</h3>
-                <button
-                  onClick={handleCancelEditDeposit}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Edit Deposit</h3>
+              <button
+                onClick={() => {
+                  setShowEditDepositModal(false);
+                  setEditingDeposit(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
+                <input
+                  type="number"
+                  value={editDepositAmount}
+                  onChange={(e) => setEditDepositAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                />
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Receipt No.
-                  </label>
-                  <input
-                    type="text"
-                    value={editingDeposit.receiptNo}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount *
-                  </label>
-                  <input
-                    type="number"
-                    value={editDepositAmount}
-                    onChange={(e) => setEditDepositAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={editDepositDate}
-                    onChange={(e) => setEditDepositDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Mode *
-                  </label>
-                  <select
-                    value={editDepositPaymentMode}
-                    onChange={(e) => setEditDepositPaymentMode(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="CASH">Cash</option>
-                    <option value="CARD">Card</option>
-                    <option value="UPI">UPI</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                    <option value="CHEQUE">Cheque</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Reference No. (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={editDepositReference}
-                    onChange={(e) => setEditDepositReference(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Transaction ID or reference"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Received By
-                  </label>
-                  <input
-                    type="text"
-                    value={editDepositReceivedBy}
-                    onChange={(e) => setEditDepositReceivedBy(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Staff member name"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                <input
+                  type="date"
+                  value={editDepositDate}
+                  onChange={(e) => setEditDepositDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-6">
-                <button
-                  onClick={handleCancelEditDeposit}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode *</label>
+                <select
+                  value={editDepositPaymentMode}
+                  onChange={(e) => setEditDepositPaymentMode(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateDeposit}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-                >
-                  Update Deposit
-                </button>
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CHEQUE">Cheque</option>
+                </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number</label>
+                <input
+                  type="text"
+                  value={editDepositReference}
+                  onChange={(e) => setEditDepositReference(e.target.value)}
+                  placeholder="Transaction/Cheque reference"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Received By</label>
+                <input
+                  type="text"
+                  value={editDepositReceivedBy}
+                  onChange={(e) => setEditDepositReceivedBy(e.target.value)}
+                  placeholder="Staff name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowEditDepositModal(false);
+                  setEditingDeposit(null);
+                }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateDeposit}
+                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+              >
+                Update Deposit
+              </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Other modals can be added here as needed */}
     </div>
   );
 };

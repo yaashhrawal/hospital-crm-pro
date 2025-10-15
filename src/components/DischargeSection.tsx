@@ -71,6 +71,7 @@ const DischargeSection: React.FC = () => {
 
               return {
                 ...patientData,
+                ipd_number: admission.ipd_number || patientData?.ipd_number || 'N/A', // ✅ FIX: Get IPD number from admission or patient
                 discharge_date: admission.updated_at,
                 discharge_summary: dischargeSummary,
                 admission_duration: admissionDuration,
@@ -93,6 +94,7 @@ const DischargeSection: React.FC = () => {
 
               return {
                 ...patientData,
+                ipd_number: admission.ipd_number || patientData?.ipd_number || 'N/A', // ✅ FIX: Get IPD number from admission or patient
                 discharge_date: admission.updated_at || admission.created_at,
                 admission_duration: 'Unknown',
                 final_diagnosis: 'Not specified',
@@ -131,6 +133,7 @@ const DischargeSection: React.FC = () => {
               
               allDischargedPatients.push({
                 ...patient,
+                ipd_number: latestDischarge?.ipd_number || patient.ipd_number || 'N/A', // ✅ FIX: Get IPD number from discharge or patient
                 discharge_date: latestDischarge?.created_at || patient.updated_at || patient.created_at,
                 discharge_summary: latestDischarge,
                 admission_duration: 'Unknown',
@@ -142,6 +145,7 @@ const DischargeSection: React.FC = () => {
               // Add patient without discharge details
               allDischargedPatients.push({
                 ...patient,
+                ipd_number: patient.ipd_number || 'N/A', // ✅ FIX: Get IPD number from patient
                 discharge_date: patient.updated_at || patient.created_at,
                 admission_duration: 'Unknown',
                 final_diagnosis: 'Not specified',
@@ -499,27 +503,28 @@ const DischargeSection: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('name')}
                   >
                     Patient {getSortIcon('name')}
                   </th>
+                  <th className="text-left p-4 font-semibold text-gray-700">IPD No.</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('discharge_date')}
                   >
                     Discharge Date {getSortIcon('discharge_date')}
                   </th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('duration')}
                   >
                     Stay Duration {getSortIcon('duration')}
                   </th>
                   <th className="text-left p-4 font-semibold text-gray-700">Final Diagnosis</th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('bill_amount')}
                   >
@@ -546,6 +551,11 @@ const DischargeSection: React.FC = () => {
                         <div className="text-sm text-gray-500">
                           {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
                         </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-medium text-blue-600">
+                        {patient.ipd_number || 'N/A'}
                       </div>
                     </td>
                     <td className="p-4">
