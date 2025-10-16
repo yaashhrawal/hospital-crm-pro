@@ -3,11 +3,12 @@ import toast from 'react-hot-toast';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import HospitalService from '../services/hospitalService';
+import SMSService from '../services/smsService';
 import type { CreatePatientData, CreateTransactionData, AssignedDoctor } from '../config/supabaseNew';
-import { 
-  User, 
-  Stethoscope, 
-  CreditCard, 
+import {
+  User,
+  Stethoscope,
+  CreditCard,
   Calendar,
   ChevronRight,
   Check,
@@ -124,6 +125,8 @@ const NewFlexiblePatientEntry: React.FC = () => {
     appointment_duration: 30,
     appointment_cost: 500,
     appointment_notes: '',
+    // SMS notification option
+    send_sms: false,
   });
 
   const [loading, setLoading] = useState(false);
@@ -715,6 +718,40 @@ const NewFlexiblePatientEntry: React.FC = () => {
         toast.success(`Patient draft saved! ${newPatient.first_name} ${newPatient.last_name}`);
       } else {
         toast.success(`Patient registered successfully! ${newPatient.first_name} ${newPatient.last_name} - Total: ₹${totalAmount.toFixed(2)}`);
+
+        // Send SMS if enabled
+        if (formData.send_sms && formData.phone) {
+          try {
+            const patientFullName = `${formData.prefix} ${formData.first_name} ${formData.last_name}`;
+            const formattedDate = formData.date_of_entry
+              ? new Date(formData.date_of_entry).toLocaleDateString('en-IN')
+              : new Date().toLocaleDateString('en-IN');
+            const doctorName = formData.consultation_mode === 'single'
+              ? (formData.selected_doctor === 'CUSTOM' ? formData.custom_doctor_name : formData.selected_doctor)
+              : (selectedDoctors.length > 0 ? selectedDoctors[0].doctorName : 'Doctor');
+            const departmentName = formData.consultation_mode === 'single'
+              ? (formData.selected_department === 'CUSTOM' ? formData.custom_department_name : formData.selected_department)
+              : (selectedDoctors.length > 0 ? selectedDoctors[0].department : 'General');
+
+            const smsResult = await SMSService.sendRegistrationConfirmation(
+              newPatient.id,
+              patientFullName,
+              formData.phone,
+              newPatient.patient_id,
+              formattedDate,
+              doctorName,
+              departmentName
+            );
+
+            if (smsResult.success) {
+              toast.success('SMS confirmation sent successfully!');
+            } else if (smsResult.error && smsResult.error !== 'SMS service not configured') {
+              toast.error('Failed to send SMS confirmation');
+            }
+          } catch (smsError) {
+            console.error('SMS sending error:', smsError);
+          }
+        }
       }
       
       // Refresh patient list to include the new patient in search results
@@ -768,6 +805,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
         appointment_duration: 30,
         appointment_cost: 500,
         appointment_notes: '',
+        send_sms: false,
       });
 
       setSelectedDoctors([]);
@@ -1991,7 +2029,7 @@ const NewFlexiblePatientEntry: React.FC = () => {
                   <h2 style={{ fontSize: '24px', color: '#0056B3', fontWeight: '600' }}>Appointment Management</h2>
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-4 space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -2002,6 +2040,19 @@ const NewFlexiblePatientEntry: React.FC = () => {
                     />
                     <span style={{ fontSize: '14px', color: '#333333', fontWeight: '500' }}>
                       Schedule an appointment
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.send_sms}
+                      onChange={(e) => setFormData({ ...formData, send_sms: e.target.checked })}
+                      style={{ accentColor: '#0056B3' }}
+                      className="w-5 h-5"
+                    />
+                    <span style={{ fontSize: '14px', color: '#333333', fontWeight: '500' }}>
+                      Send SMS confirmation to patient
                     </span>
                   </label>
                 </div>

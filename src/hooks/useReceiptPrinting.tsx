@@ -5,6 +5,7 @@ import type { ReceiptData } from '../components/receipts/ReceiptTemplate';
 import HospitalService from '../services/hospitalService';
 import { supabase } from '../config/supabaseNew';
 
+// Hook for printing receipts with proper discount handling
 export const useReceiptPrinting = () => {
   // Default hospital information
   const DEFAULT_HOSPITAL_INFO = {
@@ -83,8 +84,89 @@ export const useReceiptPrinting = () => {
           .select('*')
           .eq('id', transactionId)
           .single();
-        
+
         if (!error) transaction = data;
+      }
+
+      // Calculate original amount and discount if transaction exists (SAME LOGIC AS ComprehensivePatientList.tsx)
+      let originalAmount = transaction?.amount || 500;
+      let discountAmount = 0;
+      let discountPercentage = 0;
+
+      if (transaction) {
+        const description = transaction.description || transaction.transaction_type;
+
+        if (transaction.discount_value && transaction.discount_value > 0) {
+          if (transaction.discount_type === 'PERCENTAGE') {
+            discountPercentage = transaction.discount_value;
+
+            // Handle 100% discount case
+            if (transaction.discount_value >= 100) {
+              // For 100% discount, we need to extract original amount from description
+              const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+              const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+              if (originalFeeMatch) {
+                originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+              } else if (originalMatch) {
+                originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+              } else {
+                // If not in description, we can't calculate it from amount (0/0 = NaN)
+                originalAmount = 0;
+              }
+              discountAmount = originalAmount;
+            } else {
+              // For percentage discount < 100%, calculate original amount from net amount
+              originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+              discountAmount = originalAmount - Math.abs(transaction.amount);
+            }
+          } else if (transaction.discount_type === 'AMOUNT') {
+            // Discount is a fixed amount
+            originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+            discountAmount = transaction.discount_value;
+            discountPercentage = originalAmount > 0 ? (transaction.discount_value / originalAmount) * 100 : 0;
+          }
+        } else {
+          // Try to extract from new format: "Original Fee: ₹500.00 | Discount: 10% discount (₹50.00)"
+          const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+          const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+          if (originalFeeMatch) {
+            originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+          }
+
+          if (discountMatch) {
+            if (discountMatch[2]) {
+              // Percentage discount format: "10% discount (₹50.00)"
+              discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+              discountPercentage = parseFloat(discountMatch[1]);
+            } else if (discountMatch[3]) {
+              // Amount discount format: "₹50 discount"
+              discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+              discountPercentage = originalAmount > 0 ? (discountAmount / originalAmount) * 100 : 0;
+            }
+          } else {
+            // Fallback: old format like "Original: ₹750" and "Discount: 100%"
+            const originalMatch = description.match(/Original:\s*₹?([\d,]+(?:\.\d{2})?)/);
+            if (originalMatch) {
+              originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+            }
+
+            const oldDiscountMatch = description.match(/Discount:\s*(\d+)%/);
+            if (oldDiscountMatch) {
+              discountPercentage = parseInt(oldDiscountMatch[1]);
+              discountAmount = (originalAmount * discountPercentage) / 100;
+            }
+          }
+        }
+      }
+
+      // Ensure amounts are non-negative
+      const finalNetAmount = transaction ? Math.max(0, Math.abs(transaction.amount)) : 500;
+
+      // If originalAmount is 0 but we have a discount, recalculate
+      if (originalAmount === 0 && discountAmount > 0) {
+        originalAmount = discountAmount;
       }
 
       const receiptData: ReceiptData = {
@@ -110,22 +192,25 @@ export const useReceiptPrinting = () => {
         charges: [
           {
             description: 'Consultation Fee',
-            amount: transaction?.amount || 500,
-            quantity: 1
+            amount: finalNetAmount,
+            quantity: 1,
+            rate: originalAmount,
+            discountPercentage: discountPercentage,
+            discountAmount: discountAmount
           }
         ],
         payments: transaction ? [{
           mode: transaction.payment_mode || 'CASH',
-          amount: transaction.amount,
+          amount: finalNetAmount,
           reference: transaction.id
         }] : [],
         totals: {
-          subtotal: transaction?.amount || 500,
-          discount: 0,
+          subtotal: originalAmount,
+          discount: discountAmount,
           insurance: 0,
-          netAmount: transaction?.amount || 500,
-          amountPaid: transaction?.amount || 0,
-          balance: transaction ? 0 : (transaction?.amount || 500)
+          netAmount: finalNetAmount,
+          amountPaid: finalNetAmount,
+          balance: 0
         },
         staff: {
           processedBy: 'System User'
@@ -327,6 +412,106 @@ export const useReceiptPrinting = () => {
 
       if (error || !transaction) throw new Error('Transaction not found');
 
+      // Calculate original amount and discount (SAME LOGIC AS ComprehensivePatientList.tsx)
+      const description = transaction.description || transaction.transaction_type;
+      let originalAmount = transaction.amount;
+      let discountAmount = 0;
+      let discountPercentage = 0;
+
+      console.log('🔍 Transaction data:', {
+        amount: transaction.amount,
+        discount_type: transaction.discount_type,
+        discount_value: transaction.discount_value,
+        description: description
+      });
+
+      // Extract discount info from transaction fields or description
+      if (transaction.discount_value && transaction.discount_value > 0) {
+        if (transaction.discount_type === 'PERCENTAGE') {
+          discountPercentage = transaction.discount_value;
+
+          // Handle 100% discount case
+          if (transaction.discount_value >= 100) {
+            // For 100% discount, we need to extract original amount from description
+            const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+            const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+            if (originalFeeMatch) {
+              originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+            } else if (originalMatch) {
+              originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+            } else {
+              // If not in description, we can't calculate it from amount (0/0 = NaN)
+              // So we'll have to use the amount as is (which is 0)
+              originalAmount = 0;
+            }
+            discountAmount = originalAmount;
+          } else {
+            // For percentage discount < 100%, calculate original amount from net amount
+            originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+            discountAmount = originalAmount - Math.abs(transaction.amount);
+          }
+        } else if (transaction.discount_type === 'AMOUNT') {
+          // Discount is a fixed amount
+          originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+          discountAmount = transaction.discount_value;
+          discountPercentage = originalAmount > 0 ? (transaction.discount_value / originalAmount) * 100 : 0;
+        }
+      } else {
+        // Try to extract from new format: "Original Fee: ₹500.00 | Discount: 10% discount (₹50.00)"
+        const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+        const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+        if (originalFeeMatch) {
+          originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+        }
+
+        if (discountMatch) {
+          if (discountMatch[2]) {
+            // Percentage discount format: "10% discount (₹50.00)"
+            discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+            discountPercentage = parseFloat(discountMatch[1]);
+          } else if (discountMatch[3]) {
+            // Amount discount format: "₹50 discount"
+            discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+            discountPercentage = originalAmount > 0 ? (discountAmount / originalAmount) * 100 : 0;
+          }
+        } else {
+          // Fallback: old format like "Original: ₹750" and "Discount: 100%"
+          const originalMatch = description.match(/Original:\s*₹?([\d,]+(?:\.\d{2})?)/);
+          if (originalMatch) {
+            originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+          }
+
+          const oldDiscountMatch = description.match(/Discount:\s*(\d+)%/);
+          if (oldDiscountMatch) {
+            discountPercentage = parseInt(oldDiscountMatch[1]);
+            discountAmount = (originalAmount * discountPercentage) / 100;
+          }
+        }
+      }
+
+      console.log('💰 Calculated:', {
+        originalAmount,
+        discountAmount,
+        discountPercentage
+      });
+
+      // Ensure amounts are non-negative
+      const finalNetAmount = Math.max(0, Math.abs(transaction.amount));
+
+      // If originalAmount is 0 but we have a discount, recalculate
+      if (originalAmount === 0 && discountAmount > 0) {
+        originalAmount = discountAmount;
+      }
+
+      // Clean description - remove discount details and just keep service name
+      let cleanDescription = description
+        .replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '')
+        .replace(/\s*\|\s*Original Fee:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*.*/g, '')
+        .replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '')
+        .trim();
+
       const receiptData: ReceiptData = {
         type: 'SERVICE',
         receiptNumber: generateReceiptNumber('SERV'),
@@ -345,21 +530,24 @@ export const useReceiptPrinting = () => {
           phone: transaction.patient?.phone
         },
         charges: [{
-          description: transaction.description || transaction.transaction_type,
-          amount: transaction.amount,
-          quantity: 1
+          description: cleanDescription,
+          amount: finalNetAmount,
+          quantity: 1,
+          rate: originalAmount,
+          discountPercentage: discountPercentage,
+          discountAmount: discountAmount
         }],
         payments: [{
           mode: transaction.payment_mode || 'CASH',
-          amount: transaction.amount,
+          amount: finalNetAmount,
           reference: transaction.id
         }],
         totals: {
-          subtotal: transaction.amount,
-          discount: 0,
+          subtotal: originalAmount,
+          discount: discountAmount,
           insurance: 0,
-          netAmount: transaction.amount,
-          amountPaid: transaction.amount,
+          netAmount: finalNetAmount,
+          amountPaid: finalNetAmount,
           balance: 0
         },
         staff: {
@@ -367,6 +555,9 @@ export const useReceiptPrinting = () => {
         },
         isOriginal: true
       };
+
+      console.log('🧾 Receipt Data:', receiptData);
+      console.log('📋 Charges:', receiptData.charges);
 
       printReceipt(receiptData);
     } catch (error) {

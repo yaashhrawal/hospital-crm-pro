@@ -6,12 +6,13 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import dataService from '../../services/dataService';
+import SMSService from '../../services/smsService';
 import type { Patient, Doctor, Department } from '../../services/dataService';
 import toast from 'react-hot-toast';
-import { 
-  User, 
-  Stethoscope, 
-  CreditCard, 
+import {
+  User,
+  Stethoscope,
+  CreditCard,
   Bed,
   ChevronRight,
   Check
@@ -50,6 +51,8 @@ const patientEntrySchema = z.object({
   bed_number: z.string().optional(),
   room_type: z.enum(['general', 'private', 'icu']).optional(),
   daily_rate: z.number().optional(),
+  // SMS notification option
+  send_sms: z.boolean().default(false),
 });
 
 interface PatientEntryFormProps {
@@ -248,6 +251,31 @@ const PatientEntryForm: React.FC<PatientEntryFormProps> = ({ onPatientCreated, o
           calculateTotalFees()
         }`
       );
+
+      // Send SMS confirmation
+      const patientFullName = `${data.prefix} ${data.first_name} ${data.last_name}`;
+      const formattedDate = new Date(data.date_of_entry).toLocaleDateString('en-IN');
+
+      try {
+        const smsResult = await SMSService.sendRegistrationConfirmation(
+          newPatient.id,
+          patientFullName,
+          data.phone,
+          newPatient.patient_id || newPatient.id.substring(0, 8).toUpperCase(), // Use patient_id (e.g., P004063)
+          formattedDate,
+          finalDoctorName,
+          finalDepartmentName
+        );
+
+        if (smsResult.success) {
+          toast.success('SMS confirmation sent successfully!');
+        } else if (smsResult.error && smsResult.error !== 'SMS service not configured') {
+          toast.error('Failed to send SMS confirmation');
+        }
+      } catch (smsError) {
+        console.error('SMS sending error:', smsError);
+        // Don't block the flow if SMS fails
+      }
 
       if (onPatientCreated) {
         onPatientCreated(newPatient);

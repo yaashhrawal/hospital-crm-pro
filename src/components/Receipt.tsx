@@ -33,6 +33,8 @@ interface ServiceItem {
   rate: number;
   amount: number;
   paymentMode?: string;
+  discountPercentage?: number;
+  discountAmount?: number;
 }
 
 const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
@@ -280,51 +282,167 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
     let srCounter = 1;
 
     transactions
-      .filter(transaction => transaction.amount > 0 && transaction.status !== 'CANCELLED') // Only positive amounts and non-cancelled
+      .filter(transaction => transaction.status !== 'CANCELLED') // Only non-cancelled (allow 0 amount for 100% discount)
       .forEach(transaction => {
         if (transaction.transaction_type === 'CONSULTATION' || transaction.transaction_type === 'consultation') {
-          // Enhanced consultation handling for both single and multiple doctors
+          // CONSULTATION: Use same discount extraction logic as other services
           const description = transaction.description || 'Consultation Fee';
-          
-          // Check if this is a multiple doctor consultation (has doctor name in description)
-          const doctorMatch = description.match(/Consultation Fee - (.+?)\s*\(/);
-          const doctorName = doctorMatch ? doctorMatch[1] : null;
-          
-          // Extract original and net amounts from description for multi-doctor transactions
-          const originalMatch = description.match(/Original: ₹(\d+(?:\.\d{2})?)/);
-          const netMatch = description.match(/Net: ₹(\d+(?:\.\d{2})?)/);
-          
-          let originalAmount, finalAmount, serviceLabel;
-          
-          if (originalMatch && netMatch && doctorName) {
-            // Multiple doctor format - extract from transaction description
-            originalAmount = parseFloat(originalMatch[1]);
-            finalAmount = parseFloat(netMatch[1]);
-            serviceLabel = `${doctorName} Consultation`;
+          let originalAmount = transaction.amount;
+          let discountAmount = 0;
+          let finalAmount = transaction.amount;
+
+          // Extract discount info using same logic as other services
+          if (transaction.discount_value && transaction.discount_value > 0) {
+            if (transaction.discount_type === 'PERCENTAGE') {
+              if (transaction.discount_value >= 100) {
+                // 100% discount - extract from description
+                const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+                const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+                if (originalFeeMatch) {
+                  originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+                } else if (originalMatch) {
+                  originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+                } else {
+                  originalAmount = 0;
+                }
+                discountAmount = originalAmount;
+              } else {
+                originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+                discountAmount = originalAmount - Math.abs(transaction.amount);
+              }
+            } else if (transaction.discount_type === 'AMOUNT') {
+              originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+              discountAmount = transaction.discount_value;
+            }
           } else {
-            // Single doctor format - use receipt data
-            originalAmount = receiptData.originalConsultationFee;
-            finalAmount = receiptData.originalConsultationFee - receiptData.discountAmount;
-            serviceLabel = description.replace(/\s*\|.*$/, ''); // Remove calculation details
+            // Try to extract from description
+            const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+            const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+            const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+            if (originalFeeMatch) {
+              originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+            } else if (originalMatch) {
+              originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+            }
+
+            if (discountMatch) {
+              if (discountMatch[2]) {
+                discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+              } else if (discountMatch[3]) {
+                discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+              }
+            }
           }
-          
+
+          finalAmount = Math.max(0, Math.abs(transaction.amount));
+
+          if (originalAmount === 0 && discountAmount > 0) {
+            originalAmount = discountAmount;
+          }
+
+          // Clean description
+          let cleanDescription = description
+            .replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '')
+            .replace(/\s*\|\s*Original Fee:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*.*/g, '')
+            .replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '')
+            .trim();
+
+          const calculatedDiscountPercentage = originalAmount > 0
+            ? (discountAmount / originalAmount) * 100
+            : 0;
+
           services.push({
             sr: srCounter++,
-            service: serviceLabel,
+            service: cleanDescription || 'Consultation Fee',
             qty: 1,
-            rate: originalAmount, // Original rate
-            amount: finalAmount, // Final amount after discount
-            paymentMode: transaction.payment_mode
+            rate: originalAmount,
+            amount: finalAmount,
+            paymentMode: transaction.payment_mode,
+            discountPercentage: calculatedDiscountPercentage,
+            discountAmount: discountAmount
           });
         } else {
-          // For other services, show normal rate = amount
+          // For other services, extract discount info (SAME LOGIC AS ComprehensivePatientList.tsx)
+          const description = transaction.description || transaction.transaction_type;
+          let originalAmount = transaction.amount;
+          let discountAmount = 0;
+          let finalAmount = transaction.amount;
+
+          // Check for discount_type and discount_value fields first
+          if (transaction.discount_value && transaction.discount_value > 0) {
+            if (transaction.discount_type === 'PERCENTAGE') {
+              // Handle 100% discount case
+              if (transaction.discount_value >= 100) {
+                // For 100% discount, extract original amount from description
+                const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+                const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+                if (originalFeeMatch) {
+                  originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+                } else if (originalMatch) {
+                  originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+                } else {
+                  originalAmount = 0;
+                }
+                discountAmount = originalAmount;
+              } else {
+                // For percentage discount < 100%, calculate from net amount
+                originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+                discountAmount = originalAmount - Math.abs(transaction.amount);
+              }
+            } else if (transaction.discount_type === 'AMOUNT') {
+              // Discount is a fixed amount
+              originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
+              discountAmount = transaction.discount_value;
+            }
+          } else {
+            // Try to extract from description
+            const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+            const discountMatch = description.match(/Discount:\s*(?:(\d+(?:\.\d+)?)%\s*discount\s*\(₹([\d,]+(?:\.\d{2})?)\)|₹([\d,]+(?:\.\d{2})?)\s*discount)/);
+
+            if (originalFeeMatch) {
+              originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+            }
+
+            if (discountMatch) {
+              if (discountMatch[2]) {
+                discountAmount = parseFloat(discountMatch[2].replace(/,/g, ''));
+              } else if (discountMatch[3]) {
+                discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
+              }
+            }
+          }
+
+          // Ensure amounts are non-negative
+          finalAmount = Math.max(0, Math.abs(transaction.amount));
+
+          // If originalAmount is 0 but we have a discount, recalculate
+          if (originalAmount === 0 && discountAmount > 0) {
+            originalAmount = discountAmount;
+          }
+
+          // Clean description - remove discount details
+          let cleanDescription = description
+            .replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '')
+            .replace(/\s*\|\s*Original Fee:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*.*/g, '')
+            .replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '')
+            .trim();
+
+          const calculatedDiscountPercentage = originalAmount > 0
+            ? (discountAmount / originalAmount) * 100
+            : 0;
+
           services.push({
             sr: srCounter++,
-            service: transaction.description || transaction.transaction_type,
+            service: cleanDescription || transaction.transaction_type,
             qty: 1,
-            rate: transaction.amount,
-            amount: transaction.amount,
-            paymentMode: transaction.payment_mode
+            rate: originalAmount, // Original rate before discount
+            amount: finalAmount, // Final amount after discount
+            paymentMode: transaction.payment_mode,
+            discountPercentage: calculatedDiscountPercentage,
+            discountAmount: discountAmount
           });
         }
       });
@@ -464,87 +582,39 @@ const Receipt: React.FC<ReceiptProps> = ({ patientId, onClose }) => {
                   <th className="border border-gray-300 px-3 py-2 text-left">Service</th>
                   <th className="border border-gray-300 px-3 py-2 text-center">Qty</th>
                   <th className="border border-gray-300 px-3 py-2 text-right">Rate (₹)</th>
+                  <th className="border border-gray-300 px-3 py-2 text-right">Discount</th>
                   <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
                   <th className="border border-gray-300 px-3 py-2 text-center">Payment Mode</th>
                 </tr>
               </thead>
               <tbody>
-                {services.length > 0 ? services.map((service) => (
-                  <tr key={service.sr}>
-                    <td className="border border-gray-300 px-3 py-2">{service.sr}</td>
-                    <td className="border border-gray-300 px-3 py-2">{service.service}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-center">{service.paymentMode || 'CASH'}</td>
-                  </tr>
-                )) : (
+                {services.length > 0 ? services.map((service) => {
+                  const discountDisplay = service.discountPercentage && service.discountPercentage > 0
+                    ? `${service.discountPercentage.toFixed(0)}% (₹${service.discountAmount?.toFixed(2) || '0.00'})`
+                    : (service.discountAmount && service.discountAmount > 0)
+                      ? `₹${service.discountAmount.toFixed(2)}`
+                      : '-';
+
+                  return (
+                    <tr key={service.sr}>
+                      <td className="border border-gray-300 px-3 py-2">{service.sr}</td>
+                      <td className="border border-gray-300 px-3 py-2">{service.service}</td>
+                      <td className="border border-gray-300 px-3 py-2 text-center">{service.qty}</td>
+                      <td className="border border-gray-300 px-3 py-2 text-right">₹{service.rate.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-3 py-2 text-right">{discountDisplay}</td>
+                      <td className="border border-gray-300 px-3 py-2 text-right">₹{service.amount.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-3 py-2 text-center">{service.paymentMode || 'CASH'}</td>
+                    </tr>
+                  );
+                }) : (
                   <tr>
-                    <td colSpan={6} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
+                    <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center text-gray-500">
                       No services recorded
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
-
-          {/* Bill Summary - Proper Accounting Format */}
-          <div className="border-t-2 border-gray-300 pt-4">
-            <div className="flex justify-end">
-              <div className="w-80">
-                <h3 className="font-semibold mb-3 text-gray-800">Bill Summary</h3>
-                
-                {/* Consultation Fee */}
-                {receiptData.originalConsultationFee > 0 && (
-                  <div className="flex justify-between mb-2">
-                    <span>Consultation Fee:</span>
-                    <span>₹{receiptData.originalConsultationFee.toFixed(2)}</span>
-                  </div>
-                )}
-                
-                {/* Other Services */}
-                {receiptData.otherServices > 0 && (
-                  <div className="flex justify-between mb-2">
-                    <span>Other Services:</span>
-                    <span>₹{receiptData.otherServices.toFixed(2)}</span>
-                  </div>
-                )}
-                
-                {/* Subtotal */}
-                <div className="flex justify-between mb-2 border-t border-gray-200 pt-2">
-                  <span className="font-medium">Subtotal:</span>
-                  <span className="font-medium">₹{receiptData.totalAmount.toFixed(2)}</span>
-                </div>
-                
-                {/* Discount Details */}
-                {receiptData.discountAmount > 0 && (
-                  <>
-                    <div className="flex justify-between mb-1 text-red-600">
-                      <span>Discount ({receiptData.discountPercentage}%):</span>
-                      <span>- ₹{receiptData.discountAmount.toFixed(2)}</span>
-                    </div>
-                    {receiptData.discountReason && (
-                      <div className="text-xs text-gray-500 mb-2 text-right italic">
-                        Reason: {receiptData.discountReason}
-                      </div>
-                    )}
-                  </>
-                )}
-                
-                {/* Net Amount */}
-                <div className="flex justify-between font-bold text-lg border-t-2 border-gray-400 pt-2 mt-2">
-                  <span>Net Amount Payable:</span>
-                  <span>₹{receiptData.netAmount.toFixed(2)}</span>
-                </div>
-                
-                {/* Amount in Words */}
-                <div className="mt-3 text-xs text-gray-600">
-                  <span className="font-medium">Amount in Words: </span>
-                  <span className="italic">{convertNumberToWords(receiptData.netAmount)} Only</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Footer */}

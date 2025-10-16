@@ -204,15 +204,32 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         jsDateISO: new Date(finalServiceDate).toISOString()
       });
       
+      // Build description with original amount and discount info for receipts
+      let description = `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}`;
+
+      // Add discount info to description if discount exists
+      if (newService.discount > 0) {
+        description += ` | Original Fee: ₹${originalAmount.toFixed(2)} | Discount: ${newService.discount}% discount (₹${discountAmount.toFixed(2)})`;
+      }
+
+      // Add service date and notes
+      if (newService.serviceDate) {
+        description += ` [Date: ${newService.serviceDate}]`;
+      }
+      if (newService.notes) {
+        description += ` - ${newService.notes}`;
+      }
+
       const transactionData = {
         patient_id: patient.id,
         transaction_type: newService.category,
         amount: finalAmount,
-        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.serviceDate ? ` [Date: ${newService.serviceDate}]` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
+        description: description,
         payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const,
         transaction_date: finalServiceDate, // 🔍 CRITICAL FIX: Set actual transaction_date field
-        discount_percentage: newService.discount || 0,
+        discount_type: 'PERCENTAGE', // Store discount type for receipt calculation
+        discount_value: newService.discount || 0, // Store discount value
         doctor_name: newService.doctorName || null // Save the selected doctor name
       };
       
@@ -291,18 +308,33 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         const originalAmount = editingService.price * editingService.quantity;
         const discountAmount = originalAmount * (editingService.discount / 100);
         const finalAmount = originalAmount - discountAmount;
-        
-        const updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}${editingService.serviceDate ? ` [Date: ${editingService.serviceDate}]` : ''}${editingService.notes ? ` - ${editingService.notes}` : ''}`;
-        
+
+        // Build description with original amount and discount info for receipts
+        let updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}`;
+
+        // Add discount info to description if discount exists
+        if (editingService.discount > 0) {
+          updatedDescription += ` | Original Fee: ₹${originalAmount.toFixed(2)} | Discount: ${editingService.discount}% discount (₹${discountAmount.toFixed(2)})`;
+        }
+
+        // Add service date and notes
+        if (editingService.serviceDate) {
+          updatedDescription += ` [Date: ${editingService.serviceDate}]`;
+        }
+        if (editingService.notes) {
+          updatedDescription += ` - ${editingService.notes}`;
+        }
+
         console.log('📝 Updated description with date:', updatedDescription);
-        
+
         // Update the transaction in database
         await HospitalService.updateTransaction(editingService.transactionId, {
           amount: finalAmount,
           description: updatedDescription,
           payment_mode: editingService.paymentMode,
           transaction_date: finalUpdateDate, // 🔥 CRITICAL FIX: Update transaction_date field
-          discount_percentage: editingService.discount || 0,
+          discount_type: 'PERCENTAGE', // Store discount type for receipt calculation
+          discount_value: editingService.discount || 0, // Store discount value
           doctor_name: editingService.doctorName || null // Save the selected doctor name
         });
         
