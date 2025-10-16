@@ -1677,7 +1677,8 @@ const IPDBedManagement: React.FC = () => {
     // Create admission object using the real admission ID stored in bed
     const admissionId = bed.admissionId || bed.patient.id; // Fallback to patient ID if no admission ID
     console.log('🔍 Using admission ID for discharge:', admissionId);
-    
+    console.log('🏥 IPD Number for discharge:', bed.ipdNumber);
+
     const admissionForDischarge: PatientAdmissionWithRelations = {
       id: admissionId,
       patient_id: bed.patient.id,
@@ -1685,6 +1686,7 @@ const IPDBedManagement: React.FC = () => {
       admission_date: bed.admissionDate || new Date().toISOString(),
       status: 'ADMITTED' as const,
       hospital_id: HOSPITAL_ID,
+      ipd_number: bed.ipdNumber, // ✅ FIX: Include IPD number in discharge admission object
       patient: bed.patient,
       bed: {
         id: bedId,
