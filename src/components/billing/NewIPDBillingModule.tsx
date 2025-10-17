@@ -5250,7 +5250,7 @@ Description: ${bill.description || 'N/A'}
                   
                   {selectedPatient && (
                     <div className="text-sm text-gray-700">
-                      <strong>{selectedPatient.name}</strong> - {selectedPatient.phone}
+                      <strong>{`${selectedPatient.first_name} ${selectedPatient.last_name || ''}`.trim()}</strong> - {selectedPatient.phone}
                     </div>
                   )}
                 </div>
@@ -5396,7 +5396,7 @@ Description: ${bill.description || 'N/A'}
                 )}
 
                 {/* IPD Billing Format with Enhanced UI */}
-                {!editingBill && (
+                {selectedPatient && (
                   <div className="space-y-6">
                     {/* Billing Header */}
                     <div className="flex items-center justify-between">
