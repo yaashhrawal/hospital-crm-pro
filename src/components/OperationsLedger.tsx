@@ -61,7 +61,9 @@ const OperationsLedger: React.FC = () => {
   const [filterPaymentMode, setFilterPaymentMode] = useState<'all' | 'CASH' | 'ONLINE'>('all');
   const [filterType, setFilterType] = useState<'all' | 'REVENUE' | 'EXPENSE' | 'REFUND'>('all');
   const [filterPatientTag, setFilterPatientTag] = useState<string>('all');
+  const [filterDoctor, setFilterDoctor] = useState<string>('all');
   const [availablePatientTags, setAvailablePatientTags] = useState<string[]>([]);
+  const [availableDoctors, setAvailableDoctors] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'patient' | 'type' | 'time'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
@@ -423,23 +425,32 @@ const OperationsLedger: React.FC = () => {
           .filter(tag => tag && tag.trim() !== ''),
         'Community', 'Camp' // Add common suggestions
       ])].sort();
-      
+
+      // Extract unique doctors/consultants
+      const uniqueDoctors = [...new Set(
+        allEntries
+          .map(entry => entry.consultant_name)
+          .filter(doctor => doctor && doctor.trim() !== '' && doctor !== 'N/A' && doctor !== 'System')
+      )].sort();
+
       console.log('🏥 Operations Debug - All Entries:', allEntries.length);
       console.log('🏥 Operations Debug - Patient Tags Found:', uniqueTags);
-      console.log('🏥 Operations Debug - Sample entries with tags:', 
+      console.log('🏥 Operations Debug - Doctors Found:', uniqueDoctors);
+      console.log('🏥 Operations Debug - Sample entries with tags:',
         allEntries
           .filter(e => e.patient_tag)
           .slice(0, 3)
           .map(e => ({ patient: e.patient_name, tag: e.patient_tag }))
       );
       console.log('🏥 Operations Debug - Date Range:', { dateFrom, dateTo });
-      
+
       if (uniqueTags.length === 2) { // Only 'Camp' and 'Community' defaults
         console.log('🔍 No actual patient tags found in database for date range');
         console.log('💡 Try: 1) Add patients with tags, or 2) Expand date range');
       }
-      
+
       setAvailablePatientTags(uniqueTags);
+      setAvailableDoctors(uniqueDoctors);
       
       // Debug: Log all entries before setting them
       console.log('🔍 All entries being set:', allEntries.length);
@@ -486,6 +497,10 @@ const OperationsLedger: React.FC = () => {
 
     if (filterPatientTag !== 'all') {
       filtered = filtered.filter(entry => entry.patient_tag === filterPatientTag);
+    }
+
+    if (filterDoctor !== 'all') {
+      filtered = filtered.filter(entry => entry.consultant_name === filterDoctor);
     }
 
     return filtered;
@@ -686,8 +701,20 @@ const OperationsLedger: React.FC = () => {
         };
       });
 
+      // Create dynamic filename based on filters
+      let filename = `Operations_Ledger_${dateFrom}_to_${dateTo}`;
+      if (filterDoctor !== 'all') {
+        filename += `_${filterDoctor.replace(/\s+/g, '_')}`;
+      }
+      if (filterType !== 'all') {
+        filename += `_${filterType}`;
+      }
+      if (filterPaymentMode !== 'all') {
+        filename += `_${filterPaymentMode}`;
+      }
+
       const success = exportToExcel({
-        filename: `Operations_Ledger_${dateFrom}_to_${dateTo}`,
+        filename: filename,
         headers: [
           'Date',
           'Time',
@@ -803,6 +830,10 @@ const OperationsLedger: React.FC = () => {
               <h2>Complete Transaction Details & Revenue Analysis</h2>
               <p><strong>Raj Hospital & Maternity Center</strong></p>
               <p>Period: <strong>${dateFrom}</strong> to <strong>${dateTo}</strong></p>
+              ${filterDoctor !== 'all' ? `<p>Doctor/Consultant: <strong>${filterDoctor}</strong></p>` : ''}
+              ${filterType !== 'all' ? `<p>Transaction Type: <strong>${filterType}</strong></p>` : ''}
+              ${filterPaymentMode !== 'all' ? `<p>Payment Mode: <strong>${filterPaymentMode}</strong></p>` : ''}
+              ${filterPatientTag !== 'all' ? `<p>Patient Tag: <strong>${filterPatientTag}</strong></p>` : ''}
               <p>Report Generated: ${new Date().toLocaleString()} | Total Transactions: ${sortedEntries.length}</p>
             </div>
             
@@ -1082,7 +1113,7 @@ const OperationsLedger: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
           <div>
             <ModernDatePicker
               label="From Date"
@@ -1148,6 +1179,22 @@ const OperationsLedger: React.FC = () => {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Doctor/Consultant</label>
+            <select
+              value={filterDoctor}
+              onChange={(e) => setFilterDoctor(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Doctors</option>
+              {availableDoctors.map((doctor) => (
+                <option key={doctor} value={doctor}>
+                  {doctor}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
             <div className="flex space-x-1">
               <select
@@ -1182,19 +1229,19 @@ const OperationsLedger: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-end space-x-2 md:col-span-1">
+          <div className="flex items-end gap-3 ml-4">
             <button
               onClick={loadLedgerEntries}
               disabled={loading}
-              className="w-full bg-blue-600 text-white px-2 py-8 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm mb-1"
+              className="bg-blue-600 text-white px-2 py-5 rounded-md hover:bg-blue-700 disabled:opacity-50 text-xs w-10"
             >
-              {loading ? '🔄 Loading...' : '🔍 Search'}
+              {loading ? '🔄' : '🔍'}
             </button>
             <div className="flex flex-col space-y-1">
               <button
                 onClick={printOperationsReport}
                 disabled={loading || sortedEntries.length === 0}
-                className="w-full bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 text-xs"
+                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 disabled:opacity-50 text-xs whitespace-nowrap"
                 title="Print Operations Report"
               >
                 🖨️ Print
@@ -1202,7 +1249,7 @@ const OperationsLedger: React.FC = () => {
               <button
                 onClick={exportOperationsToExcel}
                 disabled={loading || sortedEntries.length === 0}
-                className="w-full bg-green-600 text-white px-2 py-1 rounded-md hover:bg-green-700 disabled:opacity-50 text-xs"
+                className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 disabled:opacity-50 text-xs whitespace-nowrap"
                 title="Export to Excel"
               >
                 📊 Export
