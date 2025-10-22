@@ -29,6 +29,7 @@ import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
 import IPDBedManagement from './components/IPDBedManagement';
 import DischargeSection from './components/DischargeSection';
+import AdminAuditLog from './components/AdminAuditLog';
 // import TableInspector from './components/TableInspector'; // Removed debug component
 import { Login } from './pages/Login/Login'; // Import 3D Login component
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
@@ -948,12 +949,19 @@ const App: React.FC = () => {
       component: BillingSection,
       description: 'Generate IPD, OPD, and Combined bills for patients' 
     },
-    { 
-      id: 'operations', 
-      name: '📊 Operations', 
+    {
+      id: 'operations',
+      name: '📊 Operations',
       component: OperationsLedger,
       description: 'Financial ledger perfectly synchronized with Patient List - no date mismatches!',
       permission: 'access_operations'
+    },
+    {
+      id: 'audit-log',
+      name: '🔍 Audit Log',
+      component: AdminAuditLog,
+      description: 'Complete tracking of all user modifications and activities (Admin Only)',
+      permission: 'admin_access'
     }
   ];
 
@@ -973,6 +981,8 @@ const App: React.FC = () => {
       return <ComprehensivePatientList onNavigate={setActiveTab} />;
     } else if (activeTab === 'operations') {
       return <OperationsLedger onNavigate={setActiveTab} />;
+    } else if (activeTab === 'audit-log') {
+      return <AdminAuditLog />;
     }
     return <ActiveComponent />;
   };
