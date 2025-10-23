@@ -4,6 +4,18 @@ import { supabase } from '../config/supabaseNew';
 import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { exportToExcel, formatDate } from '../utils/excelExport';
+import IPDConsentForm from './IPDConsentForm';
+import ClinicalRecordForm from './ClinicalRecordForm';
+import DoctorProgressSheet from './DoctorProgressSheet';
+import VitalChartsForm from './VitalChartsForm';
+import IntakeOutputForm from './IntakeOutputForm';
+import MedicationChartForm from './MedicationChartForm';
+import CarePlanForm from './CarePlanForm';
+import PreOperativeOrdersForm from './PreOperativeOrdersForm';
+import PostOperativeOrdersForm from './PostOperativeOrdersForm';
+import PhysiotherapyNotesForm from './PhysiotherapyNotesForm';
+import BloodTransfusionMonitoringForm from './BloodTransfusionMonitoringForm';
+import IPDConsentsSection from './IPDConsentsSection';
 
 interface DischargedPatient extends PatientWithRelations {
   discharge_date?: string;
@@ -21,6 +33,13 @@ const DischargeSection: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'discharge_date' | 'duration' | 'bill_amount'>('discharge_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [selectedPatientForDetails, setSelectedPatientForDetails] = useState<DischargedPatient | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [bedData, setBedData] = useState<any>(null);
+  const [loadingBedData, setLoadingBedData] = useState(false);
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [selectedFormData, setSelectedFormData] = useState<any>(null);
+  const [selectedFormType, setSelectedFormType] = useState<string>('');
 
   useEffect(() => {
     loadDischargedPatients();
@@ -46,7 +65,15 @@ const DischargeSection: React.FC = () => {
             try {
               // Get discharge summary for this admission
               const dischargeSummary = await HospitalService.getDischargeSummary(admission.id);
-              
+
+              console.log('🔍 DEBUG - Discharge Summary:', {
+                admission_id: admission.id,
+                patient_name: admission.patient?.first_name + ' ' + admission.patient?.last_name,
+                actual_discharge_date: dischargeSummary?.actual_discharge_date,
+                admission_updated_at: admission.updated_at,
+                final_choice: dischargeSummary?.actual_discharge_date || admission.updated_at
+              });
+
               // Calculate admission duration
               let admissionDuration = '';
               if (admission.admission_date) {
@@ -71,7 +98,8 @@ const DischargeSection: React.FC = () => {
 
               return {
                 ...patientData,
-                discharge_date: admission.updated_at,
+                ipd_number: admission.ipd_number || patientData?.ipd_number || 'N/A', // ✅ FIX: Get IPD number from admission or patient
+                discharge_date: dischargeSummary?.actual_discharge_date || admission.updated_at,
                 discharge_summary: dischargeSummary,
                 admission_duration: admissionDuration,
                 final_diagnosis: dischargeSummary?.final_diagnosis || 'Not specified',
@@ -93,6 +121,7 @@ const DischargeSection: React.FC = () => {
 
               return {
                 ...patientData,
+                ipd_number: admission.ipd_number || patientData?.ipd_number || 'N/A', // ✅ FIX: Get IPD number from admission or patient
                 discharge_date: admission.updated_at || admission.created_at,
                 admission_duration: 'Unknown',
                 final_diagnosis: 'Not specified',
@@ -131,6 +160,7 @@ const DischargeSection: React.FC = () => {
               
               allDischargedPatients.push({
                 ...patient,
+                ipd_number: latestDischarge?.ipd_number || patient.ipd_number || 'N/A', // ✅ FIX: Get IPD number from discharge or patient
                 discharge_date: latestDischarge?.created_at || patient.updated_at || patient.created_at,
                 discharge_summary: latestDischarge,
                 admission_duration: 'Unknown',
@@ -142,6 +172,7 @@ const DischargeSection: React.FC = () => {
               // Add patient without discharge details
               allDischargedPatients.push({
                 ...patient,
+                ipd_number: patient.ipd_number || 'N/A', // ✅ FIX: Get IPD number from patient
                 discharge_date: patient.updated_at || patient.created_at,
                 admission_duration: 'Unknown',
                 final_diagnosis: 'Not specified',
@@ -346,6 +377,123 @@ const DischargeSection: React.FC = () => {
     }
   };
 
+  const handleViewDetails = async (patient: DischargedPatient) => {
+    setSelectedPatientForDetails(patient);
+    setShowDetailsModal(true);
+    setLoadingBedData(true);
+    setBedData(null); // Reset bed data
+
+    // Fetch bed data with all IPD forms - look for ANY admission (DISCHARGED or ADMITTED)
+    try {
+      console.log('🔍 Fetching bed data for patient:', patient.patient_id || patient.id);
+
+      // First try to find DISCHARGED admission
+      let admissions, error;
+
+      ({ data: admissions, error } = await supabase
+        .from('patient_admissions')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .eq('status', 'DISCHARGED')
+        .order('created_at', { ascending: false })
+        .limit(1));
+
+      // If no DISCHARGED admission found, try ANY admission for this patient
+      if (!admissions || admissions.length === 0) {
+        console.log('⚠️ No DISCHARGED admission found, trying any admission...');
+        ({ data: admissions, error } = await supabase
+          .from('patient_admissions')
+          .select('*')
+          .eq('patient_id', patient.id)
+          .order('created_at', { ascending: false })
+          .limit(1));
+      }
+
+      if (error) {
+        console.error('❌ Error fetching admissions:', error);
+        throw error;
+      }
+
+      console.log('📋 Found admissions:', admissions);
+
+      if (admissions && admissions.length > 0) {
+        const admission = admissions[0];
+        console.log('📊 Full Admission Record:', admission);
+        console.log('📊 Admission Summary:', {
+          id: admission.id,
+          patient_id: admission.patient_id,
+          bed_id: admission.bed_id,
+          status: admission.status,
+          admission_date: admission.admission_date,
+          has_bed_id: !!admission.bed_id,
+          bed_id_type: typeof admission.bed_id,
+          bed_id_value: admission.bed_id
+        });
+
+        if (admission.bed_id) {
+          console.log('🛏️ Fetching bed data for bed_id:', admission.bed_id);
+
+        const { data: bed, error: bedError } = await supabase
+          .from('beds')
+          .select('*')
+          .eq('id', admissions[0].bed_id)
+          .single();
+
+        if (bedError) {
+          console.error('❌ Error fetching bed data:', bedError);
+        } else {
+          console.log('✅ Bed data fetched:', bed);
+          console.log('📋 Available form data fields:', {
+            consent_form_data: !!bed?.consent_form_data,
+            clinical_record_data: !!bed?.clinical_record_data,
+            progress_sheet_data: !!bed?.progress_sheet_data,
+            nurses_orders_data: !!bed?.nurses_orders_data,
+            ipd_consents_data: !!bed?.ipd_consents_data
+          });
+          setBedData(bed);
+        }
+        } else {
+          console.warn('⚠️ Admission found but no bed_id assigned. Patient was likely discharged without IPD bed assignment.');
+          setBedData(null);
+        }
+      } else {
+        console.warn('⚠️ No admission found for this patient');
+        setBedData(null);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching admission/bed data:', error);
+      setBedData(null);
+    } finally {
+      setLoadingBedData(false);
+    }
+  };
+
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedPatientForDetails(null);
+    setBedData(null);
+  };
+
+  const handleShowForm = (formType: string, formData: any) => {
+    console.log('🔍 handleShowForm called:', { formType, hasData: !!formData, dataKeys: formData ? Object.keys(formData) : [] });
+    if (!formData) {
+      toast.error(`No ${formType} data available for this patient`);
+      return;
+    }
+    console.log('✅ Opening form modal with data:', formData);
+    setSelectedFormType(formType);
+    setSelectedFormData(formData);
+    setShowFormModal(true);
+    console.log('📋 Modal state updated - showFormModal:', true);
+  };
+
+  const handleCloseFormModal = () => {
+    console.log('🚫 Closing form modal');
+    setShowFormModal(false);
+    setSelectedFormData(null);
+    setSelectedFormType('');
+  };
+
   const exportDischargedPatients = () => {
     try {
       const exportData = filteredPatients.map(patient => ({
@@ -499,27 +647,28 @@ const DischargeSection: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('name')}
                   >
                     Patient {getSortIcon('name')}
                   </th>
+                  <th className="text-left p-4 font-semibold text-gray-700">IPD No.</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('discharge_date')}
                   >
                     Discharge Date {getSortIcon('discharge_date')}
                   </th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('duration')}
                   >
                     Stay Duration {getSortIcon('duration')}
                   </th>
                   <th className="text-left p-4 font-semibold text-gray-700">Final Diagnosis</th>
-                  <th 
+                  <th
                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('bill_amount')}
                   >
@@ -546,6 +695,11 @@ const DischargeSection: React.FC = () => {
                         <div className="text-sm text-gray-500">
                           {patient.gender} • {patient.blood_group || 'Unknown Blood Group'}
                         </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-medium text-blue-600">
+                        {patient.ipd_number || 'N/A'}
                       </div>
                     </td>
                     <td className="p-4">
@@ -587,13 +741,22 @@ const DischargeSection: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <button
-                        onClick={() => deleteDischargeRecord(patient.id)}
-                        className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200 text-sm font-medium"
-                        title="Remove discharge record (patient data will remain in system)"
-                      >
-                        📝 Remove Discharge
-                      </button>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => handleViewDetails(patient)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 text-sm font-medium"
+                          title="View complete discharge details and IPD forms"
+                        >
+                          👁️ View Details
+                        </button>
+                        <button
+                          onClick={() => deleteDischargeRecord(patient.id)}
+                          className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200 text-sm font-medium"
+                          title="Remove discharge record (patient data will remain in system)"
+                        >
+                          🗑️ Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -617,6 +780,192 @@ const DischargeSection: React.FC = () => {
           >
             🔄 Refresh List
           </button>
+        </div>
+      )}
+
+      {/* Patient Details Modal */}
+      {showDetailsModal && selectedPatientForDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-6xl max-h-[95vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  📋 Complete Discharge Details
+                </h2>
+                <p className="text-gray-600">
+                  {selectedPatientForDetails.first_name} {selectedPatientForDetails.last_name} -
+                  ID: {selectedPatientForDetails.patient_id}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseDetailsModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Discharge Summary Section */}
+              {selectedPatientForDetails.discharge_summary && (
+                <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
+                  <h3 className="text-lg font-semibold text-blue-800 mb-4">📤 Discharge Summary</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Discharge Date</label>
+                      <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                        {selectedPatientForDetails.discharge_date
+                          ? new Date(selectedPatientForDetails.discharge_date).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : 'Not specified'
+                        }
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Stay Duration</label>
+                      <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                        {selectedPatientForDetails.admission_duration || 'Not specified'}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Final Diagnosis</label>
+                      <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                        {selectedPatientForDetails.discharge_summary.final_diagnosis || 'Not specified'}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Primary Consultant</label>
+                      <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                        {selectedPatientForDetails.discharge_summary.primary_consultant || 'Not specified'}
+                      </div>
+                    </div>
+
+                    {selectedPatientForDetails.discharge_summary.chief_complaints && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Chief Complaints</label>
+                        <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                          {selectedPatientForDetails.discharge_summary.chief_complaints}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPatientForDetails.discharge_summary.treatment_summary && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Treatment Summary</label>
+                        <div className="px-3 py-2 bg-white border border-gray-300 rounded-md whitespace-pre-wrap">
+                          {selectedPatientForDetails.discharge_summary.treatment_summary}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPatientForDetails.discharge_summary.discharge_medication && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">💊 Discharge Medication</label>
+                        <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                          <pre className="whitespace-pre-wrap font-mono text-sm">
+                            {selectedPatientForDetails.discharge_summary.discharge_medication}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPatientForDetails.discharge_summary.follow_up_on && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Follow Up On</label>
+                        <div className="px-3 py-2 bg-white border border-gray-300 rounded-md">
+                          {selectedPatientForDetails.discharge_summary.follow_up_on}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPatientForDetails.discharge_summary.discharge_notes && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                        <div className="px-3 py-2 bg-white border border-gray-300 rounded-md whitespace-pre-wrap">
+                          {selectedPatientForDetails.discharge_summary.discharge_notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+
+              {/* Close Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCloseDetailsModal}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form Data Display Modal */}
+      {showFormModal && selectedFormData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-6xl max-h-[95vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center z-10">
+              <h2 className="text-2xl font-bold text-gray-800">
+                📋 {selectedFormType}
+              </h2>
+              <button
+                onClick={handleCloseFormModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content - Display form data in readable format */}
+            <div className="p-6">
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+                {/* Display form data based on type */}
+                {selectedFormData && (
+                  <div className="space-y-4">
+                    {Object.entries(selectedFormData).map(([key, value]) => (
+                      <div key={key} className="border-b border-gray-300 pb-3 last:border-0">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1 capitalize">
+                          {key.replace(/_/g, ' ')}
+                        </label>
+                        <div className="text-gray-900 whitespace-pre-wrap">
+                          {typeof value === 'object' && value !== null
+                            ? JSON.stringify(value, null, 2)
+                            : String(value || 'Not provided')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={handleCloseFormModal}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

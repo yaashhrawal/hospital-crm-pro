@@ -50,6 +50,8 @@ export interface ReceiptData {
     amount: number;
     quantity?: number;
     rate?: number;
+    discountPercentage?: number;
+    discountAmount?: number;
   }[];
   
   payments: {
@@ -150,9 +152,9 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
 
   // Calculate totals from charges if not provided
   const calculateTotals = () => {
-    const chargesTotal = data.charges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
-    const paymentsTotal = data.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-    
+    const chargesTotal = (data.charges || []).reduce((sum, charge) => sum + (charge.amount || 0), 0);
+    const paymentsTotal = (data.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
     return {
       subtotal: data.totals?.subtotal || chargesTotal,
       discount: data.totals?.discount || 0,
@@ -179,19 +181,33 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
   };
 
   const convertCharges = () => {
+    console.log('🔍 Converting charges:', data.charges);
     return data.charges.map((charge, index) => ({
       sr: index + 1,
       service: charge.description,
       qty: charge.quantity || 1,
-      rate: charge.rate || charge.amount / (charge.quantity || 1),
+      rate: charge.rate !== undefined ? charge.rate : charge.amount / (charge.quantity || 1),
       amount: charge.amount
     }));
   };
 
   const services = convertCharges();
+  console.log('✅ Converted services:', services);
+
+  // Split services into pages of 13 entries each
+  const ITEMS_PER_PAGE = 13;
+  const servicePages: typeof services[] = [];
+  for (let i = 0; i < services.length; i += ITEMS_PER_PAGE) {
+    servicePages.push(services.slice(i, i + ITEMS_PER_PAGE));
+  }
+
+  // If no services, create one empty page
+  if (servicePages.length === 0) {
+    servicePages.push([]);
+  }
 
   return (
-    <div className={`receipt-template bg-white p-6 max-w-4xl mx-auto print:p-0 print:max-w-none ${className}`}>
+    <>
       {/* Print-specific styles */}
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -199,10 +215,6 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             @page {
               margin: 0.5in;
               size: A4;
-            }
-            /* Force new page for receipt */
-            .receipt-template {
-              page-break-before: always;
             }
             /* Hide everything else when printing */
             body * {
@@ -297,10 +309,22 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
             .receipt-template * {
               color: black !important;
             }
+            /* Page break for multi-page bills */
+            .page-break {
+              page-break-before: always !important;
+              break-before: page !important;
+            }
+            .avoid-page-break {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
           }
         `
       }} />
-      
+
+      {/* FIRST PAGE */}
+      <div className="receipt-page bg-white p-6 max-w-4xl mx-auto print:p-0 print:max-w-none">
+
       {/* Header */}
       <div className="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black">
         <div className="flex flex-col items-center justify-center mb-4">
@@ -436,93 +460,138 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ data, className = '' 
         </div>
       )}
 
-      {/* Services Table */}
-      <div className="mb-6 print:block">
-        <h3 className="font-semibold mb-3 text-gray-800 print:text-black">Services & Charges</h3>
-        <table className="w-full border-collapse border border-gray-300 print:border-black">
-          <thead>
-            <tr className="bg-gray-100 print:bg-gray-200">
-              <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Sr</th>
-              <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Service</th>
-              <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Qty</th>
-              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Rate (₹)</th>
-              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Discount</th>
-              <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Amount (₹)</th>
-              <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Payment Mode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {services.length > 0 ? (
-              <>
-                {services.map((service, index) => (
-                  <tr key={service.sr}>
-                    <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.sr}</td>
-                    <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.service}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">{service.qty}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.rate.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">
-                      {totals.discount > 0 && index === 0 ? `₹${totals.discount.toFixed(2)}` : '-'}
-                    </td>
-                    <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.amount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
-                      {data.payments[0]?.mode || 'CASH'}
-                    </td>
-                  </tr>
-                ))}
-                {/* Bill Summary Row */}
-                <tr className="bg-gray-100 font-bold print:bg-gray-200">
-                  <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
-                    <div className="text-center">
-                      <p className="mb-1">Total Amount: ₹{totals.subtotal.toFixed(2)}</p>
-                      {totals.discount > 0 && <p className="mb-1">Discount: ₹{totals.discount.toFixed(2)}</p>}
-                      <p className="text-lg font-bold">Net Amount Payable: ₹{totals.netAmount.toFixed(2)}</p>
-                      <p className="text-sm mt-1">Amount in Words: {convertToWords(totals.netAmount)}</p>
-                    </div>
+      {/* Close first page header content */}
+      </div>
+
+      {/* Services Table - Paginated */}
+      {servicePages.map((pageServices, pageIndex) => (
+        <div key={pageIndex} className={`receipt-page bg-white p-6 max-w-4xl mx-auto print:p-0 print:max-w-none mb-6 print:block ${pageIndex > 0 ? 'page-break' : ''}`}>
+          {/* Repeat header on each new page */}
+          {pageIndex > 0 && (
+            <>
+              <div className="text-center border-b-2 border-gray-300 pb-4 mb-6 print:border-black">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2 print:text-black">{data.hospital.name}</h1>
+                <div className="text-sm text-gray-700 mt-4 print:text-black">
+                  <p className="print:text-black">{data.hospital.address}</p>
+                  <p className="print:text-black">Phone: {data.hospital.phone} | Email: {data.hospital.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-800 print:text-black">Bill No: {data.receiptNumber}</h3>
+                  <p className="text-sm"><strong>Patient:</strong> {data.patient.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm">Page {pageIndex + 1} of {servicePages.length}</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          <h3 className="font-semibold mb-3 text-gray-800 print:text-black">
+            Services & Charges {servicePages.length > 1 ? `(Page ${pageIndex + 1} of ${servicePages.length})` : ''}
+          </h3>
+          <table className="w-full border-collapse border border-gray-300 print:border-black">
+            <thead>
+              <tr className="bg-gray-100 print:bg-gray-200">
+                <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Sr</th>
+                <th className="border border-gray-300 px-3 py-2 text-left print:border-black print:text-black">Service</th>
+                <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Qty</th>
+                <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Rate (₹)</th>
+                <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Discount</th>
+                <th className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">Amount (₹)</th>
+                <th className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">Payment Mode</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageServices.length > 0 ? (
+                <>
+                  {pageServices.map((service, index) => {
+                    // Find the original charge to get discount info
+                    const originalCharge = data.charges[service.sr - 1];
+                    const discountDisplay = originalCharge?.discountPercentage
+                      ? `${originalCharge.discountPercentage}% (₹${originalCharge.discountAmount?.toFixed(2) || '0.00'})`
+                      : (originalCharge?.discountAmount && originalCharge.discountAmount > 0)
+                        ? `₹${originalCharge.discountAmount.toFixed(2)}`
+                        : '-';
+
+                    return (
+                      <tr key={service.sr}>
+                        <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.sr}</td>
+                        <td className="border border-gray-300 px-3 py-2 print:border-black print:text-black">{service.service}</td>
+                        <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">{service.qty}</td>
+                        <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.rate.toFixed(2)}</td>
+                        <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">
+                          {discountDisplay}
+                        </td>
+                        <td className="border border-gray-300 px-3 py-2 text-right print:border-black print:text-black">₹{service.amount.toFixed(2)}</td>
+                        <td className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
+                          {data.payments[0]?.mode || 'CASH'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Bill Summary Row - Only on last page */}
+                  {pageIndex === servicePages.length - 1 && (
+                    <tr className="bg-gray-100 font-bold print:bg-gray-200">
+                      <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center print:border-black print:text-black">
+                        <div className="text-center">
+                          <p className="mb-1">Total Amount: ₹{totals.subtotal.toFixed(2)}</p>
+                          {totals.discount > 0 && <p className="mb-1">Discount: ₹{totals.discount.toFixed(2)}</p>}
+                          <p className="text-lg font-bold">Net Amount Payable: ₹{totals.netAmount.toFixed(2)}</p>
+                          <p className="text-sm mt-1">Amount in Words: {convertToWords(totals.netAmount)}</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ) : (
+                <tr>
+                  <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center text-gray-500 print:border-black print:text-black">
+                    No services recorded
                   </td>
                 </tr>
-              </>
-            ) : (
-              <tr>
-                <td colSpan={7} className="border border-gray-300 px-3 py-2 text-center text-gray-500 print:border-black print:text-black">
-                  No services recorded
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </tbody>
+          </table>
 
+          {/* Add signature and footer to last page */}
+          {pageIndex === servicePages.length - 1 && (
+            <>
+              {/* Notes */}
+              {data.notes && (
+                <div className="mb-6 bg-yellow-50 p-4 rounded-lg mt-6">
+                  <h3 className="font-semibold mb-2 text-gray-800">Notes:</h3>
+                  <p className="text-sm text-gray-700">{data.notes}</p>
+                </div>
+              )}
 
-      {/* Notes */}
-      {data.notes && (
-        <div className="mb-6 bg-yellow-50 p-4 rounded-lg">
-          <h3 className="font-semibold mb-2 text-gray-800">Notes:</h3>
-          <p className="text-sm text-gray-700">{data.notes}</p>
+              {/* Signature Section */}
+              <div className="grid grid-cols-2 gap-8 mb-6 mt-8">
+                <div className="text-center">
+                  <div className="border-t border-gray-400 mt-12 pt-2">
+                    <p className="text-sm">Patient/Guardian Signature</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="border-t border-gray-400 mt-12 pt-2">
+                    <p className="text-sm">Authorized Signature</p>
+                    {data.staff.authorizedBy && <p className="text-xs text-gray-600 mt-1">{data.staff.authorizedBy}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+                <p>Thank you for choosing VALANT HOSPITAL</p>
+                <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
+                {data.isOriginal !== false && <p className="font-bold mt-2">** ORIGINAL COPY **</p>}
+              </div>
+            </>
+          )}
         </div>
-      )}
-
-      {/* Signature Section */}
-      <div className="grid grid-cols-2 gap-8 mb-6">
-        <div className="text-center">
-          <div className="border-t border-gray-400 mt-12 pt-2">
-            <p className="text-sm">Patient/Guardian Signature</p>
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="border-t border-gray-400 mt-12 pt-2">
-            <p className="text-sm">Authorized Signature</p>
-            {data.staff.authorizedBy && <p className="text-xs text-gray-600 mt-1">{data.staff.authorizedBy}</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
-        <p>Thank you for choosing VALANT HOSPITAL</p>
-        <p className="mt-1">A unit of Neuorth Medicare Pvt Ltd</p>
-        {data.isOriginal !== false && <p className="font-bold mt-2">** ORIGINAL COPY **</p>}
-      </div>
-    </div>
+      ))}
+    </>
   );
 };
 

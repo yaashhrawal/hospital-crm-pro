@@ -6,9 +6,10 @@ import HospitalService from '../services/hospitalService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { supabase } from '../config/supabaseNew';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  User, 
-  Stethoscope, 
+import { getAuditContext, logPatientEdit } from '../utils/auditHelper';
+import {
+  User,
+  Stethoscope,
   CreditCard,
   X
 } from 'lucide-react';
@@ -133,7 +134,7 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.full_name) {
       toast.error('Please enter patient full name');
       return;
@@ -142,11 +143,34 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
     setLoading(true);
 
     try {
+      // Store old patient data for audit logging
+      const oldPatientData = {
+        prefix: patient.prefix,
+        first_name: patient.first_name,
+        last_name: patient.last_name,
+        phone: patient.phone,
+        email: patient.email,
+        address: patient.address,
+        date_of_birth: patient.date_of_birth,
+        age: patient.age,
+        gender: patient.gender,
+        blood_group: patient.blood_group,
+        medical_history: patient.medical_history,
+        allergies: patient.allergies,
+        current_medications: patient.current_medications,
+        has_reference: patient.has_reference,
+        reference_details: patient.reference_details,
+        patient_tag: patient.patient_tag,
+        date_of_entry: patient.date_of_entry,
+        assigned_doctor: patient.assigned_doctor,
+        assigned_department: patient.assigned_department,
+      };
+
       // Split full name into first and last name
       const nameParts = formData.full_name.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
-      
+
       const updateData = {
         prefix: formData.prefix as 'Mr' | 'Mrs' | 'Ms' | 'Dr' | 'Prof',
         first_name: firstName,
@@ -170,10 +194,59 @@ const EditPatientModal: React.FC<EditPatientModalProps> = ({
       };
 
       console.log('Updating patient with data:', updateData);
-      
+
       const updatedPatient = await HospitalService.updatePatient(patient.id, updateData);
-      
+
       if (updatedPatient) {
+        // Log audit trail
+        let auditSuccess = false;
+        try {
+          console.log('📋 Starting audit log creation...');
+          console.log('📋 User object:', user);
+          console.log('📋 Patient ID:', patient.id);
+          console.log('📋 Old patient data:', oldPatientData);
+          console.log('📋 New patient data:', updateData);
+
+          const auditContext = getAuditContext(user);
+          console.log('📋 Audit context:', auditContext);
+
+          const auditResult = await logPatientEdit(
+            auditContext,
+            patient.id,
+            oldPatientData,
+            updateData,
+            `Patient "${formData.full_name}" (${patient.patient_id}) information updated via Edit Modal`
+          );
+
+          console.log('📋 Audit log result:', auditResult);
+
+          if (auditResult.success) {
+            console.log('✅ Audit log created successfully with ID:', auditResult.id);
+            auditSuccess = true;
+            // Show success notification for all users (including frontdesk)
+            toast.success(`✅ Audit Log: Tracked successfully (ID: ${auditResult.id?.substring(0, 8)}...)`, {
+              duration: 3000,
+              position: 'bottom-right',
+            });
+          } else {
+            console.error('❌ Audit log creation returned error:', auditResult.error);
+            // Show error notification
+            toast.error(`❌ Audit Log Failed: ${auditResult.error}`, {
+              duration: 5000,
+              position: 'bottom-right',
+            });
+          }
+        } catch (auditError) {
+          console.error('❌ Failed to create audit log (exception):', auditError);
+          console.error('❌ Exception stack:', (auditError as Error)?.stack);
+          // Show error notification
+          toast.error(`❌ Audit Log Exception: ${(auditError as Error)?.message}`, {
+            duration: 5000,
+            position: 'bottom-right',
+          });
+          // Don't block user flow if audit logging fails
+        }
+
         toast.success('Patient updated successfully');
         onPatientUpdated();
         onClose();

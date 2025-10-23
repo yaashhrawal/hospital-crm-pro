@@ -165,6 +165,7 @@ class BedService {
         .from('patient_admissions')
         .insert({
           patient_id: patient.id,
+          bed_id: bedId, // CRITICAL: Set bed_id so we can retrieve bed data after discharge
           bed_number: bedData?.bed_number ? parseInt(bedData.bed_number) : 1,
           room_type: bedData?.room_type || 'GENERAL',
           department: patient.assigned_department || 'GENERAL',

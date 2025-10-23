@@ -25,7 +25,7 @@ interface DischargeFormData {
   treatment_summary: string;
   discharge_medication: string;
   follow_up_on: string;
-  
+
   // Legal/Administrative
   attendant_name: string;
   attendant_relationship: string;
@@ -33,6 +33,7 @@ interface DischargeFormData {
   documents_handed_over: boolean;
   patient_consent: boolean;
   discharge_notes: string;
+  discharge_date: string; // Date picker for back-dating
 }
 
 const DischargePatientModal: React.FC<DischargeModalProps> = ({
@@ -60,7 +61,8 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     attendant_contact: '',
     documents_handed_over: false,
     patient_consent: false,
-    discharge_notes: ''
+    discharge_notes: '',
+    discharge_date: new Date().toISOString().split('T')[0] // Default to today
   });
 
   const [stayDuration, setStayDuration] = useState(0);
@@ -114,11 +116,13 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
 
     try {
       console.log('🚪 Simple discharge - updating patient status...');
-      
+      console.log('🏥 Simple discharge - retaining IPD number:', admission.ipd_number);
+
       const { error } = await supabase
         .from('patients')
-        .update({ 
+        .update({
           ipd_status: 'DISCHARGED',
+          ipd_number: admission.ipd_number, // ✅ FIX: Retain IPD number in simple discharge too
           updated_at: new Date().toISOString()
         })
         .eq('id', admission.patient.id);
@@ -127,7 +131,7 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         console.error('❌ Simple discharge failed:', error);
         toast.error('Discharge failed: ' + error.message);
       } else {
-        console.log('✅ Simple discharge successful');
+        console.log('✅ Simple discharge successful with IPD number:', admission.ipd_number);
         toast.success('Patient discharged successfully!');
         onSuccess();
       }
@@ -162,9 +166,9 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
     setLoading(true);
     try {
       console.log('🏥 Starting simplified discharge process...');
-      
-      // Skip complex authentication - direct discharge approach
-      const dischargeDate = new Date().toISOString();
+
+      // Use selected discharge date instead of current date
+      const dischargeDate = formData.discharge_date ? new Date(formData.discharge_date).toISOString() : new Date().toISOString();
       
       console.log('📋 Discharge data:', {
         admissionId: admission.id,
@@ -233,6 +237,8 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
       const dischargeSummaryData = {
         admission_id: validAdmissionId, // Use the validated admission ID
         patient_id: admission.patient?.id,
+        ipd_number: admission.ipd_number, // ✅ FIX: Include IPD number in discharge summary
+        actual_discharge_date: dischargeDate, // User-entered discharge date
         final_diagnosis: formData.final_diagnosis?.trim() || 'Not specified',
         primary_consultant: formData.primary_consultant?.trim() || 'Not specified',
         chief_complaints: formData.chief_complaints?.trim() || null,
@@ -252,9 +258,13 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         created_by: user?.id || 'system',
         hospital_id: admission.hospital_id || 'b8a8c5e2-5c4d-4a8b-9e6f-3d2c1a0b9c8d'
       };
+
+      console.log('🏥 IPD Number being saved in discharge summary:', admission.ipd_number);
       
       console.log('📋 Prepared discharge summary data:', dischargeSummaryData);
-      
+      console.log('🗓️ DISCHARGE DATE TO SAVE:', dischargeDate);
+      console.log('🗓️ actual_discharge_date in data:', dischargeSummaryData.actual_discharge_date);
+
       console.log('💾 Attempting to insert discharge summary...');
       const { data: dischargeSummary, error: summaryError } = await supabase
         .from('discharge_summaries')
@@ -267,20 +277,22 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         console.error('❌ Error details:', JSON.stringify(summaryError, null, 2));
         throw new Error(`Failed to save discharge summary: ${summaryError.message || summaryError.details || summaryError.hint || 'Unknown database error'}`);
       }
-      
-      console.log('✅ Discharge summary created:', dischargeSummary);
 
-      // 2. Update admission status to DISCHARGED
+      console.log('✅ Discharge summary created:', dischargeSummary);
+      console.log('✅ RETURNED actual_discharge_date:', dischargeSummary?.actual_discharge_date);
+
+      // 2. Update admission status to DISCHARGED and save IPD number
       console.log('🏥 Updating admission status...');
-      
-      // Only update the status field since discharge_date column doesn't exist in actual table
+
       const updateData = {
-        status: 'DISCHARGED'
+        status: 'DISCHARGED',
+        ipd_number: admission.ipd_number // ✅ FIX: Save IPD number to admission record
       };
-      
+
       console.log('🔄 Attempting to update admission with:', updateData);
       console.log('🔄 Using admission ID:', validAdmissionId);
-      
+      console.log('🏥 Saving IPD number to admission:', admission.ipd_number);
+
       const { error: admissionError } = await supabase
         .from('patient_admissions')
         .update(updateData)
@@ -290,21 +302,24 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
         console.error('❌ Admission update error:', admissionError);
         throw admissionError;
       }
-      
-      console.log('✅ Admission status updated to DISCHARGED');
 
-      // 3. Update patient ipd_status to DISCHARGED
+      console.log('✅ Admission status updated to DISCHARGED with IPD number:', admission.ipd_number);
+
+      // 3. Update patient ipd_status to DISCHARGED and retain IPD number
       console.log('👤 Updating patient ipd_status to DISCHARGED...');
       const { error: patientUpdateError } = await supabase
         .from('patients')
-        .update({ ipd_status: 'DISCHARGED' })
+        .update({
+          ipd_status: 'DISCHARGED',
+          ipd_number: admission.ipd_number // ✅ FIX: Retain IPD number in patient record after discharge
+        })
         .eq('id', admission.patient?.id);
 
       if (patientUpdateError) {
         console.warn('⚠️ Failed to update patient ipd_status:', patientUpdateError);
         // Don't throw error as the main discharge process succeeded
       } else {
-        console.log('✅ Patient ipd_status updated to DISCHARGED');
+        console.log('✅ Patient ipd_status updated to DISCHARGED with IPD number retained:', admission.ipd_number);
       }
 
       // 4. Update bed status to vacant and clear patient data
@@ -653,8 +668,21 @@ const DischargePatientModal: React.FC<DischargeModalProps> = ({
           {/* Legal/Administrative Section */}
           <div className="bg-orange-50 p-6 rounded-lg border-2 border-orange-200">
             <h3 className="text-lg font-semibold text-orange-800 mb-4">📋 Legal & Administrative</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Discharge Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.discharge_date}
+                  onChange={(e) => setFormData({...formData, discharge_date: e.target.value})}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Attendant Name *

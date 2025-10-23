@@ -3,6 +3,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { logger } from './utils/logger';
 import './utils/smartConsoleBlocker'; // Initialize console blocking immediately
 import HospitalService from './services/hospitalService';
+import EmailService from './services/emailService';
 import type { User } from './config/supabaseNew';
 import { supabase } from './config/supabaseNew';
 import { useAuth } from './contexts/AuthContext';
@@ -28,6 +29,7 @@ import OperationsLedger from './components/OperationsLedger';
 import BillingSection from './components/BillingSection';
 import IPDBedManagement from './components/IPDBedManagement';
 import DischargeSection from './components/DischargeSection';
+import AdminAuditLog from './components/AdminAuditLog';
 // import TableInspector from './components/TableInspector'; // Removed debug component
 import { Login } from './pages/Login/Login'; // Import 3D Login component
 // import HospitalServices from './components/HospitalServices'; // Removed - using patient-specific services instead
@@ -44,6 +46,29 @@ const App: React.FC = () => {
   // Simple console initialization
   useEffect(() => {
     console.log('✅ App initialized');
+
+    // Create global email sender function for popup windows
+    // This MUST return the promise itself, not be an async function
+    (window as any).sendEmailFromPopup = (emailData: any) => {
+      console.log('🟢🟢🟢 [v2] Global sendEmailFromPopup called with:', emailData);
+      console.log('🟢🟢🟢 [v2] Calling EmailService.sendCustomEmail...');
+
+      // Return the promise directly so popup can await it
+      return EmailService.sendCustomEmail(
+        emailData.to,
+        emailData.subject,
+        emailData.html,
+        emailData.patientId,
+        emailData.attachments
+      ).then(result => {
+        console.log('🟢🟢🟢 [v2] EmailService.sendCustomEmail result:', result);
+        return result;
+      }).catch(error => {
+        console.error('🔴🔴🔴 [v2] Global sendEmailFromPopup error:', error);
+        return { success: false, error: error.message };
+      });
+    };
+    console.log('✅✅✅ [v2] Global sendEmailFromPopup function registered at', new Date().toISOString());
   }, []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNavVisible, setIsNavVisible] = useState(true);
@@ -924,12 +949,19 @@ const App: React.FC = () => {
       component: BillingSection,
       description: 'Generate IPD, OPD, and Combined bills for patients' 
     },
-    { 
-      id: 'operations', 
-      name: '📊 Operations', 
+    {
+      id: 'operations',
+      name: '📊 Operations',
       component: OperationsLedger,
       description: 'Financial ledger perfectly synchronized with Patient List - no date mismatches!',
       permission: 'access_operations'
+    },
+    {
+      id: 'audit-log',
+      name: '🔍 Audit Log',
+      component: AdminAuditLog,
+      description: 'Complete tracking of all user modifications and activities (Admin Only)',
+      permission: 'admin_access'
     }
   ];
 
@@ -949,6 +981,8 @@ const App: React.FC = () => {
       return <ComprehensivePatientList onNavigate={setActiveTab} />;
     } else if (activeTab === 'operations') {
       return <OperationsLedger onNavigate={setActiveTab} />;
+    } else if (activeTab === 'audit-log') {
+      return <AdminAuditLog />;
     }
     return <ActiveComponent />;
   };

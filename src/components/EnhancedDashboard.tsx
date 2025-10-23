@@ -571,8 +571,14 @@ export const EnhancedDashboard: React.FC<Props> = ({ onNavigate }) => {
         // 🔍 CRITICAL FIX: Apply JavaScript filtering with same priority logic as hospitalService.ts
         let revenueData = allRevenueData || [];
         
-        // 🚫 EXCLUDE ORTHO/DR HEMANT patients from revenue calculations (matching OperationsLedger logic)
+        // 🚫 EXCLUDE ORTHO/DR HEMANT patients and IPD Bills from revenue calculations (matching OperationsLedger logic)
         revenueData = revenueData?.filter(transaction => {
+          // Exclude only IPD Bills (SERVICE with [IPD_BILL] in description)
+          // Keep DEPOSIT, ADMISSION_FEE, ADVANCE_PAYMENT and regular SERVICE transactions
+          const isIPDBill = transaction.transaction_type === 'SERVICE' &&
+                           transaction.description?.includes('[IPD_BILL]');
+          if (isIPDBill) return false;
+
           const patient = transaction.patient;
           if (!patient) return true;
 

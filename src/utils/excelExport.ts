@@ -52,9 +52,16 @@ const convertToCSV = (headers: string[], data: any[], formatters: { [key: string
   // Add data rows
   data.forEach((row, rowIndex) => {
     const values = headers.map(header => {
-      const key = header.toLowerCase().replace(/\s+/g, '_');
+      let key = header.toLowerCase().replace(/\s+/g, '_');
+
+      // Special handling for compound headers with "/"
+      // "Patient Name / Expense Name" should map to "patient_name"
+      if (header === 'Patient Name / Expense Name') {
+        key = 'patient_name';
+      }
+
       let value = row[key] || row[header] || '';
-      
+
       // Debug patient_tag specifically
       if (header === 'Patient Tag' && rowIndex === 0) {
         console.log(`🔍 Excel Export Key Mapping Debug:`, {
@@ -67,15 +74,15 @@ const convertToCSV = (headers: string[], data: any[], formatters: { [key: string
           patient_tag_direct: row.patient_tag
         });
       }
-      
+
       // Apply formatter if available
       if (formatters[key]) {
         value = formatters[key](value);
       }
-      
+
       return escapeCSVValue(String(value));
     });
-    
+
     csvRows.push(values.join(','));
   });
   

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import EmailService from '../services/emailService';
 import { ExactDateService } from '../services/exactDateService';
 import type { PatientWithRelations } from '../config/supabaseNew';
 import { Input } from './ui/Input';
@@ -175,7 +176,12 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
 
   const totalSpent = patient.totalSpent || 0;
   const visitCount = patient.visitCount || 0;
-  const transactions = patient.transactions || [];
+  // Filter out only IPD Bills (SERVICE with [IPD_BILL] in description) from history display
+  // Keep DEPOSIT, ADMISSION_FEE, ADVANCE_PAYMENT and regular SERVICE transactions
+  const transactions = (patient.transactions || []).filter(t => {
+    const isIPDBill = t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]');
+    return !isIPDBill;
+  });
 
   // Handle individual transaction selection
   const handleTransactionSelect = (transactionId: string, checked: boolean) => {
@@ -281,15 +287,34 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           });
 
           if (transaction.discount_type === 'PERCENTAGE') {
-            // Calculate original rate from discounted amount and percentage
-            originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
-            discountAmount = originalAmount - Math.abs(transaction.amount);
             discountPercentage = transaction.discount_value;
+
+            // Handle 100% discount case
+            if (transaction.discount_value >= 100) {
+              // For 100% discount, we need to extract original amount from description
+              const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+              const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+              if (originalFeeMatch) {
+                originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+              } else if (originalMatch) {
+                originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+              } else {
+                // If not in description, we can't calculate it from amount (0/0 = NaN)
+                // So we'll have to use the amount as is (which is 0)
+                originalAmount = 0;
+              }
+              discountAmount = originalAmount;
+            } else {
+              // For percentage discount < 100%, calculate original amount from net amount
+              originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+              discountAmount = originalAmount - Math.abs(transaction.amount);
+            }
           } else if (transaction.discount_type === 'AMOUNT') {
             // Discount is a fixed amount
             originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
             discountAmount = transaction.discount_value;
-            discountPercentage = (transaction.discount_value / originalAmount) * 100;
+            discountPercentage = originalAmount > 0 ? (transaction.discount_value / originalAmount) * 100 : 0;
           }
 
           logger.log('💰 DEBUG: Calculated values:', {
@@ -314,7 +339,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
             } else if (discountMatch[3]) {
               // Amount discount format: "₹50 discount"
               discountAmount = parseFloat(discountMatch[3].replace(/,/g, ''));
-              discountPercentage = (discountAmount / originalAmount) * 100;
+              discountPercentage = originalAmount > 0 ? (discountAmount / originalAmount) * 100 : 0;
             }
           } else {
             // Fallback: old format like "Original: ₹750" and "Discount: 100%"
@@ -331,19 +356,28 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           }
         }
         
+        // Ensure amounts are non-negative
+        const finalNetAmount = Math.max(0, Math.abs(transaction.amount));
+
+        // If originalAmount is 0 but we have a discount, recalculate
+        if (originalAmount === 0 && discountAmount > 0) {
+          originalAmount = discountAmount;
+        }
+
         // Clean description - remove discount details and just keep service name and date
         let cleanDescription = description
           .replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '')
+          .replace(/\s*\|\s*Original Fee:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*.*/g, '')
           .replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '')
           .trim();
-        
+
         // Add just the date to the service name
         const dateStr = new Date(transaction.created_at).toLocaleDateString('en-IN');
         cleanDescription = cleanDescription + ` (${dateStr})`;
-        
+
         return {
           description: cleanDescription,
-          amount: transaction.amount, // Net amount after discount
+          amount: finalNetAmount, // Net amount after discount (non-negative)
           rate: originalAmount, // Original amount before discount
           quantity: 1,
           discountPercentage: discountPercentage,
@@ -352,7 +386,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
       }),
       payments: selectedTransactionsData.map(transaction => ({
         mode: transaction.payment_mode || 'CASH',
-        amount: transaction.amount,
+        amount: Math.max(0, Math.abs(transaction.amount)),
         reference: transaction.id
       })),
       totals: (() => {
@@ -365,8 +399,25 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           // Same discount extraction logic as above
           if (transaction.discount_value && transaction.discount_value > 0) {
             if (transaction.discount_type === 'PERCENTAGE') {
-              originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
-              discountAmount = originalAmount - Math.abs(transaction.amount);
+              // Handle 100% discount case
+              if (transaction.discount_value >= 100) {
+                // For 100% discount, extract original amount from description
+                const originalFeeMatch = description.match(/Original Fee:\s*₹([\d,]+(?:\.\d{2})?)/);
+                const originalMatch = description.match(/Original:\s*₹([\d,]+(?:\.\d{2})?)/);
+
+                if (originalFeeMatch) {
+                  originalAmount = parseFloat(originalFeeMatch[1].replace(/,/g, ''));
+                } else if (originalMatch) {
+                  originalAmount = parseFloat(originalMatch[1].replace(/,/g, ''));
+                } else {
+                  originalAmount = 0;
+                }
+                discountAmount = originalAmount;
+              } else {
+                // For percentage discount < 100%, calculate from net amount
+                originalAmount = Math.abs(transaction.amount) / (1 - transaction.discount_value / 100);
+                discountAmount = originalAmount - Math.abs(transaction.amount);
+              }
             } else if (transaction.discount_type === 'AMOUNT') {
               originalAmount = Math.abs(transaction.amount) + transaction.discount_value;
               discountAmount = transaction.discount_value;
@@ -388,7 +439,15 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
             }
           }
 
-          return { originalAmount, discountAmount, finalAmount: transaction.amount };
+          // Ensure amounts are non-negative
+          const finalAmount = Math.max(0, Math.abs(transaction.amount));
+
+          // If originalAmount is 0 but we have a discount, recalculate
+          if (originalAmount === 0 && discountAmount > 0) {
+            originalAmount = discountAmount;
+          }
+
+          return { originalAmount, discountAmount, finalAmount };
         });
 
         const subtotal = charges.reduce((sum, c) => sum + c.originalAmount, 0);
@@ -399,8 +458,8 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           subtotal: subtotal,
           discount: discount,
           insurance: 0,
-          netAmount: netAmount,
-          amountPaid: netAmount,
+          netAmount: Math.max(0, netAmount), // Ensure total is non-negative
+          amountPaid: Math.max(0, netAmount),
           balance: 0
         };
       })(),
@@ -474,16 +533,24 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 </tr>
               </thead>
               <tbody>
-                ${data.charges.map((charge, index) => `
+                ${data.charges.map((charge, index) => {
+                  const discountDisplay = charge.discountPercentage
+                    ? `${charge.discountPercentage}% (₹${(charge.discountAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+                    : (charge.discountAmount && charge.discountAmount > 0)
+                      ? `₹${charge.discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : '-';
+
+                  return `
                   <tr>
                     <td class="border px-2 py-2 text-center">${index + 1}</td>
                     <td class="border px-2 py-2">${charge.description}</td>
                     <td class="border px-2 py-2 text-center">${charge.quantity || 1}</td>
-                    <td class="border px-2 py-2 text-right">₹${(charge.rate || charge.amount).toLocaleString()}</td>
-                    <td class="border px-2 py-2 text-right">${charge.discountPercentage ? charge.discountPercentage + '%' : '-'}</td>
-                    <td class="border px-2 py-2 text-right">₹${charge.amount.toLocaleString()}</td>
+                    <td class="border px-2 py-2 text-right">₹${(charge.rate || charge.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td class="border px-2 py-2 text-right">${discountDisplay}</td>
+                    <td class="border px-2 py-2 text-right">₹${charge.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   </tr>
-                `).join('')}
+                  `;
+                }).join('')}
               </tbody>
             </table>
             
@@ -646,12 +713,20 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                 background-color: #0056b3;
                 color: white;
               }
+              .btn-success {
+                background-color: #28a745;
+                color: white;
+              }
               .btn-secondary {
                 background-color: #6c757d;
                 color: white;
               }
               .btn:hover {
                 opacity: 0.8;
+              }
+              .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
               }
               
               /* Print styles */
@@ -691,11 +766,176 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           <body>
             <div class="print-buttons">
               <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+              <button class="btn btn-success" onclick="showEmailModal()">📧 Send Email</button>
               <button class="btn btn-secondary" onclick="window.close()">Close</button>
             </div>
+
+            <!-- Email Modal -->
+            <div id="emailModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+              <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%;">
+                <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">Send Receipt via Email</h3>
+                <input
+                  type="email"
+                  id="emailInput"
+                  placeholder="Enter email address"
+                  style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; font-size: 14px;"
+                  value="${patient.email || ''}"
+                />
+                <div id="emailStatus" style="margin-bottom: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                  <button class="btn btn-secondary" onclick="hideEmailModal()">Cancel</button>
+                  <button class="btn btn-success" onclick="sendEmailWithPDF()" id="sendBtn">Send Email</button>
+                </div>
+              </div>
+            </div>
+
             ${receiptHTML}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
             <script>
               window.focus();
+
+              // Patient and receipt data for email
+              const patient = ${JSON.stringify({
+                id: patient.id,
+                prefix: patient.prefix || '',
+                first_name: patient.first_name,
+                last_name: patient.last_name
+              })};
+              const receiptData = ${JSON.stringify(receiptData)};
+
+              function showEmailModal() {
+                document.getElementById('emailModal').style.display = 'flex';
+                document.getElementById('emailInput').focus();
+              }
+
+              function hideEmailModal() {
+                document.getElementById('emailModal').style.display = 'none';
+                document.getElementById('emailStatus').style.display = 'none';
+              }
+
+              function showStatus(message, isError) {
+                const statusEl = document.getElementById('emailStatus');
+                statusEl.textContent = message;
+                statusEl.style.display = 'block';
+                statusEl.style.backgroundColor = isError ? '#fee' : '#efe';
+                statusEl.style.color = isError ? '#c00' : '#060';
+                statusEl.style.border = '1px solid ' + (isError ? '#fcc' : '#cfc');
+              }
+
+              async function sendEmailWithPDF() {
+                const email = document.getElementById('emailInput').value.trim();
+                if (!email || !email.includes('@')) {
+                  showStatus('Please enter a valid email address', true);
+                  return;
+                }
+
+                const sendBtn = document.getElementById('sendBtn');
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
+                showStatus('Generating PDF...', false);
+
+                try {
+                  // Get the receipt element
+                  const receiptEl = document.querySelector('.receipt-template');
+                  if (!receiptEl) throw new Error('Receipt not found');
+
+                  // Generate canvas from receipt
+                  const canvas = await html2canvas(receiptEl, {
+                    scale: 1.5,  // Reduced from 2 to 1.5 to make smaller PDF
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    windowWidth: 800,
+                    windowHeight: receiptEl.scrollHeight
+                  });
+
+                  showStatus('Converting to PDF...', false);
+
+                  // Create PDF
+                  const { jsPDF } = window.jspdf;
+                  const imgWidth = 210;
+                  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                  const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                  });
+
+                  // Use JPEG with compression instead of PNG to reduce size
+                  const imgData = canvas.toDataURL('image/jpeg', 0.85);  // 85% quality JPEG
+                  pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+                  const pdfBase64 = pdf.output('datauristring').split(',')[1];
+
+                  // Check PDF size
+                  const pdfSizeKB = (pdfBase64.length * 3) / 4 / 1024;
+                  console.log('📊 PDF size:', pdfSizeKB.toFixed(2), 'KB');
+
+                  if (pdfSizeKB > 3000) {
+                    showStatus('⚠️ PDF is too large (' + pdfSizeKB.toFixed(0) + 'KB). Maximum is 3MB.', true);
+                    throw new Error('PDF attachment exceeds maximum size of 3MB');
+                  }
+
+                  showStatus('Sending email...', false);
+
+                  // Use global function from main window to avoid CORS
+                  console.log('🔵 Checking window.opener:', window.opener);
+                  console.log('🔵 Checking window.opener.sendEmailFromPopup:', window.opener ? window.opener.sendEmailFromPopup : 'no opener');
+
+                  if (window.opener && window.opener.sendEmailFromPopup) {
+                    const receiptNum = receiptData.receiptNumber;
+                    const patientFullName = (patient.prefix || '') + ' ' + patient.first_name + ' ' + patient.last_name;
+                    const patId = patient.id;
+
+                    console.log('🔵 Preparing email data:', { email, receiptNum, patientFullName });
+
+                    const result = await window.opener.sendEmailFromPopup({
+                      to: email,
+                      subject: \`Receipt #\${receiptNum} - Valant Hospital\`,
+                      html: \`
+                        <!DOCTYPE html>
+                        <html>
+                        <head><meta charset="utf-8"></head>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                          <h2>Dear \${patientFullName},</h2>
+                          <p>Thank you for choosing Valant Hospital. Please find your receipt attached.</p>
+                          <p>Best regards,<br><strong>Valant Hospital Team</strong></p>
+                        </body>
+                        </html>
+                      \`,
+                      patientId: patId,
+                      attachments: [{
+                        filename: \`receipt_\${receiptNum}.pdf\`,
+                        content: pdfBase64
+                      }]
+                    });
+
+                    console.log('🔵 Got result from sendEmailFromPopup:', result);
+                    console.log('🔵 Result type:', typeof result);
+                    console.log('🔵 Result is null/undefined?', result === null || result === undefined);
+                    console.log('🔵 Result.success:', result ? result.success : 'no result');
+                    console.log('🔵 Result.error:', result ? result.error : 'no result');
+
+                    if (!result) {
+                      throw new Error('No response from email service - result is ' + result);
+                    }
+
+                    if (result.success) {
+                      showStatus('✅ Email sent successfully to ' + email, false);
+                      setTimeout(() => hideEmailModal(), 2000);
+                    } else {
+                      throw new Error(result.error || 'Email service returned success=false with no error message');
+                    }
+                  } else {
+                    throw new Error('Unable to send email. Please ensure the main window is open.');
+                  }
+                } catch (error) {
+                  console.error('Email error:', error);
+                  showStatus('❌ Failed: ' + error.message, true);
+                  sendBtn.disabled = false;
+                  sendBtn.textContent = 'Send Email';
+                }
+              }
             </script>
           </body>
           </html>
@@ -1019,13 +1259,15 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
                         </span>
                       </td>
                       <td className="p-2">{(() => {
-                        // Clean description by removing discount information
-                        let cleanDescription = transaction.description || '';
-                        // Remove patterns like "| Original: ₹750 | Discount: 100% (₹750.00) | Net: ₹0.00"
-                        cleanDescription = cleanDescription.replace(/\s*\|\s*Original:\s*₹[\d,]+(\.\d{2})?\s*\|\s*Discount:\s*\d+%\s*\(₹[\d,]+(\.\d{2})?\)\s*\|\s*Net:\s*₹[\d,]+(\.\d{2})?.*/g, '');
-                        // Remove patterns like "(Original: ₹1,500, Discount: 10%, Final: ₹1,350)"
-                        cleanDescription = cleanDescription.replace(/\s*\(Original:\s*₹[\d,]+,\s*Discount:\s*\d+%,\s*Final:\s*₹[\d,]+\)/g, '');
-                        return cleanDescription.trim();
+                        let description = transaction.description || '';
+
+                        // For IPD bills, show only "IPD Bill" instead of long description
+                        if (transaction.transaction_type === 'SERVICE' && description.includes('[IPD_BILL]')) {
+                          return 'IPD Bill';
+                        }
+
+                        // For other transactions, show full description
+                        return description;
                       })()}</td>
                       <td className="p-2">
                         <span className="text-sm text-gray-700">
@@ -1158,6 +1400,7 @@ const PatientHistoryModal: React.FC<PatientHistoryModalProps> = ({ patient, isOp
           )}
         </>
       )}
+
     </div>
   );
 };
@@ -1393,9 +1636,13 @@ const ComprehensivePatientList: React.FC<ComprehensivePatientListProps> = ({ onN
       // Calculate totalSpent based on selected date filter
       const filteredPatientsData = patientsData.map(patient => {
         const transactions = patient.transactions || [];
-        // Always exclude CANCELLED transactions.
+        // Always exclude CANCELLED transactions and IPD Bills (SERVICE with [IPD_BILL]).
+        // Keep DEPOSIT, ADMISSION_FEE, ADVANCE_PAYMENT and regular SERVICE transactions.
         // Only apply date-range filtering when a date filter other than "all" is active.
-        let filteredTransactions = transactions.filter((t: any) => t.status !== 'CANCELLED');
+        let filteredTransactions = transactions.filter((t: any) => {
+          const isIPDBill = t.transaction_type === 'SERVICE' && t.description?.includes('[IPD_BILL]');
+          return t.status !== 'CANCELLED' && !isIPDBill;
+        });
         if (dateRange !== 'all') {
           filteredTransactions = filteredTransactions.filter((t: any) => {
             // Normalize transaction date to YYYY-MM-DD

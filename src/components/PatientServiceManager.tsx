@@ -4,6 +4,7 @@ import HospitalService from '../services/hospitalService';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { DOCTOR_DEGREES } from '../data/doctorDegrees';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PatientServiceManagerProps {
   patient: Patient;
@@ -70,6 +71,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
   onServicesUpdated
 }) => {
   const queryClient = useQueryClient();
+  const { isFrontdesk } = useAuth();
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [newService, setNewService] = useState<ServiceItem>({
     name: '',
@@ -204,15 +206,32 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         jsDateISO: new Date(finalServiceDate).toISOString()
       });
       
+      // Build description with original amount and discount info for receipts
+      let description = `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}`;
+
+      // Add discount info to description if discount exists
+      if (newService.discount > 0) {
+        description += ` | Original Fee: ₹${originalAmount.toFixed(2)} | Discount: ${newService.discount}% discount (₹${discountAmount.toFixed(2)})`;
+      }
+
+      // Add service date and notes
+      if (newService.serviceDate) {
+        description += ` [Date: ${newService.serviceDate}]`;
+      }
+      if (newService.notes) {
+        description += ` - ${newService.notes}`;
+      }
+
       const transactionData = {
         patient_id: patient.id,
         transaction_type: newService.category,
         amount: finalAmount,
-        description: `${newService.name}${newService.quantity > 1 ? ` x${newService.quantity}` : ''}${newService.serviceDate ? ` [Date: ${newService.serviceDate}]` : ''}${newService.notes ? ` - ${newService.notes}` : ''}`,
+        description: description,
         payment_mode: newService.paymentMode,
         status: 'COMPLETED' as const,
         transaction_date: finalServiceDate, // 🔍 CRITICAL FIX: Set actual transaction_date field
-        discount_percentage: newService.discount || 0,
+        discount_type: 'PERCENTAGE', // Store discount type for receipt calculation
+        discount_value: newService.discount || 0, // Store discount value
         doctor_name: newService.doctorName || null // Save the selected doctor name
       };
       
@@ -291,18 +310,33 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
         const originalAmount = editingService.price * editingService.quantity;
         const discountAmount = originalAmount * (editingService.discount / 100);
         const finalAmount = originalAmount - discountAmount;
-        
-        const updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}${editingService.serviceDate ? ` [Date: ${editingService.serviceDate}]` : ''}${editingService.notes ? ` - ${editingService.notes}` : ''}`;
-        
+
+        // Build description with original amount and discount info for receipts
+        let updatedDescription = `${editingService.name}${editingService.quantity > 1 ? ` x${editingService.quantity}` : ''}`;
+
+        // Add discount info to description if discount exists
+        if (editingService.discount > 0) {
+          updatedDescription += ` | Original Fee: ₹${originalAmount.toFixed(2)} | Discount: ${editingService.discount}% discount (₹${discountAmount.toFixed(2)})`;
+        }
+
+        // Add service date and notes
+        if (editingService.serviceDate) {
+          updatedDescription += ` [Date: ${editingService.serviceDate}]`;
+        }
+        if (editingService.notes) {
+          updatedDescription += ` - ${editingService.notes}`;
+        }
+
         console.log('📝 Updated description with date:', updatedDescription);
-        
+
         // Update the transaction in database
         await HospitalService.updateTransaction(editingService.transactionId, {
           amount: finalAmount,
           description: updatedDescription,
           payment_mode: editingService.paymentMode,
           transaction_date: finalUpdateDate, // 🔥 CRITICAL FIX: Update transaction_date field
-          discount_percentage: editingService.discount || 0,
+          discount_type: 'PERCENTAGE', // Store discount type for receipt calculation
+          discount_value: editingService.discount || 0, // Store discount value
           doctor_name: editingService.doctorName || null // Save the selected doctor name
         });
         
@@ -638,7 +672,7 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                     {editingIndex === index ? (
                       // Edit Mode
                       <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                        <div className={`grid grid-cols-1 gap-3 ${isFrontdesk() ? 'md:grid-cols-3' : 'md:grid-cols-5'}`}>
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Service Name</label>
                             <input
@@ -648,26 +682,30 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                               className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₹)</label>
-                            <input
-                              type="number"
-                              value={editingService?.price || ''}
-                              onChange={(e) => setEditingService(prev => prev ? {...prev, price: Number(e.target.value) || 0} : null)}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              min="0"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Quantity</label>
-                            <input
-                              type="number"
-                              value={editingService?.quantity || 1}
-                              onChange={(e) => setEditingService(prev => prev ? {...prev, quantity: Math.max(1, Number(e.target.value) || 1)} : null)}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              min="1"
-                            />
-                          </div>
+                          {!isFrontdesk() && (
+                            <>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Price (₹)</label>
+                                <input
+                                  type="number"
+                                  value={editingService?.price || ''}
+                                  onChange={(e) => setEditingService(prev => prev ? {...prev, price: Number(e.target.value) || 0} : null)}
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  min="0"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Quantity</label>
+                                <input
+                                  type="number"
+                                  value={editingService?.quantity || 1}
+                                  onChange={(e) => setEditingService(prev => prev ? {...prev, quantity: Math.max(1, Number(e.target.value) || 1)} : null)}
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  min="1"
+                                />
+                              </div>
+                            </>
+                          )}
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Discount (%)</label>
                             <input
@@ -746,8 +784,8 @@ const PatientServiceManager: React.FC<PatientServiceManagerProps> = ({
                             </button>
                           </div>
                         </div>
-                        {/* Amount Preview in Edit Mode */}
-                        {editingService && editingService.price > 0 && (
+                        {/* Amount Preview in Edit Mode - Hidden for Front Desk */}
+                        {!isFrontdesk() && editingService && editingService.price > 0 && (
                           <div className="text-sm text-right text-gray-600 border-t pt-2">
                             {(() => {
                               const originalAmount = editingService.price * editingService.quantity;

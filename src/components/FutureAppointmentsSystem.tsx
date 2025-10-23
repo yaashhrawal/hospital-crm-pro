@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import HospitalService from '../services/hospitalService';
+import SMSService from '../services/smsService';
 import Receipt from './Receipt';
 import type { FutureAppointment, PatientWithRelations, User, CreateAppointmentData, AppointmentWithRelations } from '../config/supabaseNew';
 import { APPOINTMENT_TYPES, APPOINTMENT_STATUS } from '../config/supabaseNew';
@@ -22,7 +23,8 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
     appointment_type: 'CONSULTATION',
     reason: '',
     estimated_cost: 0,
-    notes: ''
+    notes: '',
+    send_sms: false
   });
 
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
@@ -102,9 +104,38 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
       console.log('📝 Creating appointment with data:', appointmentData);
       await HospitalService.createAppointment(appointmentData);
       console.log('✅ Appointment created successfully');
-      
+
       toast.success('Appointment scheduled successfully!');
-      
+
+      // Send SMS confirmation if enabled and patient is selected
+      if (formData.send_sms && selectedPatient) {
+        try {
+          const patientFullName = `${selectedPatient.first_name} ${selectedPatient.last_name}`;
+          const doctor = doctors.find(d => d.id === formData.doctor_id);
+          const doctorName = doctor ? `${doctor.first_name} ${doctor.last_name}` : 'Our Doctor';
+          const formattedDate = new Date(formData.appointment_date).toLocaleDateString('en-IN');
+
+          const smsResult = await SMSService.sendAppointmentConfirmation(
+            selectedPatient.id,
+            patientFullName,
+            selectedPatient.phone,
+            formattedDate,
+            formData.appointment_time,
+            doctorName,
+            selectedPatient.patient_id // Use actual patient_id (e.g., P004063)
+          );
+
+          if (smsResult.success) {
+            toast.success('SMS confirmation sent!');
+          } else if (smsResult.error && smsResult.error !== 'SMS service not configured') {
+            toast.error('Failed to send SMS confirmation');
+          }
+        } catch (smsError) {
+          console.error('SMS sending error:', smsError);
+          // Don't block the flow if SMS fails
+        }
+      }
+
       // Reset form
       setFormData({
         patient_id: '',
@@ -115,9 +146,10 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
         appointment_type: 'CONSULTATION',
         reason: '',
         estimated_cost: 0,
-        notes: ''
+        notes: '',
+        send_sms: false
       });
-      
+
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -286,6 +318,21 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ isOpen, onClose, onSu
               placeholder="Additional notes or special instructions"
               rows={3}
             />
+          </div>
+
+          {/* SMS Checkbox */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.send_sms}
+                onChange={(e) => setFormData({ ...formData, send_sms: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Send SMS confirmation to patient
+              </span>
+            </label>
           </div>
 
           {/* Submit Button */}
