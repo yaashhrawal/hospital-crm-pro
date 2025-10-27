@@ -33,6 +33,48 @@ const getLocalDateString = () => {
   return dateString;
 };
 
+// Helper function to generate unique receipt number for deposits
+// Format: V-YYYYMMDD-XX where XX is the sequential number of deposits for that date
+const generateUniqueDepositReceiptNo = async (): Promise<string> => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateString = `${year}${month}${day}`;
+
+  // Get today's date in YYYY-MM-DD format
+  const todayDate = `${year}-${month}-${day}`;
+
+  try {
+    // Count deposits with transaction_reference starting with V-YYYYMMDD for today
+    const { data, error } = await supabase
+      .from('patient_transactions')
+      .select('transaction_reference')
+      .in('transaction_type', ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'])
+      .gte('transaction_date', todayDate)
+      .lte('transaction_date', todayDate)
+      .like('transaction_reference', `V-${dateString}%`);
+
+    if (error) {
+      logger.error('Error counting deposits for today:', error);
+      // Fallback to timestamp if query fails
+      const timestamp = String(Date.now()).slice(-2);
+      return `V-${dateString}-${timestamp}`;
+    }
+
+    // Calculate next sequential number
+    const count = data?.length || 0;
+    const nextNumber = String(count + 1).padStart(2, '0');
+
+    return `V-${dateString}-${nextNumber}`;
+  } catch (error) {
+    logger.error('Error generating receipt number:', error);
+    // Fallback to timestamp if error occurs
+    const timestamp = String(Date.now()).slice(-2);
+    return `V-${dateString}-${timestamp}`;
+  }
+};
+
 // Helper function to ensure date is in YYYY-MM-DD format for HTML date inputs
 const ensureDateFormat = (dateInput: string): string => {
   if (!dateInput) return getLocalDateString();
@@ -1527,18 +1569,22 @@ const NewIPDBillingModule: React.FC = () => {
         'FINAL formattedDepositDate': formattedDepositDate,
         'Priority': newPaymentDate ? 'User Modal Input' : billingDate ? 'Billing Screen Date' : 'System Today'
       });
-      
+
+      // Generate unique receipt number for this deposit
+      const uniqueReceiptNo = await generateUniqueDepositReceiptNo();
+      logger.log('💰 Generated unique deposit receipt number:', uniqueReceiptNo);
+
       const transactionData = {
         patient_id: selectedPatient.id,
         hospital_id: HOSPITAL_ID,
         transaction_type: 'ADMISSION_FEE',
-        description: `IPD Advance Payment - Receipt: ${newReceiptNo}${referenceNo ? ` - Ref: ${referenceNo}` : ''}`,
+        description: `IPD Advance Payment - Receipt: ${uniqueReceiptNo}${referenceNo ? ` - Ref: ${referenceNo}` : ''}`,
         amount: amount,
         payment_mode: newPaymentMode.toUpperCase(),
         doctor_id: null,
         doctor_name: null,
         status: 'COMPLETED',
-        transaction_reference: referenceNo || newReceiptNo,
+        transaction_reference: uniqueReceiptNo,
         transaction_date: formattedDepositDate,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -5037,23 +5083,23 @@ Description: ${bill.description || 'N/A'}
         <>
           {/* Initial IPD Billing List Interface */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
-          <p className="text-gray-600">Manage inpatient department bills</p>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => {
-              resetForm();
-              setShowCreateBill(true);
-            }}
-            className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create IPD Bill</span>
-          </button>
-        </div>
-      </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
+              <p className="text-gray-600">Manage inpatient department bills</p>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowCreateBill(true);
+                }}
+                className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create IPD Bill</span>
+              </button>
+            </div>
+          </div>
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border">
