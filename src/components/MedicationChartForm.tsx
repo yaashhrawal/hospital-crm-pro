@@ -49,7 +49,7 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
     diagnosisSurgery: savedData?.medicationPatientInfo?.diagnosisSurgery || '',
     diet: savedData?.medicationPatientInfo?.diet || '',
     investigation: savedData?.medicationPatientInfo?.investigation || '',
-    rbs: savedData?.medicationPatientInfo?.rbs || ''
+    remark: savedData?.medicationPatientInfo?.remark || ''
   });
 
   const [medicationEntries, setMedicationEntries] = useState<MedicationEntry[]>(
@@ -142,7 +142,7 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const medicationData = {
       patientId: patient.id,
       bedNumber,
@@ -153,6 +153,125 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
 
     onSubmit(medicationData);
     toast.success('Medication Chart saved successfully');
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+
+    if (printWindow) {
+      const fullPrintContent = generatePrintContent();
+      printWindow.document.write(fullPrintContent);
+      printWindow.document.close();
+      printWindow.focus();
+
+      setTimeout(() => {
+        try {
+          printWindow.print();
+        } catch (error) {
+          console.error('Print error:', error);
+        }
+      }, 500);
+    }
+  };
+
+  const generatePrintContent = () => {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <title>Nurses Medication Chart - ${patient.first_name} ${patient.last_name}</title>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 0.5in; size: A4 portrait; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.3; color: black; }
+    .print-header { text-align: center; border-bottom: 2px solid black; margin-bottom: 15pt; padding-bottom: 10pt; }
+    .print-header h1 { font-size: 18pt; font-weight: bold; margin-bottom: 4pt; }
+    .print-header h2 { font-size: 14pt; font-weight: bold; margin-top: 4pt; }
+    .print-header p { font-size: 9pt; margin: 2pt 0; }
+    .info-section { margin: 10pt 0; padding: 8pt; background: #f9f9f9; border: 1px solid #ccc; }
+    .info-section p { margin: 3pt 0; font-size: 9pt; }
+    .section-title { font-size: 11pt; font-weight: bold; margin: 12pt 0 6pt 0; }
+    table { width: 100%; border-collapse: collapse; margin: 10pt 0; }
+    th, td { border: 1px solid black; padding: 4pt; text-align: left; font-size: 8pt; }
+    th { background: #f0f0f0; font-weight: bold; text-align: center; }
+    .textarea-content { white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <div class="print-header">
+    <h1>VALANT HOSPITAL</h1>
+    <p>A-10, Madhav Vihar, Shobhagpura, Udaipur | +91-911911 8000</p>
+    <h2>NURSES MEDICATION CHART</h2>
+    <p>Patient: ${patient.first_name} ${patient.last_name} | Bed: ${bedNumber} | Date: ${new Date().toLocaleDateString()}</p>
+  </div>
+
+  <div class="info-section">
+    <p><strong>Patient ID:</strong> ${medicationPatientInfo.patientId || 'N/A'}</p>
+    <p><strong>IPD No:</strong> ${medicationPatientInfo.ipdNo || 'N/A'}</p>
+    <p><strong>Patient Name:</strong> ${medicationPatientInfo.patientName || 'N/A'}</p>
+    <p><strong>Age/Sex:</strong> ${medicationPatientInfo.ageSex || 'N/A'}</p>
+    <p><strong>Day of Admission:</strong> ${medicationPatientInfo.dayOfAdmission || 'N/A'}</p>
+    <p><strong>Consultant:</strong> ${medicationPatientInfo.consultant || 'N/A'}</p>
+  </div>
+
+  <div class="section-title">General Information</div>
+  <div class="info-section">
+    <p><strong>Date:</strong> ${medicationPatientInfo.date || 'N/A'}</p>
+    <p><strong>POD:</strong> ${medicationPatientInfo.pod || 'N/A'}</p>
+    <p><strong>Allergy:</strong> ${medicationPatientInfo.allergy || 'N/A'}</p>
+    <p><strong>Diagnosis/Surgery:</strong> ${medicationPatientInfo.diagnosisSurgery || 'N/A'}</p>
+    <p><strong>Diet:</strong> <span class="textarea-content">${medicationPatientInfo.diet || 'N/A'}</span></p>
+    <p><strong>Investigation:</strong> <span class="textarea-content">${medicationPatientInfo.investigation || 'N/A'}</span></p>
+    <p><strong>Remark:</strong> <span class="textarea-content">${medicationPatientInfo.remark || 'N/A'}</span></p>
+  </div>
+
+  <div class="section-title">Medication Details</div>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="3">S.N.</th>
+        <th rowspan="3">Name of Drug & Dose</th>
+        <th rowspan="3">Route</th>
+        <th colspan="8">Frequency</th>
+      </tr>
+      <tr>
+        <th colspan="2">Morning</th>
+        <th colspan="2">Noon</th>
+        <th colspan="2">Evening</th>
+        <th colspan="2">Night</th>
+      </tr>
+      <tr>
+        <th>Actual Time</th>
+        <th>Name</th>
+        <th>Actual Time</th>
+        <th>Name</th>
+        <th>Actual Time</th>
+        <th>Name</th>
+        <th>Actual Time</th>
+        <th>Name</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${medicationEntries.map(entry => `
+        <tr>
+          <td style="text-align: center;">${entry.sn}</td>
+          <td><span class="textarea-content">${entry.drugName || ''}</span></td>
+          <td>${entry.route || ''}</td>
+          <td>${entry.morningTime || ''}</td>
+          <td>${entry.morningName || ''}</td>
+          <td>${entry.noonTime || ''}</td>
+          <td>${entry.noonName || ''}</td>
+          <td>${entry.eveningTime || ''}</td>
+          <td>${entry.eveningName || ''}</td>
+          <td>${entry.nightTime || ''}</td>
+          <td>${entry.nightName || ''}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+</body>
+</html>`;
   };
 
   if (!isOpen) return null;
@@ -167,12 +286,21 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
               Patient: {patient.first_name} {patient.last_name} | Bed: {bedNumber}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Close
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+            >
+              <span>🖨️</span> Print
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -299,10 +427,10 @@ const MedicationChartForm: React.FC<MedicationChartFormProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">RBS</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Remark</label>
                 <textarea
-                  value={medicationPatientInfo.rbs}
-                  onChange={(e) => setMedicationPatientInfo(prev => ({ ...prev, rbs: e.target.value }))}
+                  value={medicationPatientInfo.remark}
+                  onChange={(e) => setMedicationPatientInfo(prev => ({ ...prev, remark: e.target.value }))}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />

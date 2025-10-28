@@ -108,7 +108,7 @@ const App: React.FC = () => {
   
   // Settings states
   const [settings, setSettings] = useState({
-    autoHideNav: true,
+    autoHideNav: false,
     soundNotifications: false,
     timeZone: 'Asia/Kolkata (IST)',
     language: 'English'
@@ -991,7 +991,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Main Header - Always Visible */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-6">
           {/* Header Content - Always Visible */}
           <div className="flex justify-between items-center py-3">
             <div className="flex items-center space-x-4">
@@ -1107,21 +1107,21 @@ const App: React.FC = () => {
       </div>
 
       {/* Navigation Tabs - Auto-hide Section */}
-      <div 
+      <div
         className="bg-white border-b border-gray-200 relative"
         onMouseEnter={handleNavMouseEnter}
         onMouseLeave={handleNavMouseLeave}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full">
           {/* All Navigation Tabs in Single Row */}
-          <div 
+          <div
             className={`transition-all duration-500 ease-in-out transform ${
-              (isNavVisible || !settings.autoHideNav) 
-                ? 'translate-y-0 opacity-100 max-h-20' 
+              (isNavVisible || !settings.autoHideNav)
+                ? 'translate-y-0 opacity-100 max-h-20'
                 : '-translate-y-full opacity-0 max-h-0 overflow-hidden'
             }`}
           >
-            <nav className="flex justify-center space-x-4 py-3 overflow-x-auto">
+            <nav className="flex justify-between gap-1 py-3 px-6">
               {filteredTabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -1136,7 +1136,7 @@ const App: React.FC = () => {
                     }, 3000);
                     setNavHideTimer(timer);
                   }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     activeTab === tab.id
                       ? 'bg-blue-100 text-blue-700 border border-blue-200'
                       : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'

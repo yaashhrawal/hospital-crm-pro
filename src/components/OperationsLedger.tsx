@@ -1021,7 +1021,7 @@ const OperationsLedger: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="w-full px-6 py-6">
       {/* Print CSS */}
       <style>{`
         @media print {
@@ -1112,9 +1112,9 @@ const OperationsLedger: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
-          <div>
+      <div className="bg-white p-4 rounded-lg shadow-sm border mb-6 overflow-x-hidden">
+        <div className="flex flex-wrap gap-4">
+          <div className="min-w-[150px] flex-1">
             <ModernDatePicker
               label="From Date"
               value={dateFrom}
@@ -1123,8 +1123,8 @@ const OperationsLedger: React.FC = () => {
               className="w-full"
             />
           </div>
-          
-          <div>
+
+          <div className="min-w-[150px] flex-1">
             <ModernDatePicker
               label="To Date"
               value={dateTo}
@@ -1135,7 +1135,7 @@ const OperationsLedger: React.FC = () => {
             />
           </div>
 
-          <div>
+          <div className="min-w-[140px] flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
             <select
               value={filterType}
@@ -1149,7 +1149,7 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div>
+          <div className="min-w-[140px] flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
             <select
               value={filterPaymentMode}
@@ -1162,7 +1162,7 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div>
+          <div className="min-w-[130px] flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Patient Tag</label>
             <select
               value={filterPatientTag}
@@ -1178,7 +1178,7 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div>
+          <div className="min-w-[160px] flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Doctor/Consultant</label>
             <select
               value={filterDoctor}
@@ -1194,7 +1194,7 @@ const OperationsLedger: React.FC = () => {
             </select>
           </div>
 
-          <div>
+          <div className="min-w-[140px] flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
             <div className="flex space-x-1">
               <select
@@ -1229,7 +1229,7 @@ const OperationsLedger: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-end gap-3 ml-4">
+          <div className="flex items-end gap-2 min-w-fit">
             <button
               onClick={loadLedgerEntries}
               disabled={loading}
@@ -1310,21 +1310,21 @@ const OperationsLedger: React.FC = () => {
           </div>
         ) : sortedEntries.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full" style={{ tableLayout: 'fixed' }}>
+            <table className="w-full" style={{ tableLayout: 'auto', minWidth: '100%' }}>
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '50px' }}>S.No</th>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Date & Time</th>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Patient ID</th>
-                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '120px' }}>Patient Name / Expense Name</th>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Age & Gender</th>
-                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '100px' }}>Consultant</th>
-                  <th className="text-left p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Department</th>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Type</th>
-                  <th className="text-center p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Payment Mode</th>
-                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '80px' }}>Amount (₹)</th>
-                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '70px' }}>Discount (₹)</th>
-                  <th className="text-right p-3 font-semibold text-gray-700" style={{ width: '90px' }}>Net Revenue (₹)</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">S.No</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">Date & Time</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">Patient ID</th>
+                  <th className="text-left p-2 font-semibold text-gray-700 text-xs">Patient Name / Expense Name</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">Age & Gender</th>
+                  <th className="text-left p-2 font-semibold text-gray-700 text-xs">Consultant</th>
+                  <th className="text-left p-2 font-semibold text-gray-700 text-xs">Department</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">Type</th>
+                  <th className="text-center p-2 font-semibold text-gray-700 text-xs">Payment Mode</th>
+                  <th className="text-right p-2 font-semibold text-gray-700 text-xs">Amount (₹)</th>
+                  <th className="text-right p-2 font-semibold text-gray-700 text-xs">Discount (₹)</th>
+                  <th className="text-right p-2 font-semibold text-gray-700 text-xs">Net Revenue (₹)</th>
                 </tr>
               </thead>
               <tbody>

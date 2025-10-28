@@ -5,7 +5,10 @@ import {
   FileText,
   Users,
   Clock,
-  Search
+  Search,
+  Printer,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import NewIPDBillingModule from './billing/NewIPDBillingModule';
 import IPDSummaryModule from './billing/IPDSummaryModule';
@@ -194,10 +197,35 @@ const BillingSection: React.FC = () => {
       setSelectedPatient(patient);
       logger.log('🔍 Loading details for patient:', patient.patientName, 'ID:', patient.patientId);
 
-      // Load deposits for this patient using the same approach as NewIPDBillingModule
+      // Load deposits for this patient with patient details (same as CombinedBillingModule)
       const { data: depositsData, error: depositsError } = await supabase
         .from('patient_transactions')
-        .select('id, amount, transaction_date, created_at, payment_mode, description, status, transaction_type')
+        .select(`
+          id,
+          amount,
+          transaction_date,
+          created_at,
+          payment_mode,
+          description,
+          status,
+          transaction_type,
+          transaction_reference,
+          patient_id,
+          patients (
+            id,
+            patient_id,
+            first_name,
+            last_name,
+            phone,
+            age,
+            gender,
+            assigned_doctor,
+            patient_admissions (
+              admission_date,
+              discharge_date
+            )
+          )
+        `)
         .eq('patient_id', patient.patientId)
         .in('transaction_type', ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'])
         .order('created_at', { ascending: false });
@@ -235,6 +263,189 @@ const BillingSection: React.FC = () => {
       logger.error('❌ Error loading patient details:', error);
       toast.error('Failed to load patient details: ' + error.message);
     }
+  };
+
+  // Deposit action handlers
+  const handlePrintDeposit = (deposit: PatientDepositDetail) => {
+    // Convert image to base64
+    const convertImageToBase64 = () => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject('Could not get canvas context');
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const dataURL = canvas.toDataURL('image/png');
+          resolve(dataURL);
+        };
+        img.onerror = function() {
+          resolve('');
+        };
+        img.src = '/Receipt2.png';
+      });
+    };
+
+    const createPrintWindow = (base64Image: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Please allow popups to print the receipt');
+        return;
+      }
+
+      // Use the unique receipt number that was generated when the deposit was created
+      const receiptNo = deposit.transaction_reference || deposit.id;
+
+      // Get patient data from deposit (exactly as in CombinedBillingModule)
+      const patientData = (deposit as any).patients || (deposit as any).patient;
+
+      const billHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Deposit Receipt - ${receiptNo}</title>
+            <style>
+              @page {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                size: A3 portrait;
+                width: 297mm;
+                height: 420mm;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                width: 297mm;
+                height: 420mm;
+                position: relative;
+                background: white;
+              }
+              .background-image {
+                position: absolute;
+                top: 0;
+                left: -10mm;
+                width: 317mm;
+                height: 420mm;
+                z-index: 0;
+                pointer-events: none;
+              }
+              .content {
+                position: relative;
+                z-index: 1;
+                padding: 300px 30px 0 30px;
+                color: black;
+              }
+              @media print {
+                body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              }
+            </style>
+          </head>
+          <body>
+            ${base64Image ? `<img src="${base64Image}" class="background-image" />` : ''}
+            <div class="content">
+              <!-- Patient Information (exactly as in CombinedBillingModule) -->
+              <div style="margin-bottom: 30px;">
+                <h3 style="font-weight: bold; margin-bottom: 15px; color: black; font-size: 18px; text-decoration: underline;">Patient Information</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; font-size: 16px;">
+                  <div>
+                    <p style="color: black; margin: 6px 0;"><strong>PATIENT ID:</strong> ${patientData?.patient_id || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>PATIENT NAME:</strong> ${patientData ? `${patientData.first_name} ${patientData.last_name || ''}`.trim() : 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>AGE/SEX:</strong> ${patientData?.age || 'N/A'} years / ${patientData?.gender || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>MOBILE:</strong> ${patientData?.phone || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>DR NAME:</strong> ${patientData?.assigned_doctor || 'N/A'}</p>
+                    <p style="color: black; margin: 6px 0;"><strong>ADMISSION DATE:</strong> ${patientData?.patient_admissions?.[0]?.admission_date ? new Date(patientData.patient_admissions[0].admission_date).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Deposit Details (exactly as in CombinedBillingModule) -->
+              <div style="margin-bottom: 25px;">
+                <h3 style="font-weight: bold; margin-bottom: 15px; color: black; font-size: 18px; text-decoration: underline;">Deposit Details</h3>
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black;">
+                  <thead>
+                    <tr style="background-color: #f5f5f5;">
+                      <th style="border: 1px solid black; padding: 12px; text-align: left; color: black; font-weight: bold; font-size: 16px;">Description</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Payment Mode</th>
+                      <th style="border: 1px solid black; padding: 12px; text-align: center; color: black; font-weight: bold; font-size: 16px;">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style="border: 1px solid black; padding: 10px; color: black; font-size: 14px;">${deposit.description || 'IPD Advance Payment'}</td>
+                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px;">${deposit.payment_mode || 'CASH'}</td>
+                      <td style="border: 1px solid black; padding: 10px; text-align: center; color: black; font-size: 14px; font-weight: bold;">₹${deposit.amount?.toFixed(2) || '0.00'}</td>
+                    </tr>
+                    <tr style="background-color: #f0f0f0;">
+                      <td colspan="3" style="border: 1px solid black; padding: 15px; text-align: center; color: black; font-weight: bold; font-size: 18px;">
+                        Total Deposit: ₹${deposit.amount?.toFixed(2) || '0.00'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(billHTML);
+      printWindow.document.close();
+    };
+
+    convertImageToBase64().then((base64Image) => {
+      createPrintWindow(base64Image as string);
+    }).catch((error) => {
+      logger.error('Failed to load Receipt2.png:', error);
+      createPrintWindow('');
+    });
+  };
+
+  const handleDeleteDeposit = async (deposit: PatientDepositDetail) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this deposit?\n\nReceipt No: ${deposit.transaction_reference || deposit.id}\nAmount: ₹${deposit.amount.toLocaleString()}\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      logger.log('🗑️ Deleting deposit:', deposit.id);
+
+      const { error } = await supabase
+        .from('patient_transactions')
+        .delete()
+        .eq('id', deposit.id);
+
+      if (error) {
+        logger.error('❌ Error deleting deposit:', error);
+        toast.error(`Failed to delete deposit: ${error.message}`);
+        return;
+      }
+
+      logger.log('✅ Deposit deleted successfully:', deposit.id);
+      toast.success(`Deposit deleted successfully!`);
+
+      // Reload patient details to refresh the deposit list
+      if (selectedPatient) {
+        await loadPatientDetails(selectedPatient);
+      }
+    } catch (error: any) {
+      logger.error('❌ Error in handleDeleteDeposit:', error);
+      toast.error(`Failed to delete deposit: ${error?.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleEditDeposit = (deposit: PatientDepositDetail) => {
+    // For now, show a message that edit functionality is coming
+    toast.info('Edit functionality: You can edit amount, payment mode, and description for this deposit');
+    logger.log('Edit deposit:', deposit);
   };
 
   const handleSort = (column: typeof sortBy) => {
@@ -302,7 +513,7 @@ const BillingSection: React.FC = () => {
             { id: 'dashboard', name: 'Dashboard', icon: DollarSign },
             { id: 'ipd', name: 'IPD Billing', icon: Users },
             { id: 'ipd-summary', name: 'IPD Summary', icon: FileText },
-            { id: 'combined', name: 'Combined Bills', icon: Clock }
+            { id: 'combined', name: 'Deposits', icon: Clock }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -491,7 +702,7 @@ const BillingSection: React.FC = () => {
       {/* IPD Summary Module */}
       {activeTab === 'ipd-summary' && <IPDSummaryModule />}
 
-      {/* Combined Billing Module */}
+      {/* Deposits Module */}
       {activeTab === 'combined' && <CombinedBillingModule />}
 
       {/* Patient Detail Modal */}
@@ -565,13 +776,28 @@ const BillingSection: React.FC = () => {
                               </div>
                             </div>
                             <div className="flex space-x-2">
-                              <button className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded">
+                              <button
+                                onClick={() => handleEditDeposit(deposit)}
+                                className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded flex items-center gap-1"
+                                title="Edit Deposit"
+                              >
+                                <Edit2 className="h-3 w-3" />
                                 Edit
                               </button>
-                              <button className="text-red-600 hover:text-red-800 text-xs px-2 py-1 bg-red-50 rounded">
+                              <button
+                                onClick={() => handleDeleteDeposit(deposit)}
+                                className="text-red-600 hover:text-red-800 text-xs px-2 py-1 bg-red-50 rounded flex items-center gap-1"
+                                title="Delete Deposit"
+                              >
+                                <Trash2 className="h-3 w-3" />
                                 Delete
                               </button>
-                              <button className="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded">
+                              <button
+                                onClick={() => handlePrintDeposit(deposit)}
+                                className="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded flex items-center gap-1"
+                                title="Print Receipt"
+                              >
+                                <Printer className="h-3 w-3" />
                                 Print
                               </button>
                             </div>

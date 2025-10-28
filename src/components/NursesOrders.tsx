@@ -138,7 +138,7 @@ const NursesOrders: React.FC<NursesOrdersProps> = ({
     diagnosisSurgery: '',
     diet: '',
     investigation: '',
-    rbs: ''
+    remark: ''
   });
 
   const [medicationEntries, setMedicationEntries] = useState<MedicationEntry[]>([{
@@ -1190,10 +1190,10 @@ const NursesOrders: React.FC<NursesOrdersProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">RBS</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Remark</label>
                     <textarea
-                      value={medicationPatientInfo.rbs}
-                      onChange={(e) => setMedicationPatientInfo(prev => ({ ...prev, rbs: e.target.value }))}
+                      value={medicationPatientInfo.remark}
+                      onChange={(e) => setMedicationPatientInfo(prev => ({ ...prev, remark: e.target.value }))}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />

@@ -33,6 +33,48 @@ const getLocalDateString = () => {
   return dateString;
 };
 
+// Helper function to generate unique receipt number for deposits
+// Format: V-YYYYMMDD-XX where XX is the sequential number of deposits for that date
+const generateUniqueDepositReceiptNo = async (): Promise<string> => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateString = `${year}${month}${day}`;
+
+  // Get today's date in YYYY-MM-DD format
+  const todayDate = `${year}-${month}-${day}`;
+
+  try {
+    // Count deposits with transaction_reference starting with V-YYYYMMDD for today
+    const { data, error } = await supabase
+      .from('patient_transactions')
+      .select('transaction_reference')
+      .in('transaction_type', ['ADMISSION_FEE', 'DEPOSIT', 'ADVANCE_PAYMENT'])
+      .gte('transaction_date', todayDate)
+      .lte('transaction_date', todayDate)
+      .like('transaction_reference', `V-${dateString}%`);
+
+    if (error) {
+      logger.error('Error counting deposits for today:', error);
+      // Fallback to timestamp if query fails
+      const timestamp = String(Date.now()).slice(-2);
+      return `V-${dateString}-${timestamp}`;
+    }
+
+    // Calculate next sequential number
+    const count = data?.length || 0;
+    const nextNumber = String(count + 1).padStart(2, '0');
+
+    return `V-${dateString}-${nextNumber}`;
+  } catch (error) {
+    logger.error('Error generating receipt number:', error);
+    // Fallback to timestamp if error occurs
+    const timestamp = String(Date.now()).slice(-2);
+    return `V-${dateString}-${timestamp}`;
+  }
+};
+
 // Helper function to ensure date is in YYYY-MM-DD format for HTML date inputs
 const ensureDateFormat = (dateInput: string): string => {
   if (!dateInput) return getLocalDateString();
@@ -67,7 +109,6 @@ const NewIPDBillingModule: React.FC = () => {
   // Main state for showing/hiding the IPD bill creation form
   const [showCreateBill, setShowCreateBill] = useState(false);
   const [editingBill, setEditingBill] = useState<any>(null);
-  const [activeSection, setActiveSection] = useState<'bill' | 'deposit'>('bill');
 
   const [patients, setPatients] = useState<PatientWithRelations[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientWithRelations | null>(null);
@@ -1527,18 +1568,22 @@ const NewIPDBillingModule: React.FC = () => {
         'FINAL formattedDepositDate': formattedDepositDate,
         'Priority': newPaymentDate ? 'User Modal Input' : billingDate ? 'Billing Screen Date' : 'System Today'
       });
-      
+
+      // Generate unique receipt number for this deposit
+      const uniqueReceiptNo = await generateUniqueDepositReceiptNo();
+      logger.log('💰 Generated unique deposit receipt number:', uniqueReceiptNo);
+
       const transactionData = {
         patient_id: selectedPatient.id,
         hospital_id: HOSPITAL_ID,
         transaction_type: 'ADMISSION_FEE',
-        description: `IPD Advance Payment - Receipt: ${newReceiptNo}${referenceNo ? ` - Ref: ${referenceNo}` : ''}`,
+        description: `IPD Advance Payment - Receipt: ${uniqueReceiptNo}${referenceNo ? ` - Ref: ${referenceNo}` : ''}`,
         amount: amount,
         payment_mode: newPaymentMode.toUpperCase(),
         doctor_id: null,
         doctor_name: null,
         status: 'COMPLETED',
-        transaction_reference: referenceNo || newReceiptNo,
+        transaction_reference: uniqueReceiptNo,
         transaction_date: formattedDepositDate,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -5001,59 +5046,26 @@ Description: ${bill.description || 'N/A'}
       `}</style>
 
       {/* Tab Navigation */}
-      <div className="bg-white rounded-lg shadow-sm border mb-6">
-        <div className="flex border-b">
-          <button
-            onClick={() => setActiveSection('bill')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-              activeSection === 'bill'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-2xl">📋</span>
-              <span className="text-lg">IPD Billing</span>
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveSection('deposit')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-              activeSection === 'deposit'
-                ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-2xl">💰</span>
-              <span className="text-lg">Deposit Management</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
       {/* IPD Billing Section */}
-      {activeSection === 'bill' && (
-        <>
           {/* Initial IPD Billing List Interface */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
-          <p className="text-gray-600">Manage inpatient department bills</p>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => {
-              resetForm();
-              setShowCreateBill(true);
-            }}
-            className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create IPD Bill</span>
-          </button>
-        </div>
-      </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">IPD Billing</h2>
+              <p className="text-gray-600">Manage inpatient department bills</p>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowCreateBill(true);
+                }}
+                className="mt-4 md:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create IPD Bill</span>
+              </button>
+            </div>
+          </div>
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border">
@@ -6024,200 +6036,6 @@ Description: ${bill.description || 'N/A'}
           </div>
         </div>
       )}
-        </>
-      )}
-
-      {/* Deposit Management Section */}
-      {activeSection === 'deposit' && (
-        <>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg shadow-md border-2 border-green-200">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">💰 Deposit Management</h2>
-              <p className="text-lg text-gray-700 mt-1">Manage patient advance deposits and payments</p>
-            </div>
-            <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
-              <button
-                onClick={handleExportHistory}
-                disabled={!selectedPatient || depositHistory.length === 0}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-semibold text-base"
-              >
-                <span>📊 Export CSV</span>
-              </button>
-              <button
-                onClick={handlePrintSummary}
-                disabled={!selectedPatient || depositHistory.length === 0}
-                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-semibold text-base"
-              >
-                <Printer className="h-5 w-5" />
-                <span>Print Summary</span>
-              </button>
-              <button
-                onClick={() => {
-                  if (!selectedPatient) {
-                    toast.error('Please select a patient first');
-                    return;
-                  }
-                  setShowAddDepositModal(true);
-                }}
-                className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 flex items-center space-x-2 transition-all shadow-lg hover:shadow-xl font-bold text-lg border-2 border-green-400"
-              >
-                <Plus className="h-6 w-6" />
-                <span>CREATE DEPOSIT</span>
-              </button>
-            </div>
-          </div>
-
-      {/* Deposit Search and Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border">
-        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search by patient name, ID, or receipt number..."
-              value={patientSearchTerm}
-              onChange={(e) => setPatientSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-          <button
-            onClick={() => setShowPatientModal(true)}
-            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 transition-colors whitespace-nowrap"
-          >
-            <Search className="h-4 w-4" />
-            <span>Select Patient</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Deposits Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        {!selectedPatient ? (
-          <div className="text-center py-16 bg-gray-50">
-            <div className="text-6xl mb-4">💰</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Patient Selected</h3>
-            <p className="text-gray-600 mb-4">Please select a patient to view and manage their deposits</p>
-            <button
-              onClick={() => setShowPatientModal(true)}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center space-x-2 transition-colors"
-            >
-              <Search className="h-5 w-5" />
-              <span>Select Patient</span>
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Selected Patient Info */}
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-800">
-                    {selectedPatient.first_name} {selectedPatient.last_name}
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    Patient ID: {selectedPatient.patient_id} | Phone: {selectedPatient.phone} | Age: {selectedPatient.age} | Gender: {selectedPatient.gender}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-green-600">₹{advancePayments.toFixed(2)}</div>
-                  <div className="text-xs text-gray-600">Total Deposits ({depositHistory.length})</div>
-                </div>
-              </div>
-            </div>
-
-            {depositHistory.length === 0 ? (
-              <div className="text-center py-16 bg-gray-50">
-                <div className="text-6xl mb-4">📋</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Deposits Found</h3>
-                <p className="text-gray-600 mb-4">This patient has no advance deposits recorded</p>
-                <button
-                  onClick={() => setShowAddDepositModal(true)}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center space-x-2 transition-colors"
-                >
-                  <Plus className="h-5 w-5" />
-                  <span>Create First Deposit</span>
-                </button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt No</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Mode</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {depositHistory.map((deposit, index) => (
-                      <tr key={deposit.id || index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{deposit.receiptNo}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{deposit.date}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-green-600">₹{deposit.amount?.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{deposit.paymentMode || 'CASH'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{deposit.reference || '-'}</td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              onClick={() => handleViewReceipt(deposit.receiptNo)}
-                              className="text-blue-600 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-50 transition-colors text-xs"
-                              title="View Receipt"
-                            >
-                              View
-                            </button>
-                            <button
-                              onClick={() => handlePrintReceipt(deposit.receiptNo)}
-                              className="text-green-600 hover:text-green-900 px-2 py-1 rounded hover:bg-green-50 transition-colors text-xs flex items-center space-x-1"
-                              title="Print Receipt"
-                            >
-                              <Printer className="h-3 w-3" />
-                              <span>Print</span>
-                            </button>
-                            <button
-                              onClick={() => handleEditDeposit(deposit)}
-                              className="text-orange-600 hover:text-orange-900 px-2 py-1 rounded hover:bg-orange-50 transition-colors text-xs"
-                              title="Edit Deposit"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete deposit ${deposit.receiptNo}?`)) {
-                                  deleteAdvancePayment(deposit.id);
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-900 px-2 py-1 rounded hover:bg-red-50 transition-colors text-xs"
-                              title="Delete Deposit"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <td colSpan={2} className="px-4 py-3 text-sm font-bold text-gray-700">
-                        Total Deposits ({depositHistory.length})
-                      </td>
-                      <td className="px-4 py-3 text-sm font-bold text-green-700">
-                        ₹{advancePayments.toFixed(2)}
-                      </td>
-                      <td colSpan={3}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-        </>
-      )}
 
       {/* Patient Modal */}
       {showPatientModal && (
@@ -6389,7 +6207,7 @@ Description: ${bill.description || 'N/A'}
         className="print-only"
       >
         <div className="print-header">
-          <h1>{activeSection === 'deposit' ? 'IPD DEPOSIT' : 'IPD BILL'}</h1>
+          <h1>IPD BILL</h1>
           <h2>Raj Hospital & Maternity Center</h2>
           <p>123 Medical Street, Healthcare City - 123456</p>
           <p>Phone: +91 9876543210 | Email: info@rajhospital.com</p>
